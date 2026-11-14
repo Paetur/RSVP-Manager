@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 const { chromium } = require("playwright"),
   assert = require("node:assert/strict");
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
@@ -85,7 +86,7 @@ for(const h of fixtures.households.filter(h=>h.id!==h1&&!fixtures.guests.some(g=
         fixtures.relation_groups[0].sort_order = -1;
         fixtures.households.find((h) => h.id === "root-a").sort_order = 20;
       });
-      await page.locator("#refreshButton").click();
+      await refreshFixture(page);
       await page.waitForFunction(
         () => !document.querySelector("#refreshButton").disabled,
       );

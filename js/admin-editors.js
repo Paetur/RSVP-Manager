@@ -191,7 +191,7 @@
       }
       const card = languageRow
         ? box
-        : policy[1] || form.dataset.translationCard
+        : policy[1] || form.dataset.translationCard || form.dataset.headerEditor
           ? form.closest("[data-settings-card]")
           : null;
       const header = card?.querySelector(":scope>.settings-card-heading");

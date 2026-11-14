@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 // Actual UI with synthetic APIs only. No live accounts or event data.
 const { chromium } = require("playwright");
 const fs = require("node:fs"),
@@ -184,7 +185,7 @@ const oldGroupRpc=client.rpc;client.rpc=async(name,a)=>{
         fixtures.guests[0].archived_at = "2026-11-12T10:00:00Z";
       });
       await page.locator("#showArchived").check();
-      await page.locator("#refreshButton").click();
+      await refreshFixture(page);
       await page.waitForFunction(
         () => !document.querySelector("#refreshButton").disabled,
       );

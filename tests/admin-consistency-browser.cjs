@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 const {openBox}=require('./helpers/local-edit-ui.cjs');
 const {chromium,webkit}=require('playwright');
 const {mock}=require('./helpers/admin-fixture.cjs');
@@ -188,7 +189,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
   assert.equal(JSON.parse(fs.readFileSync(path.join(temporary,'locales/de/interface.json'),'utf8')).messages.households,translated);
  }finally{fs.rmSync(temporary,{recursive:true,force:true});}
  await page.locator('#mainSectionToggle').click();await selectWorkTab(page,'food');
- await page.evaluate(()=>{window.__fixtures.food_items[0].description_en='Keep chilled. '.repeat(40);});await page.locator('#refreshButton').click();await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
+ await page.evaluate(()=>{window.__fixtures.food_items[0].description_en='Keep chilled. '.repeat(40);});await refreshFixture(page);await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
  await item.evaluate(node=>node.open=false);
  const more=item.locator('.comment-more');await more.waitFor();await more.click();assert.equal(await item.evaluate(node=>node.open),false,'reading comments does not expand editor');
  assert.equal(await more.getAttribute('aria-expanded'),'true');

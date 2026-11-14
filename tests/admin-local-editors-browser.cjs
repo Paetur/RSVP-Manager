@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 const fs = require("node:fs"),
   path = require("node:path");
 const { chromium } = require("playwright"),
@@ -126,7 +127,7 @@ const { server, mock, extra, stageExtra, out } =
       for (const k in window.__accessPermissions.sections)
         window.__accessPermissions.sections[k] = "view";
     });
-    await page.locator("#refreshButton").click();
+    await refreshFixture(page);
     await page.waitForFunction(
       () => !document.getElementById("refreshButton").disabled,
     );

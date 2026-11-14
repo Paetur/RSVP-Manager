@@ -1269,6 +1269,8 @@
     "test_invitation_sharing": "Teilen testen",
     "test_invitation_sharing_help": "Verwendet Beispielnamen und einen nicht funktionierenden Einladungslink. Es wird kein Haushaltscode oder Versanddatensatz erstellt. Wählen Sie sich selbst als Empfänger.",
     "test_invitation_sharing_complete": "Testfreigabe abgeschlossen. Prüfen Sie Bild, Text und Beispiellink in Ihrer App.",
-    "sample_invitation_event": "Beispielveranstaltung"
+    "sample_invitation_event": "Beispielveranstaltung",
+    "test_invitation_preview_help": "Verwendet Beispielnamen und den Vorschau-Link zur Startseite. Es wird kein Haushaltscode oder Versanddatensatz erstellt. Wählen Sie sich selbst als Empfänger.",
+    "test_invitation_preview_complete": "Testfreigabe abgeschlossen. Prüfen Sie Bild, Text und Vorschau-Link in Ihrer App."
   }
 }

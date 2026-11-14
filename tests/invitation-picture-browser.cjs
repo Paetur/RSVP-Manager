@@ -8,8 +8,8 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const browser = await chromium.launch();
   try {
-    for (const width of [390, 1160]) {
-      const page = await browser.newPage({ viewport: { width, height: 950 } });
+    for (const width of [320, 390, 1160]) {
+      const page = await browser.newPage({ viewport: { width, height: 950 }, hasTouch: width < 700, isMobile: width < 700 });
       const picture = await page.evaluate(() => {
         const canvas = document.createElement("canvas"); canvas.width = 720; canvas.height = 420;
         const context = canvas.getContext("2d");
@@ -50,6 +50,7 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
           return pictureRpc(name,args);
         };
       `;
+      await page.route("**/version.json", (route) => route.fulfill({ json: { version: "0.9.0-alpha.5" } }));
       await page.route("**/supabase.min.js", (route) => route.fulfill({ contentType: "text/javascript", body: mock + "\n" + extra + "\n" + seed }));
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
       await page.waitForFunction(() => document.querySelectorAll("#statsGrid .stat-card").length === 4);
@@ -77,9 +78,9 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
       await section.getByRole("button", { name: "Test sharing", exact: true }).click();
       const testDialog = page.getByRole("dialog", { name: "Test sharing", exact: true });
       await testDialog.getByRole("button", { name: "Share picture and text", exact: true }).click();
-      await testDialog.getByText("Test share completed. Check the picture, text and example link in your app.", { exact: true }).waitFor();
+      await testDialog.getByText("Test share completed. Check the picture, text and preview link in your app.", { exact: true }).waitFor();
       const testPayload = await page.evaluate(() => window.__pictureShares.at(-1));
-      assert.equal(testPayload.text, "Hello https://example.invalid/");
+      assert.equal(testPayload.text, "Hello " + new URL("/#guest-preview=landing", page.url()).href);
       assert(testPayload.files.length === 1 && testPayload.activation);
       assert.equal(await page.evaluate(() => window.__calls.some((c) => ["admin_authorize_device_send", "admin_record_share_handoff", "admin_record_delivery_sent"].includes(c.name))), false);
       assert.equal(await page.evaluate(() => fixtures.event_settings[0].is_published), false);
@@ -91,6 +92,35 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
       await section.getByRole("button", { name: "Save template", exact: true }).click();
       await section.locator(".local-editor-summary img").waitFor();
       assert(await page.evaluate(() => window.__pictureSaves.at(-1).p_image.image.startsWith("data:image/jpeg;base64,")));
+      assert.equal(await section.locator("form").isVisible(), false);
+      await section.getByRole("button", { name: "Test sharing", exact: true }).click();
+      await testDialog.getByRole("button", { name: "Share picture and text", exact: true }).click();
+      await testDialog.getByText("Test share completed. Check the picture, text and preview link in your app.", { exact: true }).waitFor();
+      assert.equal((await page.evaluate(() => window.__pictureShares.at(-1))).text, "Hello " + new URL("/#guest-preview=landing", page.url()).href);
+      await testDialog.getByRole("button", { name: "Close", exact: true }).click();
+      await page.waitForFunction(() => document.getElementById("adminVersion")?.textContent === "v0.9.0-alpha.5");
+      assert.equal(await page.locator("#adminVersion").textContent(), "v0.9.0-alpha.5");
+      assert.equal(await page.locator("#adminVersion").isVisible(), width > 700);
+      const headerGeometry = await page.locator("header.topbar").evaluate((header) => {
+        const rectangles = Array.from(header.querySelectorAll("button,a.admin-icon-btn")).filter((node) => node.getClientRects().length).map((node) => node.getBoundingClientRect());
+        const collisions = rectangles.some((a, i) => rectangles.slice(i + 1).some((b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1));
+        return { collisions, singleRow: rectangles.every((r) => Math.abs(r.top - rectangles[0].top) < 1), withinViewport: rectangles.every((r) => r.left >= 0 && r.right <= innerWidth), touchSize: rectangles.every((r) => r.width >= 43 && r.height >= 43) };
+      });
+      assert.equal(headerGeometry.collisions, false, "toolbar controls cannot overlap");
+      assert.equal(headerGeometry.withinViewport, true, "toolbar controls fit the phone width");
+      if (width < 700) {
+        assert.equal(headerGeometry.touchSize, true, "phone controls retain 44px tap areas");
+        assert.equal(headerGeometry.singleRow, true, "phone header fits on one line");
+        for (const id of ["refreshButton", "themeToggle", "guestPreviewButton"])
+          assert.equal(await page.locator("#" + id).isVisible(), false);
+      }
+      if (process.env.RSVP_HEADER_PREVIEW_DIR) {
+        fs.mkdirSync(process.env.RSVP_HEADER_PREVIEW_DIR, { recursive: true });
+        await page.screenshot({ path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/admin-template-${width}.png`, fullPage: true });
+        await page.locator("header.topbar").screenshot({ path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/admin-header-${width}.png` });
+        await section.screenshot({ path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/template-read-${width}.png` });
+        await page.locator(".admin-topbar-actions").screenshot({ path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/header-detail-${width}.png` });
+      }
       await open();
       await section.getByRole("button", { name: "Remove picture", exact: true }).click();
       assert.equal(await value().inputValue(), "null");
@@ -153,6 +183,22 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
       assert.equal(await page.evaluate(() => window.__pictureHandoffs), before, "cancelled share never logs a handoff");
       assert.equal(await page.evaluate(() => window.__calls.some((c) => c.name === "admin_record_delivery_sent")), false);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      if (width === 390) {
+        await page.evaluate(() => {
+          window.__accessPermissions.preset = "custom";
+          window.__accessPermissions.sections.settings = "view";
+        });
+        await page.locator("#refreshButton").evaluate((button) => button.click());
+        await page.locator("#settingsToggle").click();
+        await page.getByRole("tab", { name: "Templates", exact: true }).click();
+        await page.waitForFunction(() => document.querySelectorAll("#invitationTemplatesList form").length === 0);
+        assert.equal(await section.locator("[data-local-edit]").count(), 0);
+        await section.getByRole("button", { name: "Test sharing", exact: true }).click();
+        await testDialog.getByRole("button", { name: "Copy message", exact: true }).click();
+        assert.equal(await page.evaluate(() => window.__pictureCopied), "Hello " + new URL("/#guest-preview=landing", page.url()).href);
+        assert.equal(await page.evaluate(() => window.__calls.some((c) => c.name === "admin_record_delivery_sent")), false);
+      }
       assert.deepEqual(errors, []);
       console.log(`PASS ${width}px invitation picture upload/re-encode, Cancel, save retry, read preview, removal, combined/picture-only sharing, copy/link preservation and cancellation.`);
       await page.close();

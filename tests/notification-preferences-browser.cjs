@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 const { openBox } = require("./helpers/local-edit-ui.cjs");
 // Synthetic APIs only. Message filters never alter saved audit/receipt content.
 const { chromium } = require("playwright"),
@@ -258,7 +259,7 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
       window.__accessPermissions.preset = "custom";
       window.__accessPermissions.sections.settings = "view";
     });
-    await page.locator("#refreshButton").click();
+    await refreshFixture(page);
     await page.waitForFunction(
       () => !document.querySelector("#refreshButton").disabled,
     );
@@ -287,7 +288,7 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
         };
       }, policy);
       async function refreshNotice() {
-        await adminPage.locator("#refreshButton").click();
+        await refreshFixture(adminPage);
         await adminPage.waitForFunction(
           () => !document.querySelector("#refreshButton").disabled,
         );

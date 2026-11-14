@@ -423,13 +423,7 @@ html[data-theme="dark"] code {
   color: var(--ink);
 }
 @media (max-width: 600px) {
-  .topbar .admin-topbar-actions {
-    gap: 5px;
-  }
-  .topbar .admin-top-actions {
-    gap: 5px;
-  }
-  .topbar .admin-icon-btn {
+  .topbar:not(:has(.admin-topbar-actions)) .admin-icon-btn {
     width: 29px;
     height: 29px;
     min-width: 29px;

@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 // Food list/controller boundary with synthetic APIs; no live event is contacted.
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -219,7 +220,7 @@ const listRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_delete_f
         window.__accessPermissions.preset = "custom";
         window.__accessPermissions.sections.food = "view";
       });
-      await page.locator("#refreshButton").click();
+      await refreshFixture(page);
       await page.waitForFunction(
         () => !document.querySelector("#refreshButton").disabled,
       );

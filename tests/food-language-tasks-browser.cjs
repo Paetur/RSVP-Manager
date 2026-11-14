@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 const {openBox}=require('./helpers/local-edit-ui.cjs');
 const {selectContentTranslation,openWordingEditor,selectWorkTab}=require('./helpers/language-ui.cjs');
 // Geometry regression for native disclosures; uses only synthetic administration data.
@@ -131,7 +132,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.equal(await page.locator('.food-category-heading .tree-count').first().textContent(),'1 item · Quantity: 2/4');
  await summary.locator('strong').first().click();
  await page.evaluate(()=>{window.__fixtures.households[1].food_confirmed=true;});
- await page.locator('#refreshButton').click();
+ await refreshFixture(page);
  await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);
  if(process.env.FOOD_PREVIEW&&type.name()==='chromium')await food.screenshot({path:process.env.FOOD_PREVIEW+'/food-claim-controls.png'});
  await food.getByRole('button',{name:'Edit quantity for Example child'}).click();
@@ -145,7 +146,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await food.getByRole('button',{name:'Remove assignment for Example child'}).click();
  await summary.locator('.food-claim-summary').waitFor({state:'detached'});
  assert.equal(await page.locator('.food-category-heading .tree-count').first().textContent(),'1 item · Quantity: 0/4');
- await page.evaluate(()=>window.__fixtures.food_items.forEach(f=>{f.description_en=null;f.admin_comment=null;}));await page.locator('#refreshButton').click();await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);assert.equal(await page.locator('.food-comment-grid').count(),0,'empty read-only comments are omitted');
+ await page.evaluate(()=>window.__fixtures.food_items.forEach(f=>{f.description_en=null;f.admin_comment=null;}));await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);assert.equal(await page.locator('.food-comment-grid').count(),0,'empty read-only comments are omitted');
  await page.locator('.food-category-heading').first().getByRole('button',{name:'Add item or sub-category',exact:true}).click();await page.getByRole('dialog',{name:'Add item or sub-category',exact:true}).getByRole('button',{name:'Add item',exact:true}).click();
  await page.locator('#addFoodType').click();
  const typesDialog=page.getByRole('dialog',{name:'Manage units',exact:true});
@@ -160,7 +161,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
    items.push({id:'dessert-example',category:'Desserts',name_en:'Sample dessert',sort_order:0,quantity_needed:1,active:true});
    items.push({id:'first-example',category:'Main dishes',name_en:'First dish',sort_order:0,quantity_needed:1,active:true});
  });
- await page.locator('#refreshButton').click();
+ await refreshFixture(page);
  await page.waitForFunction(()=>document.querySelectorAll('.food-compact-item').length===3);
  const foodOrder=await page.locator('.food-compact-item').evaluateAll(items=>items.map(item=>item.dataset.treeKey.slice('food:item:'.length)));
  await page.locator('[data-tab="language"]').click();
@@ -265,7 +266,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.ok(await sessionRow.getByText('Main hall · Unscheduled · Atlantic/Faroe · RSVP required',{exact:true}).isVisible());
  assert.equal(await sessionRow.getByRole('link',{name:/Map link/}).count(),0);
  await page.evaluate(()=>window.__fixtures.event_sessions.push({id:'session-later',name:'Later session',session_key:'later',sort_order:2,location_id:'venue-1',is_active:true,requires_rsvp:false}));
- await page.locator('#refreshButton').click();
+ await refreshFixture(page);
  await page.waitForFunction(()=>document.querySelectorAll('#sessionsList > details').length===2);
  assert.ok(await sessionRow.getByRole('button',{name:'Move session up'}).isDisabled());
  await sessionRow.getByRole('button',{name:'Move session down'}).click();
@@ -281,7 +282,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await venue.locator(':scope > summary').evaluate(summary=>summary.parentElement.open=true);if(!await venue.locator('form.reading-editor').isVisible())await venue.locator('[data-record-pencil]').click();
  assert.equal(await venue.getByRole('button',{name:'Add households',exact:true}).count(),0);
  await page.evaluate(()=>{window.__fixtures.food_items.find(item=>item.id==='dessert-example').venue_ids=['venue-2'];});
- await page.locator('#refreshButton').click();
+ await refreshFixture(page);
  await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);
  await venue.locator(':scope > summary').evaluate(summary=>summary.parentElement.open=true);if(!await venue.locator('form.reading-editor').isVisible())await venue.locator('[data-record-pencil]').click();
  await venue.getByRole('button',{name:'Manage food',exact:true}).click();
@@ -311,7 +312,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
    for(const household of [f.households[0],f.households[2]])f.guests.push({id:'guest-'+household.id,household_id:household.id,first_name:'Sample',language:'en'});
    f.guest_session_overrides.push({guest_id:f.guests[0].id,session_id:f.event_sessions[0].id,is_invited:true});
  });
- await page.locator('#refreshButton').click();
+ await refreshFixture(page);
  await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);
  const dinner=page.locator('#sessionsList > details').filter({hasText:'Dinner'});
  await dinner.locator(':scope > summary').click();if(!await dinner.locator('form.reading-editor').isVisible())await dinner.locator('[data-record-pencil]').click();

@@ -1269,6 +1269,8 @@
     "test_invitation_sharing": "Royn deiling",
     "test_invitation_sharing_help": "Brúkar dømisnøvn og eina innboðsleinkju, sum ikki virkar. Eingin húskiskota ella sendingarskráseting verður stovnað. Vel teg sjálvan sum móttakara.",
     "test_invitation_sharing_complete": "Royndardeiling liðug. Kanna myndina, tekstin og dømisleinkjuna í appini.",
-    "sample_invitation_event": "Dømistiltak"
+    "sample_invitation_event": "Dømistiltak",
+    "test_invitation_preview_help": "Brúkar dømisnøvn og leinkjuna til forsíðuforsýningina. Eingin húskiskota ella sendingarskráseting verður stovnað. Vel teg sjálvan sum móttakara.",
+    "test_invitation_preview_complete": "Royndardeiling liðug. Kanna myndina, tekstin og forsýningarleinkjuna í appini."
   }
 }

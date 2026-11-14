@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 // Actual guest/admin controllers with synthetic API responses only.
 const { chromium } = require("playwright"),
   assert = require("node:assert/strict"),
@@ -363,7 +364,7 @@ fixtures.households[1].latest_rsvp_submission_id='new-submission';fixtures.rsvp_
     await page.evaluate(() => {
       for (const item of fixtures.food_items) item.quantity_needed = 0;
     });
-    await page.locator("#refreshButton").click();
+    await refreshFixture(page);
     await page.waitForFunction(
       () => !document.querySelector("#refreshButton").disabled,
     );
@@ -388,7 +389,7 @@ fixtures.households[1].latest_rsvp_submission_id='new-submission';fixtures.rsvp_
         quantity: 1,
       });
     });
-    await page.locator("#refreshButton").click();
+    await refreshFixture(page);
     await page.waitForFunction(
       () => !document.querySelector("#refreshButton").disabled,
     );

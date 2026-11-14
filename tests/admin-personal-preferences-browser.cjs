@@ -206,7 +206,8 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
     );
     assert.equal(writes.length, count);
     await openBox(page, "personal-preferences");
-    // Header toggle persists immediately but leaves other Interface drafts intact.
+    // The header shortcut is desktop-only; it preserves other Interface drafts.
+    await page.setViewportSize({ width: 1160, height: 900 });
     await page.locator("#timeFormat").selectOption("12");
     await page.locator("#themeToggle").click();
     await page

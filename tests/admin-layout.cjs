@@ -1,3 +1,4 @@
+const { refreshFixture, toggleFixtureTheme } = require("./helpers/admin-toolbar.cjs");
 const {openBox}=require('./helpers/local-edit-ui.cjs');
 const {selectWorkTab}=require('./helpers/language-ui.cjs');
 // Admin design smoke test: serve branch files locally and stub Supabase auth/data.
@@ -321,7 +322,7 @@ async function run(){
    await page.locator('.food-category').last().locator('summary').click();
    assert.equal(await page.locator('.food-category').last().evaluate(el=>el.open),true,'food group expands');
    const before=await page.evaluate(()=>window.__fetchCount);
-   await page.locator('#refreshButton').click();
+   await refreshFixture(page);
    await waitForApp(page,n=>window.__fetchCount>n,before);
    await waitForApp(page,()=>!document.querySelector('#refreshButton').disabled);
    assert.equal(await page.locator('#refreshButton').isDisabled(),false,'refresh completes');
@@ -334,19 +335,19 @@ async function run(){
 
    await page.setViewportSize({width:1250,height:950});
    await page.evaluate(()=>window.__fixtures.guests.push({id:'preview-parent-guest',household_id:'11111111-1111-4111-8111-111111111111',first_name:'Parent',last_name:'Guest',rsvp_status:'pending'}));
-   await page.locator('#refreshButton').click();await waitForApp(page,()=>document.querySelector('#adminMessage').textContent.includes('refreshed')||!document.querySelector('#refreshButton').disabled);
+   await refreshFixture(page);await waitForApp(page,()=>document.querySelector('#adminMessage').textContent.includes('refreshed')||!document.querySelector('#refreshButton').disabled);
    await selectWorkTab(page,'households');await page.locator('#expandHouseholds').click();
    assert.ok((await page.locator('[data-tree-key="household:11111111-1111-4111-8111-111111111111"] > summary').innerText()).includes('1 guest · 1 sub-household'));
    assert.equal(await page.locator('.admin-heading .eyebrow').count(),0);assert.equal(await page.locator('body>footer').count(),0);
    assert.equal(await page.locator('#newHousehold').count(),0,'standalone creation was replaced by contextual Add household');
    await page.locator('[data-tree-key="planning-group:group_a"]').evaluate(el=>el.open=false);
    await page.locator('[data-tree-key="group:group_b:"]').evaluateAll(nodes=>nodes.forEach(el=>el.open=false));
-   await page.locator('#themeToggle').click();
-   await page.screenshot({path:path.join(root,'artifacts','households-preview-dark.png'),fullPage:true});await page.locator('#themeToggle').click();
+   await toggleFixtureTheme(page);
+   await page.screenshot({path:path.join(root,'artifacts','households-preview-dark.png'),fullPage:true});await toggleFixtureTheme(page);
    // End-to-end admin controls against synthetic fixtures only.
    const childId='22222222-2222-4222-8222-222222222222';
    await page.evaluate(id=>{const h=window.__fixtures.households.find(h=>h.id===id);h.rsvp_state='locked';h.food=false;const s=window.__fixtures.event_sessions.find(s=>s.session_key==='faroe-celebration');window.__fixtures.guest_session_responses.push({guest_id:'55555555-5555-4555-8555-555555555555',session_id:s.id,rsvp_status:'attending'});},childId);
-   await page.locator('#refreshButton').click();await waitForApp(page,()=>!document.querySelector('#refreshButton').disabled);await page.locator('#expandHouseholds').click();
+   await refreshFixture(page);await waitForApp(page,()=>!document.querySelector('#refreshButton').disabled);await page.locator('#expandHouseholds').click();
    const childNode=page.locator('[data-tree-key="household:'+childId+'"]');
    assert.equal(await childNode.getByText('RSVP management',{exact:true}).count(),0);
    await selectWorkTab(page,'invites');

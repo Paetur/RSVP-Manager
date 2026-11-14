@@ -63,6 +63,22 @@
         hasTemplate: !!template,
       };
     }
+    function previewDraft(subject, body, image) {
+      const values = {
+        invitation_link: R.guestPreviewURL("landing"),
+        event_name: T("interface.messages.sample_invitation_event"),
+        household_name: T("Sample household"),
+      };
+      const fill = (text) => text.replace(
+        /\{(invitation_link|event_name|household_name)\}/g,
+        (_, token) => values[token],
+      );
+      return {
+        message_subject: fill(subject || "{event_name}"),
+        message_body: fill(body || "{invitation_link}"),
+        message_image: image || null,
+      };
+    }
     function renderInvitationTemplates() {
       const host = $("invitationTemplatesList");
       host.replaceChildren();
@@ -83,7 +99,9 @@
           const section = row(content, "section", {
             class: "invitation-template",
           });
-          row(section, "h3", {}, T(label));
+          section.dataset.settingsCard = key + ":" + channel;
+          const heading = row(section, "div", { class: "settings-card-heading" });
+          row(heading, "h3", {}, T(label));
           const view = row(section, "div", { class: "view-only" });
           if (template?.subject)
             row(view, "p", { class: "small" }, template.subject);
@@ -97,9 +115,18 @@
               T("No custom template. New drafts use fallback wording."),
             );
           window.RSVP_INVITATION_IMAGE.preview(view, template?.message_image, { R, T });
+          // Keep this action outside the editor/read-summary clone lifecycle.
+          let testDraft = () => previewDraft(template?.subject, template?.body, template?.message_image);
+          const testHost = row(heading, "span", { class: "invitation-template-test" });
+          window.RSVP_DEVICE_DELIVERY.appendShare(testHost, {
+            R, T, show, testOnly: true, triggerClass: "small-tool",
+            authorize: () => can("settings"),
+            getDraft: () => testDraft(),
+          });
           if (!editable) continue;
           const f = managementForm();
           f.dataset.formKey = key + ":" + channel;
+          f.dataset.headerEditor = "true";
           const subject =
             channel === "email"
               ? field(
@@ -144,27 +171,12 @@
             ),
           );
           const picture = window.RSVP_INVITATION_IMAGE.editor(f, template?.message_image, { R, T });
-          const testHost = row(f, "div", { class: "form-actions span-2" });
-          window.RSVP_DEVICE_DELIVERY.appendShare(testHost, {
-            R, T, show, testOnly: true,
-            authorize: () => can("settings", "edit"),
-            getDraft: async () => {
-              const values = {
-                invitation_link: "https://example.invalid/",
-                event_name: T("interface.messages.sample_invitation_event"),
-                household_name: T("Sample household"),
-              };
-              const fill = (text) => text.replace(
-                /\{(invitation_link|event_name|household_name)\}/g,
-                (_, token) => values[token],
-              );
-              return {
-                message_subject: fill(subject?.value || "{event_name}"),
-                message_body: fill(body.value || "{invitation_link}"),
-                message_image: await picture.read(),
-              };
-            },
-          });
+          testDraft = async () => {
+            const editing = f.localEditor?.box.classList.contains("local-editor-open");
+            return editing
+              ? previewDraft(subject?.value, body.value, await picture.read())
+              : previewDraft(template?.subject, template?.body, template?.message_image);
+          };
           section.append(
             saveForm(f, T("Save template"), async () => {
               const subjectText = subject?.value.trim() || "",

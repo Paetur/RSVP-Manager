@@ -1335,5 +1335,7 @@
   "Test sharing": "interface.messages.test_invitation_sharing",
   "Uses example names and a non-working example invitation link. No household code or delivery record is created. Choose yourself as the recipient.": "interface.messages.test_invitation_sharing_help",
   "Test share completed. Check the picture, text and example link in your app.": "interface.messages.test_invitation_sharing_complete",
-  "Example event": "interface.messages.sample_invitation_event"
+  "Example event": "interface.messages.sample_invitation_event",
+  "Uses example names and the landing-page preview link. No household code or delivery record is created. Choose yourself as the recipient.": "interface.messages.test_invitation_preview_help",
+  "Test share completed. Check the picture, text and preview link in your app.": "interface.messages.test_invitation_preview_complete"
 }

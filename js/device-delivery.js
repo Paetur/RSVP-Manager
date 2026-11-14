@@ -65,11 +65,11 @@
     }
     return payload;
   }
-  function appendShare(host, { R, T, q: initialQ, getDraft, testOnly = false, authorize, recordHandoff, show }) {
+  function appendShare(host, { R, T, q: initialQ, getDraft, testOnly = false, triggerClass = "invite-text-action", authorize, recordHandoff, show }) {
     const shareLabel = T(testOnly ? "interface.messages.test_invitation_sharing" : "interface.messages.share_invitation");
     const trigger = R.dom(
       "button",
-      { type: "button", class: "invite-text-action" },
+      { type: "button", class: triggerClass },
       shareLabel,
     );
     host.append(trigger);
@@ -107,7 +107,7 @@
         R.dom(
           "p",
           { class: "micro" },
-          T(testOnly ? "interface.messages.test_invitation_sharing_help" : "interface.messages.share_invitation_help"),
+          T(testOnly ? "interface.messages.test_invitation_preview_help" : "interface.messages.share_invitation_help"),
         ),
       );
       window.RSVP_INVITATION_IMAGE.preview(dialog, q.message_image, { R, T });
@@ -168,7 +168,7 @@
         retry.disabled = true;
         try {
           if (testOnly) {
-            feedback.textContent = T("interface.messages.test_invitation_sharing_complete");
+            feedback.textContent = T("interface.messages.test_invitation_preview_complete");
             return;
           }
           await recordHandoff(handoffId);

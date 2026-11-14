@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 const { openBox } = require("./helpers/local-edit-ui.cjs");
 // Real planning controls and shared save lifecycle; synthetic APIs only.
 const { chromium } = require("playwright");
@@ -197,7 +198,7 @@ return priorPlanningRpc(name,args);};`;
     await page.evaluate(() => {
       window.__accessPermissions.sections.settings = "view";
     });
-    await page.locator("#refreshButton").click();
+    await refreshFixture(page);
     await page.waitForFunction(
       () => !document.querySelector("#refreshButton").disabled,
     );

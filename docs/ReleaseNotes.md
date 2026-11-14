@@ -1,5 +1,19 @@
 # Release notes
 
+## 0.9.0-alpha.6
+
+This alpha refines the administrator header and template-only sharing without publishing an event.
+
+- Desktop shows the installed release version beneath the signed-in email, fetched from deployment metadata without delaying sign-in. The label hides if metadata is unavailable.
+- Phone headers keep navigation and Sign out on one line with 44px controls. Reload, theme, guest-preview shortcuts and the version label are hidden on phones; desktop controls remain.
+- Test sharing is a themed outlined template-header action beside the pencil. Saved templates and open drafts can both be tested, including Settings view-only accounts.
+- Test sharing substitutes example names and the installation's landing-preview link (`#guest-preview=landing`), with subdirectory support. Preview sign-in/permission checks remain; no household code, delivery record or Sent confirmation is created.
+- Synthetic browser fixtures retain real reload/permission checks when a phone shortcut is hidden, and explicitly test the desktop theme shortcut at desktop width.
+
+Only additive private translation-registry entries are needed on an existing alpha.5 backend. No application table or data migration is required. Do not replay the fresh installer on a populated database. The fresh installer, EN/DE/FO catalogs and generated assets remain synchronized.
+
+Real iPhone/iPad WhatsApp and Messenger picture/caption/link acceptance remains separate from synthetic coverage. Automatic setup remains experimental; password recovery and other launch-acceptance tasks remain open.
+
 ## 0.9.0-alpha.5
 
 This alpha adds optional private invitation pictures and native-share fallbacks for testing on real devices. Existing events must remain unpublished until their organizer explicitly publishes them.

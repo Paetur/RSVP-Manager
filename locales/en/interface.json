@@ -1269,6 +1269,8 @@
     "test_invitation_sharing": "Test sharing",
     "test_invitation_sharing_help": "Uses example names and a non-working example invitation link. No household code or delivery record is created. Choose yourself as the recipient.",
     "test_invitation_sharing_complete": "Test share completed. Check the picture, text and example link in your app.",
-    "sample_invitation_event": "Example event"
+    "sample_invitation_event": "Example event",
+    "test_invitation_preview_help": "Uses example names and the landing-page preview link. No household code or delivery record is created. Choose yourself as the recipient.",
+    "test_invitation_preview_complete": "Test share completed. Check the picture, text and preview link in your app."
   }
 }

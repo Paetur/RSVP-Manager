@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 // Real delivery UI and synthetic records; never contacts a populated database.
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -60,7 +61,7 @@ const { server, mock, extra } = createFoodHarness("admin-delivery-views");
         },
       ];
     });
-    await page.locator("#refreshButton").click();
+    await refreshFixture(page);
     await page.waitForFunction(() =>
       document.querySelector("#deliveryLog [data-delivery-id=view-refreshed]"),
     );

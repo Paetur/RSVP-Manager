@@ -1077,6 +1077,19 @@ html[data-theme="dark"] .topbar .admin-icon-btn .theme-sun {
 html[data-theme="dark"] .topbar .admin-icon-btn .theme-moon {
   display: none;
 }
+.topbar .admin-identity-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+  gap: 2px;
+}
+.topbar .admin-version {
+  color: var(--muted);
+  font-size: 0.66rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
 .topbar .admin-identity {
   max-width: 155px;
   overflow: hidden;
@@ -1151,12 +1164,6 @@ html[data-theme="dark"] .topbar .admin-icon-btn .theme-moon {
   background: var(--white);
 }
 @media (max-width: 700px) {
-  .topbar .admin-topbar-actions {
-    gap: 6px;
-  }
-  .topbar .admin-top-actions {
-    gap: 4px;
-  }
   .topbar .admin-identity {
     display: none;
   }
@@ -1196,5 +1203,44 @@ html[data-theme="dark"] .topbar .admin-icon-btn .theme-moon {
   }
   #adminApp .settings-page-heading h2 {
     font-size: 1.6rem;
+  }
+}
+
+/* Phone header keeps section navigation and Sign out on one line. */
+@media (max-width: 700px) {
+  .topbar:has(.admin-topbar-actions) .topbar-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding-block: 8px;
+  }
+  .topbar:has(.admin-topbar-actions) .admin-section-menu {
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+  }
+  .topbar .admin-topbar-actions {
+    width: auto;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .topbar .admin-top-actions {
+    flex: 0 0 auto;
+    gap: 8px;
+  }
+  .topbar .admin-topbar-actions .admin-icon-btn {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+    padding: 10px;
+  }
+  .topbar .admin-topbar-actions #refreshButton,
+  .topbar .admin-topbar-actions #themeToggle,
+  .topbar .admin-topbar-actions #guestPreviewButton {
+    display: none;
+  }
+  .topbar .admin-identity-block {
+    display: none;
   }
 }

@@ -201,3 +201,26 @@
 .invitation-picture-editor {
   min-width: 0;
 }
+
+/* Template preview is a secondary header action beside the existing pencil. */
+#adminApp .invitation-template > .settings-card-heading {
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+#adminApp .invitation-template > .settings-card-heading h3 {
+  flex: 1;
+  font-size: 0.9rem;
+}
+#adminApp .invitation-template .local-editor-summary {
+  padding-inline-end: 0;
+}
+.invitation-template-test {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+@media (pointer: coarse) {
+  .invitation-template-test .small-tool {
+    min-height: 44px;
+  }
+}

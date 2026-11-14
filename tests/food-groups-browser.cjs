@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 // Food Groups editor lifecycle through synthetic APIs only.
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -87,7 +88,7 @@ const groupsRpc=client.rpc;client.rpc=async(name,args)=>{
           quantity: 1,
         }),
       );
-      await page.locator("#refreshButton").click();
+      await refreshFixture(page);
       await page.waitForFunction(
         () => !document.querySelector("#refreshButton").disabled,
       );
@@ -125,7 +126,7 @@ const groupsRpc=client.rpc;client.rpc=async(name,args)=>{
         window.__accessPermissions.preset = "custom";
         window.__accessPermissions.sections.food = "view";
       });
-      await page.locator("#refreshButton").click();
+      await refreshFixture(page);
       await page.waitForFunction(
         () => !document.querySelector("#refreshButton").disabled,
       );

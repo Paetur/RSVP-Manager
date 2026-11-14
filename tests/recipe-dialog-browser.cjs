@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 // Actual UI with synthetic APIs only. No live accounts or event data.
 const { chromium } = require("playwright");
 const fs = require("node:fs"),
@@ -80,7 +81,7 @@ const { root, out, server, mock, extra, stageExtra } =
         window.__accessPermissions.preset = "custom";
         window.__accessPermissions.sections.food = "view";
       });
-      await page.locator("#refreshButton").click();
+      await refreshFixture(page);
       await page.waitForFunction(
         () => !document.querySelector("#refreshButton").disabled,
       );

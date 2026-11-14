@@ -1,3 +1,4 @@
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 // Actual UI with synthetic APIs only. No live accounts or event data.
 const { chromium } = require("playwright");
 const fs = require("node:fs"),
@@ -126,7 +127,7 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
           (q) => q.id === "queue-ready",
         ).recipient_snapshot.contact_name = "Refreshed recipient";
       });
-      await page.locator("#refreshButton").click();
+      await refreshFixture(page);
       await page.waitForFunction(
         () => !document.querySelector("#refreshButton").disabled,
       );
@@ -245,7 +246,7 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
         window.__accessPermissions.preset = "custom";
         window.__accessPermissions.sections.invites = "view";
       });
-      await page.locator("#refreshButton").click();
+      await refreshFixture(page);
       await page.waitForFunction(
         () => !document.querySelector("#refreshButton").disabled,
       );
