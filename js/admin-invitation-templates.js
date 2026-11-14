@@ -119,6 +119,18 @@
             4000,
           );
           body.closest("label").classList.add("span-2");
+          if (subject)
+            window.RSVP_PLACEHOLDER_HELP.attach(subject, {
+              R,
+              T,
+              kind: "invitation",
+            });
+          window.RSVP_PLACEHOLDER_HELP.attach(body, {
+            R,
+            T,
+            kind: "invitation",
+            requiredLink: true,
+          });
           const help = row(
             f,
             "p",
@@ -127,11 +139,6 @@
               "Include the invitation link placeholder. Clear the fields to use fallback wording.",
             ),
           );
-          help.append(document.createElement("br"));
-          invitationTokens.forEach((token, index) => {
-            if (index) help.append(" · ");
-            row(help, "code", {}, "{" + token + "}");
-          });
           section.append(
             saveForm(f, T("Save template"), async () => {
               const subjectText = subject?.value.trim() || "",

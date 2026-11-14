@@ -81,7 +81,8 @@ const assert = require('node:assert/strict'),
  let gatewayProbes = 0;
  const pendingProbe = new Promise(resolve => { finishProbe = resolve; });
  vm.runInNewContext(fs.readFileSync('js/setup.js', 'utf8'), {
-  URL,
+  URL, URLSearchParams,
+  location: new URL('https://setup.example.invalid/setup.html'),
   setTimeout: () => assert.fail('Stale connection check scheduled advancement'),
   document: {
    querySelectorAll: () => [],

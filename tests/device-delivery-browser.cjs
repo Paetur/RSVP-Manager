@@ -41,12 +41,12 @@ async function run(type){
   await email.locator('[data-local-edit]').click();
   const save=email.getByRole('button',{name:'Save template',exact:true});
   assert.ok(await save.isDisabled());
-  await email.getByLabel('Message subject').fill('Invitation for {household_name}');
-  await email.getByLabel('Message text').fill('Missing link');
+  await email.getByLabel('Message subject',{exact:true}).fill('Invitation for {household_name}');
+  await email.getByLabel('Message text',{exact:true}).fill('Missing link');
   await save.click();
   await email.locator('.form-feedback[data-state="error"]').waitFor();
   assert.equal(await page.evaluate(()=>window.__calls.some(c=>c.name==='admin_save_invitation_template')),false);
-  await email.getByLabel('Message text').fill('Hello {household_name}\n{invitation_link}');
+  await email.getByLabel('Message text',{exact:true}).fill('Hello {household_name}\n{invitation_link}');
   await save.click();
   await email.locator('.form-feedback[data-state="saved"]').waitFor({state:'attached'});
   await page.locator('#mainSectionToggle').click();
@@ -63,9 +63,9 @@ async function run(type){
   await delivery.locator('details').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
   const draft=delivery.locator('form').first();
   const channel=draft.getByLabel('Delivery channel');
-  const draftBody=draft.getByLabel('Message text');
+  const draftBody=draft.getByLabel('Message text',{exact:true});
   await channel.selectOption('email');
-  assert.equal(await draft.getByLabel('Message subject').inputValue(),'Invitation for Example household');
+  assert.equal(await draft.getByLabel('Message subject',{exact:true}).inputValue(),'Invitation for Example household');
   assert.match(await draftBody.inputValue(),/^Hello Example household\nhttp:/);
   await channel.selectOption('sms');
   assert.match(await draftBody.inputValue(),/^SMS fallback http:/);
@@ -95,4 +95,4 @@ async function run(type){
   assert.deepEqual(errors,[]);console.log(type.name()+': invitation templates, iPad compose links, stale-code blocking, explicit sending and separate reminder draft passed.');
  }finally{await browser.close();}
 }
-server.listen(0,'127.0.0.1',async()=>{try{await run(chromium);await run(webkit);}catch(e){console.error(e);process.exitCode=1;}finally{server.close();}});
+server.listen(0,'127.0.0.1',async()=>{try{await run(chromium);if(process.env.RSVP_TEST_BROWSER!=='chromium')await run(webkit);}catch(e){console.error(e);process.exitCode=1;}finally{server.close();}});

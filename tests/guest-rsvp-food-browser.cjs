@@ -228,7 +228,7 @@ fixtures.households[1].latest_rsvp_submission_id='new-submission';fixtures.rsvp_
           '[data-food-category-id="' + leafId + '"] > summary > .tree-count',
         )
         .textContent(),
-      "2 items · Quantity: 0/10 · 0 sub-categories",
+      "2 items · Quantity: 0/10",
     );
     assert.equal(
       await root
@@ -291,7 +291,7 @@ fixtures.households[1].latest_rsvp_submission_id='new-submission';fixtures.rsvp_
       await page
         .locator('[data-tree-key="food:Cookies"] > summary > .tree-count')
         .textContent(),
-      "0 sub-categories",
+      "",
     );
     await root
       .locator(":scope > summary")
@@ -374,7 +374,7 @@ fixtures.households[1].latest_rsvp_submission_id='new-submission';fixtures.rsvp_
           '[data-food-category-id="' + leafId + '"] > summary > .tree-count',
         )
         .textContent(),
-      "2 items · 0 sub-categories",
+      "2 items",
     );
     assert.equal(
       await page.locator("#adminFoodList .food-quantity-summary").count(),
@@ -399,7 +399,7 @@ fixtures.households[1].latest_rsvp_submission_id='new-submission';fixtures.rsvp_
           '[data-food-category-id="' + leafId + '"] > summary > .tree-count',
         )
         .textContent(),
-      "2 items · Quantity: 1/0 · 0 sub-categories",
+      "2 items · Quantity: 1/0",
     );
     assert.equal(
       await page.locator("#adminFoodList .food-quantity-summary").count(),

@@ -141,3 +141,41 @@ assert.deepEqual(
 console.log(
   "PASS overview projections: archive/permission boundaries, invitation overrides, food availability, sent/follow-up separation, recipient snapshots, fresh data and input immutability.",
 );
+
+const { foodInterestStatus, foodInterestCounts } =
+  context.window.RSVP_ADMIN_OVERVIEW;
+const interestStore = {
+  households: [
+    { id: "yes", food_interest: true, food: false },
+    { id: "no", food_interest: false },
+    { id: "null", food_interest: null },
+    { id: "archived", food_interest: true, archived_at: "2026-01-01" },
+    { id: "group", food_interest: true },
+    { id: "archived-guest", food_interest: true },
+  ],
+  guests: [
+    { household_id: "yes" },
+    { household_id: "no" },
+    { household_id: "null" },
+    { household_id: "archived" },
+    { household_id: "archived-guest", archived_at: "2026-01-01" },
+  ],
+};
+assert.deepEqual(plain(foodInterestCounts(interestStore)), {
+  yes: 1,
+  no: 1,
+  unanswered: 1,
+});
+assert.equal(
+  foodInterestStatus(interestStore, interestStore.households[0]),
+  "yes",
+  "Food access does not change saved interest",
+);
+assert.equal(
+  foodInterestStatus(interestStore, interestStore.households[4]),
+  "ineligible",
+  "Empty grouping households do not count",
+);
+console.log(
+  "PASS food-interest projection: active households with guests only; Yes/No/null separate from food access and commitments.",
+);

@@ -49,6 +49,10 @@
       policy[3] === "personal" || can(policy[3], "edit");
     function readSummary(form, summary) {
       summary.replaceChildren();
+      if (form.dataset.translationCard) {
+        window.RSVP_ADMIN_TRANSLATION_CARDS.summary(form, summary, { R });
+        return;
+      }
       if (form.localReadSource) {
         summary.append(form.localReadSource.cloneNode(true));
         return;
@@ -187,16 +191,19 @@
       }
       const card = languageRow
         ? box
-        : policy[1]
+        : policy[1] || form.dataset.translationCard
           ? form.closest("[data-settings-card]")
           : null;
       const header = card?.querySelector(":scope>.settings-card-heading");
       const title =
-        T(policy[2]) +
+        (form.dataset.translationCard
+          ? card.querySelector("h3").textContent
+          : T(policy[2])) +
         (form.dataset.languageCode ? " · " + form.dataset.languageCode : "");
       const button = iconAction("edit", T("Edit") + " · " + title, () => {
         if (!editable(policy) || form.getAttribute("aria-busy") === "true")
           return;
+        if (form.dataset.translationCard) card.open = true;
         messages.delete(key);
         feedback.textContent = "";
         opened.add(key);
@@ -223,6 +230,11 @@
       form.before(box);
       box.append(summary, feedback, form);
       if (header) {
+        if (form.dataset.translationCard)
+          button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          });
         header.append(button);
         button.classList.add("settings-card-pencil");
       } else box.insertBefore(button, feedback);

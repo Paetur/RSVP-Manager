@@ -3,32 +3,32 @@
   const R = window.RSVP;
   const previewTarget = R.guestPreviewTarget();
   const dict = {
-    "invitation": "interface.messages.event_invitation_2",
-    "welcome":
+    invitation: "interface.messages.event_invitation_2",
+    welcome:
       "interface.messages.invitation_custom_we_look_forward_to_celebrating_our_day_with_you",
-    "enter": "interface.messages.open_your_invitation",
-    "codeHelp":
+    enter: "interface.messages.open_your_invitation",
+    codeHelp:
       "interface.messages.enter_the_eight_character_code_from_your_invitation",
-    "open": "interface.messages.open",
-    "dear": "interface.messages.dear_guests",
-    "who": "interface.messages.please_let_us_know_who_will_attend",
-    "attending": "interface.messages.attending",
-    "declined": "interface.messages.not_attending",
-    "locked": "interface.messages.your_response_has_been_received_and_locked",
-    "thanks": "interface.messages.thank_you_your_response_is_recorded",
-    "missing": "interface.messages.no_invitation_was_found_for_that_code",
-    "choose":
+    open: "interface.messages.open",
+    dear: "interface.messages.dear_guests",
+    who: "interface.messages.please_let_us_know_who_will_attend",
+    attending: "interface.messages.attending",
+    declined: "interface.messages.not_attending",
+    locked: "interface.messages.your_response_has_been_received_and_locked",
+    thanks: "interface.messages.thank_you_your_response_is_recorded",
+    missing: "interface.messages.no_invitation_was_found_for_that_code",
+    choose:
       "interface.messages.choose_a_response_for_every_invited_guest_and_session",
-    "offline": "interface.messages.could_not_reach_the_database",
-    "notPublished": "interface.messages.this_event_has_not_been_published_yet",
-    "food": "interface.messages.what_can_you_bring",
-    "foodHelp": "interface.messages.food_selection_help",
-    "confirmFood": "interface.messages.confirm_my_selections",
-    "foodDone": "food.messages.thank_you_your_food_selection_is_confirmed",
-    "saveFood": "interface.messages.save",
-    "foodSaved": "food.messages.food_selection_saved",
-    "available": "interface.messages.available",
-    "all": "interface.messages.all_invited_guests_are_listed",
+    offline: "interface.messages.could_not_reach_the_database",
+    notPublished: "interface.messages.this_event_has_not_been_published_yet",
+    food: "interface.messages.what_can_you_bring",
+    foodHelp: "interface.messages.food_selection_help",
+    confirmFood: "interface.messages.confirm_my_selections",
+    foodDone: "food.messages.thank_you_your_food_selection_is_confirmed",
+    saveFood: "interface.messages.save",
+    foodSaved: "food.messages.food_selection_saved",
+    available: "interface.messages.available",
+    all: "interface.messages.all_invited_guests_are_listed",
   };
   let languageChange = 0,
     foodInterestDraft;
@@ -858,6 +858,42 @@
       choices.append(button);
     }
     host.append(choices);
+    if (
+      foodState.stage === "interest" &&
+      original === true &&
+      !foodInterestSaving
+    ) {
+      const event = eventData?.event || {},
+        fallback =
+          window.RSVP_I18N.resolve(
+            event.food_interest_reply_fallback || {},
+            language,
+          ) ||
+          t("Thank you! We’ll share more information about the food later.");
+      let message;
+      try {
+        message = window.RSVP_FOOD_INTEREST_REPLY.render(
+          window.RSVP_I18N.resolve(event.food_interest_reply || {}, language),
+          {
+            deadline: event.rsvp_deadline,
+            timezone: event.timezone || "UTC",
+            language,
+            fallback,
+          },
+        );
+      } catch (_) {
+        message = t(
+          "Thank you! We’ll share more information about the food later.",
+        );
+      }
+      host.append(
+        R.dom(
+          "p",
+          { class: "food-interest-reply", id: "foodInterestReply" },
+          message,
+        ),
+      );
+    }
   }
   function preserveFoodViewport(update) {
     const list = $("foodList"),

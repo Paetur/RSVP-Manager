@@ -49,14 +49,15 @@ async function run(type){const browser=await type.launch({headless:true});try{
 
  const venueRow=page.locator('#venueList > details').first();await venueRow.locator(':scope > summary').click();await venueRow.locator('[data-record-pencil]').click();
  await venueRow.getByRole('button',{name:'Translate in Languages',exact:true}).click();
- assert.equal(await page.locator('#foodTranslationGrid').getByLabel('Venue',{exact:true}).inputValue(),'venue');
+ assert.equal(await page.locator('#foodTranslationGrid [data-translation-record="venue:venue"]').count(),1);
+ assert.equal(await page.locator('#foodTranslationGrid [data-translation-record="venue:venue"]').getByLabel('Name · English',{exact:true}).inputValue(),'Main hall');
  await selectWorkTab(page,'venues');
  await page.locator('#venueList > details').first().getByRole('button',{name:'Move venue down',exact:true}).click();
  await page.locator('#venueList > details').first().locator(':scope > summary').getByText('Garden',{exact:true}).waitFor();
  if(preview&&type.name()==='webkit')await page.locator('[data-panel="venues"]').screenshot({path:preview+'/venues-and-sessions.png'});
 
  await selectContentTranslation(page,'welcome');
- assert.deepEqual(await page.locator('#contentTranslationTabs button').allTextContents(),['Welcome Message','Venues','Sessions','Food']);
+ assert.deepEqual(await page.locator('#contentTranslationTabs button').allTextContents(),['Welcome Message','Venues','Sessions','Food','Guests']);
  assert.equal(await page.locator('#foodTranslationGrid textarea').count(),3);
  assert.equal(await page.locator('#translationSearch').isVisible(),false);
  assert.equal(await page.locator('#settingLanguage').count(),0);
@@ -64,6 +65,8 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.equal(await page.locator('#wordingCategoryTabs').isVisible(),false);
  if(preview&&type.name()==='webkit'){await page.evaluate(()=>document.documentElement.dataset.theme='dark');await page.locator('[data-panel="language"]').screenshot({path:preview+'/main-language-tabs.png'});await page.screenshot({path:preview+'/header-languages.png',fullPage:true});}
  await selectContentTranslation(page,'food');assert.deepEqual(await page.locator('#foodTranslationTabs button').allTextContents(),['Food','Categories','Units']);
+ await selectContentTranslation(page,'guests');assert.deepEqual(await page.locator('#foodTranslationTabs button').allTextContents(),['Food explanation','Food Interest Reply']);
+ await page.locator('#foodTranslationTabs [data-translation-tab=food-interest-reply]').click();assert.equal(await page.locator('#foodTranslationGrid textarea').count(),6);assert.equal(await page.locator('#foodTranslationGrid output').count(),3);
  await selectWorkTab(page,'other');const task=page.locator('[data-other-id="task"]');
  assert.equal(await task.locator('input:visible,textarea:visible,select:visible').count(),0);
  await task.getByRole('button',{name:/Edit item/}).click();
@@ -137,7 +140,8 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.equal(await typeManager.locator('.type-manager-row').count(),7);
  if(preview&&type.name()==='webkit')await typeManager.screenshot({path:preview+'/manage-food-types.png'});
  await typeManager.getByRole('button',{name:'Translate · Basket(s)',exact:true}).click();
- assert.equal(await page.locator('#foodTranslationGrid').getByLabel('Unit',{exact:true}).inputValue(),'ui:Food type: Basket(s)');
+ assert.equal(await page.locator('#foodTranslationGrid [data-translation-record="ui:Food type: Basket(s)"]').evaluate(row=>row.open),true);
+ assert.equal(await page.locator('#foodTranslationGrid [data-translation-record="ui:Food type: Basket(s)"]').getByLabel('Unit · English',{exact:true}).inputValue(),'Basket(s)');
  await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="interface"]').click();
  assert.match(await page.locator('#adminModeLabel').textContent(),/^Manage event details/);
  await openBox(page,'personal-preferences');assert.ok(await page.locator('#interfaceLanguageHost #interfaceLanguage').isVisible());assert.ok(await page.locator('#interfaceAppearanceHost #themePreference').isVisible());assert.equal(await page.locator('#languageToggle,#themeMenu,#closeSettings').count(),0);
@@ -151,6 +155,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.equal(await page.locator('.wording-row').count(),25);assert.equal(await page.locator('.wording-edit-form:visible').count(),0);
  await page.getByRole('button',{name:'Next',exact:true}).click();await page.getByText(/Page 2 of/).waitFor();
  await categoryTabs.locator('[data-translation-tab="households"]').click();await page.getByText(/Page 1 of/).waitFor();
+ if(!await page.locator('#translationSearch').isVisible())await page.locator('#translationSearchToggle').click();
  await page.locator('#translationSearch').fill('Households');await page.locator('[data-wording-key="interface.messages.households"]').waitFor();
  await categoryTabs.locator('[data-translation-tab="backups"]').click();await page.locator('[data-wording-key="interface.messages.backup_sections_help"]').waitFor();assert.equal(await page.locator('[data-wording-key="interface.messages.households"]').count(),0);
  await page.locator('#translationSearch').fill('');await categoryTabs.locator('[data-translation-tab="all"]').click();

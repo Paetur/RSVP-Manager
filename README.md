@@ -15,11 +15,13 @@ Guests use their own invitation link. Organizers sign in to manage the event, wi
 - Prepare invitations and reminders for Mail, Messages or WhatsApp on your device.
 - Manage event wording in multiple languages.
 - Give administrators Full, View only or Custom access.
-- Download an event backup and rehearse recovery separately.
+- Download JSON/gzip backups, optionally protect them with password-based encryption, and rehearse recovery separately.
 
 ## Downloads and installation
 
-Use a tagged GitHub Release for an installation package with checksums, or fork this repository to change the source. [Installation instructions](INSTALL.md) describe the separate website, Supabase and administrator setup. Each installation starts unconfigured and has its own data. Current version: **0.9.0-alpha.3**.
+Use a tagged GitHub Release for an installation package with checksums, or fork this repository to change the source. [Installation instructions](INSTALL.md) describe the separate website, Supabase and administrator setup. Each installation starts unconfigured and has its own data. Current version: **0.9.0-alpha.4**.
+
+For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 
 Use the [GitHub Pages deployment template](deployment/README.md) to publish a selected release under a path such as `/marriage/`, without downloading ZIP files manually. The workflow does not create a backend or publish your event.
 

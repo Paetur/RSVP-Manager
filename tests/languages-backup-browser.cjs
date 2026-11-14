@@ -137,7 +137,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.equal(await page.locator('#backupTemplateSections input[value="other"]').isChecked(),true);
  const obsolete={...contents,version:1};
  await page.locator('#backupFile').setInputFiles({name:'obsolete.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(obsolete))});
- await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.includes('Unsupported backup'));
+ await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.includes('Unsupported or damaged encrypted backup.'));
  assert.equal(await page.locator('#previewBackup').isDisabled(),true);
  await page.locator('#backupFile').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{')});await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.length>0);assert.equal(await page.locator('#previewBackup').isDisabled(),true);assert.equal(await page.locator('#restoreBackupButton').isDisabled(),true);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),true,'Tools fit mobile');assert.deepEqual(errors,[]);

@@ -2,6 +2,15 @@
 
 You can perform cloud setup in Supabase's browser Dashboard/Studio; the CLI is an optional alternative. Use the website, SQL installer and function code from the same RSVP Manager release. Studio-ready files are generated from the canonical modules and preserve their validation logic.
 
+## Follow the wizard in this order
+
+1. **Step 1 — Database choice:** choose New database → Cloud for a fresh project, or Existing database to preserve an installed event.
+2. **Step 2 — Connection:** create the cloud project and install SQL once if empty, save the site secrets, deploy both functions with Verify JWT OFF, and configure Auth URLs. Only then enter the public URL/key and press Test connection. Complete sections 1–5 below before that test.
+3. **Step 3 — Administrator:** create/confirm the first Auth user and grant first-administrator access using the wizard’s generated SQL; existing administrators sign in normally.
+4. **Step 4 — Publish config:** configure the website for everyone. On GitHub Pages, save Actions variables and rerun deployment; direct static hosting uses the downloaded config.js.
+
+The wizard’s temporary browser configuration is enough for its connection test. GitHub Actions variables configure the deployed site for all visitors; they do not replace Supabase secrets or deploy Edge Functions.
+
 ## Cloud project security options
 
 When creating the cloud project, use these **Security options**:
@@ -49,7 +58,11 @@ This matches `supabase/config.toml`. The guest handler validates invitation code
 
 Keep the same release's function code and generated source-hash manifest as your deployment record. Replacing editor contents with different code is a deployment change.
 
-## 5. Verify before continuing
+## 5. Configure Auth URLs, then test the connection
+
+Before creating or inviting the first Auth user, open **Authentication → URL Configuration**. Set Site URL to the full installation URL and allow `<site URL>admin/?admin-invitation=1`. Configure email/SMTP for real invitation delivery.
+
+Both functions and site secrets must be ready before the wizard’s step 2 connection test. That test probes the database and guest-gateway; it does not install SQL, save secrets or deploy code.
 
 Both functions should appear in the Edge Functions list. In the built-in tester, send POST to `guest-gateway` with an `Origin` header matching `RSVP_SITE_ORIGIN`, `Content-Type: application/json`, and:
 
@@ -61,9 +74,11 @@ For a fresh unpublished project, HTTP 200 with JSON `null` is the expected priva
 
 Return to the wizard and retry **Test connection**. If a function reports **BOOT_ERROR**, check its code, Secrets and logs. **Invalid JWT** usually means the platform toggle is still on. **Origin not allowed** means the request Origin and configured origin differ; use the website's canonical origin, not its full URL or a redirect hostname.
 
-## 6. Configure Auth, the first administrator and public website settings
+## 6. Wizard step 3: the first administrator
 
-Under **Authentication → URL Configuration**, set Site URL to the full installation URL and allow `<site URL>admin/?admin-invitation=1`. Create/confirm the first Auth user and follow the wizard's first-administrator SQL instructions. Configure email/SMTP for real administrator invitation delivery.
+Create/confirm the first Auth user and follow the wizard’s first-administrator SQL instructions. Existing installations use their existing administrator; do not replay the installer or bootstrap SQL.
+
+## 7. Wizard step 4: publish the browser configuration
 
 Supply only the public project URL and publishable key through the wizard. Browser-local settings configure that browser only. For a selected-release GitHub Pages installation, open the website repository’s **Settings → Secrets and variables → Actions → Variables**, create `RSVP_SUPABASE_URL` from `supabaseUrl` and `RSVP_PUBLISHABLE_KEY` from `supabaseKey`, then rerun its deployment workflow. The generated Pages artifact supplies `js/config.js`; committing an extra file to the website repository does not configure that artifact. See [the full UI and CLI instructions](../INSTALL.md#configure-jsconfigjs-with-github-actions). Direct static-file installs can use the wizard's downloaded `js/config.js` instead.
 

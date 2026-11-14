@@ -73,31 +73,11 @@
             T("interface.messages.food_stage_help"),
           ),
         );
-        const copy = {};
-        for (const [code, label] of languages().filter(
-          ([code]) =>
-            !store.languages.length ||
-            store.languages.some((l) => l.language_code === code && l.enabled),
-        )) {
-          copy[code] = field(
-            form,
-            T("Food explanation") + " · " + label,
-            e.food_introduction?.[code] || "",
-            null,
-            "textarea",
-            false,
-            6000,
-          );
-          copy[code].parentElement.classList.add("span-2");
-        }
         const update = () => {
           food.disabled = other.disabled =
             !isEditing() || !can("settings", "edit");
           stages.disabled =
             !food.checked || !isEditing() || !can("settings", "edit");
-          for (const input of Object.values(copy))
-            input.disabled =
-              !food.checked || !isEditing() || !can("settings", "edit");
         };
         food.addEventListener("change", update);
         update();
@@ -118,15 +98,7 @@
               p_food: food.checked,
               p_other: other.checked,
               p_stage: stage,
-              p_introduction: {
-                ...e.food_introduction,
-                ...Object.fromEntries(
-                  Object.entries(copy).map(([code, input]) => [
-                    code,
-                    input.value.trim(),
-                  ]),
-                ),
-              },
+              p_introduction: e.food_introduction || {},
               p_expected: {
                 food_enabled: e.food_enabled !== false,
                 other_enabled: e.other_enabled !== false,

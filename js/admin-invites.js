@@ -100,6 +100,25 @@
             contactMethodLabel(c) || T(c),
           ]),
         ]);
+      const showFoodInterest =
+        can("food") && store.settings?.food_enabled !== false;
+      $("inviteFoodInterestFilterLabel").classList.toggle(
+        "hidden",
+        !showFoodInterest,
+      );
+      const interestCounts =
+        window.RSVP_ADMIN_OVERVIEW.foodInterestCounts(store);
+      const interest = options("inviteFoodInterestFilter", [
+        ["all", T("All")],
+        ...[
+          ["yes", "Yes"],
+          ["no", "No"],
+          ["unanswered", "Unanswered"],
+        ].map(([value, label]) => [
+          value,
+          T(label) + " (" + interestCounts[value] + ")",
+        ]),
+      ]);
       const test =
           filters.find(([key]) => key === inviteOverviewFilter)?.[2] ||
           (() => true),
@@ -115,7 +134,11 @@
               group === "top:" + r.h.planning_group_id ||
               group === "relation:" + r.h.relation_group_id) &&
             (language === "all" || r.h.language === language) &&
-            (channel === "all" || r.channel === channel),
+            (channel === "all" || r.channel === channel) &&
+            (!showFoodInterest ||
+              interest === "all" ||
+              window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, r.h) ===
+                interest),
         );
       $("inviteResultCount").textContent = T(
         "interface.messages.count_households",
@@ -157,6 +180,21 @@
               ).toUpperCase(),
           ),
         );
+        if (showFoodInterest) {
+          const state = window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, h);
+          const badge = R.dom(
+            "small",
+            { class: "muted invite-food-interest" },
+            T("Food interest") +
+              ": " +
+              T(
+                { yes: "Yes", no: "No", unanswered: "Unanswered" }[state] ||
+                  "Unanswered",
+              ),
+          );
+          badge.dataset.foodInterest = state;
+          identity.append(badge);
+        }
         const recipient = R.dom("span", { class: "invite-overview-recipient" });
         recipient.append(
           R.dom("span", {}, model.contactName),

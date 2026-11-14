@@ -31,7 +31,15 @@ Without logs means old activity history is omitted. Every completed restore stil
 
 Tick **Compress backup (.json.gz)** to download a smaller gzip file in either Full or Partial mode. Leave it unticked for JSON. Restore accepts either file and opens gzip automatically; the backup contents, checksum and validation rules are unchanged. Both the uploaded file and its opened contents must be at most 20 MB. Damaged or oversized compressed files are rejected before validation or restore.
 
-Compression does not encrypt the file. Keep it private; password-based encryption is planned separately. If your browser does not support gzip, the compression option is disabled; use JSON instead.
+Compression alone does not encrypt the file. Select **Encrypt backup** separately to protect it with a password. If your browser does not support gzip, the compression option is disabled; use JSON instead.
+
+## Optional encryption
+
+Select **Encrypt backup**, enter a password and confirm it. Compression and encryption are independent; gzip is applied first. Encrypted files download as `.encrypted.json`. Keep the password separately: the file cannot be recovered without it.
+
+Encrypted imports are detected automatically and request that file’s password. Incorrect passwords or damaged files stop before database validation; use Open encrypted backup to retry. Unencrypted JSON/gzip continues unchanged. Decryption does not bypass Validate backup or restore confirmation.
+
+Encryption requires HTTPS or localhost, Web Crypto and Web Workers. See [encrypted backup details and development testing](BackupEncryption.md). Passwords are not saved in settings or browser storage and are not sent to the server for encryption.
 
 ## Validate and restore
 

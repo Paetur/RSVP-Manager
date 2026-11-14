@@ -41,9 +41,11 @@ const oldGroupRpc=client.rpc;client.rpc=async(name,a)=>{
       await page.waitForFunction(
         () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
       );
-      assert.match(
-        await page.locator("#statsGrid").innerText(),
-        /Top-level groups: 2.*Relational groups: 2/s,
+      assert.deepEqual(
+        await page.locator("#statsGrid .stat-card").first().locator("dt").evaluateAll(
+          labels => labels.map(label => [label.textContent, label.nextElementSibling.textContent]),
+        ),
+        [["Top-level groups", "2"], ["Relational groups", "2"]],
       );
       await page.locator("[data-tab=households]").click();
       assert.equal(await page.locator("#newHousehold").count(), 0);

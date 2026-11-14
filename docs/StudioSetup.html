@@ -129,6 +129,40 @@
         Local installations use the
         <a href="LocalSetup.html">local setup guide</a>.
       </p>
+      <h2>Wizard order</h2>
+      <ol>
+        <li>
+          Step 1: choose New database → Cloud for a fresh project, or Existing
+          database for an installed event.
+        </li>
+        <li>
+          Step 2: install SQL once if empty, save site secrets, deploy both
+          functions and configure Auth URLs. Then press Test connection.
+        </li>
+        <li>
+          Step 3: create/confirm the first Auth user, grant first-administrator
+          access and verify login.
+        </li>
+        <li>
+          Step 4: publish the browser configuration through GitHub Actions
+          variables or a direct config.js upload.
+        </li>
+      </ol>
+      <p>
+        The wizard temporarily configures this browser for its tests. Actions
+        variables configure the deployed website for all visitors; they do not
+        set Supabase secrets or deploy functions.
+      </p>
+      <h2>0. Install SQL on a fresh project</h2>
+      <p>
+        In wizard step 2, download the
+        <a href="../supabase/install.sql" download="rsvp-install.sql"
+          >complete SQL installer</a
+        >
+        and run it once in the project’s SQL Editor if the application schema is
+        empty. Skip this on an installed event. The wizard does not execute SQL
+        or reset a database.
+      </p>
       <h2>1. Save the site secrets</h2>
       <p>
         Open <strong>Edge Functions → Secrets</strong>, add these entries and
@@ -216,7 +250,16 @@
         administrator authentication/permissions remain enforced by the
         handlers.
       </p>
-      <h2>4. Verify the functions</h2>
+      <h2>4. Configure Auth URLs before the connection test</h2>
+      <p>
+        Under <strong>Authentication → URL Configuration</strong>, set Site URL
+        to <code data-site-url>https://events.example.org/</code> and allow
+        <code data-admin-redirect
+          >https://events.example.org/admin/?admin-invitation=1</code
+        >. Configure these URLs before creating or inviting the first Auth user.
+        Configure email/SMTP for actual invitation delivery.
+      </p>
+      <h2>5. Verify the functions, then Test connection</h2>
       <p>
         In <strong>guest-gateway → Test</strong>, send
         <strong>POST</strong> with headers
@@ -231,15 +274,12 @@
         returns <strong>401</strong> from its handler and sends no email. Return
         to the wizard and retry <strong>Test connection</strong>.
       </p>
-      <h2>5. Configure Auth and the website</h2>
+      <h2>6. Wizard steps 3 and 4</h2>
       <p>
-        Under <strong>Authentication → URL Configuration</strong>, set Site URL
-        to <code data-site-url>https://events.example.org/</code> and allow
-        <code data-admin-redirect
-          >https://events.example.org/admin/?admin-invitation=1</code
-        >. Follow the wizard to create/confirm the first Auth user and grant
-        first-administrator access. Configure email/SMTP for actual invitation
-        delivery.
+        After Test connection succeeds, follow wizard step 3 to create/confirm
+        the first Auth user and grant first-administrator access. Existing
+        installations use their existing administrator. Step 4 then configures
+        the deployed website for everyone.
       </p>
       <p>
         Browser-local setup applies only to that browser. For all visitors, open

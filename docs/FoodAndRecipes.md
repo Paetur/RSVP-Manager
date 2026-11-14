@@ -4,13 +4,17 @@
 
 Under **Settings → Event settings → Features**, enable Food and choose one of the **Guest food step** cards. **Collect interest** asks whether households can bring food while hiding the detailed menu. **Choose food** opens the menu to eligible households after they answer Yes. Save the setting when ready.
 
+Edit the guest explanation at **Languages globe → Guests → Food explanation**. Configure the response after a saved Yes at **Guests → Food Interest Reply**, including an optional RSVP-deadline date placeholder and missing-deadline fallback. See [Languages](Languages.md#guests-food-text). The detailed list stays hidden throughout Collect interest.
+
+In **Invites**, the **Food interest** dropdown filters All / Yes / No / Unanswered and shows counts. Each household’s row shows its saved answer. The Food items summary repeats the totals separately from item availability and contributing households. Counts include active households with at least one active guest; empty grouping households and archived records are excluded. Food access does not change the saved interest answer. Food View permission is required to see this reporting; answers are not inferred from attendance, Sent state or item commitments.
+
 Changing the step does not publish the event or send invitations. Returning to interest hides the list while preserving commitments. Disabling Food hides its section and blocks guest food responses/reservations without deleting records. Other has its own enable switch.
 
-Edit the event’s food explanation in each enabled language in the same settings area. This is event-specific text, separate from shared interface wording. Send private invitation links again manually when appropriate.
+Food explanations and replies are event-specific text, separate from shared interface wording. Send private invitation links again manually when appropriate.
 
 ## Categories, items and groups
 
-**Food Groups** and **Food categories** have separate expandable boxes, each with its own Add section. Category headers show their own item count and picked/needed quantity, followed by the direct sub-category count, including zero counts. Arrows change saved sibling order; the pencil opens Name and Parent category side by side when space permits, with a matching translation globe beside Name and Save/Cancel below. Empty categories have a guarded Delete action at the editor’s lower right, opposite Save/Cancel. The category’s **+** opens a popup with **Add item** and **Add sub-category**; there is no separate sub-category button.
+**Food Groups** and **Food categories** have separate expandable boxes, each with its own Add section. Category headers show their own nonzero item count and picked/needed quantity. The direct sub-category count appears only when there is at least one; zero sub-categories are omitted. Arrows change saved sibling order; the pencil opens Name and Parent category side by side when space permits, with a matching translation globe beside Name and Save/Cancel below. Empty categories have a guarded Delete action at the editor’s lower right, opposite Save/Cancel. The category’s **+** opens a popup with **Add item** and **Add sub-category**; there is no separate sub-category button.
 
 An item has a name, amount needed, unit, category, guest/admin notes and venue availability. Its pencil opens the editor. The globe beside Name opens translations; the pencil beside Unit manages units. Admin note sits under Unit and Guest note under Category. **Show to guests** is beside Cancel. Save applies changes; Cancel discards them. Translation dialogs preserve unfinished item/category drafts.
 

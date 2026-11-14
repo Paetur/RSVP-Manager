@@ -10,6 +10,7 @@
     store = {
       settings: null,
       invitationTemplates: [],
+      guestFoodReplies: [],
       sessions: [],
       locations: [],
       households: [],
@@ -104,13 +105,6 @@
       });
     });
     return table;
-  }
-  function stat(label, value, detail = "") {
-    const div = R.dom("div", { class: "stat-card" });
-    div.append(R.dom("b", {}, value), R.dom("span", {}, label));
-    if (detail)
-      div.append(R.dom("small", { class: "stat-detail muted" }, detail));
-    return div;
   }
   function sessionName(id) {
     return (
@@ -313,6 +307,14 @@
       return false;
     }
   }
+  const statisticsView = window.RSVP_ADMIN_STATISTICS.create({
+    R,
+    T,
+    getStore: () => store,
+    can,
+    planningLabel,
+    planningConfiguration,
+  });
   function renderAll() {
     window.RSVP_NOTIFICATIONS.configure(
       "admin",
@@ -322,99 +324,7 @@
     $("householdsTitle").textContent = planningLabel("households");
     $("adminEventTitle").textContent =
       store.settings?.event_name || T("interface.messages.event_dashboard");
-    const {
-      invitedCount,
-      children,
-      sessionReplies,
-      rsvpSessions,
-      available,
-      full,
-      hidden,
-      contributingHouseholds,
-    } = window.RSVP_ADMIN_OVERVIEW.eventCounts(store, can("invites"));
-    const rsvpDetail =
-      T("interface.messages.sessions") +
-      ": " +
-      rsvpSessions.length +
-      "\n" +
-      [
-        ["attending", "attending"],
-        ["not_attending", "declined"],
-        ["pending", "pending"],
-      ]
-        .map(
-          ([label, key]) =>
-            T("interface.messages." + label) + ": " + sessionReplies[key],
-        )
-        .join(" · ");
-    const foodDetail =
-      T("interface.messages.available") +
-      ": " +
-      available +
-      " · " +
-      T("interface.messages.fully_assigned") +
-      ": " +
-      full +
-      " · " +
-      T("interface.messages.hidden_status") +
-      ": " +
-      hidden +
-      "\n" +
-      planningLabel("households") +
-      ": " +
-      contributingHouseholds;
-    $("statsGrid").replaceChildren(
-      ...(can("households")
-        ? [
-            stat(
-              planningLabel("households"),
-              store.households.filter((h) => !h.archived_at).length,
-              T("interface.messages.top_level_groups") +
-                ": " +
-                planningConfiguration().groups.length +
-                " · " +
-                T("interface.messages.relation_groups") +
-                ": " +
-                store.relationGroups.length,
-            ),
-            stat(
-              planningLabel("guests"),
-              invitedCount,
-              T("interface.messages.guest_age_summary", {
-                adults: invitedCount - children,
-                children,
-              }),
-            ),
-          ]
-        : []),
-      ...(can("invites")
-        ? [
-            stat(
-              T("interface.messages.new_rsvp_submissions"),
-              store.submissions.length,
-              rsvpDetail,
-            ),
-          ]
-        : []),
-      ...(can("food")
-        ? [stat(T("food.messages.food_items"), store.food.length, foodDetail)]
-        : []),
-    );
-    let overviewHint = $("overviewAccessSummary");
-    if (!overviewHint) {
-      overviewHint = R.dom("p", {
-        class: "panel",
-        id: "overviewAccessSummary",
-      });
-      $("statsGrid").after(overviewHint);
-    }
-    overviewHint.textContent = T(
-      "Use the available tabs to open the sections you can access.",
-    );
-    overviewHint.classList.toggle(
-      "hidden",
-      $("statsGrid").childElementCount > 0,
-    );
+    statisticsView.render();
     const deployed = window.RSVP_CONFIG || {};
     let websiteConfigured = false;
     try {
@@ -512,6 +422,7 @@
         "M12 3c-5 5-5 13 0 18",
       ],
       move: ["M4 7h15", "m15 3 4 4-4 4", "M20 17H5", "m9 13-4 4 4 4"],
+      search: ["M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0", "m16 16 6 6"],
       edit: ["m16 5 3 3", "M4 20l4-1 12-12a2.1 2.1 0 0 0-3-3L5 16l-1 4Z"],
       delete: [
         "M3 6h18",
@@ -3210,8 +3121,8 @@
       "Piece(s)": "Piece",
       "Tray(s)": "Tray",
       "Packet(s)": "Packet",
-      "Kg": "Kg",
-      "Grams": "Gram",
+      Kg: "Kg",
+      Grams: "Gram",
     };
     if (R.foodTypes.includes(name)) {
       if (
@@ -5401,6 +5312,7 @@
       "inviteGroupFilter",
       "inviteLanguageFilter",
       "inviteChannelFilter",
+      "inviteFoodInterestFilter",
       "inviteGroupView",
     ])
       $(id).addEventListener("change", renderInvites);

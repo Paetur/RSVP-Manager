@@ -13,7 +13,8 @@ with tempfile.TemporaryDirectory(prefix='rsvp-publisher-') as tmp:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
     public = {
-        'index.html': 'website', 'setup.html': 'setup', 'admin/index.html': 'admin',
+        'index.html': 'website', 'setup.html': 'setup', 'setup-automatic.html': 'automatic setup', 'admin/index.html': 'admin',
+        'INSTALL.md': 'current root installation guide',
         'supabase/install.sql': 'BEGIN; COMMIT;', 'supabase/install-manifest.json': '{}',
         'supabase/studio/manifest.json': '{}', 'supabase/studio/guest-gateway.ts': 'guest source',
         'supabase/studio/admin-invitations.ts': 'admin source',
@@ -31,6 +32,7 @@ with tempfile.TemporaryDirectory(prefix='rsvp-publisher-') as tmp:
     put(source, 'supabase/functions/guest-gateway/index.ts', 'modular server source')
     config = base / 'runtime-config.js'
     config.write_text('synthetic public browser configuration')
+    put(target, 'INSTALL.md', 'stale installation guide')
     put(target, 'js/config.production.js', 'preserve runtime production defaults')
     command = ['python3', str(root / 'deployment/publish-web.py'), str(source), str(config), str(target)]
     subprocess.run(command, check=True, capture_output=True)
@@ -48,4 +50,4 @@ with tempfile.TemporaryDirectory(prefix='rsvp-publisher-') as tmp:
     (source / 'docs/escape.html').symlink_to(outside)
     assert subprocess.run(command, capture_output=True).returncode != 0
     assert not (target / 'docs/escape.html').exists()
-print('PASS local web publisher: SQL/manifests/guides/code assets, repeat publishing, config preservation and private-file/symlink exclusions.')
+print('PASS local web publisher: SQL/manifests/root installation guide/code assets, repeat publishing, config preservation and private-file/symlink exclusions.')

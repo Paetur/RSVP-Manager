@@ -128,7 +128,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await summary.locator('strong').first().click();
  assert.equal(await food.evaluate(n=>n.open),false);
  assert.ok(await summary.getByText('Example child · 2',{exact:true}).isVisible());
- assert.equal(await page.locator('.food-category-heading .tree-count').first().textContent(),'1 item · Quantity: 2/4 · 0 sub-categories');
+ assert.equal(await page.locator('.food-category-heading .tree-count').first().textContent(),'1 item · Quantity: 2/4');
  await summary.locator('strong').first().click();
  await page.evaluate(()=>{window.__fixtures.households[1].food_confirmed=true;});
  await page.locator('#refreshButton').click();
@@ -144,7 +144,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  page.once('dialog',dialog=>dialog.accept());
  await food.getByRole('button',{name:'Remove assignment for Example child'}).click();
  await summary.locator('.food-claim-summary').waitFor({state:'detached'});
- assert.equal(await page.locator('.food-category-heading .tree-count').first().textContent(),'1 item · Quantity: 0/4 · 0 sub-categories');
+ assert.equal(await page.locator('.food-category-heading .tree-count').first().textContent(),'1 item · Quantity: 0/4');
  await page.evaluate(()=>window.__fixtures.food_items.forEach(f=>{f.description_en=null;f.admin_comment=null;}));await page.locator('#refreshButton').click();await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);assert.equal(await page.locator('.food-comment-grid').count(),0,'empty read-only comments are omitted');
  await page.locator('.food-category-heading').first().getByRole('button',{name:'Add item or sub-category',exact:true}).click();await page.getByRole('dialog',{name:'Add item or sub-category',exact:true}).getByRole('button',{name:'Add item',exact:true}).click();
  await page.locator('#addFoodType').click();
@@ -165,33 +165,33 @@ async function run(type){const browser=await type.launch({headless:true});try{
  const foodOrder=await page.locator('.food-compact-item').evaluateAll(items=>items.map(item=>item.dataset.treeKey.slice('food:item:'.length)));
  await page.locator('[data-tab="language"]').click();
  await selectContentTranslation(page,'food');
- const grid=page.locator('#foodTranslationGrid');
- assert.deepEqual(await grid.getByLabel('Food item',{exact:true}).locator('option').evaluateAll(options=>options.map(option=>option.value)),foodOrder);
- await grid.getByLabel('Food categories',{exact:true}).selectOption('category:Desserts');
- assert.equal(await grid.getByLabel('Food item',{exact:true}).inputValue(),'dessert-example');
- await grid.getByLabel('Food categories',{exact:true}).selectOption('category:Main dishes');
- await grid.getByLabel('Food item',{exact:true}).selectOption({label:'Sample dish'});
+ const translationGrid=page.locator('#foodTranslationGrid'); let grid=translationGrid;
+ const selectCard=async(title)=>{assert.ok((await translationGrid.locator('h3').allTextContents()).includes(title),title+' in '+JSON.stringify(await translationGrid.locator('h3').allTextContents()));const card=translationGrid.locator('.translation-record-card').filter({has:page.locator('h3').filter({hasText:title})});await openBox(page,await card.locator('[data-local-edit]').getAttribute('data-local-edit'));grid=card;};
+ assert.deepEqual(await translationGrid.locator('.translation-record-card').evaluateAll(cards=>cards.map(card=>card.dataset.translationRecord.slice(5))),foodOrder);
+ await translationGrid.getByLabel('Food categories',{exact:true}).selectOption('category:Desserts');
+ assert.equal(await translationGrid.locator('[data-translation-record="food:dessert-example"]').count(),1);
+ await translationGrid.getByLabel('Food categories',{exact:true}).selectOption('category:Main dishes');
+ await selectCard('Sample dish');
 
  await openBox(page,await grid.locator('[data-local-edit]').first().getAttribute('data-local-edit'));
  assert.equal(await grid.locator('.food-translation-row').count(),3);
  for(const row of await grid.locator('.food-translation-row').all())assert.equal(await row.getByRole('textbox').count(),2);
  if(process.env.RSVP_LAYOUT_PREVIEW&&type.name()==='chromium')await page.locator('[data-panel="language"]').screenshot({path:process.env.RSVP_LAYOUT_PREVIEW+'/food-language-grid.png'});
  await grid.locator('.food-translation-row input').first().fill('Updated sample dish');
- await grid.getByRole('button',{name:'Save translations'}).click();
+ await grid.getByRole('button',{name:'Save',exact:true}).click();
  await page.waitForFunction(()=>window.__savedTranslations?.p_changes.length===1&&!document.querySelector('#foodTranslationGrid form[aria-busy]'));
  await selectContentTranslation(page,'food-types');
- const typePicker=grid.getByLabel('Unit',{exact:true});
- const typeKeys=await typePicker.locator('option').evaluateAll(options=>options.map(option=>option.value));
+ const typeKeys=await translationGrid.locator('.translation-record-card').evaluateAll(cards=>cards.map(card=>card.dataset.translationRecord));
  for(const name of ['Batches','Pieces','Trays','Packets','kg','Grams'])assert.ok(typeKeys.includes('ui:'+name));
  assert.deepEqual(await page.evaluate(()=>window.RSVP.foodTypes),['Batch(s)','Piece(s)','Tray(s)','Packet(s)','Kg','Grams'],'Persisted unit identities stay unchanged');
  assert.ok(typeKeys.includes('ui:Food type: Basket(s)'));
- await typePicker.selectOption('ui:Trays');
+ await selectCard('Trays');
  assert.equal(await grid.locator('.food-type-translation-row').count(),3);
  assert.equal(await grid.getByLabel('Unit · English',{exact:true}).inputValue(),'Trays');
  if(process.env.FOOD_LANGUAGE_PREVIEW&&type.name()==='chromium')await page.locator('[data-panel="language"]').screenshot({path:process.env.FOOD_LANGUAGE_PREVIEW+'/language-food-types-category.png'});
  await openBox(page,await grid.locator('[data-local-edit]').first().getAttribute('data-local-edit'));await grid.getByLabel('Unit · English',{exact:true}).fill('Baking trays');
  await grid.getByLabel('Unit · Deutsch',{exact:true}).fill('Backbleche');
- await grid.getByRole('button',{name:'Save translations'}).click();
+ await grid.getByRole('button',{name:'Save',exact:true}).click();
  await page.waitForFunction(()=>window.__savedTypeTranslations?.length===2&&!document.querySelector('#foodTranslationGrid form[aria-busy]'));
  assert.deepEqual(await page.evaluate(()=>window.__savedTypeTranslations.map(row=>row.p_language)),['en','de']);
  const sections=[
@@ -201,24 +201,24 @@ async function run(type){const browser=await type.launch({headless:true});try{
  ];
  for(const section of sections){
   await selectContentTranslation(page,section.category);
-  await grid.getByLabel(section.picker,{exact:true}).selectOption({label:section.label});
+  await selectCard(section.label);
   assert.equal(await page.locator('#translationLanguage').count(),0,'no separate language selector');
   await openBox(page,await grid.locator('[data-local-edit]').first().getAttribute('data-local-edit'));
  assert.equal(await grid.locator('.food-translation-row').count(),3);
   for(const row of await grid.locator('.food-translation-row').all()){
    assert.equal(await row.getByRole('textbox').count(),section.fields);
    const tops=await row.getByRole('textbox').evaluateAll(fields=>fields.map(field=>field.getBoundingClientRect().top));
-   assert.ok(Math.max(...tops)-Math.min(...tops)<2,'translation fields align at the top');
+   assert.ok(tops.every((top,index)=>!index||top>tops[index-1]),'fields stack within each language column');
    for(const label of await row.locator('label').all()){
     const caption=await label.locator(':scope > span').first().boundingBox(),box=await label.getByRole('textbox').boundingBox();
-    assert.ok(caption.y+caption.height<=box.y,'caption sits above its box');
+    assert.ok(caption.y+caption.height<=box.y+1,'caption sits above its box '+section.category+' '+JSON.stringify({caption,box}));
    }
   }
   assert.equal(await grid.locator('[data-language-code="en"]').getByRole('textbox').first().inputValue(),section.source);
   const before=await page.evaluate(()=>(window.__batchTranslationSaves||[]).length);
   for(const [language,index,value] of section.edits)await grid.locator('[data-language-code="'+language+'"]').getByRole('textbox').nth(index).fill(value);
   assert.equal(await page.evaluate(()=>(window.__batchTranslationSaves||[]).length),before,'typing does not save');
-  await grid.getByRole('button',{name:'Save translations'}).click();
+  await grid.getByRole('button',{name:'Save',exact:true}).click();
   await page.waitForFunction(()=>!document.querySelector('#foodTranslationGrid form[aria-busy]'));
   const batchSaves=await page.evaluate(()=>window.__batchTranslationSaves);
   assert.equal(batchSaves.length,before+1,'one atomic request');
@@ -233,12 +233,14 @@ async function run(type){const browser=await type.launch({headless:true});try{
    await page.locator('[data-panel="language"]').screenshot({path:process.env.CONTENT_LANGUAGE_PREVIEW+'/language-'+section.category+'-top-labels.png'});
   }
  }
+ if(!await page.locator('#translationSearch').isVisible())await page.locator('#translationSearchToggle').click();
  await page.locator('#translationSearch').fill('zzzz-no-matching-record');
+ grid=translationGrid;
  await grid.getByText('No matching entries.',{exact:true}).waitFor();
  assert.equal(await grid.locator('form').count(),0);
  await page.locator('#translationSearch').fill('');
- await page.waitForFunction(()=>document.querySelector('#foodTranslationGrid select')?.value===window.__fixtures.event_sessions[0].id);
- assert.equal(await grid.getByLabel('Session',{exact:true}).inputValue(),await page.evaluate(()=>window.__fixtures.event_sessions[0].id));
+ await page.waitForFunction(()=>document.querySelector('#foodTranslationGrid .translation-record-card'));
+ await selectCard('Dinner');
 
  await grid.locator('.local-editor-open form').getByRole('button',{name:'Cancel',exact:true}).click();
  assert.equal(await grid.locator('[data-language-code="en"]').getByRole('textbox').count(),0);
@@ -348,4 +350,4 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.equal(await guest.locator('#foodList input[type=number]').count(),1);assert.equal(await guest.locator('#foodList input[type=number]').inputValue(),'1');assert.equal(await guest.locator('#foodList input[type=number]').getAttribute('max'),'2');assert.match(await guest.locator('.food-availability').textContent(),/Needed: 2.*Still available: 2/);await guest.locator('.guest-food-information > summary').click();assert.ok((await guest.locator('.guest-food-note').textContent()).includes('Bring chilled'));await guest.getByRole('button',{name:'Recipe',exact:true}).click();assert.equal(await guest.locator('.recipe-content li').count(),2);await guest.evaluate(()=>{window.open=()=>{const doc=document.implementation.createHTMLDocument();return {document:doc,focus(){},print(){window.__recipePrint=doc.body.textContent;}};};});await guest.getByRole('button',{name:'Print',exact:true}).click();assert.match(await guest.evaluate(()=>window.__recipePrint),/^CakeMelt:360g dark chocolate300g butterStir well$/);if(process.env.PREVIEW_OUTPUT)await guest.locator('#foodCard').screenshot({path:process.env.PREVIEW_OUTPUT+'/food-guest-draft.png'});await guest.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();await guest.locator('.guest-food-choice>button').click();await guest.waitForFunction(()=>window.__pick);const pick=await guest.evaluate(()=>window.__pick);assert.equal((pick.params||pick.args||pick).p_quantity,1);await guest.close();
  console.log('PASS '+type.name()+': compact food, private/public comments, scoped translations, task sheet and guest quantity controls with one-unit default.');
 }finally{await browser.close();}}
-server.listen(0,'127.0.0.1',async()=>{try{await run(chromium);await run(webkit);}catch(e){console.error(e);process.exitCode=1;}finally{server.close();}});
+server.listen(0,'127.0.0.1',async()=>{try{await run(chromium);if(process.env.RSVP_TEST_BROWSER!=='chromium')await run(webkit);}catch(e){console.error(e);process.exitCode=1;}finally{server.close();}});

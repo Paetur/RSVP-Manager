@@ -1,7 +1,7 @@
 {
   "format": 1,
-  "applicationVersion": "0.9.0-alpha.3",
+  "applicationVersion": "0.9.0-alpha.4",
   "baseline": "20261114034908_alpha_baseline.sql",
-  "baselineSha256": "030b0c9035accd28dc1b238528a33dccea2e010be41fba263787d53675e78741",
-  "installerSha256": "b20a82c6631046fd05316c5edeb8750a94ccb41aeea9c477599e31747b86bc43"
+  "baselineSha256": "c25ec78e684592e431fb68c82cfa607c4e95885f7a2e28d4786329cbf47227ee",
+  "installerSha256": "7f330b4bce5490831678ed2a168355b70ab604915144ae24144ac2bd7fbddab7"
 }

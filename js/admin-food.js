@@ -151,14 +151,15 @@
           );
         if (totals.claimed || totals.capacity)
           summary.push(T("Quantity: {claimed}/{capacity}", totals));
-        summary.push(
-          T(
-            childCount === 1
-              ? "interface.messages.food_count_subcategory"
-              : "interface.messages.food_count_subcategories",
-            { count: childCount },
-          ),
-        );
+        if (childCount)
+          summary.push(
+            T(
+              childCount === 1
+                ? "interface.messages.food_count_subcategory"
+                : "interface.messages.food_count_subcategories",
+              { count: childCount },
+            ),
+          );
         heading.append(
           title,
           R.dom("small", { class: "tree-count" }, summary.join(" · ")),

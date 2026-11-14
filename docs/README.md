@@ -13,3 +13,7 @@ Choose the page that matches what you want to do.
 - [Frequently asked questions](FAQ.md).
 
 [Back to the project overview](../README.md)
+
+- [Encrypted backups](BackupEncryption.md) — optional password protection, browser requirements and file format.
+
+- [Automatic cloud setup](AutomaticSetup.md) — trusted local seven-step companion, credentials, retries and public configuration.

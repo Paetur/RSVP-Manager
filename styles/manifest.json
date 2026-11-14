@@ -4,9 +4,13 @@
   "03-themes-and-controls.css",
   "04-admin-components.css",
   "05-food-and-guest-refinements.css",
+  "05-food-interest.css",
   "06-shared-editor-refinements.css",
   "06-event-settings.css",
   "06-notification-settings.css",
   "07-invitation-customization.css",
-  "08-delivery-overview.css"
+  "08-delivery-overview.css",
+  "09-language-cards-and-statistics.css",
+  "10-backup-encryption.css",
+  "11-setup-automation.css"
 ]

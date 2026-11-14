@@ -7,7 +7,7 @@ import sys
 source, config, target = map(pathlib.Path, sys.argv[1:])
 source = source.resolve()
 files = [pathlib.Path(name) for name in [
-    'index.html', 'setup.html', 'admin/index.html',
+    'index.html', 'setup.html', 'setup-automatic.html', 'admin/index.html', 'INSTALL.md',
     'supabase/install.sql', 'supabase/install-manifest.json',
 ]]
 for folder, suffixes in [

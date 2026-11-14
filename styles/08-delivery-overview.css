@@ -22,7 +22,7 @@
 }
 .invite-overview-filters {
   display: grid;
-  grid-template-columns: minmax(170px, 1.5fr) repeat(3, minmax(100px, 1fr));
+  grid-template-columns: minmax(170px, 1.5fr) repeat(4, minmax(100px, 1fr));
   gap: 10px;
 }
 .invite-overview-filters label {
@@ -58,10 +58,9 @@
 .invite-overview-heading,
 #adminApp .invite-overview-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1.4fr) minmax(100px, 1fr) minmax(
-      115px,
-      1fr
-    ) minmax(95px, 0.8fr) minmax(140px, auto);
+  grid-template-columns:
+    minmax(140px, 1.4fr) minmax(100px, 1fr) minmax(115px, 1fr)
+    minmax(95px, 0.8fr) minmax(140px, auto);
   gap: 12px;
   align-items: center;
 }

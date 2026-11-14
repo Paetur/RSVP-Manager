@@ -8,19 +8,21 @@
     lastLanguageOrder = 0,
     fileGeneration = 0,
     translationScopeValue = "settings",
-    foodTranslationId = "",
     foodTranslationCategory = "",
     foodTypeTranslationKey = "",
     translationLocaleSignature = "";
   const contentTranslationIds = {};
   const wordingDrafts = new Map();
+  const translationDrafts = new Map();
   let contentTranslationGroup = "welcome",
     foodTranslationSection = "food",
+    guestTranslationSection = "food-explanation",
     wordingLanguage = "",
     wordingCategory = "all",
     wordingPage = 0,
     wordingPageSize = 25,
-    translationSearchTimer;
+    translationSearchTimer,
+    backupEncryption;
   const $ = (id) => document.getElementById(id);
   function enabled() {
     const rows = ctx.getStore().languages;
@@ -137,7 +139,7 @@
       )
       .flatMap((category) => ctx.foodMenuItems(category.name))
       .filter((item) =>
-        [item.name_en, item.category].join(" ").toLowerCase().includes(search),
+        matchesTranslation(search, item, "food:" + item.id + ":"),
       );
     if (!items.length) {
       host.append(
@@ -149,24 +151,43 @@
       );
       return;
     }
-    const pickerLabel = R.dom("label", {}, T("food.messages.food_item"));
-    const picker = R.dom("select");
-    picker.setAttribute("aria-label", T("food.messages.food_item"));
-    options(
-      picker,
-      items.map((item) => [item.id, item.name_en]),
-      foodTranslationId,
-    );
-    foodTranslationId = picker.value;
-    picker.addEventListener("change", () => {
-      foodTranslationId = picker.value;
-      renderFoodTranslations(search);
-    });
-    pickerLabel.append(picker);
-    pickers.append(pickerLabel);
-    const item = items.find((item) => item.id === foodTranslationId);
-    renderFoodItemTranslations(host, item);
+    for (const item of items) {
+      const body = translationCard(host, "food:" + item.id, item.name_en);
+      renderFoodItemTranslations(body, item);
+    }
   }
+  function translationCard(host, key, title) {
+    return window.RSVP_ADMIN_TRANSLATION_CARDS.create(host, {
+      R: ctx.R,
+      T,
+      key,
+      title,
+    });
+  }
+  function matchesTranslation(search, record, prefix) {
+    return (
+      !search ||
+      [
+        record.name,
+        record.name_en,
+        record.category,
+        record.description_en,
+        record.description_de,
+        record.description_fo,
+        record.description,
+        record.welcome_en,
+        record.notes,
+        ...ctx
+          .getStore()
+          .content.filter((row) => row.content_key.startsWith(prefix))
+          .map((row) => row.content_value),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(search)
+    );
+  }
+
   function renderFoodItemTranslations(host, item, onSaved, readOnly = false) {
     const R = ctx.R;
     const columns = [
@@ -344,8 +365,16 @@
     const R = ctx.R,
       host = $("foodTranslationGrid");
     host.replaceChildren();
-    const rows = foodTypeTranslationKeys().filter(([key, label]) =>
-      label.toLowerCase().includes(search),
+    const rows = foodTypeTranslationKeys().filter(
+      ([key, label]) =>
+        label.toLowerCase().includes(search) ||
+        ctx
+          .getStore()
+          .content.some(
+            (row) =>
+              row.content_key === key &&
+              row.content_value.toLowerCase().includes(search),
+          ),
     );
     if (!rows.length) {
       host.append(
@@ -357,29 +386,21 @@
       );
       return;
     }
-    const pickers = R.dom("div", { class: "food-translation-picker" });
-    const label = R.dom("label", {}, T("interface.messages.unit"));
-    const picker = R.dom("select");
-    picker.setAttribute("aria-label", T("interface.messages.unit"));
-    options(picker, rows, foodTypeTranslationKey);
-    foodTypeTranslationKey = picker.value;
-    picker.addEventListener("change", () => {
-      foodTypeTranslationKey = picker.value;
-      renderFoodTypeTranslations(search);
-    });
-    label.append(picker);
-    pickers.append(label);
-    host.append(pickers);
-    renderTranslationRows(
-      host,
-      [["Unit", picker.value]],
-      (key, language) =>
-        key.startsWith("ui:Food type: ")
-          ? key.slice("ui:Food type: ".length)
-          : I.t(key.slice(3), {}, language),
-      saveTranslationRows,
-    );
+    for (const [key, title] of rows) {
+      const body = translationCard(host, key, title);
+      if (foodTypeTranslationKey === key) body.parentElement.open = true;
+      renderTranslationRows(
+        body,
+        [["Unit", key]],
+        (key, language) =>
+          key.startsWith("ui:Food type: ")
+            ? key.slice("ui:Food type: ".length)
+            : I.t(key.slice(3), {}, language),
+        saveTranslationRows,
+      );
+    }
   }
+
   function renderContentTranslations(category, search) {
     const R = ctx.R,
       s = ctx.getStore(),
@@ -410,25 +431,9 @@
     };
     const group = groups[category];
     const records = group.records.filter((record) =>
-      record.name.toLowerCase().includes(search),
+      matchesTranslation(search, record, category + ":" + record.id + ":"),
     );
     host.replaceChildren();
-    const pickers = R.dom("div", { class: "food-translation-picker" });
-    const label = R.dom("label", {}, T(group.label));
-    const picker = R.dom("select");
-    picker.setAttribute("aria-label", T(group.label));
-    options(
-      picker,
-      records.map((record) => [record.id, record.name]),
-      contentTranslationIds[category],
-    );
-    picker.addEventListener("change", () => {
-      contentTranslationIds[category] = picker.value;
-      renderContentTranslations(category, search);
-    });
-    label.append(picker);
-    pickers.append(label);
-    host.append(pickers);
     if (!records.length) {
       host.append(
         R.dom(
@@ -439,26 +444,33 @@
       );
       return;
     }
-    contentTranslationIds[category] = picker.value;
-    const record = records.find((record) => record.id === picker.value);
-    const columns = group.fields.map(([label, field, source, kind]) => [
-      label,
-      category + ":" + record.id + ":" + field,
-      kind,
-    ]);
-    renderTranslationRows(
-      host,
-      columns,
-      (key, language) => {
-        const field = group.fields.find((field) =>
-          key.endsWith(":" + field[1]),
-        );
-        if (language === "en") return record[field[2]] || "";
-        return "";
-      },
-      saveTranslationRows,
-    );
+    for (const record of records) {
+      const body = translationCard(
+        host,
+        category + ":" + record.id,
+        record.name,
+      );
+      const columns = group.fields.map(([label, field, source, kind]) => [
+        label,
+        category + ":" + record.id + ":" + field,
+        kind,
+      ]);
+      renderTranslationRows(
+        body,
+        columns,
+        (key, language) => {
+          const field = group.fields.find((field) =>
+            key.endsWith(":" + field[1]),
+          );
+          return language === "en" ? record[field[2]] || "" : "";
+        },
+        saveTranslationRows,
+      );
+      if (contentTranslationIds[category] === record.id)
+        body.parentElement.open = true;
+    }
   }
+
   async function saveTranslationRows(changes, markSaved) {
     await rpc("admin_save_translations", { p_changes: changes });
     changes.forEach(markSaved);
@@ -476,7 +488,13 @@
       s = ctx.getStore();
     const form = R.dom("form", { class: "food-translation-grid" });
     form.dataset.formKey = "translations:" + columns[0][1];
+    if (host.closest("[data-translation-record]"))
+      form.dataset.translationCard = "true";
     const cells = [];
+    form.style.setProperty(
+      "--translation-languages",
+      Math.min(3, enabled().length),
+    );
     for (const language of enabled()) {
       const row = R.dom("div", {
         class:
@@ -552,7 +570,11 @@
     const save = R.dom(
       "button",
       { class: "btn edit-only", type: "submit" },
-      T("interface.messages.save_translations"),
+      T(
+        form.dataset.translationCard
+          ? "Save"
+          : "interface.messages.save_translations",
+      ),
     );
     save.disabled = !ctx.isEditing();
     const cancel = R.dom(
@@ -561,6 +583,7 @@
       T("Cancel"),
     );
     cancel.addEventListener("click", () => {
+      translationDrafts.delete(form.dataset.formKey);
       cells.forEach((cell) => (cell.input.value = cell.original));
       I.markClean(form);
       ctx.formFeedback(form);
@@ -595,6 +618,7 @@
           );
           cell.original = change.value;
         });
+        translationDrafts.delete(form.dataset.formKey);
         ctx.formFeedback(form, "saved");
         window.RSVP_LOCAL_EDITORS?.saved(form);
         await ctx.reload();
@@ -610,6 +634,25 @@
         form.updateSaveState?.();
       }
     });
+    const draftKey = (cell) => cell.key + "\u0000" + cell.language;
+    for (const cell of cells) {
+      const draft = translationDrafts
+        .get(form.dataset.formKey)
+        ?.get(draftKey(cell));
+      if (draft !== undefined) cell.input.value = draft;
+    }
+    const rememberDraft = () => {
+      const drafts = new Map(
+        cells
+          .filter((cell) => cell.input.value !== cell.original)
+          .map((cell) => [draftKey(cell), cell.input.value]),
+      );
+      if (drafts.size) translationDrafts.set(form.dataset.formKey, drafts);
+      else translationDrafts.delete(form.dataset.formKey);
+    };
+    form.addEventListener("input", rememberDraft);
+    form.hasTranslationChanges = () =>
+      cells.some((cell) => cell.input.value !== cell.original);
     const updateSave = () => {
       save.disabled =
         !ctx.isEditing() ||
@@ -622,6 +665,17 @@
     updateSave();
     host.append(form);
     ctx.cleanSave(form);
+    for (const cell of cells) cell.input.dataset.cleanOriginal = cell.original;
+    form.cleanSaveUpdate?.();
+  }
+  function allowTranslationNavigation() {
+    const forms = [...$("foodTranslationGrid").querySelectorAll("form")];
+    if (forms.some((form) => form.getAttribute("aria-busy") === "true"))
+      return false;
+    if (!forms.some((form) => form.hasTranslationChanges?.())) return true;
+    if (!confirm(T("Discard unsaved translation changes?"))) return false;
+    translationDrafts.clear();
+    return true;
   }
   function renderTabs(host, entries, selected, select) {
     host.replaceChildren();
@@ -635,7 +689,9 @@
       button.classList.toggle("active", value === selected);
       button.setAttribute("aria-selected", String(value === selected));
       button.tabIndex = value === selected ? 0 : -1;
-      button.addEventListener("click", () => select(value));
+      button.addEventListener("click", () => {
+        if (allowTranslationNavigation()) select(value);
+      });
       host.append(button);
     }
   }
@@ -650,7 +706,7 @@
       ),
     );
     renderTranslationRows(
-      host,
+      translationCard(host, "welcome", T("Welcome Message")),
       [["Translation", "welcome"]],
       () => "",
       saveTranslationRows,
@@ -939,6 +995,20 @@
       });
       field.append(input);
       editor.append(field);
+      const tokens = [
+        ...new Set(
+          (I.nativeWording(source, "en") || source).match(
+            /\{[A-Za-z][A-Za-z0-9_]*\}/g,
+          ) || [],
+        ),
+      ];
+      if (tokens.length)
+        window.RSVP_PLACEHOLDER_HELP.attach(input, {
+          R,
+          T,
+          kind: "phrase",
+          tokens,
+        });
       const status = R.dom("p", { class: "small hidden" });
       status.setAttribute("role", "status");
       const save = R.dom(
@@ -1019,20 +1089,25 @@
       return;
     }
     const content = translationScopeValue === "content";
+    $("translationEditor").querySelector(
+      ".translation-editor-heading h2",
+    ).textContent = T(content ? "Languages" : "Translations");
     $("translationEditor").classList.toggle(
       "content-translation-editor",
       content,
     );
     $("contentTranslationTabs").classList.toggle("hidden", !content);
-    $("translationSearch")
-      .closest("label")
-      .classList.toggle(
-        "hidden",
-        content && contentTranslationGroup === "welcome",
-      );
+    const searchable =
+      !content || !["welcome", "guests"].includes(contentTranslationGroup);
+    $("translationSearchToggle").classList.toggle("hidden", !searchable);
+    $("translationSearchPanel").classList.toggle(
+      "hidden",
+      !searchable ||
+        $("translationSearchToggle").getAttribute("aria-expanded") !== "true",
+    );
     $("foodTranslationTabs").classList.toggle(
       "hidden",
-      !content || contentTranslationGroup !== "food",
+      !content || !["food", "guests"].includes(contentTranslationGroup),
     );
     $("interfaceLanguageTabs").classList.toggle("hidden", content);
     $("wordingCategoryTabs").classList.toggle("hidden", content);
@@ -1049,6 +1124,7 @@
         ["venue", T("Venues")],
         ["session", T("interface.messages.sessions")],
         ["food", T("food.messages.food")],
+        ["guests", T("Guests")],
       ],
       contentTranslationGroup,
       (value) => {
@@ -1076,6 +1152,30 @@
       else if (foodTranslationSection === "food-types")
         renderFoodTypeTranslations(search);
       else renderContentTranslations("food-category", search);
+    } else if (contentTranslationGroup === "guests") {
+      renderTabs(
+        $("foodTranslationTabs"),
+        [
+          ["food-explanation", T("Food explanation")],
+          ["food-interest-reply", T("Food Interest Reply")],
+        ],
+        guestTranslationSection,
+        (value) => {
+          guestTranslationSection = value;
+          renderTranslationKeys();
+        },
+      );
+      const guestWording = window.RSVP_ADMIN_GUEST_WORDING.create({
+        ctx,
+        I,
+        T,
+        rpc,
+        renderTranslationRows,
+        translationCard,
+      });
+      if (guestTranslationSection === "food-interest-reply")
+        guestWording.renderReply();
+      else guestWording.renderExplanation();
     } else if (contentTranslationGroup === "welcome")
       renderWelcomeTranslations();
     else renderContentTranslations(contentTranslationGroup, search);
@@ -1857,7 +1957,14 @@
         exporting ? "backupExportSections" : "backupTemplateSections",
       ),
       logs: $(exporting ? "backupExportLogs" : "backupRestoreLogs"),
-      ...(exporting ? { compression: $("backupExportCompressed") } : {}),
+      ...(exporting
+        ? {
+            compression: $("backupExportCompressed"),
+            encryption: $("backupExportEncrypted"),
+            password: $("backupEncryptionPassword"),
+            passwordConfirm: $("backupEncryptionConfirm"),
+          }
+        : {}),
     };
   }
   function backupMode(exporting = false) {
@@ -1934,6 +2041,10 @@
   }
   function init(context) {
     ctx = context;
+    backupEncryption = window.RSVP_ADMIN_BACKUP_ENCRYPTION.create({
+      R: ctx.R,
+      T,
+    });
     window.addEventListener("beforeunload", (e) => {
       if (hasUnsavedTasks() && !I.languageReloadApproved) {
         e.preventDefault();
@@ -2024,10 +2135,44 @@
         ctx.show(ctx.R.safeError(error), "error");
       }
     });
+    $("translationSearchToggle").append(
+      ctx.iconAction("search", T("Search")).querySelector("svg"),
+    );
+    $("translationSearchClose").append(ctx.R.dom("span", {}, "×"));
+    const toggleSearch = (open) => {
+      $("translationSearchToggle").setAttribute("aria-expanded", String(open));
+      $("translationSearchPanel").classList.toggle("hidden", !open);
+      if (open) $("translationSearch").focus();
+      else {
+        $("translationSearch").value = "";
+        renderTranslationKeys();
+        $("translationSearchToggle").focus();
+      }
+    };
+    $("translationSearchToggle").addEventListener("click", () => {
+      const open =
+        $("translationSearchToggle").getAttribute("aria-expanded") !== "true";
+      if (open || allowTranslationNavigation()) toggleSearch(open);
+    });
+    $("translationSearchClose").addEventListener("click", () => {
+      if (allowTranslationNavigation()) toggleSearch(false);
+    });
+    $("translationSearch").addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && allowTranslationNavigation())
+        toggleSearch(false);
+    });
     $("translationSearch").addEventListener("input", () => {
       clearTimeout(translationSearchTimer);
       wordingPage = 0;
-      translationSearchTimer = setTimeout(renderTranslationKeys, 120);
+      translationSearchTimer = setTimeout(() => {
+        if (allowTranslationNavigation()) {
+          $("translationSearch").dataset.accepted =
+            $("translationSearch").value;
+          renderTranslationKeys();
+        } else
+          $("translationSearch").value =
+            $("translationSearch").dataset.accepted || "";
+      }, 120);
     });
     $("exportBackup").addEventListener("click", async () => {
       const button = $("exportBackup"),
@@ -2038,6 +2183,7 @@
       controls.forEach((control) => (control.disabled = true));
       $("backupStatus").textContent = T("interface.messages.preparing_backup");
       try {
+        const encryption = backupEncryption.exportOptions();
         const data = await rpc("admin_export_backup", options);
         if (!data?.payload)
           throw Error(
@@ -2045,7 +2191,11 @@
               "interface.messages.backup_export_is_unavailable_install_the_matching_migration_first",
             ),
           );
-        const file = await window.RSVP_BACKUP_FILES.encode(data, compressed);
+        const file = await window.RSVP_BACKUP_FILES.encode(
+          data,
+          compressed,
+          encryption,
+        );
         ctx.R.dl(
           "rsvp-" +
             options.p_mode +
@@ -2061,13 +2211,16 @@
       } catch (error) {
         $("backupStatus").textContent = ctx.R.safeError(error);
       } finally {
+        backupEncryption.clearPasswords();
         button.disabled = false;
         controls.forEach((control) => (control.disabled = false));
         updateBackupChoices(true);
+        backupEncryption.update();
       }
     });
     $("backupFile").addEventListener("change", async () => {
       const generation = ++fileGeneration;
+      backupEncryption.resetImport();
       backup = null;
       preview = null;
       $("backupPreview").replaceChildren();
@@ -2078,7 +2231,14 @@
       const file = $("backupFile").files[0];
       if (!file) return;
       try {
-        const parsed = await window.RSVP_BACKUP_FILES.decode(file);
+        const parsed = await window.RSVP_BACKUP_FILES.decode(file, () => {
+          if (generation !== fileGeneration) {
+            const error = Error(T("Opening encrypted backup cancelled."));
+            error.code = "BACKUP_PASSWORD_CANCELLED";
+            throw error;
+          }
+          return backupEncryption.requestPassword();
+        });
         if (generation !== fileGeneration) return;
         backup = parsed;
         if (
@@ -2092,6 +2252,7 @@
           throw Error(
             T("interface.messages.unsupported_backup_format_or_version"),
           );
+        backupEncryption.opened();
         initializeRestoreChoices();
         $("previewBackup").disabled = false;
       } catch (error) {

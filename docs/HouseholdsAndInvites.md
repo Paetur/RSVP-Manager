@@ -81,3 +81,7 @@ Guest lists show adults first, then children, using saved manual order within ea
 ## Guest RSVP comments
 
 Guests can add one optional household comment while reviewing attendance, for example dietary requirements. Find the latest comment under **Invites → household → RSVP**. Confirmation stores it with the immutable submission; organizer reopening allows a new submission without changing the old comment. It is separate from internal household notes and is included in full application backups.
+
+## Food-interest follow-up
+
+With Food View permission, Invites offers **Food interest → All / Yes / No / Unanswered**, retaining search, other filters and household hierarchy order. Each household’s row shows its stored answer; these states are independent of RSVP and delivery. The Food items summary shows counts for active households with active guests, excluding archived and empty grouping households. Answering Yes alone does not reserve food or grant access to the detailed list.

@@ -218,6 +218,64 @@ const server = http.createServer((req, res) => {
                 ],
               );
             }
+            assert.equal(
+              await page.locator("#setupServerPrerequisites").isVisible(),
+              true,
+            );
+            for (const id of [
+              "setupSiteSecrets",
+              "setupAuthURLs",
+              "setupDeploymentGuide",
+            ]) {
+              assert.equal(
+                await page.locator("#" + id).isVisible(),
+                true,
+                id + " must be available before Test connection",
+              );
+              assert.equal(
+                await page
+                  .locator("#" + id)
+                  .evaluate(
+                    (el) => el.closest("[data-step-panel]").dataset.stepPanel,
+                  ),
+                "2",
+              );
+            }
+            assert.equal(
+              await page.locator("[data-setup-local]").isVisible(),
+              target === "local",
+            );
+            assert.equal(
+              await page.locator("[data-setup-cloud]").isVisible(),
+              target === "cloud",
+            );
+            assert.ok(
+              (await page.locator("#setupSiteSecrets").textContent()).includes(
+                origin + prefix + "/",
+              ),
+            );
+            assert.ok(
+              (await page.locator("#setupAuthURLs").textContent()).includes(
+                origin + prefix + "/admin/?admin-invitation=1",
+              ),
+            );
+            assert.ok(
+              await page
+                .locator("#setupServerPrerequisites")
+                .evaluate(
+                  (el) =>
+                    !!(
+                      el.compareDocumentPosition(
+                        document.getElementById("connectForm"),
+                      ) & Node.DOCUMENT_POSITION_FOLLOWING
+                    ),
+                ),
+            );
+            assert.ok(
+              (await page.locator("#setupHostingHelp").textContent()).includes(
+                "GitHub Pages",
+              ),
+            );
             await page.locator("#setupUrl").fill("https://synthetic.invalid");
             await page.locator("#setupKey").fill("sb_publishable_synthetic");
             await page.locator("#connectForm button[type=submit]").click();
@@ -231,19 +289,46 @@ const server = http.createServer((req, res) => {
             await page.locator("#setupLoginForm button[type=submit]").click();
             await page.locator('[data-step-panel="4"]:not(.hidden)').waitFor();
             assert.equal(
-              await page.locator("#setupFinalGuide").getAttribute("href"),
-              target === "local"
-                ? "docs/LocalSetup.html"
-                : "docs/StudioSetup.html",
+              await page
+                .locator('[data-step-panel="4"] #setupServerPrerequisites')
+                .count(),
+              0,
             );
             assert.equal(
-              await page.locator("[data-setup-local]").isVisible(),
-              target === "local",
+              await page.locator("#setupPagesInstructions li").count(),
+              4,
             );
+            const publishHelp = await page
+              .locator('[data-step-panel="4"]')
+              .textContent();
+            for (const variable of [
+              "RSVP_SUPABASE_URL",
+              "RSVP_PUBLISHABLE_KEY",
+              "js/config.js",
+            ])
+              assert.ok(publishHelp.includes(variable));
             assert.equal(
-              await page.locator("[data-setup-cloud]").isVisible(),
-              target === "cloud",
+              await page.locator("#setupSiteSecrets").isVisible(),
+              false,
             );
+            if (
+              target === "cloud" &&
+              prefix === "" &&
+              width === 390 &&
+              language === "en"
+            ) {
+              const pending = page.waitForEvent("download");
+              await page.locator("#downloadConfig").click();
+              const download = await pending;
+              assert.equal(download.suggestedFilename(), "config.js");
+              const config = fs.readFileSync(await download.path(), "utf8");
+              assert.ok(config.includes("https://synthetic.invalid"));
+              assert.ok(config.includes("sb_publishable_synthetic"));
+              assert.ok(
+                !config.includes("RSVP_SITE_ORIGIN"),
+                "Server settings stay separate from browser configuration",
+              );
+            }
           }
           await page.locator('[data-step="1"]').click();
           await page.locator("[name=dbMode][value=existing]").check();
@@ -270,15 +355,15 @@ const server = http.createServer((req, res) => {
           );
           assert.ok(
             (await page.evaluate(() => window.__setupCalls)).every((name) =>
-              ["get_public_event", "is_admin"].includes(name),
+              ["get_public_event", "is_admin", "get_setup_status"].includes(name),
             ),
-            "Only existing setup probes/login checks are called",
+            "Only public setup probes/login checks are called",
           );
           assert.deepEqual(errors, []);
           await page.close();
         }
     console.log(
-      "PASS setup: explicit Local/Cloud choice, guarded steps, correct guides/Studio URL, actual SQL download, connection/verification invalidation and errors; root/subdirectory EN/DE/FO at 390/1160px.",
+      "PASS setup: explicit Local/Cloud choice, guarded steps, server prerequisites before connection, Pages publishing after verification, correct guides/Studio URL, actual SQL/config download, connection/verification invalidation and errors; root/subdirectory EN/DE/FO at 390/1160px.",
     );
   } finally {
     if (browser) await browser.close();

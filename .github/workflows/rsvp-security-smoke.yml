@@ -1,25 +1,12 @@
-name: RSVP verification
+name: RSVP full verification
 on:
-  push:
-    branches: [main]
-  pull_request:
-    paths:
-      - 'js/**'
-      - 'locales/**'
-      - 'tools/**'
-      - 'admin/**'
-      - 'css/**'
-      - 'styles/**'
-      - 'index.html'
-      - 'setup.html'
-      - 'supabase/**'
-      - '.github/workflows/rsvp-security-smoke.yml'
-      - 'tests/**'
-      - 'deployment/**'
-      - 'package*.json'
   workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
+concurrency:
+  group: full-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   household-database:
     runs-on: ubuntu-latest
@@ -41,6 +28,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
       - run: npm ci
       - name: Test household lifecycle and concurrent operations in disposable PostgreSQL
         env:
@@ -48,13 +36,19 @@ jobs:
         run: |
           node tools/build-install-sql.cjs --check
           node tests/fresh-install-db.cjs
+          node node_modules/typescript/bin/tsc --noEmit --target ES2023 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions --skipLibCheck setup-service/*.ts
+          node --experimental-strip-types tests/automatic-setup.mjs
+          node --experimental-strip-types tests/automatic-setup-http.mjs
           node tools/build-css.cjs --check
           node tests/css-build.cjs
           node tests/admin-overview.cjs
+          node tools/build-backup-crypto.cjs --check
           node tests/backup-files.cjs
+          node tests/backup-encryption.cjs
           node tests/subdirectory.cjs
           node tools/build-studio-functions.cjs --check
           node tests/studio-functions.cjs
+          python3 tests/full-ci-deployment.py
           python3 tests/pages-deployment.py
           python3 tests/local-web-publish.py
           node tests/invitation-templates.cjs
@@ -66,6 +60,8 @@ jobs:
           node tests/admin-auth.cjs
           node tests/admin-permissions-db.cjs
           node tests/timezones.cjs
+          node tests/food-interest-reply.cjs
+          node tests/guest-food-wording-db.cjs
           node tests/food-interest-db.cjs
           node tests/private-guest-event-db.cjs
           node tests/guest-feedback-db.cjs
@@ -98,6 +94,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
       - run: npm ci
       - name: Test concurrent food groups and household guest additions in a fresh cluster
         env:
@@ -112,6 +109,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
       - name: Use HTTPS Ubuntu mirror and bounded package retries
         run: |
           sudo python3 - <<'PY'
@@ -133,6 +131,8 @@ jobs:
           npx playwright install --with-deps chromium webkit
       - name: Test Local and Cloud setup choices and installer download
         run: node tests/setup-browser.cjs
+      - name: Test trusted automatic setup companion
+        run: node --experimental-strip-types tests/automatic-setup-browser.mjs
       - name: Test release-matching Studio guide
         run: node tests/studio-guide-browser.cjs
       - name: Validate admin JavaScript
@@ -154,6 +154,7 @@ jobs:
       - name: Test language management and backup/import UI
         run: |
           node tests/languages-backup-browser.cjs
+          node tests/backup-encryption-browser.cjs
           node tests/backup-compression-browser.cjs
           node tests/invites-order-browser.cjs
       - name: Test local task edits, food expansion and icon pop-ups
@@ -178,7 +179,7 @@ jobs:
       - name: Test device delivery handoffs and reminder drafts
         run: node tests/device-delivery.cjs && node tests/device-delivery-browser.cjs && node tests/admin-delivery-views-browser.cjs && node tests/admin-delivery-editor-browser.cjs && node tests/invitation-share-browser.cjs
       - name: Test food interest answers and hidden menu UI
-        run: node tests/food-interest-browser.cjs && node tests/food-click-browser.cjs && node tests/food-scroll-browser.cjs && node tests/food-review-browser.cjs && node tests/recipe-dialog-browser.cjs && node tests/private-guest-event-browser.cjs && node tests/guest-order-browser.cjs && node tests/admin-guest-order-browser.cjs && node tests/rsvp-confirmed-list-browser.cjs && node tests/venue-lines-browser.cjs && node tests/guest-background-browser.cjs && node tests/guest-appearance-browser.cjs
+        run: node tests/languages-layout-browser.cjs && node tests/guest-food-wording-browser.cjs && node tests/food-interest-browser.cjs && node tests/food-click-browser.cjs && node tests/food-scroll-browser.cjs && node tests/food-review-browser.cjs && node tests/recipe-dialog-browser.cjs && node tests/private-guest-event-browser.cjs && node tests/guest-order-browser.cjs && node tests/admin-guest-order-browser.cjs && node tests/rsvp-confirmed-list-browser.cjs && node tests/venue-lines-browser.cjs && node tests/guest-background-browser.cjs && node tests/guest-appearance-browser.cjs
       - name: Test Food editing, category dropdowns and translation draft retention
         run: node tests/invitation-customization-browser.cjs && node tests/invites-overview-browser.cjs && node tests/food-groups-browser.cjs && node tests/food-list-state-browser.cjs && node tests/notification-preferences-browser.cjs && node tests/food-editing-browser.cjs && node tests/item-controls-browser.cjs && node tests/group-controls-browser.cjs
       - name: Test guest companions, food groups, categories and time preferences

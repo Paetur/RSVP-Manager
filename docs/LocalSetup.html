@@ -71,11 +71,6 @@ supabase status</pre
         once. The wizard never executes privileged SQL. Do not run the installer
         over an installed event or apply both installation routes.
       </p>
-      <p>
-        In local Studio → Authentication → Users, create and confirm the first
-        Auth user. The wizard generates the separate SQL to grant
-        first-administrator access.
-      </p>
       <h2>3. Run the Edge Functions locally</h2>
       <p>
         If both functions are already running under your VM’s configured
@@ -109,7 +104,11 @@ supabase functions serve --env-file /private/path/rsvp-functions.env --no-verify
         Under local Studio → Authentication → URL Configuration, set the full
         website Site URL and allow its admin/?admin-invitation=1 redirect.
         Return to the wizard, enter the API URL and public browser key, and
-        choose Test connection. Verify the administrator, then install the
+        choose Test connection in step 2 only after the schema, function
+        environment, both functions and Auth URLs are configured. This test does
+        not install or configure the server. In step 3, create and confirm the
+        first Auth user under Authentication → Users, run the wizard’s
+        first-administrator SQL and verify login. In step 4, install the
         downloaded config.js as js/config.js in your local website directory.
         Existing VM installations may already have their public configuration in
         place.

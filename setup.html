@@ -1,16 +1,16 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <script src="js/theme.js?v=0.9.0-alpha.3"></script>
+    <script src="js/theme.js?v=20261114-guest-food-maintenance"></script>
     <meta name="color-scheme" content="light dark" />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="referrer" content="no-referrer" />
     <title>Administration</title>
-    <link rel="stylesheet" href="css/app.css?v=20261114-setup-targets" />
-    <script src="js/translations.js?v=20261114-setup-targets" defer></script>
-    <script src="js/interface-overrides.js?v=0.9.0-alpha.3" defer></script>
-    <script src="js/i18n.js?v=0.9.0-alpha.3" defer></script>
+    <link rel="stylesheet" href="css/app.css?v=20261114-guest-food-maintenance" />
+    <script src="js/translations.js?v=20261114-guest-food-maintenance" defer></script>
+    <script src="js/interface-overrides.js?v=20261114-guest-food-maintenance" defer></script>
+    <script src="js/i18n.js?v=20261114-guest-food-maintenance" defer></script>
     <script
       src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"
       integrity="sha384-jP+y6mxch/vbLrNpx4basfv6ciZQuHwdRHgZGa6Mhja0Xm4p87ok2OQavTrRIGxH"
@@ -22,10 +22,10 @@
       defer
     ></script>
     <script src="js/config.js?v=20261107-local-recovery" defer></script>
-    <script src="js/guest-design.js?v=0.9.0-alpha.3" defer></script>
-    <script src="js/notifications.js?v=0.9.0-alpha.3" defer></script>
-    <script src="js/core.js?v=0.9.0-alpha.3" data-app-core defer></script>
-    <script src="js/setup.js?v=20261114-setup-targets" defer></script>
+    <script src="js/guest-design.js?v=20261114-guest-food-maintenance" defer></script>
+    <script src="js/notifications.js?v=20261114-guest-food-maintenance" defer></script>
+    <script src="js/core.js?v=20261114-guest-food-maintenance" data-app-core defer></script>
+    <script src="js/setup.js?v=20261114-guest-food-maintenance" defer></script>
   </head>
   <body>
     <header class="topbar">
@@ -44,6 +44,7 @@
           Complete the hosting and Edge Function steps before inviting guests.
         </p>
       </div>
+      <p class="micro"><a class="quiet-link" href="setup-automatic.html">Automatic cloud setup with the trusted local companion</a></p>
       <div id="setupStatus" class="notice hidden" role="status"></div>
       <div class="steps">
         <button data-step="1" class="active">
@@ -64,13 +65,15 @@
               checked
             /><strong>Use existing database</strong
             ><span
-              >Connect to an existing Supabase installation. Preserve its invitations, guests and admin accounts.</span
+              >Connect to an existing Supabase installation. Preserve its
+              invitations, guests and admin accounts.</span
             ></label
           ><label class="choice"
             ><input type="radio" name="dbMode" value="new" /><strong
               >Set up a new database</strong
             ><span
-              >Choose Local or Cloud, install the current schema, then create the first administrator.</span
+              >Choose Local or Cloud, install the current schema, then create
+              the first administrator.</span
             ></label
           >
         </div>
@@ -132,19 +135,27 @@
                 </li>
                 <li>
                   <strong>Enable automatic RLS: ON</strong>
-                  <p> Keep this protection enabled. The installer also enables RLS and supplies the application policies. </p>
+                  <p>
+                    Keep this protection enabled. The installer also enables RLS
+                    and supplies the application policies.
+                  </p>
                 </li>
               </ul>
-              <p> Keep public in the Data API exposed schemas. Do not expose app_private. </p>
+              <p>
+                Keep public in the Data API exposed schemas. Do not expose
+                app_private.
+              </p>
             </li>
-            <li> Open its SQL Editor and run the complete downloaded installer once on the empty application schema. </li>
             <li>
-              Create and verify the first administrator’s Auth account under
-              Authentication → Users.
+              Open its SQL Editor and run the complete downloaded installer once
+              on the empty application schema.
             </li>
           </ol>
           <ol id="newLocalInstructions" class="hidden">
-            <li> Start your local Supabase stack. If the CLI already installed the current baseline, skip the SQL installation. </li>
+            <li>
+              Start your local Supabase stack. If the CLI already installed the
+              current baseline, skip the SQL installation.
+            </li>
             <li>
               <a
                 id="localStudioLink"
@@ -154,16 +165,18 @@
                 >Open local Supabase Studio</a
               >
             </li>
-            <li> If the application schema is empty, open SQL Editor and run the complete downloaded installer once. </li>
+            <li>
+              If the application schema is empty, open SQL Editor and run the
+              complete downloaded installer once.
+            </li>
             <li>
               Use the API URL and public browser key printed by supabase status.
             </li>
-            <li>
-              Create and verify the first administrator’s Auth account under
-              Authentication → Users.
-            </li>
           </ol>
-          <p> Never run the fresh installer over an installed event. This wizard does not execute SQL or reset a database. </p>
+          <p>
+            Never run the fresh installer over an installed event. This wizard
+            does not execute SQL or reset a database.
+          </p>
           <a
             class="quiet-link"
             href="supabase/install.sql"
@@ -171,15 +184,39 @@
             >Download complete SQL installer</a
           >
         </div>
-        <p class="micro">
-          <a
-            id="setupDeploymentGuide"
-            class="quiet-link"
-            href="docs/StudioSetup.html"
-            target="_blank"
-            rel="noopener"
-            >Edge Function deployment guide</a
-          >
+        <div id="setupServerPrerequisites" class="notice">
+          <h3>Before Test connection</h3>
+          <p>
+            Complete these server steps first. The connection test checks the
+            database and guest-gateway; it does not install or configure them.
+          </p>
+          <ol>
+            <li id="setupSiteSecrets"></li>
+            <li data-setup-cloud>
+              Deploy guest-gateway and admin-invitations from the same release,
+              with platform Verify JWT OFF.
+            </li>
+            <li data-setup-local class="hidden">
+              Run both Edge Functions in your local stack with the site
+              environment settings. Keep application validation enabled.
+            </li>
+            <li id="setupAuthURLs"></li>
+          </ol>
+          <p class="micro">
+            <a
+              id="setupDeploymentGuide"
+              class="quiet-link"
+              href="docs/StudioSetup.html"
+              target="_blank"
+              rel="noopener"
+              >Edge Function deployment guide</a
+            >
+          </p>
+        </div>
+        <p id="setupHostingHelp" class="micro">
+          GitHub Pages: the wizard configures this browser for testing. In step
+          4, save the public connection values as Actions variables and redeploy
+          to configure the site for everyone.
         </p>
         <form id="connectForm" class="stacked-form">
           <label
@@ -198,7 +235,11 @@
               autocomplete="off"
               required
           /></label>
-          <p class="micro"> Never paste a Supabase secret key, service_role key, database password or access token here. Only public client keys belong in a static website. </p>
+          <p class="micro">
+            Never paste a Supabase secret key, service_role key, database
+            password or access token here. Only public client keys belong in a
+            static website.
+          </p>
           <div class="wizard-actions">
             <button type="button" class="btn secondary" data-back>Back</button
             ><button type="submit" class="btn">Test connection</button>
@@ -210,7 +251,10 @@
         <h2>Secure administrator access</h2>
         <div id="adminSetupHelp" class="notice">
           For new projects, invite your first user via
-          <strong>Supabase → Authentication → Users</strong>, then run the SQL below in Supabase SQL Editor to grant admin access. Existing projects may already have administrators. </div>
+          <strong>Supabase → Authentication → Users</strong>, then run the SQL
+          below in Supabase SQL Editor to grant admin access. Existing projects
+          may already have administrators.
+        </div>
         <label
           >First admin email (for new installations)<input
             id="bootstrapEmail"
@@ -256,7 +300,37 @@
         <div class="notice success">
           Administrator verified. Your website configuration is ready.
         </div>
-        <p> For GitHub Actions, set the repository variables RSVP_SUPABASE_URL and RSVP_PUBLISHABLE_KEY, then rerun the website deployment. For direct static hosting, download config.js and install it as js/config.js. Browser-only setup applies only to this browser. </p>
+        <h3>GitHub Pages — selected-release workflow</h3>
+        <ol id="setupPagesInstructions">
+          <li>
+            In the website repository, open Settings → Secrets and variables →
+            Actions → Variables. Add repository variables, not secrets.
+          </li>
+          <li>
+            Set RSVP_SUPABASE_URL to the Project URL used in step 2 and
+            RSVP_PUBLISHABLE_KEY to its public browser key. Enter values without
+            JavaScript quotes.
+          </li>
+          <li>
+            Open Actions → Deploy RSVP → Run workflow, select the installed
+            release and run it. Wait for the deployment to succeed.
+          </li>
+          <li>
+            Open the website in a private browser window to verify sign-in and
+            Guest preview with the deployed configuration.
+          </li>
+        </ol>
+        <p class="micro">
+          The workflow generates js/config.js. Uploading a downloaded config.js
+          to the repository does not configure the Pages artifact. No
+          configuration file upload is needed for this workflow.
+        </p>
+        <h3>Direct static hosting</h3>
+        <p>
+          Download config.js and upload it as js/config.js in the website
+          installation directory. Browser-only setup configures this browser,
+          not other visitors.
+        </p>
         <div class="wizard-actions">
           <button id="downloadConfig" class="btn" type="button">
             Download config.js</button
@@ -264,20 +338,10 @@
             Copy config contents
           </button>
         </div>
-        <p class="small muted"> The file contains only your Supabase URL and publishable / anon key. It must not contain a secret or service_role key. </p>
-        <div class="separator"></div>
-        <p> Before testing the website, complete the server configuration below. Local installations use the local setup guide; cloud installations use the Studio guide. </p>
-        <ol>
-          <li id="setupSiteSecrets"></li>
-          <li data-setup-cloud> Deploy guest-gateway and admin-invitations from the same release, with platform Verify JWT OFF. </li>
-          <li data-setup-local class="hidden"> Run both Edge Functions in your local stack with the site environment settings. Keep application validation enabled. </li>
-          <li>
-            <a id="setupFinalGuide" href="docs/StudioSetup.html"
-              >Edge Function deployment guide</a
-            >
-          </li>
-          <li id="setupAuthURLs"></li>
-        </ol>
+        <p class="small muted">
+          The file contains only your Supabase URL and publishable / anon key.
+          It must not contain a secret or service_role key.
+        </p>
         <p>
           Verify sign-in and Guest preview on the hosted site. Test a published
           guest journey in a separate installation with synthetic records. Keep

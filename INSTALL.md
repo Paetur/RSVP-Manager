@@ -8,15 +8,21 @@ Each installation has its own database, Auth users, website configuration and ev
 - A separate Supabase project, or a separately managed local Supabase stack.
 - Supabase Dashboard/Studio access for browser-based database, Edge Function and Auth setup. The CLI is optional. Use the same release for the website, database and functions.
 
+## Automatic cloud setup
+
+For a dedicated Supabase Cloud project, the [trusted local setup companion](docs/AutomaticSetup.md) performs the seven installation steps, including first administrator, secrets and Edge Functions. Run it temporarily on your computer; privileged credentials never belong in the static website. The manual Local/Cloud route below remains available.
+
 ## New installation
 
 1. Download and extract a versioned release ZIP. Keep its `version.json`, `release-manifest.json` and `SHA256SUMS` with your installation records. Verify the published ZIP checksum before using it.
 2. Serve the extracted website files, including `setup.html` and `supabase/install.sql`, under the chosen installation directory. Keep local secrets, configuration exports, database backups and `.git` out of the website directory.
-3. Open `setup.html`. Create your own Supabase project and first Auth user. Run the included installer SQL only against a new destination, then follow the wizard to establish the first administrator. Never replay the installer over an existing populated event.
-4. Set the Edge Function secret `RSVP_SITE_ORIGIN` to this installation's exact website origin, such as `https://events.example.org`. Do not include a path, query or trailing route. Set `RSVP_SITE_URL` to the full installation URL, including its path and trailing slash, such as `https://events.example.org/marriage/`. Omitting this secret uses the origin root. Set database/service credentials only on the server. Deploy `guest-gateway` and `admin-invitations` through **Edge Functions → Deploy a new function → Via Editor**, using the complete release-matching Studio files and **Verify JWT OFF** for each. Follow [Studio setup with copyable function code](docs/StudioSetup.html) before the wizard’s connection test; the guide covers secrets, code, validation, Auth and verification. The modular `supabase/functions/*/index.ts` files alone are not paste-ready.
-5. Set Supabase Auth's Site URL to the full installation URL and allow its administrator invitation redirect, such as `https://events.example.org/marriage/admin/?admin-invitation=1`. Configure email delivery for real administrator invitations. See the wizard's current instructions and the [administrator guide](docs/Administrators.md).
-6. Supply only this project's public/publishable browser key and URL through the wizard. Store the resulting per-installation browser configuration outside the development checkout; install it as directed by the wizard. Service/secret keys never belong in browser files.
+3. Open `setup.html`. **Step 1:** choose New database → Local or Cloud, or Existing database for an installed event.
+4. **Step 2, before Test connection:** for an empty cloud project, create the project with the security options below and run the complete installer once in SQL Editor. Then save `RSVP_SITE_ORIGIN` / `RSVP_SITE_URL`, deploy both release-matching Edge Functions with platform **Verify JWT OFF**, and configure Auth Site URL / allowed administrator redirects. Follow [the complete Studio guide](docs/StudioSetup.html) now. Local installations follow [the local guide](docs/LocalSetup.html). Existing installations verify their server setup without reinstalling SQL. Only then enter the public project URL/key and test the connection. The wizard checks the database and guest-gateway; it does not configure the server for you.
+5. **Step 3:** create/confirm the first Auth user and run the wizard’s generated first-administrator SQL in your own SQL Editor. Verify the administrator login. Existing installations use their existing administrator.
+6. **Step 4:** publish the browser configuration for all visitors. For the selected-release GitHub Pages workflow, set both [Actions variables](#configure-jsconfigjs-with-github-actions) and redeploy the same release. For direct static hosting, upload the downloaded file as `js/config.js`. Browser-only setup is temporary for that browser; it does not configure the deployed website for others.
 7. Sign in, configure the event and test an invitation preview. A new event stays unpublished until you deliberately publish it.
+
+The site origin has no path or trailing slash, such as `https://events.example.org`. The full installation URL includes the path and trailing slash, such as `https://events.example.org/marriage/`. Set Auth Site URL to that full URL and allow its `admin/?admin-invitation=1` redirect. Keep server credentials in Supabase; browser configuration contains only the public URL/key. Configure SMTP for real administrator invitations.
 
 For a local VM, use an explicitly configured local origin and backend; preserve its service configuration separately. Public release defaults deliberately contain no deployment address or backend key.
 
@@ -62,7 +68,7 @@ CLI alternative, after `gh auth login`:
 ```bash
 gh variable set RSVP_SUPABASE_URL --repo OWNER/WEBSITE --body 'https://YOUR-PROJECT.supabase.co'
 gh variable set RSVP_PUBLISHABLE_KEY --repo OWNER/WEBSITE --body 'sb_publishable_YOUR_PUBLIC_KEY'
-gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-alpha.3
+gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-alpha.4
 ```
 
 Use the workflow filename and release input name from your copy of the [deployment template](deployment/README.md). For direct static hosting without this Actions workflow, upload the wizard's downloaded file as `js/config.js` in the installation directory instead.

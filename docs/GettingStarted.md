@@ -41,7 +41,7 @@ Ask a Full administrator to review your access. Some actions, such as sending in
 
 ## Feature and guest appearance settings
 
-**Settings → Event settings → Features** enables Food and Other without deleting their existing data. Guest food step chooses interest-only or detailed selection; changing it does not publish or send anything. Edit the food explanation there in each enabled language.
+**Settings → Event settings → Features** enables Food and Other without deleting their existing data. Guest food step chooses interest-only or detailed selection; changing it does not publish or send anything. Edit the food explanation and the reply after Yes under Languages globe → Guests.
 
 **Settings → Interface** separates your personal preferences from event-wide **Guest invitation** customization. Replace/remove a private JPEG, crop and position it, adjust darkening and box opacity, and choose colors separately for Light/Dark. The phone/wide sample updates immediately; Save applies it, Cancel discards it, and Reset appearance restores the default treatment while keeping the photo. Photo dimensions, stored size and crop are shown. Choose whether guests see a light/dark toggle and their default Light, Dark or System appearance. Hiding the toggle enforces that default. System follows the device; guest choices are separate from administrator choices. Personal Time format offers language default, 12-hour or 24-hour without changing scheduled times.
 

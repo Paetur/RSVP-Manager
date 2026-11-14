@@ -12,6 +12,7 @@ async function openWordingEditor(page,language,key){
  await page.locator('[data-settings-tab="languages"]').click();
  await page.locator('#interfaceLanguageTabs [data-translation-tab="'+language+'"]').click();
  const source=await page.evaluate(key=>Object.entries(window.RSVP_I18N.catalog).find(([,entry])=>entry.key===key)[0],key);
+ if(!await page.locator('#translationSearch').isVisible())await page.locator('#translationSearchToggle').click();
  await page.locator('#translationSearch').fill(source);
  const row=page.locator('[data-wording-key="'+key+'"]');
  await row.locator('.wording-summary button').click();

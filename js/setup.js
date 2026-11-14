@@ -35,7 +35,13 @@
       ? localEndpoints().api
       : "https://your-project.supabase.co";
     $("localStudioLink").href = localEndpoints().studio;
-    for (const id of ["setupDeploymentGuide", "setupFinalGuide"]) {
+    $("setupSiteSecrets").textContent = T(
+      isLocal
+        ? "interface.messages.setup_local_site_settings"
+        : "interface.messages.setup_site_secrets",
+      { origin: R.siteRoot.origin, siteUrl: R.siteRoot.href },
+    );
+    for (const id of ["setupDeploymentGuide"]) {
       $(id).href = isLocal ? "docs/LocalSetup.html" : "docs/StudioSetup.html";
       $(id).textContent = T(
         isLocal
@@ -198,12 +204,46 @@
       b.disabled = false;
     }
   }
-  function setup() {
+  async function setup() {
+    let fromCompanion = false;
+    if (location.hash.startsWith("#connection=")) {
+      try {
+        const config = JSON.parse(
+          decodeURIComponent(location.hash.slice("#connection=".length)),
+        );
+        if (
+          !config ||
+          Object.keys(config).sort().join(",") !== "supabaseKey,supabaseUrl"
+        )
+          throw Error();
+        R.savePreview(config.supabaseUrl, config.supabaseKey);
+        fromCompanion = true;
+      } catch {
+        stateMessage(T("Invalid public connection configuration."), "error");
+      }
+      history.replaceState(null, "", location.pathname + location.search);
+    }
     const cfg = R.config();
-    $("setupSiteSecrets").textContent = T(
-      "interface.messages.setup_site_secrets",
-      { origin: R.siteRoot.origin, siteUrl: R.siteRoot.href },
-    );
+    if (fromCompanion) {
+      location.replace(new URL("admin/", R.siteRoot).href);
+      return;
+    }
+    if (
+      cfg.supabaseUrl &&
+      cfg.supabaseKey &&
+      !new URLSearchParams(location.search).has("manual")
+    ) {
+      try {
+        const { data, error } = await R.getClient().rpc("get_setup_status");
+        if (!error && data?.initialized === true) {
+          location.replace(new URL("admin/", R.siteRoot).href);
+          return;
+        }
+      } catch {
+        /* Manual or incomplete projects continue through the existing wizard. */
+      }
+    }
+
     $("setupAuthURLs").textContent = T("interface.messages.setup_auth_urls", {
       siteUrl: R.siteRoot.href,
       redirectUrl: new URL("admin/?admin-invitation=1", R.siteRoot).href,

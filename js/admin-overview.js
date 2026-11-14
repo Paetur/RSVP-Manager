@@ -2,6 +2,28 @@
 // this module never caches event records, renders controls or performs writes.
 (function () {
   "use strict";
+  function foodInterestStatus(store, household) {
+    if (
+      household.archived_at ||
+      !store.guests.some(
+        (g) => g.household_id === household.id && !g.archived_at,
+      )
+    )
+      return "ineligible";
+    return household.food_interest === true
+      ? "yes"
+      : household.food_interest === false
+        ? "no"
+        : "unanswered";
+  }
+  function foodInterestCounts(store) {
+    const counts = { yes: 0, no: 0, unanswered: 0 };
+    for (const h of store.households) {
+      const status = foodInterestStatus(store, h);
+      if (status in counts) counts[status]++;
+    }
+    return counts;
+  }
   function eventCounts(store, includeInvites) {
     const invitedGuests = store.guests.filter(
         (g) =>
@@ -155,5 +177,10 @@
       ready: latest?.status === "ready",
     };
   }
-  window.RSVP_ADMIN_OVERVIEW = { eventCounts, invitationOverview };
+  window.RSVP_ADMIN_OVERVIEW = {
+    eventCounts,
+    invitationOverview,
+    foodInterestStatus,
+    foodInterestCounts,
+  };
 })();

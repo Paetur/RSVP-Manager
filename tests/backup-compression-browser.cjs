@@ -12,7 +12,7 @@ window.__backupRequests=[];const backupRpc=client.rpc;client.rpc=async(name,args
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   fs.mkdirSync(out, { recursive: true });
   try {
-    for (const type of [chromium, webkit]) {
+    for (const type of (process.env.RSVP_TEST_BROWSER === "chromium" ? [chromium] : [chromium, webkit])) {
       const browser = await type.launch();
       try {
         for (const width of [390, 1160])

@@ -5880,39 +5880,6 @@ body.guest-photo .text-button {
   color: #b4dcc7;
 }
 
-.food-interest-choices {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 18px 0;
-}
-.food-interest-choice {
-  display: block;
-  width: 100%;
-  text-align: center;
-  padding: 14px 12px;
-  min-height: 52px;
-  font: inherit;
-  color: var(--ink);
-  cursor: pointer;
-  margin: 0;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--white);
-}
-.food-interest-choice[aria-pressed="true"] {
-  border-color: var(--teal);
-  box-shadow: inset 0 0 0 1px var(--teal);
-  font-weight: 600;
-}
-.food-interest-choice[aria-pressed="true"]:before {
-  content: "✓ ";
-  color: var(--teal);
-}
-.food-interest-choice:disabled {
-  cursor: wait;
-  opacity: 0.7;
-}
 .food-selection-prompt {
   margin: 20px 0 12px;
   font-weight: 600;
@@ -5937,13 +5904,6 @@ body.guest-photo .text-button {
 .guest-food-heading .tag {
   font-size: 0.72rem;
 }
-body.guest-photo .food-interest-choice[aria-pressed="true"] {
-  border-color: #b4dcc7;
-  box-shadow: inset 0 0 0 1px #b4dcc7;
-}
-body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
-  color: #b4dcc7;
-}
 
 /* Two food cards per row when the guest panel has room for inline actions. */
 .guest-food-category {
@@ -5958,10 +5918,6 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
 .guest-food-category > .food-list > .food-item {
   min-width: 0;
   margin: 0;
-}
-.food-interest-choice {
-  min-width: 0;
-  overflow-wrap: break-word;
 }
 @container (min-width:240px) {
   .guest-food-category > .food-list {
@@ -5979,7 +5935,8 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
 .guest-food-choice > .food-interest-choice {
   margin: 0;
   min-height: 64px;
-  height: 100%;
+  height: auto;
+  width: 100%;
   line-height: 1.4;
 }
 .guest-food-choice > .food-interest-choice:disabled {
@@ -6276,8 +6233,6 @@ body.guest-photo .guest-layout {
     padding: 10px 8px;
     font-size: 0.82rem;
     line-height: 1.3;
-  }
-  .guest-food-choice > .food-interest-choice {
     overflow-wrap: anywhere;
   }
 }
@@ -6341,10 +6296,6 @@ body.guest-photo .guest-layout {
   margin: 6px 0;
   color: var(--danger);
 }
-.guest-food-choice > .food-interest-choice {
-  height: auto;
-  width: 100%;
-}
 @media (max-width: 600px) {
   .guest-food-quantity {
     flex-wrap: wrap;
@@ -6359,6 +6310,60 @@ body.guest-photo .guest-layout {
   .guest-food-category > .food-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+/* Shared interest/selection buttons and saved Yes reply. Theme and tile refinements stay explicit. */
+.food-interest-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.food-interest-choice {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 14px 12px;
+  min-height: 52px;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.food-interest-choice[aria-pressed="true"] {
+  border-color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
+  font-weight: 600;
+}
+
+.food-interest-choice[aria-pressed="true"]:before {
+  content: "✓ ";
+  color: var(--teal);
+}
+
+.food-interest-choice:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+body.guest-photo .food-interest-choice[aria-pressed="true"] {
+  border-color: #b4dcc7;
+  box-shadow: inset 0 0 0 1px #b4dcc7;
+}
+
+body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
+  color: #b4dcc7;
+}
+
+.food-interest-reply {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 /* Local preview: shared inline checks, compact summaries and aligned maps. */
 #adminApp label:has(> input[type="checkbox"]),
@@ -7346,7 +7351,7 @@ html[data-theme]
 }
 .invite-overview-filters {
   display: grid;
-  grid-template-columns: minmax(170px, 1.5fr) repeat(3, minmax(100px, 1fr));
+  grid-template-columns: minmax(170px, 1.5fr) repeat(4, minmax(100px, 1fr));
   gap: 10px;
 }
 .invite-overview-filters label {
@@ -7382,10 +7387,9 @@ html[data-theme]
 .invite-overview-heading,
 #adminApp .invite-overview-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1.4fr) minmax(100px, 1fr) minmax(
-      115px,
-      1fr
-    ) minmax(95px, 0.8fr) minmax(140px, auto);
+  grid-template-columns:
+    minmax(140px, 1.4fr) minmax(100px, 1fr) minmax(115px, 1fr)
+    minmax(95px, 0.8fr) minmax(140px, auto);
   gap: 12px;
   align-items: center;
 }
@@ -7511,4 +7515,341 @@ html[data-theme]
 }
 .invitation-template .management-form {
   padding: 6px 0 0;
+}
+/* Content-language records, field token help and compact event statistics. */
+#adminApp #translationEditor {
+  max-width: 62rem;
+  margin-inline: auto;
+}
+#adminApp .translation-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+#adminApp .translation-editor-heading h2 {
+  margin: 0;
+}
+#adminApp .translation-editor-heading .small-tool {
+  margin: 0;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#adminApp .translation-editor-heading svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#adminApp .translation-search {
+  max-width: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#adminApp .translation-search input {
+  flex: 1;
+  min-width: 0;
+}
+#adminApp #foodTranslationGrid {
+  display: grid;
+  gap: 12px;
+}
+#adminApp .translation-record-card {
+  margin: 0;
+  padding: 14px 16px;
+}
+#adminApp .translation-record-card > .settings-card-heading {
+  margin: 0;
+  min-height: 34px;
+  align-items: center;
+}
+#adminApp .translation-record-card > summary {
+  list-style: none;
+  cursor: pointer;
+}
+#adminApp .translation-record-card > summary::-webkit-details-marker {
+  display: none;
+}
+#adminApp .translation-record-card > summary h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+#adminApp .translation-record-card > summary h3::before {
+  content: "›";
+  color: var(--muted);
+}
+#adminApp .translation-record-card[open] > summary h3::before {
+  content: "⌄";
+}
+#adminApp .translation-record-card[open] > summary {
+  margin-bottom: 14px;
+}
+#adminApp .translation-record-body > .local-editor-box > .local-editor-summary {
+  padding: 0;
+}
+#adminApp .translation-language-grid,
+#adminApp .translation-record-card .food-translation-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    var(--translation-languages, 3),
+    minmax(0, 1fr)
+  );
+  gap: 18px;
+  overflow: visible;
+}
+#adminApp .translation-record-card .food-translation-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  max-width: none;
+}
+#adminApp .translation-record-card .food-translation-row > label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  width: 100%;
+}
+#adminApp .translation-record-card .food-translation-grid > .form-actions,
+#adminApp .translation-record-card .food-translation-grid > .form-feedback {
+  grid-column: 1/-1;
+}
+#adminApp .translation-record-card .food-translation-row > strong {
+  margin-bottom: 4px;
+}
+#adminApp .translation-reading-field {
+  margin-top: 12px;
+}
+#adminApp .translation-reading-field p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#adminApp .translation-record-body .local-editor-feedback {
+  margin: 0 0 10px;
+}
+#adminApp .placeholder-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+#adminApp .placeholder-help-toggle {
+  font-family: ui-monospace, monospace;
+  margin: 0;
+  flex-shrink: 0;
+}
+#adminApp .placeholder-help {
+  grid-column: 1/-1;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+#adminApp .food-translation-row .placeholder-help {
+  grid-column: auto;
+}
+#adminApp .placeholder-help p {
+  margin: 0 0 10px;
+}
+#adminApp .placeholder-token-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+#adminApp .placeholder-token-row > div {
+  min-width: 0;
+}
+#adminApp .placeholder-token-row code {
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+#adminApp .placeholder-token-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+#adminApp .placeholder-token-row button {
+  margin: 0;
+  flex-shrink: 0;
+}
+#adminApp .stat-card.stat-card-compact {
+  padding: 14px;
+}
+#adminApp .stat-heading {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+#adminApp .stat-card.stat-card-compact .stat-heading b {
+  display: inline;
+  font-size: 1.65rem;
+}
+#adminApp .stat-heading span {
+  font-weight: 650;
+}
+#adminApp .stat-counts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 12px;
+  margin: 0;
+  font-size: 0.75rem;
+}
+#adminApp .stat-counts dt {
+  color: var(--muted);
+}
+#adminApp .stat-counts dd {
+  margin: 0;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+#adminApp .stat-card .stat-footnote {
+  margin: 10px 0 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+#adminApp .stat-interest {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+#adminApp .stat-interest > small {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 5px;
+  font-size: 0.72rem;
+}
+#adminApp .stat-interest-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+#adminApp .stat-card .stat-interest-counts span {
+  font-size: 0.72rem;
+}
+@media (max-width: 650px) {
+  #adminApp .translation-record-card {
+    padding: 12px;
+  }
+  #adminApp .translation-language-grid,
+  #adminApp .translation-record-card .food-translation-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #adminApp .translation-language-reading + .translation-language-reading,
+  #adminApp
+    .translation-record-card
+    .food-translation-row
+    + .food-translation-row {
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+  #adminApp .stat-card.stat-card-compact {
+    padding: 12px;
+  }
+}
+@media (pointer: coarse) {
+  #adminApp .placeholder-help button,
+  #adminApp #translationSearchToggle,
+  #adminApp #translationSearchClose {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+/* Encryption transport controls; no changes to Full/Partial restore policy. */
+.backup-password-dialog {
+  width: min(30rem, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  color: var(--ink);
+}
+.backup-password-dialog::backdrop {
+  background: #0008;
+}
+.backup-password-dialog form,
+.backup-password-dialog label {
+  display: grid;
+  gap: 8px;
+}
+.backup-password-dialog input {
+  width: 100%;
+}
+.backup-password-dialog .form-actions {
+  margin-top: 12px;
+}
+#backupEncryptionFields {
+  margin: 12px 0;
+}
+@media (max-width: 650px) {
+  #backupEncryptionFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The temporary, loopback-only installer shares the application's forms and controls. */
+.automatic-setup .automatic-steps {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.automatic-setup .automatic-steps button {
+  padding: 10px 6px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.automatic-setup .setup-step-complete {
+  border-color: var(--teal);
+}
+.automatic-setup .wizard-step > p {
+  margin: 10px 0 18px;
+}
+.automatic-setup .automatic-secret-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+.automatic-setup .automatic-secret-row label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.automatic-setup .automatic-secret-row input {
+  width: 100%;
+}
+.automatic-setup footer.wizard-actions {
+  margin-top: 18px;
+}
+@media (max-width: 760px) {
+  .automatic-setup .automatic-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .automatic-setup .automatic-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .automatic-setup .automatic-secret-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
