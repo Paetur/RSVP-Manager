@@ -1,6 +1,6 @@
 {
   "version": "0.9.0-alpha.1",
-  "sourceCommit": "2a7706e73ba6ea4a686b333aaa44e9a5c4e4a22a",
+  "sourceCommit": "4233087f59d29423fe5c406a31a34dbd6c7b70b7",
   "files": {
     ".github/workflows/rsvp-security-smoke.yml": "9e0d8a973abc69cc01994338128fd8b7c52e50e6ae807be8f388a8d369bd706b",
     ".gitignore": "c9ffa7554de7b0c901dbd948864ecebf6edd670faa4392809963c48040f25b45",
@@ -217,7 +217,7 @@
     "tests/food-interest-browser.cjs": "7cfdb5914ebfdae5dbae76d396d5fee14f73a5af5507fc5bca6e5b28528405b1",
     "tests/food-interest-db.cjs": "f59e62a86f4ebfdd1fc95f5f8dcf0684f3a67dfb300781db5a66c3d52f24805b",
     "tests/food-language-tasks-browser.cjs": "32c2b969b49e6bbf332897edf7a3c8ca45c503524fe0754522f558f0f7559531",
-    "tests/food-list-state-browser.cjs": "8f17c339160ae29980fba4699d0472d23989368c56ce07cc1a77727a666ef11e",
+    "tests/food-list-state-browser.cjs": "08a8fbe52b27454e79b228bb0557261c575fc4b145c739d79ec796a522b8ddeb",
     "tests/food-popups-browser.cjs": "38a3f8e36e559a7bacf603cfd57910071bff218c1b7c2bcb1bd640e66d3537db",
     "tests/food-review-browser.cjs": "4d9fe6f0ed7278ac920e08b0ec93a165e07330e74d5100207d751cd101cf1dea",
     "tests/food-scroll-browser.cjs": "0f5bfa441f449dd7b6baf4610fd7564c105d9d231e372741f9b512c6e2a7b377",
@@ -275,6 +275,6 @@
     "tools/locale-contract.cjs": "a793dcea88f3622c716ee53958cb2961c36093b31ac169e729144c7fea207da6",
     "tools/validate-locales.cjs": "86ccdbbf17fba52d4f227a6750fc3772cbe4cb4f03f609bc67d0ef22d56ba512",
     "VERSION": "0e1692b22fb99967d430d2dbd70da5a4fc77fd4e853b1d167429605f73245689",
-    "version.json": "1d5af6d87e44bd94e2865daa7baf5c46c108694b09aa28f1344afb71267ef3a7"
+    "version.json": "ac167499753637088844c6e34b9ea5b1dd5cd0b626a93ff641ce0223db9c9811"
   }
 }

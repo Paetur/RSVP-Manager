@@ -43,13 +43,34 @@ const listRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_delete_f
       );
       await page.locator("[data-tab=food]").click();
 
+      async function addItem(category) {
+        const trigger = category
+          .locator(":scope>summary")
+          .getByRole("button", {
+            name: "Add item or sub-category",
+            exact: true,
+          });
+        await trigger.scrollIntoViewIfNeeded();
+        // Finish test-driven scrolling before opening a menu that closes on scroll.
+        await page.evaluate(
+          () =>
+            new Promise((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(resolve)),
+            ),
+        );
+        await trigger.click();
+        await page
+          .getByRole("dialog", {
+            name: "Add item or sub-category",
+            exact: true,
+          })
+          .getByRole("button", { name: "Add item", exact: true })
+          .click();
+      }
       const snacks = page.locator(
         '[data-food-category-id="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]',
       );
-      await snacks
-        .locator(":scope>summary")
-        .getByRole("button", { name: "Add item", exact: true })
-        .click();
+      await addItem(snacks);
       assert.equal(
         await page.evaluate(() => document.activeElement.id),
         "newFoodName",
@@ -121,10 +142,7 @@ const listRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_delete_f
         await page.locator("#addFoodForm").evaluate((n) => n.parentElement.id),
         "foodCreateStaging",
       );
-      await snacks
-        .locator(":scope>summary")
-        .getByRole("button", { name: "Add item", exact: true })
-        .click();
+      await addItem(snacks);
       await page.locator("#newFoodName").fill("Cancel this");
       await page
         .locator("#newFoodVenues")
@@ -139,13 +157,11 @@ const listRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_delete_f
           .isChecked(),
         true,
       );
-      const legacy = page
-        .locator("#adminFoodList>.food-category")
-        .filter({
-          has: page
-            .locator(".food-category-title")
-            .filter({ hasText: /^Legacy$/ }),
-        });
+      const legacy = page.locator("#adminFoodList>.food-category").filter({
+        has: page
+          .locator(".food-category-title")
+          .filter({ hasText: /^Legacy$/ }),
+      });
       await legacy
         .locator(":scope>summary")
         .getByRole("button", {
