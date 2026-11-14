@@ -46,12 +46,17 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:test-only@localhost:5432/rsvp_test
         run: |
+          node tools/build-install-sql.cjs --check
+          node tests/fresh-install-db.cjs
           node tools/build-css.cjs --check
           node tests/css-build.cjs
           node tests/admin-overview.cjs
           node tests/backup-files.cjs
           node tests/subdirectory.cjs
+          node tools/build-studio-functions.cjs --check
+          node tests/studio-functions.cjs
           python3 tests/pages-deployment.py
+          python3 tests/local-web-publish.py
           node tests/invitation-templates.cjs
           node tests/notification-preferences-db.cjs
           node tests/translation-registry-db.cjs
@@ -68,7 +73,7 @@ jobs:
           node tests/item-lifecycle-db.cjs
           node tests/invitation-customization-db.cjs
           node tests/guest-feedback-gateway.cjs
-          node tests/legacy-language-columns.cjs && node tests/normalized-translations.cjs && node tests/languages-backup-db.cjs && node tests/food-choice-db.cjs && node tests/other-db.cjs
+          node tests/normalized-translations.cjs && node tests/languages-backup-db.cjs && node tests/food-choice-db.cjs && node tests/other-db.cjs
           node tests/household-management-db.cjs
           node tests/guest-contacts-db.cjs
           node tests/guest-order-db.cjs
@@ -126,6 +131,10 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium webkit
+      - name: Test Local and Cloud setup choices and installer download
+        run: node tests/setup-browser.cjs
+      - name: Test release-matching Studio guide
+        run: node tests/studio-guide-browser.cjs
       - name: Validate admin JavaScript
         run: |
           node tools/validate-locales.cjs
@@ -160,7 +169,7 @@ jobs:
         run: node tests/food-language-tasks-browser.cjs
       - name: Test Food recipe links and editor translation globes
         run: node tests/food-popups-browser.cjs
-      - name: Test guest contacts, primary contact migration and ordering
+      - name: Test guest contacts, primary contact validation and ordering
         run: node tests/guest-contacts-browser.cjs
       - name: Test administrator consistency and language CSV export
         run: node tests/admin-consistency-browser.cjs && node tests/admin-venue-map-browser.cjs

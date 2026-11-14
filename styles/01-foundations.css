@@ -723,6 +723,17 @@ textarea {
   background: #f0f8f1;
   border-color: #7da996;
 }
+.setup-database-target {
+  border: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+.setup-database-target legend {
+  font-weight: 700;
+}
+.setup-database-target .choice-grid {
+  margin: 12px 0 0;
+}
 .wizard-actions {
   display: flex;
   gap: 12px;
@@ -813,11 +824,12 @@ textarea {
     grid-column: auto;
   }
   .steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 5px;
   }
   .steps button {
-    font-size: 0.67rem;
-    padding: 9px 2px;
+    font-size: 0.77rem;
+    padding: 9px 8px;
   }
   .setup-heading h1 {
     font-size: 2.65rem;

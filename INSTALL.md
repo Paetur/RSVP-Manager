@@ -6,31 +6,72 @@ Each installation has its own database, Auth users, website configuration and ev
 
 - A static HTTPS website host. Domain-root and subdirectory installations are supported, for example `https://events.example.org/marriage/`.
 - A separate Supabase project, or a separately managed local Supabase stack.
-- The Supabase CLI when deploying the included Edge Functions. Use the same release for the website, database and functions.
+- Supabase Dashboard/Studio access for browser-based database, Edge Function and Auth setup. The CLI is optional. Use the same release for the website, database and functions.
 
 ## New installation
 
 1. Download and extract a versioned release ZIP. Keep its `version.json`, `release-manifest.json` and `SHA256SUMS` with your installation records. Verify the published ZIP checksum before using it.
 2. Serve the extracted website files, including `setup.html` and `supabase/install.sql`, under the chosen installation directory. Keep local secrets, configuration exports, database backups and `.git` out of the website directory.
 3. Open `setup.html`. Create your own Supabase project and first Auth user. Run the included installer SQL only against a new destination, then follow the wizard to establish the first administrator. Never replay the installer over an existing populated event.
-4. Set the Edge Function secret `RSVP_SITE_ORIGIN` to this installation's exact website origin, such as `https://events.example.org`. Do not include a path, query or trailing route. Set `RSVP_SITE_URL` to the full installation URL, including its path and trailing slash, such as `https://events.example.org/marriage/`. Omitting this secret uses the origin root. Set database/service credentials only on the server. Deploy `guest-gateway` and `admin-invitations` from this release using `supabase/config.toml`.
+4. Set the Edge Function secret `RSVP_SITE_ORIGIN` to this installation's exact website origin, such as `https://events.example.org`. Do not include a path, query or trailing route. Set `RSVP_SITE_URL` to the full installation URL, including its path and trailing slash, such as `https://events.example.org/marriage/`. Omitting this secret uses the origin root. Set database/service credentials only on the server. Deploy `guest-gateway` and `admin-invitations` through **Edge Functions → Deploy a new function → Via Editor**, using the complete release-matching Studio files and **Verify JWT OFF** for each. Follow [Studio setup with copyable function code](docs/StudioSetup.html) before the wizard’s connection test; the guide covers secrets, code, validation, Auth and verification. The modular `supabase/functions/*/index.ts` files alone are not paste-ready.
 5. Set Supabase Auth's Site URL to the full installation URL and allow its administrator invitation redirect, such as `https://events.example.org/marriage/admin/?admin-invitation=1`. Configure email delivery for real administrator invitations. See the wizard's current instructions and the [administrator guide](docs/Administrators.md).
 6. Supply only this project's public/publishable browser key and URL through the wizard. Store the resulting per-installation browser configuration outside the development checkout; install it as directed by the wizard. Service/secret keys never belong in browser files.
 7. Sign in, configure the event and test an invitation preview. A new event stays unpublished until you deliberately publish it.
 
 For a local VM, use an explicitly configured local origin and backend; preserve its service configuration separately. Public release defaults deliberately contain no deployment address or backend key.
 
-## Deploy a selected release with GitHub Pages
+## Local or Cloud
 
-The [deployment template](deployment/README.md) downloads and verifies a published release, prepares only public website files and publishes them under a configured path. Copy its contents into a separate website repository; use Actions → Deploy RSVP → Run workflow to select a version. Leave both public backend variables empty for a setup-ready installation, or supply the new project URL and publishable key together. Backend setup and event publication remain separate actions.
+Under **Set up a new database**, choose **Local** or **Cloud** before continuing. Local uses your computer/VM’s Supabase stack and Studio, with its API URL/public key from `supabase status`; follow the [local setup guide](docs/LocalSetup.html). Cloud uses the [cloud Studio guide](docs/StudioSetup.html).
 
-Saved setup connections and administrator sessions are scoped to the full installation URL. An existing root installation must sign in again after upgrading; no old browser-storage adapter is provided during alpha.
+When creating the cloud project, use these **Security options**:
 
-## Existing event and upgrades
+| Option | Set to | Why |
+|---|---|---|
+| Enable Data API | ON | Website and Edge Function database calls require it. |
+| Automatically expose new tables | OFF | The installer supplies explicit table/function grants. |
+| Enable automatic RLS | ON | Protects future tables; the installer also enables RLS and creates the application policies. |
 
-Keep protected application and infrastructure backups before upgrading. Match the exact installed migrations and release contract; do not replace a populated database with the fresh installer. Application restore is a separate operation requiring an empty, unpublished destination. See [Backups](docs/Backups.md).
+Keep `public` in the Data API exposed schemas; do not expose `app_private`. For an existing project, check Data API availability and schema exposure under **Integrations → Data API**. These settings do not publish the event. Do not add broad grants or disable RLS to fix a connection error.
 
-This alpha accepts current backup/CSV formats only. Release 0.9.0-alpha.2 uses application backup format 2/schema 20261113213849; compressed .json.gz files contain that same envelope. Database changes after this release will be described in subsequent release notes.
+## Studio-first setup
+
+The [browser guide](docs/StudioSetup.html) provides complete, checksum-verified code to copy into Studio. [Plain instructions](docs/StudioSetup.md) and the generated `supabase/studio/*.ts` files are also included. Both functions come from the same canonical modules as CLI deployments.
+
+The installer is a single current alpha baseline with RLS enabled. It runs atomically and refuses an existing application schema. No previous application version, migration chain or compatibility installation is required.
+
+## Configure js/config.js with GitHub Actions
+
+For a selected-release Pages deployment, **do not upload or commit the wizard's downloaded `config.js` to the website repository**. Each deployment builds a new artifact and generates `js/config.js` from repository Actions variables.
+
+1. In the **website repository**, open **Settings → Secrets and variables → Actions → Variables**.
+2. Click **New repository variable** for each setting below. Copy the values from the setup wizard or its downloaded configuration. Enter just the value, without JavaScript quotes.
+
+| Repository variable | Downloaded config field | Value |
+|---|---|---|
+| `RSVP_SUPABASE_URL` | `supabaseUrl` | Your public Supabase project URL |
+| `RSVP_PUBLISHABLE_KEY` | `supabaseKey` | Your publishable browser key |
+
+3. Open **Actions → Deploy RSVP → Run workflow** (or the deployment workflow's chosen name), select the release tag, and run it again.
+4. Open the deployed website in a private browser window to check that it uses the configured backend. Browser-only wizard settings do not configure other visitors.
+
+These two values are public browser settings. Never enter a database password or server/service/secret key here. The deployment builder rejects privileged keys. Supply both values together; leave both empty only for an unconfigured setup site.
+
+CLI alternative, after `gh auth login`:
+
+```bash
+gh variable set RSVP_SUPABASE_URL --repo OWNER/WEBSITE --body 'https://YOUR-PROJECT.supabase.co'
+gh variable set RSVP_PUBLISHABLE_KEY --repo OWNER/WEBSITE --body 'sb_publishable_YOUR_PUBLIC_KEY'
+gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-alpha.3
+```
+
+Use the workflow filename and release input name from your copy of the [deployment template](deployment/README.md). For direct static hosting without this Actions workflow, upload the wizard's downloaded file as `js/config.js` in the installation directory instead.
+
+## Current alpha database and backup contract
+
+`supabase/migrations/` contains one baseline, and `supabase/install.sql` is its generated SQL Editor equivalent. Use either installation route once. Do not apply both to the same database. Regenerate/check the SQL Editor file with `node tools/build-install-sql.cjs` / `--check`.
+
+Alpha has no upgrade path from pre-baseline schemas or old export formats. Test a fresh install against an empty, independent backend. The current application backup envelope is format 2/schema `20261114034908`; compressed `.json.gz` files contain the same envelope. Application restore uses the current contract and requires an empty, unpublished destination. See [Backups](docs/Backups.md). Resetting a test database is a separate destructive operator action.
 
 ## Forks and testing
 
@@ -41,3 +82,13 @@ The repository's verification workflow uses synthetic fixtures and disposable da
 ## Current alpha limits
 
 Administrator password recovery, optional backup encryption and additional food-interest feedback/reporting remain planned. Gzip compression is implemented. Physical-device/native-app and full published-journey acceptance remain separate from automated checks. Publication and an installation's data are always controlled by its owner.
+
+## Publish to a local webroot
+
+Use the public-file publisher with the extracted release, a private path to the wizard’s public browser configuration, and the destination webroot:
+
+```bash
+python3 deployment/publish-web.py /path/to/release /private/path/config.js /path/to/webroot
+```
+
+It includes the SQL installer, hash manifest, guides and Studio code downloads. Existing `js/config.production.js` is preserved; `js/config.js` comes from the explicit configuration file. Private development files, raw server modules and environment files are excluded. Publishing files does not run SQL or publish an event.

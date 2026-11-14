@@ -164,7 +164,7 @@ const { PGlite } = require("@electric-sql/pglite"),
     );
     await db.exec("RESET ROLE");
     const payload = await v("SELECT app_private.backup_payload() v");
-    assert.equal(payload.schema_version, "20261113213849");
+    assert.equal(payload.schema_version, "20261114034908");
     assert.deepEqual(
       payload.tables["public.event_settings"][0].notification_preferences,
       prefs,

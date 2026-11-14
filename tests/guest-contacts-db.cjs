@@ -2,10 +2,10 @@
 const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=require('node:assert/strict');
 const admin='11111111-1111-4111-8111-111111111111',session='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const files=fs.readdirSync('supabase/migrations').filter(f=>f.endsWith('.sql')).sort();
-async function setup(beforeCleanup=false){const db=new PGlite();await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role BYPASSRLS;CREATE SCHEMA auth;CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz,encrypted_password text);CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,created_at timestamptz DEFAULT now());CREATE TABLE auth.audit_log_entries(id uuid PRIMARY KEY,payload json,created_at timestamptz DEFAULT now());CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;GRANT USAGE ON SCHEMA auth TO authenticated,anon;`);for(const file of files)if(!beforeCleanup||file<files.find(f=>f.endsWith('_retire_household_contact_fallbacks.sql')))await db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));await db.query("INSERT INTO auth.users VALUES($1,'admin@example.invalid',now(),'not-exported')",[admin]);await db.query("INSERT INTO public.admins(user_id,name) VALUES($1,'Admin')",[admin]);await db.query('INSERT INTO auth.sessions VALUES($1,$2,now())',[session,admin]);await db.query("SELECT set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)",[admin,JSON.stringify({sub:admin,session_id:session})]);await db.exec('SET ROLE authenticated');return db;}
+async function setup(){const db=new PGlite();await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role BYPASSRLS;CREATE SCHEMA auth;CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz,encrypted_password text);CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,created_at timestamptz DEFAULT now());CREATE TABLE auth.audit_log_entries(id uuid PRIMARY KEY,payload json,created_at timestamptz DEFAULT now());CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;GRANT USAGE ON SCHEMA auth TO authenticated,anon;`);for(const file of files)await db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));await db.query("INSERT INTO auth.users VALUES($1,'admin@example.invalid',now(),'not-exported')",[admin]);await db.query("INSERT INTO public.admins(user_id,name) VALUES($1,'Admin')",[admin]);await db.query('INSERT INTO auth.sessions VALUES($1,$2,now())',[session,admin]);await db.query("SELECT set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)",[admin,JSON.stringify({sub:admin,session_id:session})]);await db.exec('SET ROLE authenticated');return db;}
 const value=async(db,sql,args=[])=>(await db.query(sql,args)).rows[0].value;
 const checkSum=async(db,b)=>{b.checksum=await value(db,"SELECT encode(sha256(convert_to($1::jsonb::text,'UTF8')),'hex') value",[b.payload]);return b;};
-(async()=>{let db=await setup();let backup,legacy;try{
+(async()=>{let db=await setup();let backup,invalidManifest;try{
  const household=await value(db,"SELECT public.admin_save_household(null,$1) value",[{household_name:'Example family',planning_group_id:'general',language:'en',phone:'+298 111111',postal_address:'Synthetic address'}]);
  const other=await value(db,"SELECT public.admin_save_household(null,$1) value",[{household_name:'Other family',planning_group_id:'general',language:'en'}]);
  const profile={first_name:'Alex',last_name:'Example',language:'en',is_child:false,phone:'+298 333333',mobile:'+298 444444',email:'alex@example.invalid',preferred_contact_method:'whatsapp'};
@@ -112,12 +112,12 @@ const checkSum=async(db,b)=>{b.checksum=await value(db,"SELECT encode(sha256(con
  assert.equal(await value(db,'SELECT household_id value FROM app_private.invitation_code_registry WHERE code=$1',[retiredCode]),used);
  await db.exec('SET ROLE authenticated');
  backup=await value(db,'SELECT public.admin_export_backup() value');assert.equal(backup.payload.tables['public.guests'].find(g=>g.id===guest).mobile,profile.mobile);assert.ok(backup.payload.columns['public.households'].every(c=>!['email','whatsapp','preferred_contact_method','stuff','things'].includes(c.name)));
- legacy=JSON.parse(JSON.stringify(backup));const missing={ 'public.guests':['sort_order','phone','mobile','email','preferred_contact_method'],'public.households':['primary_guest_id'],'public.household_contacts':['is_household_primary']};for(const [table,columns]of Object.entries(missing)){legacy.payload.columns[table]=legacy.payload.columns[table].filter(c=>!columns.includes(c.name));for(const row of legacy.payload.tables[table])for(const key of columns)delete row[key];}await checkSum(db,legacy);
+ invalidManifest=JSON.parse(JSON.stringify(backup));const missing={ 'public.guests':['sort_order','phone','mobile','email','preferred_contact_method'],'public.households':['primary_guest_id'],'public.household_contacts':['is_household_primary']};for(const [table,columns]of Object.entries(missing)){invalidManifest.payload.columns[table]=invalidManifest.payload.columns[table].filter(c=>!columns.includes(c.name));for(const row of invalidManifest.payload.tables[table])for(const key of columns)delete row[key];}await checkSum(db,invalidManifest);
  await db.exec('SET ROLE anon');await assert.rejects(()=>db.query('SELECT public.admin_save_guest_details(null,null,\'{}\')'),/permission denied/);await assert.rejects(()=>db.query('SELECT * FROM public.guests'),/permission denied/);
  }finally{await db.close();}
  db=await setup();
  try{
-  await assert.rejects(()=>db.query('SELECT public.admin_preview_backup($1)',[legacy]),/Schema mismatch/);
+  await assert.rejects(()=>db.query('SELECT public.admin_preview_backup($1)',[invalidManifest]),/Schema mismatch/);
   const preview=await value(db,'SELECT public.admin_preview_backup($1) value',[backup]);
   assert.equal(preview.can_restore,true,preview.reason);
   await db.query('SELECT public.admin_restore_backup($1,$2)',[backup,'RESTORE '+preview.event_name]);
@@ -127,23 +127,5 @@ const checkSum=async(db,b)=>{b.checksum=await value(db,"SELECT encode(sha256(con
   assert.equal(await value(db,'SELECT is_published value FROM public.event_settings'),false);
   assert.equal(await value(db,"SELECT count(*)::int value FROM public.management_audit WHERE action='delete' AND entity_type='households'"),2);
  }finally{await db.close();}
- const cleanup=fs.readFileSync('supabase/migrations/'+files.find(f=>f.endsWith('_retire_household_contact_fallbacks.sql')),'utf8');
- db=await setup(true);
- try{
-  const values={household_name:'Migration rehearsal',side:'paetur_hentze',language:'en',email:'moved@example.invalid',whatsapp:'+298 123456',preferred_contact_method:'email',phone:'+298 555555',postal_address:'Kept address'};
-  const household=await value(db,'SELECT public.admin_save_household(null,$1) value',[values]);
-  await db.exec('RESET ROLE');
-  await assert.rejects(()=>db.exec(cleanup),/Move the remaining household contact details/);
-  await db.exec('ROLLBACK; SET ROLE authenticated');
-  const person=await value(db,'SELECT public.admin_save_guest_details(null,$1,$2) value',[household,{first_name:'Moved',email:values.email,mobile:values.whatsapp,preferred_contact_method:'email'}]);
-  await db.query('SELECT public.admin_set_household_primary_guest($1,$2)',[household,person]);
-  const draft=await value(db,'SELECT public.admin_save_delivery(null,$1,$2,null) value',[household,{channel:'email',status:'draft',message_body:'Keep this draft'}]);
-  const before=await value(db,'SELECT to_jsonb(q) value FROM public.invitation_send_queue q WHERE id=$1',[draft]);
-  await db.exec('RESET ROLE');await db.exec(cleanup);await db.exec('SET ROLE authenticated');
-  assert.deepEqual(await value(db,'SELECT to_jsonb(q) value FROM public.invitation_send_queue q WHERE id=$1',[draft]),before);
-  const after=await value(db,'SELECT to_jsonb(h) value FROM public.households h WHERE id=$1',[household]);
-  assert.equal(after.primary_guest_id,person);assert.equal(after.phone,values.phone);assert.equal(after.postal_address,values.postal_address);
-  for(const key of ['email','whatsapp','preferred_contact_method'])assert.equal(Object.hasOwn(after,key),false);
- }finally{await db.close();}
- console.log('PASS guest contacts: atomic save/validation, adult cross-household primary, delivery recipient, section privacy, child invalidation, current restoration, old manifest rejection and unpublished state.');
+ console.log('PASS guest contacts: atomic save/validation, adult cross-household primary, delivery recipient, section privacy, child invalidation, current restoration, invalid manifest rejection and unpublished state.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

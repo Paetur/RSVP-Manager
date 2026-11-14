@@ -37,7 +37,7 @@ Compression does not encrypt the file. Keep it private; password-based encryptio
 
 Restore requires an **empty, unpublished destination**. It cannot merge into or overwrite a populated event.
 
-1. Prepare the destination with current migrations and a verified administrator.
+1. Prepare the destination with the current alpha baseline and a verified administrator.
 2. Choose the file. Its available sections and log flag determine the choices. Full restore is unavailable for Partial files.
 3. Choose a mode, sections where applicable, and the Full-mode log option. Changing any choice invalidates prior validation/confirmation.
 4. Validate. The server rehearses the restore and rolls it back. Full restore may require matching verified historical actor accounts wherever retained records reference them. Resolve reported problems before proceeding.
@@ -50,7 +50,7 @@ Store protected copies away from the planning device and agree retention and rec
 
 ## Current alpha format and infrastructure recovery
 
-Current exports use application backup **format 2**, schema **20261113213849**, with 40 application tables. This alpha accepts the current schema only; download a fresh backup after upgrading. There is no old-backup compatibility adapter. Language CSV exports are separate.
+Current exports use application backup **format 2**, schema **20261114034908**, with 40 application tables. This alpha accepts the current schema only; download a fresh backup when testing a changed schema. There is no old-backup compatibility adapter. Language CSV exports are separate.
 
 Passwords, Auth sessions, personal administrator Interface preferences, secret keys, email-service settings, rate-limit counters and hosting configuration require separate infrastructure recovery. App sign-in references, if included, are historical information rather than active sessions. Raw Auth-service audit records are not application-backup data. Keep the repository/deployment configuration with the installation owner and rehearse restoration.
 

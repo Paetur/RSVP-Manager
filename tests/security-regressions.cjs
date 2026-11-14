@@ -72,6 +72,7 @@ const assert = require('node:assert/strict'),
   if (!fields.has(id)) fields.set(id, {
    value: '',
    events: {},
+   classList: { toggle() {} },
    addEventListener(name, handler) { this.events[name] = handler; }
   });
   return fields.get(id);
@@ -103,6 +104,7 @@ const assert = require('node:assert/strict'),
  });
  setupReady();
  await Promise.resolve();
+ assert.equal(typeof field('connectForm').events.submit, 'function', field('setupStatus').value || 'Setup must initialize before testing a stale connection');
  const attempt = field('connectForm').events.submit({ preventDefault() {}, submitter: {} });
  field('setupUrl').value = 'https://new.invalid';
  field('connectForm').events.input();
@@ -170,7 +172,7 @@ const assert = require('node:assert/strict'),
  for (const file of ['index.html', 'setup.html', 'admin/index.html']) {
   const html = fs.readFileSync(file, 'utf8');
   assert.ok(html.includes('@supabase/supabase-js@2.50.0/'));
-  assert.match(html, /integrity="sha384-[A-Za-z0-9+/=]+" crossorigin="anonymous"/);
+  assert.match(html, /integrity="sha384-[A-Za-z0-9+/=]+"\s+crossorigin="anonymous"/);
  }
  console.log('PASS: streaming limits, handler rejection, SDK pins/integrity, preview selection/export, blocked storage, network recovery and gateway messages');
 })().catch(e => {

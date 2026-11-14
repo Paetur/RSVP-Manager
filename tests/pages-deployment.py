@@ -53,6 +53,20 @@ class DeploymentTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             pages.build_site(archive, output, self.version, 'marriage')
 
+    def test_root_installation_preserves_application_index(self):
+        archive = self.archive()
+        output = self.root / 'site'
+        info = pages.build_site(archive, output, self.version, '')
+        self.assertEqual(info['path'], '/')
+        self.assertFalse(info['backendConfigured'])
+        self.assertEqual((output / 'index.html').read_bytes(), b'fixture')
+        self.assertTrue((output / 'admin/index.html').is_file())
+        self.assertTrue((output / 'setup.html').is_file())
+        self.assertTrue((output / '.nojekyll').is_file())
+        self.assertFalse((output / 'marriage').exists())
+        manifest = json.loads((output / 'deployment-manifest.json').read_text())
+        self.assertEqual(hashlib.sha256((output / 'index.html').read_bytes()).hexdigest(), manifest['files']['index.html'])
+
     def test_backend_configuration(self):
         output = self.root / 'site'
         info = pages.build_site(self.archive(), output, self.version, 'events/marriage', 'https://project.example.invalid/', 'sb_publishable_synthetic')
@@ -69,7 +83,7 @@ class DeploymentTests(unittest.TestCase):
             pages.connection('https://project.example.invalid', 'test.' + privileged + '.signature')
 
     def test_path_and_archive_boundaries(self):
-        for value in ['', '/', '../marriage', 'marriage/../other', 'marriage%2fother', 'marriage//other', 'marriage?x=1']:
+        for value in ['/', '../marriage', 'marriage/../other', 'marriage%2fother', 'marriage//other', 'marriage?x=1']:
             with self.subTest(path=value), self.assertRaises(ValueError):
                 pages.checked_path(value)
         with self.assertRaisesRegex(ValueError, 'checksum'):

@@ -2,8 +2,8 @@
 const {PGlite}=require('@electric-sql/pglite');const fs=require('node:fs'),assert=require('node:assert/strict');
 const sourceAdmin='11111111-1111-4111-8111-111111111111',destAdmin='22222222-2222-4222-8222-222222222222',session='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const migrations=fs.readdirSync('supabase/migrations').filter(f=>f.endsWith('.sql')).sort();let checks=0;
-async function setup(admin,installer=false,beforeMigration=null){const db=new PGlite();await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role BYPASSRLS;CREATE SCHEMA auth;CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz,encrypted_password text);CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,created_at timestamptz DEFAULT now());CREATE TABLE auth.audit_log_entries(id uuid PRIMARY KEY,payload json,created_at timestamptz DEFAULT now());CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;GRANT USAGE ON SCHEMA auth TO authenticated,anon;`);
- if(installer){let install=fs.readFileSync('supabase/install.sql','utf8');if(beforeMigration)install=install.split('-- Migration: '+beforeMigration)[0];await db.exec(install);}else for(const file of migrations)await db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+async function setup(admin,installer=false){const db=new PGlite();await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role BYPASSRLS;CREATE SCHEMA auth;CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz,encrypted_password text);CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,created_at timestamptz DEFAULT now());CREATE TABLE auth.audit_log_entries(id uuid PRIMARY KEY,payload json,created_at timestamptz DEFAULT now());CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;GRANT USAGE ON SCHEMA auth TO authenticated,anon;`);
+ if(installer)await db.exec(fs.readFileSync('supabase/install.sql','utf8'));else for(const file of migrations)await db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
  await db.exec("UPDATE public.event_settings SET food_stage='selection' WHERE id=1");
  assert.equal((await db.query("SELECT count(*)::integer AS n FROM information_schema.columns WHERE table_schema='public' AND table_name='households' AND column_name='family_name'")).rows[0].n,0,'Fresh installer and migrations must omit the retired household family_name column');
  await db.query("INSERT INTO auth.users VALUES($1,'admin@example.invalid',now(),'not-exported')",[admin]);await db.query("INSERT INTO public.admins(user_id,name) VALUES($1,'Test')",[admin]);await db.query('INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)',[session,admin]);
@@ -44,7 +44,7 @@ async function checksum(db,b){b.checksum=await value(db,"SELECT encode(sha256(co
  await src.query("SELECT public.admin_record_delivery_sent($1,1,'Synthetic delivery')",[sentDraft]);
  await src.exec('RESET ROLE');
  await src.query('INSERT INTO public.invitation_access_audit(id,household_id) OVERRIDING SYSTEM VALUE VALUES(9007199254740993,$1)',[household]);
- await src.exec("INSERT INTO public.other_categories(name) VALUES('Recovery tasks');INSERT INTO public.other_items(item,category_id,source_kind,source_id) VALUES('Chairs',(SELECT id FROM public.other_categories WHERE name='Recovery tasks'),'stuff',gen_random_uuid()),('Prepare venue',(SELECT id FROM public.other_categories WHERE name='Recovery tasks'),'task',gen_random_uuid());UPDATE public.event_settings SET is_published=false;SET ROLE authenticated;");
+ await src.exec("INSERT INTO public.other_categories(name) VALUES('Recovery tasks');INSERT INTO public.other_items(item,category_id) VALUES('Chairs',(SELECT id FROM public.other_categories WHERE name='Recovery tasks')),('Prepare venue',(SELECT id FROM public.other_categories WHERE name='Recovery tasks'));UPDATE public.event_settings SET is_published=false;SET ROLE authenticated;");
  await src.query("SELECT public.admin_prepare_invitation('invited@example.invalid','Recipient')");
  await src.exec('RESET ROLE');await src.query("INSERT INTO auth.users VALUES('99999999-9999-4999-8999-999999999995','former@example.invalid',now(),'not-exported')");await src.query("INSERT INTO public.admins(user_id,name) VALUES('99999999-9999-4999-8999-999999999995','Former admin name')");await src.exec('SET ROLE authenticated');
  await dst.exec('RESET ROLE');await dst.query("INSERT INTO auth.users VALUES('99999999-9999-4999-8999-999999999996','former@example.invalid',now(),'not-exported')");await dst.exec('SET ROLE authenticated');
@@ -133,15 +133,7 @@ async function checksum(db,b){b.checksum=await value(db,"SELECT encode(sha256(co
  const isolated=await exportChoice('backup',['other'],true);
  assert.equal(isolated.payload.tables['public.management_audit'].length,0);
  assert.equal((await value(dst,'SELECT public.admin_preview_backup($1) value',[isolated])).can_restore,true);
- // The cleanup must refuse to remove any historical data unexpectedly present.
- const retained=await setup(destAdmin,true,'20261113213849_restrict_partial_logs_and_remove_snapshots.sql');
- try {
-  await retained.exec("RESET ROLE;INSERT INTO app_private.restored_activity_logs VALUES('99999999-9999-4999-8999-999999999990','fixture','1','2026-11-01T00:00:00Z','households','update','Synthetic history','Synthetic actor',null,'{}')");
-  await assert.rejects(()=>retained.exec(fs.readFileSync('supabase/migrations/20261113213849_restrict_partial_logs_and_remove_snapshots.sql','utf8')),/history is not empty/);
-  await retained.exec('ROLLBACK');
-  assert.equal(await value(retained,'SELECT count(*)::int value FROM app_private.restored_activity_logs'),1,'failed cleanup preserves all history');
- } finally {await retained.close();}
- checks+=23;
+ checks+=21;
  // A large omitted section must not trip the 20 MB limit before projection.
  await src.exec("BEGIN;RESET ROLE;UPDATE public.other_items SET item=repeat('x',21000000) WHERE item='Chairs';SET ROLE authenticated");
  try {
@@ -151,11 +143,9 @@ async function checksum(db,b){b.checksum=await value(db,"SELECT encode(sha256(co
   await assert.rejects(()=>exportChoice('backup',['other'],false),/exceeds 20 MB/);
  } finally {await src.exec('ROLLBACK');}
  checks+=3;
- const legacyPlanning=copy(backup);
- legacyPlanning.payload.schema_version='20261101105111';
- legacyPlanning.payload.columns['public.households'].find(column=>column.name==='planning_group_id').name='side';
- for(const row of legacyPlanning.payload.tables['public.households']){row.side=row.planning_group_id;delete row.planning_group_id;}
- await checksum(dst,legacyPlanning);
+ const invalidSchema=copy(backup);
+ invalidSchema.payload.schema_version='invalid-schema';
+ await checksum(dst,invalidSchema);
 
  const template=await setup(destAdmin,true);
  try{
@@ -202,11 +192,11 @@ async function checksum(db,b){b.checksum=await value(db,"SELECT encode(sha256(co
  const cyclic=copy(backup);cyclic.payload.tables['public.households'].find(h=>h.id===parent).parent_id=household;await checksum(dst,cyclic);preview=await value(dst,'SELECT public.admin_preview_backup($1) value',[cyclic]);assert.equal(preview.can_restore,false);assert.match(preview.reason,/cycle/);checks+=2;
  const branch=copy(cyclic);const outside=copy(branch.payload.tables['public.households'].find(h=>h.id===parent));outside.id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';branch.payload.tables['public.households'].unshift(outside);branch.payload.counts['public.households']++;await checksum(dst,branch);preview=await value(dst,'SELECT public.admin_preview_backup($1) value',[branch]);assert.equal(preview.can_restore,false);assert.match(preview.reason,/cycle/);checks+=2;
  const missing=copy(backup);missing.payload.identities[0].email='missing@example.invalid';await checksum(dst,missing);preview=await value(dst,'SELECT public.admin_preview_backup($1) value',[missing]);assert.equal(preview.can_restore,false);assert.match(preview.reason,/historical actor/);checks+=2;
- await assert.rejects(()=>dst.query('SELECT public.admin_preview_backup($1)',[legacyPlanning]),/Export a new application backup/);checks++;
+ await assert.rejects(()=>dst.query('SELECT public.admin_preview_backup($1)',[invalidSchema]),/Export a new application backup/);checks++;
  const result=await value(dst,'SELECT public.admin_restore_backup($1,$2) value',[backup,'RESTORE My event']);assert.equal(result.restored,true);checks++;const members=await value(dst,'SELECT public.admin_list_members() value');const former=members.find(a=>a.email==='former@example.invalid');assert.equal(former.name,'Former admin name');assert.equal(former.access_state,'restored');assert.equal(former.access_permissions.preset,'view');checks+=3;
  const restored=(await dst.query('SELECT parent_id,invite_code,rsvp_state,food_confirmed,latest_rsvp_submission_id FROM public.households WHERE id=$1',[household])).rows[0];
  assert.equal(restored.parent_id,parent);assert.equal(restored.invite_code,code);assert.equal(restored.rsvp_state,'locked');assert.equal(restored.food_confirmed,true);assert.ok(restored.latest_rsvp_submission_id);checks+=5;
- assert.equal(await value(dst,'SELECT is_published value FROM public.event_settings'),false);assert.equal(await value(dst,'SELECT fallback_language value FROM public.event_settings'),'de');assert.equal(await value(dst,"SELECT count(*)::int value FROM public.other_items WHERE source_kind='stuff'"),1);assert.equal(await value(dst,"SELECT count(*)::int value FROM public.other_items WHERE source_kind='task'"),1);checks+=4;
+ assert.equal(await value(dst,'SELECT is_published value FROM public.event_settings'),false);assert.equal(await value(dst,'SELECT fallback_language value FROM public.event_settings'),'de');assert.equal(await value(dst,"SELECT count(*)::int value FROM public.other_items WHERE item='Chairs'"),1);assert.equal(await value(dst,"SELECT count(*)::int value FROM public.other_items WHERE item='Prepare venue'"),1);checks+=4;
  const restoredExport=await value(dst,'SELECT public.admin_export_backup() value');
  for(const [table,rows]of Object.entries(backup.payload.tables)){if(table==='public.backup_restore_audit'||table==='public.admin_invitations')continue;const normalized=rows.map(row=>Object.fromEntries(Object.entries(row).map(([key,v])=>[key,v===sourceAdmin?destAdmin:v])));assert.deepEqual(restoredExport.payload.tables[table].map(JSON.stringify).sort(),normalized.map(JSON.stringify).sort(),table+' roundtrip');checks++;}
  assert.equal(restoredExport.payload.tables['public.backup_restore_audit'].length,1);checks++;

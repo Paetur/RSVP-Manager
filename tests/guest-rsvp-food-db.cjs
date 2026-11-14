@@ -316,7 +316,7 @@ async function setup() {
       [leaf, child],
     );
     const backup = await v("SELECT public.admin_export_backup() v");
-    assert.equal(backup.payload.schema_version, "20261113213849");
+    assert.equal(backup.payload.schema_version, "20261114034908");
     assert.equal(
       backup.payload.tables["public.rsvp_submissions"].find(
         (s) => s.id === saved.submission_id,

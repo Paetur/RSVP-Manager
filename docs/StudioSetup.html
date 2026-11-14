@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Studio setup · RSVP Manager</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 1.5rem;
+      }
+      main {
+        max-width: 52rem;
+        margin: auto;
+        line-height: 1.6;
+      }
+      h1,
+      h2 {
+        line-height: 1.2;
+      }
+      h2 {
+        margin-top: 2rem;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9rem;
+      }
+      td,
+      th {
+        padding: 0.5rem;
+        border: 1px solid #888;
+        text-align: left;
+        overflow-wrap: anywhere;
+      }
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      code {
+        overflow-wrap: anywhere;
+      }
+      textarea {
+        box-sizing: border-box;
+        width: 100%;
+        font: 12px/1.4 monospace;
+        min-height: 16rem;
+      }
+      button,
+      a {
+        touch-action: manipulation;
+      }
+      button {
+        padding: 0.65rem 1rem;
+        margin: 0.5rem 0;
+      }
+      summary {
+        cursor: pointer;
+        font-weight: 600;
+        padding: 0.5rem 0;
+      }
+      .note {
+        font-size: 0.9rem;
+      }
+      #codeStatus {
+        padding: 0.5rem 0;
+      }
+      nav {
+        margin: 1rem 0;
+      }
+    </style>
+    <script src="StudioSetup.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <nav><a href="../setup.html">Back to setup wizard</a></nav>
+      <h1>Install RSVP Manager through Supabase Studio</h1>
+      <p>
+        In Supabase Studio, select <strong>your project</strong>. These steps
+        run entirely in your browser. The two paste-ready files below match
+        <strong id="studioVersion">your selected release</strong>.
+      </p>
+      <p>
+        Run the complete install.sql once on your new empty project first. If
+        the SQL stage is already complete, continue with the functions. Keep the
+        event unpublished.
+      </p>
+      <h2>Cloud project security options</h2>
+      <p>When creating the project, expand Security options and select:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Setting</th>
+            <th>Choose</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Enable Data API</td>
+            <td>ON</td>
+            <td>Required for the website and Edge Function database calls.</td>
+          </tr>
+          <tr>
+            <td>Automatically expose new tables</td>
+            <td>OFF</td>
+            <td>The installer supplies explicit permissions.</td>
+          </tr>
+          <tr>
+            <td>Enable automatic RLS</td>
+            <td>ON</td>
+            <td>
+              Protects future tables; the installer also enables RLS and creates
+              the application policies.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Keep public in the Data API exposed schemas. Do not expose app_private.
+        For an existing project, check Data API availability and exposed schemas
+        under Integrations → Data API. These switches do not publish an event.
+        Local installations use the
+        <a href="LocalSetup.html">local setup guide</a>.
+      </p>
+      <h2>1. Save the site secrets</h2>
+      <p>
+        Open <strong>Edge Functions → Secrets</strong>, add these entries and
+        Save:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>RSVP_SITE_ORIGIN</code></td>
+            <td><code data-site-origin>https://events.example.org</code></td>
+          </tr>
+          <tr>
+            <td><code>RSVP_SITE_URL</code></td>
+            <td><code data-site-url>https://events.example.org/</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note">
+        Supabase supplies its server credentials automatically. Only the site
+        settings above need adding here.
+      </p>
+      <h2>2. Deploy guest-gateway</h2>
+      <ol>
+        <li>
+          Open
+          <strong>Edge Functions → Deploy a new function → Via Editor</strong>.
+        </li>
+        <li>Name it exactly <code>guest-gateway</code>.</li>
+        <li>
+          Replace the template's entire <code>index.ts</code> with the complete
+          file below.
+        </li>
+        <li>Click <strong>Deploy function</strong>.</li>
+        <li>
+          In its <strong>Details</strong> tab, turn
+          <strong>Verify JWT</strong> (or
+          <strong>Verify JWT with legacy secret</strong>)
+          <strong>OFF</strong> and save. Select OFF at initial deployment too if
+          offered.
+        </li>
+      </ol>
+      <details>
+        <summary>guest-gateway: complete index.ts</summary>
+        <textarea
+          id="guestCode"
+          readonly
+          spellcheck="false"
+          aria-label="Complete guest-gateway source"
+        ></textarea
+        ><button id="copyGuest" type="button" disabled>
+          Copy complete guest-gateway code
+        </button>
+        <a href="../supabase/studio/guest-gateway.ts" download>Download file</a>
+      </details>
+      <h2>3. Deploy admin-invitations</h2>
+      <p>
+        Repeat those steps with the exact name
+        <code>admin-invitations</code> and this file. Turn its platform
+        <strong>Verify JWT OFF</strong> too.
+      </p>
+      <details>
+        <summary>admin-invitations: complete index.ts</summary>
+        <textarea
+          id="adminCode"
+          readonly
+          spellcheck="false"
+          aria-label="Complete admin-invitations source"
+        ></textarea
+        ><button id="copyAdmin" type="button" disabled>
+          Copy complete admin-invitations code
+        </button>
+        <a href="../supabase/studio/admin-invitations.ts" download
+          >Download file</a
+        >
+      </details>
+      <p id="codeStatus" role="status">Checking the code files…</p>
+      <p class="note">
+        These files include the shared helpers. Guest invitation validation and
+        administrator authentication/permissions remain enforced by the
+        handlers.
+      </p>
+      <h2>4. Verify the functions</h2>
+      <p>
+        In <strong>guest-gateway → Test</strong>, send
+        <strong>POST</strong> with headers
+        <code data-origin-header>Origin: https://events.example.org</code> and
+        <code>Content-Type: application/json</code>, and:
+      </p>
+      <pre>{"action":"get_invitation_v2","args":{"p_code":"AAAAAAAA"}}</pre>
+      <p>
+        A fresh unpublished event returns <strong>200</strong> with JSON
+        <code>null</code>. A POST of <code>{}</code> to
+        <code>admin-invitations</code> without a signed-in administrator JWT
+        returns <strong>401</strong> from its handler and sends no email. Return
+        to the wizard and retry <strong>Test connection</strong>.
+      </p>
+      <h2>5. Configure Auth and the website</h2>
+      <p>
+        Under <strong>Authentication → URL Configuration</strong>, set Site URL
+        to <code data-site-url>https://events.example.org/</code> and allow
+        <code data-admin-redirect
+          >https://events.example.org/admin/?admin-invitation=1</code
+        >. Follow the wizard to create/confirm the first Auth user and grant
+        first-administrator access. Configure email/SMTP for actual invitation
+        delivery.
+      </p>
+      <p>
+        Browser-local setup applies only to that browser. For all visitors, open
+        <strong>Settings → Secrets and variables → Actions → Variables</strong>
+        in your website repository and create <code>RSVP_SUPABASE_URL</code> and
+        <code>RSVP_PUBLISHABLE_KEY</code>, then rerun its deployment workflow.
+        Copy <code>supabaseUrl</code> and <code>supabaseKey</code> from the
+        downloaded config without JavaScript quotes. The workflow generates
+        <code>js/config.js</code> in the Pages artifact; uploading a separate
+        file to the website repository does not configure it. Use only public
+        project connection values.
+      </p>
+      <p>
+        Keep the event <strong>unpublished</strong> until launch is deliberately
+        approved.
+      </p>
+      <p class="note">
+        Missing <code>get_public_event()</code> means the schema is absent. The
+        current fresh installer creates only current objects. The installer
+        explicitly enables RLS. BOOT_ERROR: check complete code and Secrets.
+        Invalid JWT: check the platform toggle. Origin not allowed: check the
+        exact origin value.
+      </p>
+      <p class="note">
+        <a
+          href="https://supabase.com/docs/guides/functions/quickstart-dashboard"
+          target="_blank"
+          rel="noopener"
+          >Supabase editor guide</a
+        >
+        · <a href="StudioSetup.md">Plain installation instructions</a>
+      </p>
+    </main>
+  </body>
+</html>
