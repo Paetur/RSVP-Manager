@@ -84,6 +84,9 @@ assert.equal(
   api.draft(household, "whatsapp").body,
   "https://example.invalid/?=ABCDEFGH",
 );
+store.invitationTemplates.push({language_code: "en", channel: "whatsapp", body: "{invitation_link}", message_image: {image: "synthetic-picture"}});
+assert.equal(api.draft(household, "whatsapp").image.image, "synthetic-picture");
+assert.equal(api.draft(household, "sms").image, null, "pictures never spill across channels");
 store.settings.is_published = false;
 assert.equal(api.draft(household, "whatsapp").body, "{invitation_link}");
 console.log(

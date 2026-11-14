@@ -165,26 +165,11 @@
     });
   }
   function matchesTranslation(search, record, prefix) {
-    return (
-      !search ||
-      [
-        record.name,
-        record.name_en,
-        record.category,
-        record.description_en,
-        record.description_de,
-        record.description_fo,
-        record.description,
-        record.welcome_en,
-        record.notes,
-        ...ctx
-          .getStore()
-          .content.filter((row) => row.content_key.startsWith(prefix))
-          .map((row) => row.content_value),
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(search)
+    return window.RSVP_ADMIN_TRANSLATION_CARDS.matches(
+      search,
+      record,
+      prefix,
+      ctx.getStore().content,
     );
   }
 

@@ -17,6 +17,30 @@
     host.append(card);
     return body;
   }
+  // Content is supplied per search so reloads cannot leave a captured store behind.
+  function matches(search, record, prefix, content) {
+    return (
+      !search ||
+      [
+        record.name,
+        record.name_en,
+        record.category,
+        record.description_en,
+        record.description_de,
+        record.description_fo,
+        record.description,
+        record.welcome_en,
+        record.notes,
+        ...content
+          .filter((row) => row.content_key.startsWith(prefix))
+          .map((row) => row.content_value),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(search)
+    );
+  }
+
   function summary(form, target, { R }) {
     const grid = R.dom("div", { class: "translation-language-grid" });
     const rows = form.querySelectorAll("[data-language-code]");
@@ -45,5 +69,5 @@
     }
     target.append(grid);
   }
-  window.RSVP_ADMIN_TRANSLATION_CARDS = Object.freeze({ create, summary });
+  window.RSVP_ADMIN_TRANSLATION_CARDS = Object.freeze({ create, matches, summary });
 })();

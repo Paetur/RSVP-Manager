@@ -1,5 +1,20 @@
 # Release notes
 
+## 0.9.0-alpha.5
+
+This alpha adds optional private invitation pictures and native-share fallbacks for testing on real devices. Existing events must remain unpublished until their organizer explicitly publishes them.
+
+- Settings → Templates and delivery drafts support an optional JPEG picture, prepared without embedded metadata and limited to 2400px / 1.4 MB.
+- New Manual / Messenger templates supply defaults for Manual delivery drafts. The operator chooses the app and recipient in the native share sheet.
+- Each saved draft and Sent snapshot retains its own picture; later template changes do not rewrite history.
+- Template-only Test sharing works while unpublished with example names/link and no delivery records.
+- Picture sharing offers Share picture and text, Share picture, and Copy message. The caption retains the invitation link. Apple/receiving-app support varies; the separate actions provide a fallback. A handoff never records Sent automatically.
+- Translation-card record search now belongs to its existing presentation component and receives current content for every search.
+
+The fresh installer and current backup column contract include nullable invitation-picture fields. Do not replay the installer on a populated installation. Existing installations need a scoped, backed-up backend update before using this frontend. The 40-table manifest and format 2/schema 20261114034908 identifiers remain; take a fresh application backup after updating.
+
+Synthetic browser/disposable database coverage does not establish real iPhone/iPad WhatsApp or Messenger acceptance. Automatic cloud setup remains experimental; administrator password recovery and the other launch-acceptance tasks remain separate work.
+
 ## 0.9.0-alpha.4
 
 This alpha adds the Languages redesign, encrypted backups and an experimental trusted automatic cloud-setup companion. New events remain unpublished. Existing installations and their data are not changed by downloading or publishing this release.

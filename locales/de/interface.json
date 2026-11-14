@@ -1257,6 +1257,18 @@
     "setup_auto_existing_installation_detected_no_project_settings_were_changed_2c011": "Vorhandene Installation erkannt. Keine Projekteinstellungen wurden geändert.",
     "setup_auto_setup_steps_1eba9": "Einrichtungsschritte",
     "setup_auto_working_5474e": "Wird ausgeführt…",
-    "setup_auto_remove_c3812": "Entfernen"
+    "setup_auto_remove_c3812": "Entfernen",
+    "invitation_picture": "Einladungsbild",
+    "remove_invitation_picture": "Bild entfernen",
+    "invitation_picture_help": "Optionales JPEG unter 1,4 MB. Privat gespeichert und in neue Versandentwürfe kopiert. Bestehende Entwürfe behalten ihr Bild.",
+    "invitation_picture_share_help": "Manche Apps übernehmen nur das Bild oder den Text. Falls etwas fehlt, verwenden Sie Bild teilen und Nachricht kopieren und fügen Sie die Nachricht in der App ein. Wählen Sie den Empfänger und prüfen Sie vor dem Senden den Einladungslink.",
+    "share_picture_and_text": "Bild und Text teilen",
+    "share_picture": "Bild teilen",
+    "invalid_invitation_picture": "Ungültiges Einladungsbild.",
+    "manual_messenger_template": "Manuell / Messenger",
+    "test_invitation_sharing": "Teilen testen",
+    "test_invitation_sharing_help": "Verwendet Beispielnamen und einen nicht funktionierenden Einladungslink. Es wird kein Haushaltscode oder Versanddatensatz erstellt. Wählen Sie sich selbst als Empfänger.",
+    "test_invitation_sharing_complete": "Testfreigabe abgeschlossen. Prüfen Sie Bild, Text und Beispiellink in Ihrer App.",
+    "sample_invitation_event": "Beispielveranstaltung"
   }
 }

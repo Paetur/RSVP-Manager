@@ -7516,6 +7516,20 @@ html[data-theme]
 .invitation-template .management-form {
   padding: 6px 0 0;
 }
+
+/* Optional private template/delivery picture and native-share preview. */
+.invitation-picture {
+  display: block;
+  max-width: 100%;
+  width: auto;
+  max-height: 260px;
+  object-fit: contain;
+  border-radius: 8px;
+  margin-block: 8px;
+}
+.invitation-picture-editor {
+  min-width: 0;
+}
 /* Content-language records, field token help and compact event statistics. */
 #adminApp #translationEditor {
   max-width: 62rem;

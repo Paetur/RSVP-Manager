@@ -32,7 +32,11 @@ While the event is unpublished, you can keep planning and previewing invitations
 
 ## Set up invitation templates
 
-Open **Settings → Templates** and use the pencil for the channel you want to edit. Expand a language, enter the message for Email, SMS or WhatsApp, and save that channel before editing the next one. Email can also have a subject.
+Open **Settings → Templates** and use the pencil for the channel you want to edit. Expand a language, enter the message for Email, SMS or WhatsApp, and save that channel before editing the next one. Email can also have a subject. Use **Manual / Messenger** for the default wording/picture of Manual delivery drafts, including Messenger sharing.
+
+To test on your phone while the event remains unpublished, open a template's pencil, select a picture and use **Test sharing**. The dialog uses example names and a non-working example invitation link, never a household invitation code. Choose yourself in WhatsApp or Messenger and check the picture/text/link. It creates no invitation or delivery record and does not mark anything Sent. Unsaved picture/text edits can be tested before Save.
+
+An optional **Invitation picture** accepts a JPEG under 1.4 MB. The application re-encodes it, removes embedded metadata and limits it to 2400 pixels. It is stored privately with the template and copied into each new delivery draft. You can replace or remove the picture in a draft. Saving a changed template does not change existing drafts or sent history. Cancel discards your picture edit; a failed save retains it for retry.
 
 Use `{invitation_link}` in the message. You can also use `{household_name}` and `{event_name}`. New drafts fill these in automatically. If the household’s language has no template for the chosen channel, the draft uses the event’s fallback language, then English. If no template applies, the draft starts with the invitation link.
 
@@ -55,6 +59,10 @@ Drafts can be prepared while unpublished, using `{invitation_link}` as a placeho
 A successful system share handoff adds a separate **Share handoff completed** entry under invitation activity in the administration log. This is the browser’s report of a handoff, not proof of sending or delivery. Cancelling does not add a handoff entry. If logging fails after sharing, use **Retry logging**; it records the same handoff without sharing again. **Record as sent** remains your manual confirmation.
 
 The native share sheet requires HTTPS and browser/device support. Its destinations depend on installed apps; Apple Messages handles iMessage/SMS according to your device configuration. The website cannot identify the chosen app or recipient. Note the actual app when recording sending; use Manual delivery for apps without a dedicated channel, such as Messenger. Unsupported browsers offer **Copy message**.
+
+For a draft with a picture, the share dialog previews it and offers **Share picture and text**, **Share picture**, and **Copy message**. Some Apple/app combinations accept only one part of a combined share. If the picture or text is missing in WhatsApp or Messenger, share the picture separately, copy the message and paste it into the destination app. Keep the invitation link in the message and check both before sending. Direct Mail/Messages/WhatsApp composer links carry text only; use the native share dialog for a picture. The website cannot confirm which parts the receiving app retained.
+
+Pictures are included in application backups and private saved delivery snapshots. Full backup files still have the existing size limit; pictures and repeated delivery history count toward it. Actual iPhone/iPad WhatsApp and Messenger behavior needs device acceptance. This feature does not publish an event or mark a message Sent.
 
 Opening an app does not send the message or mark it as sent. The delivery log records your manual confirmation; it does not provide provider delivery or read receipts.
 

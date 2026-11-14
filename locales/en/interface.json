@@ -1257,6 +1257,18 @@
     "setup_auto_existing_installation_detected_no_project_settings_were_changed_2c011": "Existing installation detected. No project settings were changed.",
     "setup_auto_setup_steps_1eba9": "Setup steps",
     "setup_auto_working_5474e": "Working…",
-    "setup_auto_remove_c3812": "Remove"
+    "setup_auto_remove_c3812": "Remove",
+    "invitation_picture": "Invitation picture",
+    "remove_invitation_picture": "Remove picture",
+    "invitation_picture_help": "Optional JPEG under 1.4 MB. Stored privately and copied into new delivery drafts. Existing drafts keep their picture.",
+    "invitation_picture_share_help": "Some apps accept only the picture or the text. If either is missing, use Share picture and Copy message, then paste the message in the app. Choose the recipient and check the invitation link before sending.",
+    "share_picture_and_text": "Share picture and text",
+    "share_picture": "Share picture",
+    "invalid_invitation_picture": "Invalid invitation picture.",
+    "manual_messenger_template": "Manual / Messenger",
+    "test_invitation_sharing": "Test sharing",
+    "test_invitation_sharing_help": "Uses example names and a non-working example invitation link. No household code or delivery record is created. Choose yourself as the recipient.",
+    "test_invitation_sharing_complete": "Test share completed. Check the picture, text and example link in your app.",
+    "sample_invitation_event": "Example event"
   }
 }

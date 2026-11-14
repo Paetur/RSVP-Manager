@@ -117,11 +117,16 @@
         10000,
       );
       body.closest("label").classList.add("span-2");
+      const picture = window.RSVP_INVITATION_IMAGE.editor(
+        f, q.message_image ?? automatic?.image, { R, T },
+      );
       if (useTemplate)
         channel.addEventListener("change", () => {
           const next = invitationDraft(h, channel.value);
           if (subject.value === automatic.subject) subject.value = next.subject;
           if (body.value === automatic.body) body.value = next.body;
+          if (JSON.stringify(picture.get()) === JSON.stringify(automatic.image || null))
+            picture.set(next.image);
           automatic = next;
           f.dataset.initialDraft = String(next.hasTemplate);
         });
@@ -186,7 +191,7 @@
         q.id
           ? T("interface.messages.save_delivery_changes")
           : T("interface.messages.create_delivery_draft"),
-        () =>
+        async () =>
           managementRpc("admin_save_delivery", {
             p_id: q.id || null,
             p_household_id: h.id,
@@ -196,6 +201,7 @@
               contact_id: contact.value || null,
               message_subject: subject.value.trim(),
               message_body: body.value,
+              message_image: await picture.read(),
               status: status.value,
               reason: reason.value.trim(),
             },
@@ -238,6 +244,7 @@
         R.dom("p", { class: "micro" }, q.message_subject || ""),
         R.dom("pre", { class: "delivery-message" }, q.message_body),
       );
+      window.RSVP_INVITATION_IMAGE.preview(d, q.message_image, { R, T });
       const copy = R.dom(
         "button",
         { type: "button", class: "invite-text-action" },

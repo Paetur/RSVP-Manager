@@ -1323,5 +1323,17 @@
   "Existing installation detected. No project settings were changed.": "interface.messages.setup_auto_existing_installation_detected_no_project_settings_were_changed_2c011",
   "Setup steps": "interface.messages.setup_auto_setup_steps_1eba9",
   "Working…": "interface.messages.setup_auto_working_5474e",
-  "Remove": "interface.messages.setup_auto_remove_c3812"
+  "Remove": "interface.messages.setup_auto_remove_c3812",
+  "Invitation picture": "interface.messages.invitation_picture",
+  "Remove picture": "interface.messages.remove_invitation_picture",
+  "Optional JPEG under 1.4 MB. Stored privately and copied into new delivery drafts. Existing drafts keep their picture.": "interface.messages.invitation_picture_help",
+  "Some apps accept only the picture or the text. If either is missing, use Share picture and Copy message, then paste the message in the app. Choose the recipient and check the invitation link before sending.": "interface.messages.invitation_picture_share_help",
+  "Share picture and text": "interface.messages.share_picture_and_text",
+  "Share picture": "interface.messages.share_picture",
+  "Invalid invitation picture.": "interface.messages.invalid_invitation_picture",
+  "Manual / Messenger": "interface.messages.manual_messenger_template",
+  "Test sharing": "interface.messages.test_invitation_sharing",
+  "Uses example names and a non-working example invitation link. No household code or delivery record is created. Choose yourself as the recipient.": "interface.messages.test_invitation_sharing_help",
+  "Test share completed. Check the picture, text and example link in your app.": "interface.messages.test_invitation_sharing_complete",
+  "Example event": "interface.messages.sample_invitation_event"
 }

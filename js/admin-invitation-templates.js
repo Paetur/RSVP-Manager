@@ -14,12 +14,14 @@
     field,
     saveForm,
     managementRpc,
+    show,
   }) {
     const $ = R.byId;
     const invitationChannels = [
       ["email", "interface.messages.email"],
       ["sms", "SMS"],
       ["whatsapp", "WhatsApp"],
+      ["manual", "interface.messages.manual_messenger_template"],
     ];
     const invitationTokens = [
       "invitation_link",
@@ -57,6 +59,7 @@
       return {
         subject: fill(template?.subject || "{event_name}"),
         body: fill(template?.body || "{invitation_link}"),
+        image: template?.message_image || null,
         hasTemplate: !!template,
       };
     }
@@ -93,6 +96,7 @@
               { class: "micro" },
               T("No custom template. New drafts use fallback wording."),
             );
+          window.RSVP_INVITATION_IMAGE.preview(view, template?.message_image, { R, T });
           if (!editable) continue;
           const f = managementForm();
           f.dataset.formKey = key + ":" + channel;
@@ -139,6 +143,28 @@
               "Include the invitation link placeholder. Clear the fields to use fallback wording.",
             ),
           );
+          const picture = window.RSVP_INVITATION_IMAGE.editor(f, template?.message_image, { R, T });
+          const testHost = row(f, "div", { class: "form-actions span-2" });
+          window.RSVP_DEVICE_DELIVERY.appendShare(testHost, {
+            R, T, show, testOnly: true,
+            authorize: () => can("settings", "edit"),
+            getDraft: async () => {
+              const values = {
+                invitation_link: "https://example.invalid/",
+                event_name: T("interface.messages.sample_invitation_event"),
+                household_name: T("Sample household"),
+              };
+              const fill = (text) => text.replace(
+                /\{(invitation_link|event_name|household_name)\}/g,
+                (_, token) => values[token],
+              );
+              return {
+                message_subject: fill(subject?.value || "{event_name}"),
+                message_body: fill(body.value || "{invitation_link}"),
+                message_image: await picture.read(),
+              };
+            },
+          });
           section.append(
             saveForm(f, T("Save template"), async () => {
               const subjectText = subject?.value.trim() || "",
@@ -165,6 +191,7 @@
                 p_channel: channel,
                 p_subject: subjectText,
                 p_body: bodyText,
+                p_image: await picture.read(),
               });
             }),
           );

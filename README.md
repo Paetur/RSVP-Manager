@@ -19,7 +19,7 @@ Guests use their own invitation link. Organizers sign in to manage the event, wi
 
 ## Downloads and installation
 
-Use a tagged GitHub Release for an installation package with checksums, or fork this repository to change the source. [Installation instructions](INSTALL.md) describe the separate website, Supabase and administrator setup. Each installation starts unconfigured and has its own data. Current version: **0.9.0-alpha.4**.
+Use a tagged GitHub Release for an installation package with checksums, or fork this repository to change the source. [Installation instructions](INSTALL.md) describe the separate website, Supabase and administrator setup. Each installation starts unconfigured and has its own data. Current version: **0.9.0-alpha.5**.
 
 For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 

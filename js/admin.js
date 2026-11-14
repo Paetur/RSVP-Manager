@@ -2267,6 +2267,7 @@
       field,
       saveForm,
       managementRpc,
+      show,
     });
   const {
     editor: deliveryEditor,

@@ -1257,6 +1257,18 @@
     "setup_auto_existing_installation_detected_no_project_settings_were_changed_2c011": "Ein verandi uppseting varð funnin. Ongar verkætlanarstillingar vórðu broyttar.",
     "setup_auto_setup_steps_1eba9": "Uppsetingarstig",
     "setup_auto_working_5474e": "Arbeiðir…",
-    "setup_auto_remove_c3812": "Tak burtur"
+    "setup_auto_remove_c3812": "Tak burtur",
+    "invitation_picture": "Innboðsmynd",
+    "remove_invitation_picture": "Strika mynd",
+    "invitation_picture_help": "Valfrí JPEG-mynd undir 1,4 MB. Goymd privat og avritað í nýggj innboðsuppkast. Verandi uppkast varðveita sína mynd.",
+    "invitation_picture_share_help": "Summar appir taka bert ímóti myndini ella tekstinum. Um okkurt vantar, brúka Deil mynd og Avrita boð, og set boðini inn í appina. Vel móttakara og kanna innboðsleinkjuna, áðrenn tú sendir.",
+    "share_picture_and_text": "Deil mynd og tekst",
+    "share_picture": "Deil mynd",
+    "invalid_invitation_picture": "Ógild innboðsmynd.",
+    "manual_messenger_template": "Manuelt / Messenger",
+    "test_invitation_sharing": "Royn deiling",
+    "test_invitation_sharing_help": "Brúkar dømisnøvn og eina innboðsleinkju, sum ikki virkar. Eingin húskiskota ella sendingarskráseting verður stovnað. Vel teg sjálvan sum móttakara.",
+    "test_invitation_sharing_complete": "Royndardeiling liðug. Kanna myndina, tekstin og dømisleinkjuna í appini.",
+    "sample_invitation_event": "Dømistiltak"
   }
 }
