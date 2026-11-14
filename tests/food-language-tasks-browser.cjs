@@ -210,7 +210,9 @@ async function run(type){const browser=await type.launch({headless:true});try{
    const tops=await row.getByRole('textbox').evaluateAll(fields=>fields.map(field=>field.getBoundingClientRect().top));
    assert.ok(tops.every((top,index)=>!index||top>tops[index-1]),'fields stack within each language column');
    for(const label of await row.locator('label').all()){
-    const caption=await label.locator(':scope > span').first().boundingBox(),box=await label.getByRole('textbox').boundingBox();
+    // Smooth scrolling can move the page between separate boundingBox calls.
+    // Read both rectangles in one frame so this checks layout rather than scroll timing.
+    const {caption,box}=await label.evaluate(node=>({caption:node.querySelector(':scope > span').getBoundingClientRect().toJSON(),box:node.querySelector('input,textarea').getBoundingClientRect().toJSON()}));
     assert.ok(caption.y+caption.height<=box.y+1,'caption sits above its box '+section.category+' '+JSON.stringify({caption,box}));
    }
   }
