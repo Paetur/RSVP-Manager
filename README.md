@@ -19,7 +19,9 @@ Guests use their own invitation link. Organizers sign in to manage the event, wi
 
 ## Downloads and installation
 
-Use a tagged GitHub Release for an installation package with checksums, or fork this repository to change the source. [Installation instructions](INSTALL.md) describe the separate website, Supabase and administrator setup. Each installation starts unconfigured and has its own data. Current version: **0.9.0-alpha.1**.
+Use a tagged GitHub Release for an installation package with checksums, or fork this repository to change the source. [Installation instructions](INSTALL.md) describe the separate website, Supabase and administrator setup. Each installation starts unconfigured and has its own data. Current version: **0.9.0-alpha.2**.
+
+Use the [GitHub Pages deployment template](deployment/README.md) to publish a selected release under a path such as `/marriage/`, without downloading ZIP files manually. The workflow does not create a backend or publish your event.
 
 ## Start here
 

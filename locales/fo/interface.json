@@ -1123,6 +1123,8 @@
     "backup_compression_unavailable": "Hesin kagin stuðlar ikki samanpakking. Brúka eitt JSON-trygdaravrit.",
     "backup_decompression_unavailable": "Hesin kagin kann ikki pakka fíluna upp. Lat eitt JSON-trygdaravrit upp.",
     "backup_gzip_damaged": "Samanpakkaða trygdaravritið er skadd ella ófullfíggjað.",
-    "backup_opened_too_large": "Trygdaravritið er størri enn 20 MB, tá ið tað verður latið upp."
+    "backup_opened_too_large": "Trygdaravritið er størri enn 20 MB, tá ið tað verður latið upp.",
+    "setup_site_secrets": "Set RSVP_SITE_ORIGIN til {origin} og RSVP_SITE_URL til {siteUrl} í loyniligum stillingum hjá Supabase Edge Functions.",
+    "setup_auth_urls": "Í Supabase Authentication skal Site URL vera {siteUrl}. Loyv eisini víðaribeiningini til umsitarabjóðingar: {redirectUrl}."
   }
 }

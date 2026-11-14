@@ -1123,6 +1123,8 @@
     "backup_compression_unavailable": "Compression is not supported in this browser. Use a JSON backup.",
     "backup_decompression_unavailable": "Decompression is not supported in this browser. Open a JSON backup.",
     "backup_gzip_damaged": "The compressed backup is damaged or incomplete.",
-    "backup_opened_too_large": "Backup exceeds 20 MB when opened."
+    "backup_opened_too_large": "Backup exceeds 20 MB when opened.",
+    "setup_site_secrets": "Set RSVP_SITE_ORIGIN to {origin} and RSVP_SITE_URL to {siteUrl} in Supabase Edge Function secrets.",
+    "setup_auth_urls": "In Supabase Authentication, set Site URL to {siteUrl} and allow the administrator invitation redirect {redirectUrl}."
   }
 }

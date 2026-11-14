@@ -15,6 +15,7 @@ on:
       - 'supabase/**'
       - '.github/workflows/rsvp-security-smoke.yml'
       - 'tests/**'
+      - 'deployment/**'
       - 'package*.json'
   workflow_dispatch:
 permissions:
@@ -49,6 +50,8 @@ jobs:
           node tests/css-build.cjs
           node tests/admin-overview.cjs
           node tests/backup-files.cjs
+          node tests/subdirectory.cjs
+          python3 tests/pages-deployment.py
           node tests/invitation-templates.cjs
           node tests/notification-preferences-db.cjs
           node tests/translation-registry-db.cjs
@@ -131,6 +134,8 @@ jobs:
           node --check js/i18n.js
           for script in js/admin*.js; do node --check "$script"; done
           node --check tests/admin-layout.cjs
+      - name: Test subdirectory guest, administrator and setup flows
+        run: node tests/subdirectory-browser.cjs
       - name: Test administrator credentials with real SDK in Chromium and WebKit
         run: node tests/admin-auth-browser.cjs
       - name: Test FO/EN/DE interfaces and customization in Chromium and WebKit

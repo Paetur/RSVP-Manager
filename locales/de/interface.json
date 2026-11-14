@@ -1123,6 +1123,8 @@
     "backup_compression_unavailable": "Dieser Browser unterstützt keine Komprimierung. Verwenden Sie eine JSON-Sicherung.",
     "backup_decompression_unavailable": "Dieser Browser unterstützt kein Entpacken. Öffnen Sie eine JSON-Sicherung.",
     "backup_gzip_damaged": "Die komprimierte Sicherung ist beschädigt oder unvollständig.",
-    "backup_opened_too_large": "Die Sicherung überschreitet nach dem Entpacken 20 MB."
+    "backup_opened_too_large": "Die Sicherung überschreitet nach dem Entpacken 20 MB.",
+    "setup_site_secrets": "Setzen Sie in den Supabase Edge Function Secrets RSVP_SITE_ORIGIN auf {origin} und RSVP_SITE_URL auf {siteUrl}.",
+    "setup_auth_urls": "Setzen Sie unter Supabase Authentication die Site URL auf {siteUrl} und erlauben Sie die Weiterleitung für Administratoreinladungen: {redirectUrl}."
   }
 }

@@ -63,6 +63,8 @@
   }
   function setup(){
     const cfg=R.config();
+    $('setupSiteSecrets').textContent=T("interface.messages.setup_site_secrets",{origin:R.siteRoot.origin,siteUrl:R.siteRoot.href});
+    $('setupAuthURLs').textContent=T("interface.messages.setup_auth_urls",{siteUrl:R.siteRoot.href,redirectUrl:new URL('admin/?admin-invitation=1',R.siteRoot).href});
     $('setupUrl').value=cfg.supabaseUrl||'';
     $('setupKey').value=cfg.supabaseKey||'';
     document.querySelectorAll('input[name="dbMode"]').forEach(b=>b.addEventListener('change',()=>{mode=b.value;$('newDatabaseInstructions').classList.toggle('hidden',mode!=='new');invalidateConnection();}));

@@ -88,8 +88,9 @@ const assert = require('node:assert/strict'),
   },
   window: {
    scrollTo() {},
-   RSVP_I18N: { load: async () => {} },
+   RSVP_I18N: { load: async () => {}, t: text => text },
    RSVP: {
+    siteRoot: new URL('https://setup.example.invalid/'),
     byId: field,
     config: () => ({ supabaseUrl: 'https://old.invalid' }),
     savePreview: supabaseUrl => ({ supabaseUrl }),

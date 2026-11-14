@@ -6,7 +6,7 @@
     "../",
     coreScript ? coreScript.src : window.location.href,
   );
-  const CLIENT_STORAGE_KEY = "rsvp-manager-setup-preview-v1";
+  const CLIENT_STORAGE_KEY = "rsvp-manager-setup:" + siteRoot.href;
   const codePattern = /^[A-HJ-NP-Z2-9]{8}$/;
   let client = null;
   let preview = null;
@@ -92,6 +92,8 @@
       {
         auth: {
           persistSession: true,
+          storageKey:
+            "rsvp-auth:" + siteRoot.href + ":" + normalizeUrl(cfg.supabaseUrl),
           autoRefreshToken: true,
           detectSessionInUrl: true,
         },
