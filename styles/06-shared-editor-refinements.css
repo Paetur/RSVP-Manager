@@ -1,0 +1,472 @@
+/* Local preview: shared inline checks, compact summaries and aligned maps. */
+#adminApp label:has(> input[type="checkbox"]),
+#adminApp label:has(> input[type="radio"]),
+.guest-add-person label:has(> input[type="checkbox"]) {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+#adminApp label > input[type="checkbox"],
+#adminApp label > input[type="radio"] {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+  align-self: center;
+}
+.stat-detail {
+  display: block;
+  white-space: pre-line;
+  line-height: 1.65;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.rsvp-submit-row {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+.rsvp-submit-row #rsvpHint {
+  flex: none;
+  min-width: 0;
+}
+.rsvp-submit-row #saveRsvp {
+  margin-left: 0;
+  flex: none;
+}
+.rsvp-session {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(88px, 25%, 140px);
+  column-gap: 16px;
+  align-items: start;
+}
+.rsvp-session > .guest-session-heading,
+.rsvp-session > .venue-welcome,
+.rsvp-session > .guest-session-details {
+  grid-column: 1;
+}
+.rsvp-session > .guest-mini-map {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  width: 100%;
+  justify-self: end;
+  margin-bottom: 12px;
+}
+.rsvp-session > .rsvp-guest,
+.rsvp-session > p.micro {
+  grid-column: 1/-1;
+}
+.guest-map-thumbnail {
+  height: auto;
+  aspect-ratio: 4/3;
+}
+.guest-map-thumbnail iframe {
+  width: 200%;
+  height: 200%;
+  left: 0;
+  top: 0;
+  transform: scale(0.5);
+  transform-origin: top left;
+}
+.venue-summary-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1;
+}
+#venueList > details > summary.venue-summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  list-style: none;
+}
+#venueList > details > summary.venue-summary::-webkit-details-marker {
+  display: none;
+}
+#venueList > details > summary.venue-summary::before {
+  content: "▸";
+  width: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  color: var(--teal);
+}
+#venueList > details[open] > summary.venue-summary::before {
+  content: "▾";
+}
+#venueList .venue-summary-layout {
+  display: flex;
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+#venueList .venue-summary-content {
+  flex: 1 1 736px;
+  max-width: 736px;
+  align-items: center;
+}
+#venueList .venue-summary-links {
+  margin-left: auto;
+}
+#venueList .admin-venue-map {
+  width: clamp(88px, 16vw, 112px);
+}
+@media (max-width: 600px) {
+  .rsvp-session {
+    column-gap: 12px;
+  }
+  .rsvp-submit-row #saveRsvp {
+    max-width: 100%;
+    white-space: normal;
+  }
+  .venue-summary-content {
+    gap: 10px;
+  }
+}
+
+.venue-form-actions > .form-actions {
+  margin-top: 0;
+}
+#adminApp label:has(> input[type="checkbox"]),
+#adminApp label:has(> input[type="radio"]) {
+  min-height: 44px;
+}
+
+/* Tighter attendance rhythm; prompt above its left-aligned action. */
+.rsvp-session > .guest-session-heading {
+  margin-bottom: 4px;
+}
+.rsvp-session > .guest-session-heading h3 {
+  margin-bottom: 0;
+}
+.rsvp-session > .venue-welcome {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+#rsvpEditor > .rsvp-rows {
+  margin-bottom: 8px;
+}
+
+.rsvp-session > #householdGuestHost {
+  grid-column: 1/-1;
+  min-width: 0;
+}
+.rsvp-session > #householdGuestHost .guest-add-person {
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.category-name-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+}
+.category-name-control > input {
+  height: 44px;
+  min-width: 0;
+}
+.category-name-control > .food-language-action {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+.item-lifecycle-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.food-edit-buttons .item-lifecycle-actions {
+  margin-left: auto;
+}
+
+/* Matching Food/Other editors and hierarchy controls. */
+.hierarchy-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.tree-planning-group,
+.tree-group {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hierarchy-inline-editor,
+.hierarchy-create-household {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 10px 0;
+}
+.household-toolbar {
+  flex-wrap: wrap;
+  align-items: center;
+}
+#adminApp .household-toolbar .archive-toggle {
+  margin: 0 0 0 8px;
+  min-height: 40px;
+}
+.other-edit-actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.other-edit-actions .item-lifecycle-actions {
+  margin-left: auto;
+}
+.other-edit-form .other-field-item {
+  order: 0;
+}
+.other-edit-form .other-field-category {
+  order: 1;
+}
+.other-edit-form .other-field-notes {
+  order: 2;
+}
+.other-edit-form .other-field-assigned_to {
+  order: 3;
+}
+.other-edit-form .other-field-status {
+  order: 4;
+}
+.other-edit-form .other-edit-actions {
+  order: 5;
+}
+.other-category-name-form {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.other-edit-form label {
+  font-size: 0.8rem;
+}
+.other-edit-form .other-field-item input {
+  height: 44px;
+  min-height: 44px;
+}
+@media (max-width: 650px) {
+  .hierarchy-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .hierarchy-inline-editor,
+  .hierarchy-create-household {
+    padding: 10px;
+  }
+  .household-toolbar .archive-toggle {
+    flex-basis: auto;
+  }
+}
+
+/* Compact guest Add person editor; retain comfortable touch targets. */
+#householdGuestHost .guest-add-person {
+  padding: 10px 12px;
+  margin-bottom: 0;
+}
+#householdGuestHost .guest-add-person > summary {
+  padding: 0;
+  margin: 0;
+}
+#householdGuestHost .guest-add-person form {
+  margin: 10px 0 0;
+  gap: 10px 14px;
+}
+#householdGuestHost .guest-add-person form > label {
+  margin: 0;
+  gap: 4px;
+  min-width: 0;
+}
+#householdGuestHost .guest-add-person .checkbox-label {
+  grid-column: 1/-1;
+  min-height: 32px;
+}
+#householdGuestHost .guest-add-person .form-actions {
+  margin: 0;
+  gap: 8px;
+}
+#householdGuestHost .guest-add-person form > p {
+  margin: 0;
+}
+#householdGuestHost .guest-add-person form > p:empty {
+  display: none;
+}
+
+/* Keep group metadata beside its name and actions at the trailing edge. */
+#householdRows .tree-planning-group > .tree-count,
+#householdRows .tree-group > .tree-count {
+  margin-left: 0;
+  white-space: normal;
+}
+#householdRows .tree-planning-group > .hierarchy-actions,
+#householdRows .tree-group > .hierarchy-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Save/Cancel stay at the start; guarded lifecycle actions finish the editor. */
+#adminApp .editor-lifecycle-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+#adminApp .guest-edit-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+#adminApp .other-edit-actions,
+#adminApp .household-form-footer {
+  flex-wrap: wrap;
+  align-items: center;
+}
+#adminApp .editor-lifecycle-actions .btn {
+  margin: 0;
+}
+
+/* Each settings/translation box owns its edit state. Permission gates remain separate. */
+#adminApp .local-editor-box > .local-editor-form {
+  display: none !important;
+}
+#adminApp .local-editor-box.local-editor-open > .local-editor-form {
+  display: grid !important;
+}
+#adminApp .local-editor-box.local-editor-open > .local-editor-summary,
+#adminApp .local-editor-box.local-editor-open > .local-editor-pencil {
+  display: none;
+}
+#adminApp .local-editor-box {
+  min-width: 0;
+  position: relative;
+}
+
+#adminApp .local-editor-feedback:empty {
+  display: none;
+}
+#adminApp .local-editor-box.local-editor-open > .local-editor-feedback {
+  display: none;
+}
+
+#adminApp .local-editor-summary {
+  padding-inline-end: 44px;
+}
+#adminApp .local-editor-pencil {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  margin: 0;
+}
+
+/* Consistent settings cards and header pencils, including legacy record read views. */
+#adminApp [data-settings-panel="event"]:not(.hidden),
+#adminApp [data-settings-panel="languages"]:not(.hidden),
+#adminApp [data-settings-panel="interface"]:not(.hidden) {
+  display: grid;
+  gap: 16px;
+}
+#adminApp .settings-card {
+  margin: 0;
+  padding: 20px;
+  min-width: 0;
+  position: relative;
+  border-radius: 14px;
+}
+#adminApp .settings-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 14px;
+  min-height: 34px;
+}
+#adminApp .settings-card-heading h2,
+#adminApp .settings-card-heading h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+#adminApp .settings-card-heading .settings-card-pencil {
+  position: static;
+  inset: auto;
+  margin: 0;
+  flex: 0 0 auto;
+}
+#adminApp
+  .settings-card-editing
+  > .settings-card-heading
+  > .settings-card-pencil {
+  display: none;
+}
+#adminApp .settings-card > .muted {
+  margin: 0 0 16px;
+}
+#adminApp .settings-card .local-editor-summary {
+  padding: 0;
+}
+#adminApp .settings-card .record-read-grid {
+  margin: 0;
+  gap: 8px 18px;
+}
+#adminApp .settings-card form {
+  width: 100%;
+  max-width: none;
+}
+#adminApp .settings-card .management-form {
+  padding: 0;
+}
+#adminApp .settings-card .form-actions {
+  margin-top: 12px;
+  gap: 8px;
+}
+#adminApp .settings-card .planning-groups .form-actions {
+  margin-top: 0;
+}
+#adminApp .settings-card .publication-panel {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+#adminApp .settings-card .customization-layout {
+  margin: 0;
+  align-items: start;
+}
+#adminApp .settings-card .customization-preview-header h4 {
+  margin-top: 0;
+}
+#adminApp .settings-card .notification-settings > .micro {
+  margin-top: 0;
+}
+#adminApp .settings-card .local-editor-summary .customization-photo-meta {
+  margin: 0 0 14px;
+}
+#adminApp .settings-language-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--light);
+}
+#adminApp .settings-language-card > .settings-card-heading {
+  margin-bottom: 10px;
+}
+#adminApp .settings-language-card .language-row-actions {
+  grid-column: 1/-1;
+}
+@media (max-width: 700px) {
+  #adminApp .settings-card {
+    padding: 16px;
+  }
+  #adminApp .settings-card-heading {
+    gap: 10px;
+  }
+}

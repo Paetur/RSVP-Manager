@@ -1,0 +1,10 @@
+{
+  "units": {
+    "batch_s": "Umfør",
+    "piece_s": "Stykki",
+    "tray_s": "Bakkar",
+    "packet_s": "Pakkar",
+    "kg": "kg",
+    "grams": "Gramm"
+  }
+}

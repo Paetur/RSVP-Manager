@@ -1,0 +1,167 @@
+/* Event planning and feature settings. Shared card geometry lives in shared-editor refinements. */
+.planning-summary .record-read-grid {
+  margin: 0;
+}
+.planning-summary h4 {
+  font-size: 0.87rem;
+  margin: 18px 0 10px;
+}
+.planning-summary ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.planning-summary li {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--light);
+}
+#adminApp .planning-editor {
+  gap: 14px;
+}
+#adminApp .planning-editor > .planning-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+#adminApp .planning-editor .planning-fields > legend {
+  padding: 0 6px;
+  font-size: 0.88rem;
+  margin: 0;
+  font-weight: 600;
+}
+#adminApp .planning-editor .planning-fields > .planning-fields {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 0;
+}
+#adminApp .planning-editor .planning-groups {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  min-width: 0;
+}
+#adminApp .planning-editor .planning-groups > .planning-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-width: 0;
+}
+#adminApp .planning-editor .planning-groups .form-actions {
+  grid-column: 1/-1;
+  margin: 0;
+  justify-content: flex-end;
+}
+#adminApp .planning-editor label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.84rem;
+  min-width: 0;
+}
+#adminApp .planning-editor > .small-tool {
+  justify-self: start;
+}
+@media (min-width: 1000px) {
+  #adminApp .planning-editor > .planning-fields > .planning-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  #adminApp .planning-editor > .planning-fields,
+  #adminApp .planning-editor .planning-groups > .planning-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Choose one food stage; the full card is its native radio label. */
+.feature-stage-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+  border: 0;
+  border-radius: 10px;
+  padding: 0;
+  margin: 12px 0 0;
+}
+.feature-stage-options > legend {
+  padding: 0;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+#adminApp .feature-stage-options > .feature-stage-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  min-width: 0;
+  margin: 0;
+}
+#adminApp .feature-stage-card > input[type="radio"] {
+  margin-top: 3px;
+  align-self: flex-start;
+}
+.feature-stage-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.feature-stage-copy strong {
+  font-weight: 700;
+}
+.feature-stage-copy > span {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+#adminApp .feature-stage-options > .feature-stage-card:has(input:checked) {
+  border-color: var(--teal);
+  background: color-mix(in srgb, var(--teal) 12%, var(--panel));
+}
+.feature-stage-options:disabled .feature-stage-card {
+  opacity: 0.65;
+}
+@media (max-width: 600px) {
+  .feature-stage-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.feature-stage-options input[type="radio"] {
+  appearance: none;
+  width: 19px;
+  height: 19px;
+  min-height: 19px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  display: grid;
+  place-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+.feature-stage-options input[type="radio"]:checked:after {
+  content: "✓";
+  font-weight: bold;
+  color: var(--accent);
+}

@@ -1,0 +1,46 @@
+/* Temporary status-message preferences use the existing access preset rhythm. */
+.notification-scopes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.notification-scopes fieldset {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.notification-settings .permission-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.notification-settings .radio-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.notification-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+@media (max-width: 700px) {
+  .notification-scopes {
+    grid-template-columns: 1fr;
+  }
+  /* Phone presets share one column within each independent scope. */
+  .notification-settings .permission-presets {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .notification-settings .radio-pill {
+    width: 100%;
+    box-sizing: border-box;
+    justify-content: flex-start;
+    min-height: 44px;
+    padding: 10px 12px;
+    margin: 0;
+  }
+}

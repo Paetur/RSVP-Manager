@@ -1,0 +1,10 @@
+{
+  "units": {
+    "batch_s": "Chargen",
+    "piece_s": "Stücke",
+    "tray_s": "Bleche",
+    "packet_s": "Packungen",
+    "kg": "kg",
+    "grams": "Gramm"
+  }
+}

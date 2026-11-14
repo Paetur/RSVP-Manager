@@ -1,0 +1,45 @@
+// Isolated registry upgrade/preservation test; never connects to a live database.
+const {PGlite}=require('@electric-sql/pglite');
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const migration='20261113011754_align_log_help_and_link_registry.sql';
+const oldHelp='Date filters use the event timezone. Entries show your local time; expand one for its UTC time and details. Archive/restore actions are recorded; permanent deletion is disabled.';
+const newHelp='Date filters use the event timezone. Entries show your local time. Expand an entry for its UTC time and details. Household and guest archive, restore and deletion are logged.';
+const helpKey='interface.messages.date_filters_use_the_event_timezone_entries_show_your_local_time_';
+const linkKey='interface.messages.invite_copy_link_short';
+const id='11111111-1111-4111-8111-111111111111',session='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const auth="CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role BYPASSRLS;CREATE SCHEMA auth;CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz,encrypted_password text);CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,created_at timestamptz DEFAULT now());CREATE TABLE auth.audit_log_entries(id uuid PRIMARY KEY,payload json,created_at timestamptz DEFAULT now());CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;GRANT USAGE ON SCHEMA auth TO authenticated,anon;";
+(async()=>{const db=new PGlite();const q=(s,a=[])=>db.query(s,a),v=async(s,a=[])=>(await q(s,a)).rows[0].v;
+try{
+ await db.exec(auth);
+ const fullInstall=fs.readFileSync('supabase/install.sql','utf8'),install=fullInstall.split('-- Migration: 20261113013341_canonical_locale_registry.sql')[0],marker='-- Migration: '+migration;
+ assert(install.includes(marker));await db.exec(install.slice(0,install.indexOf(marker)));
+ await q("INSERT INTO auth.users VALUES($1,'synthetic@example.invalid',now(),'unused')",[id]);
+ await q("INSERT INTO public.admins(user_id,name) VALUES($1,'Synthetic')",[id]);await q('INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)',[session,id]);
+ await q("SELECT set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)",[id,JSON.stringify({sub:id,session_id:session})]);
+ await db.exec('SET ROLE authenticated');
+ await q('SELECT public.admin_save_translation($1,$2,$3)',['ui:'+oldHelp,'de','Historischer Hinweis']);
+ await q('SELECT public.admin_save_translation($1,$2,$3)',['ui:Save','fo','Goym']);
+ await db.exec('RESET ROLE');
+ const before=await v('SELECT app_private.backup_payload() v'),registry=await v('SELECT app_private.translation_keys() v');
+ assert.equal(registry[oldHelp],helpKey);assert.equal(registry[newHelp],undefined);assert.equal(registry.Link,undefined);
+ const grants=await v("SELECT proacl::text v FROM pg_proc WHERE oid='app_private.translation_keys()'::regprocedure");
+ await db.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'));
+ const after=await v('SELECT app_private.backup_payload() v'),next=await v('SELECT app_private.translation_keys() v');
+ assert.deepEqual(after.tables,before.tables,'Every existing application row/override and unpublished state preserved');assert.equal(after.schema_version,before.schema_version);
+ assert.deepEqual(next,{...registry,[newHelp]:helpKey,Link:linkKey});
+ assert.equal(await v("SELECT proacl::text v FROM pg_proc WHERE oid='app_private.translation_keys()'::regprocedure"),grants);
+ assert.equal(await v("SELECT has_function_privilege('anon','app_private.translation_keys()','execute') v"),false);
+ await db.exec('SET ROLE authenticated');
+ await q('SELECT public.admin_save_translation($1,$2,$3)',['ui:'+newHelp,'fo','Núverandi hjálp']);
+ await q('SELECT public.admin_save_translation($1,$2,$3)',['ui:Link','de','Verknüpfung']);
+ await db.exec('RESET ROLE');
+ assert.equal(await v("SELECT translation_key v FROM public.translation_overrides WHERE source_text=$1 AND language_code='fo'",[newHelp]),helpKey);
+ assert.equal(await v("SELECT translation_key v FROM public.translation_overrides WHERE source_text='Link' AND language_code='de'"),linkKey);
+ assert.equal(await v("SELECT value v FROM public.translation_overrides WHERE source_text=$1 AND language_code='de'",[oldHelp]),'Historischer Hinweis');
+ await db.exec("UPDATE public.admins SET access_permissions=app_private.permission_preset('view');SET ROLE authenticated");
+ await assert.rejects(()=>q('SELECT public.admin_save_translation($1,$2,$3)',['ui:Link','fo','No permission']),/permission/i);
+ await db.exec('RESET ROLE;SET ROLE anon');await assert.rejects(()=>q('SELECT public.admin_save_translation($1,$2,$3)',['ui:Link','fo','No permission']),/permission/i);await db.exec('RESET ROLE');
+ const payload=await v('SELECT app_private.backup_payload() v');await q("SELECT app_private.validate_backup(jsonb_build_object('format','rsvp-application-backup','version',1,'payload',$1::jsonb,'checksum',encode(sha256(convert_to($1::jsonb::text,'UTF8')),'hex')))",[payload]);
+ const fresh=new PGlite();try{await fresh.exec(auth);await fresh.exec(install);assert.deepEqual((await fresh.query('SELECT app_private.translation_keys() v')).rows[0].v,next);}finally{await fresh.close();}
+ console.log('PASS additive registry upgrade/fresh install: all historical mappings/rows/overrides/ACL preserved, canonical log-help/Link storage, permission denials and backup validation.');
+}finally{await db.close();}})().catch(e=>{console.error(e.message);process.exitCode=1});

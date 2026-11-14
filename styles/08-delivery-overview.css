@@ -1,0 +1,190 @@
+/* Household delivery overview; status and RSVP remain independent. */
+.invite-overview-counts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0 18px;
+}
+.invite-overview-counts button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  flex: 1 1 120px;
+  min-height: 44px;
+}
+.invite-overview-counts b {
+  font-size: 1rem;
+}
+.invite-overview-counts [aria-pressed="true"] {
+  background: var(--light);
+  outline: 1px solid var(--teal);
+}
+.invite-overview-filters {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.5fr) repeat(3, minmax(100px, 1fr));
+  gap: 10px;
+}
+.invite-overview-filters label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.75rem;
+  min-width: 0;
+}
+.invite-overview-filters input,
+.invite-overview-filters select {
+  min-width: 0;
+}
+.invite-overview-viewbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0 14px;
+}
+.invite-overview-viewbar label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.78rem;
+  min-height: 36px;
+}
+.invite-overview-viewbar input {
+  width: auto;
+}
+.invite-overview-viewbar > span {
+  margin-left: auto;
+}
+.invite-overview-heading,
+#adminApp .invite-overview-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.4fr) minmax(100px, 1fr) minmax(
+      115px,
+      1fr
+    ) minmax(95px, 0.8fr) minmax(140px, auto);
+  gap: 12px;
+  align-items: center;
+}
+.invite-overview-heading {
+  font-size: 0.72rem;
+  color: var(--muted);
+  padding: 8px 10px;
+}
+.invite-overview-row > .invite-overview-identity,
+.invite-overview-row > .invite-overview-recipient,
+.invite-overview-row > .invite-overview-delivery,
+.invite-overview-row > .invite-overview-reply {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.invite-overview-row .invite-row-actions {
+  justify-content: flex-end;
+  margin-left: 0;
+  flex-wrap: wrap;
+}
+.invite-overview-row .btn {
+  font-size: 0.72rem;
+  padding: 7px 10px;
+  min-height: 40px;
+}
+.invite-overview-row .tag {
+  white-space: normal;
+  justify-self: start;
+}
+.invite-overview-row small {
+  font-size: 0.7rem;
+}
+.invite-overview-group h3 {
+  font-size: 0.85rem;
+  margin: 20px 0 10px;
+}
+.invite-overview-row:before {
+  display: none !important;
+}
+.invite-overview-identity:before {
+  content: "›";
+  float: left;
+}
+.invite-household[open]
+  > .invite-overview-row
+  .invite-overview-identity:before {
+  content: "⌄";
+}
+@media (max-width: 1000px) {
+  .invite-overview-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .invite-overview-heading {
+    display: none;
+  }
+  #adminApp .invite-overview-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .invite-overview-identity {
+    grid-column: 1/-1;
+  }
+  .invite-overview-row .invite-row-actions {
+    grid-column: 1/-1;
+    justify-content: flex-start;
+  }
+  .invite-overview-recipient {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .invite-overview-reply {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .invite-overview-delivery {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}
+@media (max-width: 500px) {
+  .invite-overview-filters {
+    grid-template-columns: 1fr;
+  }
+  .invite-overview-filters input,
+  .invite-overview-filters select {
+    font-size: 16px;
+  }
+  .invite-overview-counts button {
+    flex-basis: 110px;
+  }
+}
+
+/* Delivery messages, send controls and invitation-template editors. */
+.delivery-message {
+  font: inherit;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  background: var(--light);
+  border-radius: 8px;
+}
+.delivery-log-section {
+  margin-top: 24px;
+}
+#adminApp .invitation-send-form .btn {
+  justify-self: start;
+}
+#invitationTemplatesList .admin-management-body {
+  padding: 0 13px 12px;
+}
+.invitation-template {
+  padding: 10px 0;
+}
+.invitation-template + .invitation-template {
+  border-top: 1px solid var(--line);
+}
+.invitation-template h3 {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+}
+.invitation-template .management-form {
+  padding: 6px 0 0;
+}
