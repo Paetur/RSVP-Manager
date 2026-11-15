@@ -165,3 +165,54 @@
   font-weight: bold;
   color: var(--accent);
 }
+
+/* Guest name preferences: compact choices with adjacent explanatory text. */
+#guestNamesHost .settings-card-heading {
+  margin-bottom: 8px;
+}
+.guest-name-preferences {
+  display: grid;
+  gap: 12px;
+}
+.guest-name-option {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.guest-name-preferences fieldset.guest-name-option {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px 12px;
+}
+.guest-name-option legend {
+  padding: 0 4px;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+.guest-name-languages {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 20px;
+  row-gap: 0;
+}
+#guestNamesHost .checkbox-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 44px;
+  margin: 0;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+#guestNamesHost .checkbox-label input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+.guest-name-option .micro {
+  margin: 2px 0 0;
+}
+#guestNamesHost .form-actions {
+  margin-top: 0;
+}

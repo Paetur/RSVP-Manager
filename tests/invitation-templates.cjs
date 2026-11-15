@@ -2,7 +2,9 @@
 const assert = require("node:assert/strict"),
   fs = require("node:fs"),
   vm = require("node:vm");
-const context = { window: {} };
+const context = { window: {}, Intl, Date };
+vm.runInNewContext(fs.readFileSync("js/household-name.js", "utf8"), context);
+for (const file of ["text-placeholders", "food-interest-reply", "invitation-text", "admin-invitation-album"]) vm.runInNewContext(fs.readFileSync("js/" + file + ".js", "utf8"), context);
 vm.runInNewContext(
   fs.readFileSync("js/admin-invitation-templates.js", "utf8"),
   context,
@@ -30,6 +32,7 @@ let store = {
     ],
   },
   enabled = ["en", "fo"];
+context.window.RSVP = { invitationURL: code => "https://example.invalid/?=" + code };
 const api = context.window.RSVP_ADMIN_INVITATION_TEMPLATES.create({
   R: {
     byId: () => null,
@@ -89,6 +92,13 @@ assert.equal(api.draft(household, "whatsapp").image.image, "synthetic-picture");
 assert.equal(api.draft(household, "sms").image, null, "pictures never spill across channels");
 store.settings.is_published = false;
 assert.equal(api.draft(household, "whatsapp").body, "{invitation_link}");
+store.settings.rsvp_deadline = "2027-03-27T23:30:00Z";
+store.settings.timezone = "Europe/Berlin";
+store.invitationTemplates.push({language_code:"en",channel:"manual",body:"Reply by {rsvp_deadline:+5}: {invitation_link}"});
+assert.match(api.draft(household,"manual").body,/2 April 2027/);
+store.settings.rsvp_deadline = null;
+assert.match(api.draft(household,"manual").body,/\{rsvp_deadline:\+5\}/,"a missing date remains visibly unresolved in a draft");
+assert.throws(()=>context.window.RSVP_INVITATION_TEXT.validate("{rsvp_deadline:+367}"),/unknown placeholder/);
 console.log(
   "PASS invitation templates: enabled-language/channel fallback, placeholders, no unpublished link, missing-code/template fallback and replaced-store reads.",
 );

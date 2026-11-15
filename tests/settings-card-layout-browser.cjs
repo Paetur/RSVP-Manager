@@ -169,7 +169,7 @@ const { server, mock, extra, stageExtra, out } =
             .locator("#languageRows button[type=submit]")
             .all())
             assert.equal(await button.textContent(), saveText);
-          await page.locator("[data-settings-tab=interface]").click();
+          await page.locator("[data-settings-tab=checklist]").click();
           await checkPencils();
           assert.equal(
             await page.locator("#personalPreferencesForm").isVisible(),

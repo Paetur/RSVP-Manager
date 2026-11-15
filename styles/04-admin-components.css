@@ -28,6 +28,9 @@
   list-style: none;
   cursor: pointer;
 }
+#adminApp .invite-household > summary::marker {
+  content: "";
+}
 #adminApp .invite-household > summary::-webkit-details-marker {
   display: none;
 }
@@ -2189,7 +2192,10 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
 #adminApp .management-form > .household-food-toggle {
   display: flex;
   align-items: center;
-  justify-self: end;
+  justify-self: start;
+  align-self: end;
+  min-height: 44px;
+  margin: 0;
   gap: 8px;
 }
 #adminApp .household-food-toggle input {
@@ -2428,4 +2434,72 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
   .backup-mode-choices label {
     min-height: 44px;
   }
+}
+
+/* Session choices use the same checkbox fieldset as food-item venue choices. */
+.household-session-selection { border-top: 1px solid var(--line); padding-top: 16px; }
+.household-session-choices .checkbox-label { align-items: flex-start; }
+.household-session-choices .checkbox-label > span > small { display: block; font-weight: 400; }
+.household-session-exceptions { margin-top: 12px; }
+.household-session-exceptions > summary { cursor: pointer; font-size: .82rem; }
+.household-session-exceptions[open] { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.household-session-exceptions > summary { grid-column: 1/-1; }
+@media (max-width:700px) { .household-session-exceptions[open] { grid-template-columns: 1fr; } }
+
+/* Keep hierarchy cues without framing every nested editor. */
+#adminApp #householdRows .household-inline-editor {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding: 0;
+}
+#adminApp #householdRows .household-inline-editor[open] {
+  padding: 12px 0;
+}
+#adminApp #householdRows .tree-children .tree-children {
+  border-left: 0;
+}
+#adminApp #adminFoodList .food-category .food-category,
+#adminApp #adminFoodList .food-edit-form {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+#adminApp #adminFoodList .food-edit-form { padding-inline: 0; }
+@media (max-width: 700px) {
+  #adminApp :is(.household-node-name small, .household-guests, .food-item-info small) { font-size: .82rem; }
+}
+
+/* Record dates stay quiet and separate from editable venue/session details. */
+.record-timestamps { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 4px 12px; margin: 12px 0; }
+.record-timestamps dt { color: var(--muted); }
+.record-timestamps dd { margin: 0; overflow-wrap: anywhere; }
+#adminList .preview-titleline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; }
+
+/* Household details use equal single-line controls and paired text areas. */
+#adminApp .household-details-form {
+  align-items: start;
+}
+#adminApp .household-details-form > label:not(.checkbox-label) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  align-self: start;
+}
+#adminApp .household-details-form > label > :is(input:not([type=checkbox]), select) {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+#adminApp .household-details-form > label > textarea {
+  box-sizing: border-box;
+  width: 100%;
+  height: 88px;
+  min-height: 88px;
+  resize: vertical;
 }

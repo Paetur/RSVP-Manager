@@ -20,13 +20,16 @@
     actorName,
     field,
     reload,
+    viewInInvites,
   }) {
     const $ = R.byId;
     function deliveryEditor(h, q = {}) {
       const primary = householdPrimaryContact(h),
         guest = householdPrimaryGuest(h);
       const f = managementForm();
-      if (!q.id && q.message_body) f.dataset.initialDraft = "true";
+      f.classList.add("delivery-review-form");
+      f.dataset.formKey = "delivery:" + (q.id || h.id + (q.draft_key ? ":reminder:" + q.draft_key : ":new"));
+      if (!q.id) f.dataset.initialDraft = "true";
       const channel = field(
         f,
         T("interface.messages.delivery_channel"),
@@ -76,7 +79,7 @@
                 sms: guest?.mobile,
                 whatsapp: guest?.mobile,
                 postal: h.postal_address,
-                manual: h.household_name,
+                manual: R.householdName(h),
               }[channel.value]);
         recipient.textContent =
           T("interface.messages.recipient") +
@@ -92,8 +95,20 @@
       const useTemplate = !q.id && !q.message_body;
       let automatic = useTemplate ? invitationDraft(h, channel.value) : null;
       if (automatic?.hasTemplate) f.dataset.initialDraft = "true";
+      const venueContext = field(f, T("Venue context"), automatic?.context?.venueId || "", [["", T("No specific venue")], ...getStore().locations.filter(v=>!v.archived_at).map(v=>[v.id,v.name])]);
+      const sessionContext = field(f, T("Session context"), automatic?.context?.sessionId || "", [["", T("No specific session")], ...getStore().sessions.filter(s=>s.is_active).map(s=>[s.id,s.name])]);
+      const resolvedText = text => {
+        const resolved = window.RSVP_PLACEHOLDERS.context(getStore(), { household: h, language: h.language || "en", venueId: venueContext.value, sessionId: sessionContext.value });
+        try { return window.RSVP_PLACEHOLDERS.fill(text, resolved.values, resolved.options); } catch (_) { return text; }
+      };
+      const custom = disclosure(T("Customize this delivery"), "delivery-customize span-2"),
+        preview = R.dom("section", { class: "delivery-draft-preview span-2" });
+      preview.setAttribute("aria-label", T("Review delivery"));
+      f.append(preview, custom);
+      const customFields = R.dom("div", { class: "form-grid" });
+      custom.append(customFields);
       const subject = field(
-        f,
+        customFields,
         T("interface.messages.message_subject"),
         q.message_subject ??
           automatic?.subject ??
@@ -104,7 +119,7 @@
         300,
       );
       const body = field(
-        f,
+        customFields,
         T("interface.messages.message_text"),
         q.message_body ??
           automatic?.body ??
@@ -118,17 +133,45 @@
       );
       body.closest("label").classList.add("span-2");
       const picture = window.RSVP_INVITATION_IMAGE.editor(
-        f, q.message_image ?? automatic?.image, { R, T },
+        customFields, q.message_image ?? automatic?.image, { R, T },
       );
+      customFields.append(R.dom("p", { class: "micro span-2" }, T("Changes apply to this delivery only; the saved template stays unchanged.")));
+      function renderPreview() {
+        preview.replaceChildren(R.dom("h3", {}, T("Review delivery")));
+        if (useTemplate && !automatic?.hasTemplate) preview.append(R.dom("p", { class: "micro" }, T("No custom template. New drafts use fallback wording.")));
+        if (channel.value === "email") preview.append(R.dom("strong", {}, resolvedText(subject.value)));
+        preview.append(R.dom("pre", { class: "delivery-message" }, resolvedText(body.value)));
+        window.RSVP_INVITATION_IMAGE.preview(preview, picture.get(), { R, T });
+      }
+      if (useTemplate) {
+        const changeContext = () => {
+          const session = getStore().sessions.find(s => s.id === sessionContext.value);
+          if (session && venueContext.value && session.location_id !== venueContext.value) sessionContext.value = "";
+          const next = invitationDraft(h, channel.value, { venueId: venueContext.value, sessionId: sessionContext.value });
+          if (subject.value === automatic.subject) subject.value = next.subject;
+          if (body.value === automatic.body) body.value = next.body;
+          automatic = next;
+          renderPreview();
+        };
+        venueContext.addEventListener("change", changeContext);
+        sessionContext.addEventListener("change", changeContext);
+      }
+      f.addEventListener("input", renderPreview);
+      f.addEventListener("change", renderPreview);
+      // Required message controls remain reachable when native validation fails.
+      custom.addEventListener("invalid", () => { custom.open = true; }, true);
       if (useTemplate)
         channel.addEventListener("change", () => {
           const next = invitationDraft(h, channel.value);
+          venueContext.value = next.context.venueId;
+          sessionContext.value = next.context.sessionId;
           if (subject.value === automatic.subject) subject.value = next.subject;
           if (body.value === automatic.body) body.value = next.body;
           if (JSON.stringify(picture.get()) === JSON.stringify(automatic.image || null))
             picture.set(next.image);
           automatic = next;
-          f.dataset.initialDraft = String(next.hasTemplate);
+          f.dataset.initialDraft = "true";
+          renderPreview();
         });
       if (
         getStore().settings?.is_published &&
@@ -177,6 +220,11 @@
         () =>
           (reason.required = ["failed", "cancelled"].includes(status.value)),
       );
+      if (!q.id) {
+        status.closest("label").classList.add("hidden");
+        reason.closest("label").classList.add("hidden");
+      }
+      renderPreview();
       f.append(
         R.dom(
           "p",
@@ -186,11 +234,11 @@
           ),
         ),
       );
-      return saveForm(
+      const form = saveForm(
         f,
         q.id
-          ? T("interface.messages.save_delivery_changes")
-          : T("interface.messages.create_delivery_draft"),
+          ? T("Save")
+          : T("Save draft"),
         async () =>
           managementRpc("admin_save_delivery", {
             p_id: q.id || null,
@@ -199,14 +247,29 @@
             p_values: {
               channel: channel.value,
               contact_id: contact.value || null,
-              message_subject: subject.value.trim(),
-              message_body: body.value,
+              message_subject: resolvedText(subject.value.trim()),
+              message_body: resolvedText(body.value),
               message_image: await picture.read(),
               status: status.value,
               reason: reason.value.trim(),
             },
           }),
       );
+      if (!q.id) {
+        const save = form.saveActions.querySelector('button[type="submit"]');
+        save.addEventListener("click", () => { status.value = "draft"; });
+        if (getStore().settings?.is_published) {
+          const ready = R.dom("button", { class: "btn secondary", type: "button" }, T("Mark ready"));
+          ready.addEventListener("click", () => {
+            if (form.getAttribute("aria-busy") === "true" || !can("invites", "edit")) return;
+            status.value = "ready";
+            status.dispatchEvent(new Event("change", { bubbles: true }));
+            form.requestSubmit(save);
+          });
+          form.saveActions.insertBefore(ready, form.saveActions.querySelector("[data-discard]"));
+        }
+      }
+      return form;
     }
 
     function deliveryRecord(h, q, editable = true) {
@@ -391,6 +454,7 @@
           ) || "A friendly reminder to reply to our invitation:";
         followup.append(
           deliveryEditor(h, {
+            draft_key: q.id,
             channel: q.channel,
             contact_id: q.contact_id,
             message_subject: q.message_subject,
@@ -477,7 +541,7 @@
       }
       return d;
     }
-    function deliverySection(h) {
+    function deliverySection(h, { allowCreate = false } = {}) {
       const store = getStore();
       const d = disclosure(
         T("interface.messages.invitation_delivery"),
@@ -500,13 +564,20 @@
             : T("interface.messages.no_delivery_recorded_yet"),
         ),
       );
-      if (!h.archived_at && can("invites", "edit")) {
-        const create = disclosure(
-          T("interface.messages.prepare_delivery"),
-          "edit-only",
-        );
+      if (allowCreate && !h.archived_at && can("invites", "edit")) {
+        const create = R.dom("div", { class: "edit-only delivery-create" });
+        create.hidden = true;
         create.append(deliveryEditor(h));
         d.append(create);
+      }
+      if (!allowCreate && can("invites")) {
+        const link = R.dom("a", { class: "btn secondary" }, T("View in Invites"));
+        link.href = "#invites";
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          viewInInvites(h.id);
+        });
+        d.append(link);
       }
       if (!store.settings?.is_published)
         d.append(
@@ -518,7 +589,7 @@
             ),
           ),
         );
-      records.forEach((q) => d.append(deliveryRecord(h, q)));
+      records.forEach((q) => d.append(deliveryRecord(h, q, allowCreate)));
       return d;
     }
     function renderDeliveryLog() {
@@ -541,7 +612,7 @@
         const h = store.households.find((h) => h.id === q.household_id);
         if (!h) continue;
         const wrapper = disclosure(
-          h.household_name +
+          R.householdName(h) +
             (h.archived_at ? T("interface.messages.archived_2") : ""),
         );
         wrapper.append(deliveryRecord(h, q, false));

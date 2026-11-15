@@ -91,7 +91,7 @@
               food.checked &&
               stage === "selection" &&
               e.food_stage !== "selection" &&
-              !confirm(T("interface.messages.food_stage_confirm"))
+              !await window.RSVP_INLINE.confirm(T("interface.messages.food_stage_confirm"), { action: "Save" })
             )
               return false;
             await managementRpc("admin_save_features", {

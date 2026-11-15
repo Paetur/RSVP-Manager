@@ -2,6 +2,7 @@
   "use strict";
   // Construct only explicit single-recipient handoffs. Opening a composer never records sending.
   function compose(q) {
+    if (/[{}]/.test((q.message_body || "") + (q.message_subject || ""))) throw Error("Replace unresolved placeholders before sharing.");
     const raw = String(q.recipient_snapshot?.contact_value || "").trim();
     if (q.channel === "email") {
       if (!/^[^\s@<>?,;:]+@[^\s@<>?,;:]+\.[^\s@<>?,;:]+$/.test(raw))
@@ -29,6 +30,7 @@
           encodeURIComponent(q.message_body || "");
   }
   function sharePayload(q, pictureOnly = false) {
+    if (/[{}]/.test((q.message_body || "") + (q.message_subject || ""))) throw Error("Replace unresolved placeholders before sharing.");
     if (q.message_image) {
       const files = [window.RSVP_INVITATION_IMAGE.file(q.message_image)];
       // Keep the invitation link inside the caption when sharing a file: some
@@ -84,9 +86,9 @@
         trigger.disabled = false;
         return;
       }
-      const dialog = R.dom("dialog", {
+      const dialog = R.inlinePanel({
         class: "food-recipe-dialog invitation-share-dialog",
-      });
+      }, trigger);
       dialog.setAttribute(
         "aria-label",
         shareLabel,
@@ -147,7 +149,7 @@
       actions.append(share, sharePicture, retry, copy, close);
       dialog.append(feedback, actions);
       document.body.append(dialog);
-      dialog.showModal();
+      dialog.openInline();
       close.addEventListener("click", () => dialog.close());
       dialog.addEventListener("cancel", (event) => {
         if (busy) event.preventDefault();

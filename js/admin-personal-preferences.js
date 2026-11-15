@@ -154,7 +154,7 @@
     const patch = changes();
     if (busy || !account || !Object.keys(patch).length) return;
     const languageChanged = Object.hasOwn(patch, "language");
-    if (languageChanged && !window.RSVP_I18N.confirmLanguageReload(form()))
+    if (languageChanged && !await window.RSVP_I18N.confirmLanguageReload(form()))
       return;
     if (await commit(patch)) {
       window.RSVP_LOCAL_EDITORS?.saved(form());

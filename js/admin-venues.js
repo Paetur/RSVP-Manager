@@ -8,6 +8,7 @@
     getStore,
     isEditing,
     getLanguage,
+    adminTime,
     ordered,
     disclosure,
     btn,
@@ -83,6 +84,20 @@
       summary.append(layout);
       return venue;
     }
+    function recordTimes(record) {
+      const times = R.dom("dl", { class: "record-timestamps micro" });
+      for (const [label, value] of [["Created", record.created_at], ["Updated", record.updated_at]]) {
+        const display = R.dom("dd");
+        if (value) {
+          const time = R.dom("time", {}, adminTime(value));
+          time.dateTime = value;
+          time.title = new Date(value).toISOString();
+          display.append(time);
+        } else display.textContent = T("Not recorded");
+        times.append(R.dom("dt", {}, T(label)), display);
+      }
+      return times;
+    }
     function render() {
       const store = getStore();
       const venues = $("venueList");
@@ -124,7 +139,7 @@
           actions,
           v.address,
         );
-        venue.append(venueForm(v));
+        venue.append(recordTimes(v), venueForm(v));
         venues.append(venue);
       }
       $("newVenueForm").replaceChildren(venueForm({}));
@@ -193,7 +208,7 @@
           if (!isEditing()) return;
           households.disabled = true;
           try {
-            await sessionHouseholdDialog(s);
+            await sessionHouseholdDialog(s, households);
           } catch (error) {
             show(R.safeError(error), "error");
           } finally {
@@ -203,7 +218,7 @@
         households.dataset.requiresSection = "invites";
         households.dataset.requiresLevel = "edit";
         form.querySelector(".form-actions").append(households);
-        d.append(form);
+        d.append(recordTimes(s), form);
         div.append(d);
       }
       $("newSessionEditor").replaceChildren(sessionForm({}));

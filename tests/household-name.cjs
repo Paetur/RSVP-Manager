@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const context={window:{}};
+for(const name of ['household-name','text-placeholders'])vm.runInNewContext(fs.readFileSync('js/'+name+'.js','utf8'),context);
+const name=context.window.RSVP_HOUSEHOLD_NAME;
+const household={household_name:' Alex & Sam ',last_name:' Example '};
+assert.equal(name(household),'Alex & Sam Example');assert.equal(household.household_name,' Alex & Sam ');
+assert.equal(name({name:'Guest household',last_name:'Example'}),'Guest household Example');
+assert.equal(name({household_name:'Alex Example',last_name:'Example'}),'Alex Example');
+assert.equal(name({household_name:'Example Family',last_name:'Example'}),'Example Family');
+assert.equal(name({household_name:'Alex Examples',last_name:'Example'}),'Alex Examples Example');
+assert.equal(name({household_name:'Alex A+B',last_name:'A+B'}),'Alex A+B');
+assert.equal(name({household_name:'Alex',last_name:null}),'Alex');assert.equal(name({household_name:'Alex',last_name:'  '}),'Alex');assert.equal(name(null),'');
+const values=context.window.RSVP_PLACEHOLDERS.context({settings:{},guests:[]},{household}).values;
+assert.equal(values.household_name,'Alex & Sam Example');
+console.log('PASS combined household labels for admin/guest shapes, missing surnames, trimming, unchanged stored fields and invitation placeholders.');

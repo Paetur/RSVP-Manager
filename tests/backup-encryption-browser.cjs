@@ -30,7 +30,7 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
         }),
       );
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
-      await page.locator("#statsGrid .stat-card").first().waitFor();
+      await page.locator("#statsGrid .stat-card").first().waitFor({ state: "attached" });
       await page.locator("#settingsToggle").click();
       await page.locator("[data-settings-tab=backups]").click();
       assert.equal(
@@ -95,7 +95,7 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
             ).length,
         );
         await upload(bytes);
-        let dialog = page.getByRole("dialog", {
+        let dialog = page.getByRole("region", {
           name: "Encrypted backup",
           exact: true,
         });
@@ -122,7 +122,7 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
           "authentication failure never reaches preview/restore RPC",
         );
         await page.locator("#retryEncryptedBackup").click();
-        dialog = page.getByRole("dialog", {
+        dialog = page.getByRole("region", {
           name: "Encrypted backup",
           exact: true,
         });
@@ -131,7 +131,7 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
           .click();
         assert.equal(await page.locator("#previewBackup").isDisabled(), true);
         await page.locator("#retryEncryptedBackup").click();
-        dialog = page.getByRole("dialog", {
+        dialog = page.getByRole("region", {
           name: "Encrypted backup",
           exact: true,
         });
@@ -261,7 +261,7 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
     await unsupported.goto(
       "http://127.0.0.1:" + server.address().port + "/admin/",
     );
-    await unsupported.locator("#statsGrid .stat-card").first().waitFor();
+    await unsupported.locator("#statsGrid .stat-card").first().waitFor({ state: "attached" });
     await unsupported.locator("#settingsToggle").click();
     await unsupported.locator("[data-settings-tab=backups]").click();
     assert.equal(

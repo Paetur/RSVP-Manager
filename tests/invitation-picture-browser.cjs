@@ -1,6 +1,7 @@
 // Real controllers with synthetic APIs/files; native iOS targets need device acceptance.
 const { chromium } = require("playwright");
-const assert = require("node:assert/strict"), fs = require("node:fs");
+const assert = require("node:assert/strict"),
+  fs = require("node:fs");
 const { selectWorkTab } = require("./helpers/language-ui.cjs");
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
 const { server, mock, extra } = createFoodHarness("invitation-picture");
@@ -9,17 +10,41 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
   const browser = await chromium.launch();
   try {
     for (const width of [320, 390, 1160]) {
-      const page = await browser.newPage({ viewport: { width, height: 950 }, hasTouch: width < 700, isMobile: width < 700 });
+      const page = await browser.newPage({
+        viewport: { width, height: 950 },
+        hasTouch: width < 700,
+        isMobile: width < 700,
+      });
       const picture = await page.evaluate(() => {
-        const canvas = document.createElement("canvas"); canvas.width = 720; canvas.height = 420;
+        const canvas = document.createElement("canvas");
+        canvas.width = 720;
+        canvas.height = 420;
         const context = canvas.getContext("2d");
-        context.fillStyle = "#ede5d5"; context.fillRect(0, 0, 720, 420);
-        context.strokeStyle = "#6d7e6c"; context.lineWidth = 3; context.strokeRect(28, 28, 664, 364);
-        context.fillStyle = "#354c40"; context.textAlign = "center";
-        context.font = "24px sans-serif"; context.fillText("A CELEBRATION TOGETHER", 360, 140);
-        context.font = "58px serif"; context.fillText("You're invited", 360, 225);
-        context.font = "20px sans-serif"; context.fillText("Example invitation picture", 360, 295);
-        return { image: canvas.toDataURL("image/jpeg", 0.85), name: "synthetic.jpg", crop: { x: 0, y: 0, width: 720, height: 420, sourceWidth: 720, sourceHeight: 420 } };
+        context.fillStyle = "#ede5d5";
+        context.fillRect(0, 0, 720, 420);
+        context.strokeStyle = "#6d7e6c";
+        context.lineWidth = 3;
+        context.strokeRect(28, 28, 664, 364);
+        context.fillStyle = "#354c40";
+        context.textAlign = "center";
+        context.font = "24px sans-serif";
+        context.fillText("A CELEBRATION TOGETHER", 360, 140);
+        context.font = "58px serif";
+        context.fillText("You're invited", 360, 225);
+        context.font = "20px sans-serif";
+        context.fillText("Example invitation picture", 360, 295);
+        return {
+          image: canvas.toDataURL("image/jpeg", 0.85),
+          name: "synthetic.jpg",
+          crop: {
+            x: 0,
+            y: 0,
+            width: 720,
+            height: 420,
+            sourceWidth: 720,
+            sourceHeight: 420,
+          },
+        };
       });
       const fixture = Buffer.from(picture.image.split(",")[1], "base64");
       const errors = [];
@@ -27,19 +52,43 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
       await page.addInitScript(() => {
         localStorage.setItem("rsvp-interface-language", "en");
         window.__pictureShares = [];
-        Object.defineProperty(navigator, "canShare", { value: (data) => !(window.__rejectCombined && data.files && data.text) });
-        Object.defineProperty(navigator, "share", { value: async (data) => {
-          window.__pictureShares.push({ text: data.text, url: data.url, files: data.files?.map((file) => ({ name: file.name, type: file.type, size: file.size })), activation: navigator.userActivation.isActive });
-          if (window.__cancelShare) throw new DOMException("Cancelled", "AbortError");
-        } });
-        Object.defineProperty(navigator, "clipboard", { value: { writeText: async (value) => { window.__pictureCopied = value; } } });
+        Object.defineProperty(navigator, "canShare", {
+          value: (data) =>
+            !(window.__rejectCombined && data.files && data.text),
+        });
+        Object.defineProperty(navigator, "share", {
+          value: async (data) => {
+            window.__pictureShares.push({
+              text: data.text,
+              url: data.url,
+              files: data.files?.map((file) => ({
+                name: file.name,
+                type: file.type,
+                size: file.size,
+              })),
+              activation: navigator.userActivation.isActive,
+            });
+            if (window.__cancelShare)
+              throw new DOMException("Cancelled", "AbortError");
+          },
+        });
+        Object.defineProperty(navigator, "clipboard", {
+          value: {
+            writeText: async (value) => {
+              window.__pictureCopied = value;
+            },
+          },
+        });
       });
       const seed = `
+        fixtures.event_settings[0].invitation_picture_album=[];
+        fixtures.event_settings[0].invitation_album_revision='synthetic';
         window.__pictureHousehold=fixtures.households.find(h=>!h.archived_at).id;
         window.__pictureTemplates=[{language_code:'en',channel:'whatsapp',subject:'',body:'Hello {invitation_link}'}];
         const pictureRpc=client.rpc;
         client.rpc=async(name,args)=>{
           if(name==='admin_load_data'){const result=await pictureRpc(name,args);result.data.invitationTemplates=window.__pictureTemplates;return result;}
+          if(name==='admin_save_invitation_picture'){fixtures.event_settings[0].invitation_picture_album.push({id:'album-one',name:args.p_name,picture:args.p_image});return {data:null};}
           if(name==='admin_save_invitation_template'){
             window.__pictureSaves=(window.__pictureSaves||[]);window.__pictureSaves.push(args);
             if(window.__pictureFail){window.__pictureFail=false;return {error:{message:'Synthetic picture save failure'}};}
@@ -50,158 +99,504 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
           return pictureRpc(name,args);
         };
       `;
-      await page.route("**/version.json", (route) => route.fulfill({ json: { version: "0.9.0-alpha.5" } }));
-      await page.route("**/supabase.min.js", (route) => route.fulfill({ contentType: "text/javascript", body: mock + "\n" + extra + "\n" + seed }));
-      await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
-      await page.waitForFunction(() => document.querySelectorAll("#statsGrid .stat-card").length === 4);
-      await page.evaluate((width) => { document.documentElement.dataset.theme = width === 390 ? "light" : "dark"; }, width);
+      await page.route("**/version.json", (route) =>
+        route.fulfill({ json: { version: "0.9.0-alpha.5" } }),
+      );
+      await page.route("**/supabase.min.js", (route) =>
+        route.fulfill({
+          contentType: "text/javascript",
+          body: mock + "\n" + extra + "\n" + seed,
+        }),
+      );
+      const base =
+        process.env.RSVP_INSTALLED_SITE ||
+        "http://127.0.0.1:" + server.address().port;
+      // Isolate configuration as well as SDK data; never contact the installed backend.
+      if (process.env.RSVP_INSTALLED_SITE)
+        await page.route("**/js/config.js?*", (route) =>
+          route.fulfill({
+            contentType: "text/javascript",
+            body: 'window.RSVP_CONFIG={supabaseUrl:"http://127.0.0.1:54321",supabaseKey:"sb_publishable_synthetic"};',
+          }),
+        );
+      let productionRequests = 0;
+      await page.route(/\/(rest|auth|functions)\/v1\//, (route) => {
+        productionRequests++;
+        return route.abort();
+      });
+      if (process.env.RSVP_INSTALLED_SITE)
+        await page.route(base + "/**", async (route) => {
+          if (route.request().resourceType() !== "document")
+            return route.fallback();
+          const response = await route.fetch();
+          await route.fulfill({
+            response,
+            body: (await response.text()).replace(/ integrity="[^"]+"/g, ""),
+          });
+        });
+      await page.goto(base + "/admin/");
+      await page.waitForFunction(
+        () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+      );
+      await page.evaluate((width) => {
+        document.documentElement.dataset.theme =
+          width === 390 ? "light" : "dark";
+      }, width);
       await page.locator("#settingsToggle").click();
       await page.getByRole("tab", { name: "Templates", exact: true }).click();
-      const section = page.locator(".invitation-template").filter({ has: page.getByRole("heading", { name: "WhatsApp", exact: true }) }).filter({ visible: true });
+      const section = page
+        .locator(".invitation-template")
+        .filter({
+          has: page.getByRole("heading", { name: "WhatsApp", exact: true }),
+        })
+        .filter({ visible: true });
       const open = () => section.locator("[data-local-edit]").click();
-      const upload = () => section.locator('input[type="file"]');
+      const album = page.locator(".invitation-album");
+      const upload = () => album.locator('input[type="file"]');
       const value = () => section.locator("[data-invitation-picture]");
-      await open();
-      await upload().setInputFiles({ name: "invalid.svg", mimeType: "image/svg+xml", buffer: Buffer.from("<svg/>") });
-      await section.getByText("Choose a JPEG under 1.4 MB.", { exact: true }).waitFor();
-      assert.equal(await value().inputValue(), "null");
-      await upload().setInputFiles({ name: "synthetic.jpg", mimeType: "image/jpeg", buffer: fixture });
-      await page.waitForFunction(() => document.querySelector('[data-form-key="invitation-templates:en:whatsapp"] [data-invitation-picture]')?.value !== "null");
-      const prepared = JSON.parse(await value().inputValue());
-      assert(prepared.image.startsWith("data:image/jpeg;base64,"));
-      assert.notEqual(prepared.image, picture.image, "upload is re-encoded, stripping metadata");
-      await section.getByRole("button", { name: "Cancel", exact: true }).click();
-      await open();
-      assert.equal(await value().inputValue(), "null", "Cancel discards picture");
-      await upload().setInputFiles({ name: "synthetic.jpg", mimeType: "image/jpeg", buffer: fixture });
-      await section.locator(".invitation-picture-editor img").waitFor();
-      await section.getByRole("button", { name: "Test sharing", exact: true }).click();
-      const testDialog = page.getByRole("dialog", { name: "Test sharing", exact: true });
-      await testDialog.getByRole("button", { name: "Share picture and text", exact: true }).click();
-      await testDialog.getByText("Test share completed. Check the picture, text and preview link in your app.", { exact: true }).waitFor();
-      const testPayload = await page.evaluate(() => window.__pictureShares.at(-1));
-      assert.equal(testPayload.text, "Hello " + new URL("/#guest-preview=landing", page.url()).href);
-      assert(testPayload.files.length === 1 && testPayload.activation);
-      assert.equal(await page.evaluate(() => window.__calls.some((c) => ["admin_authorize_device_send", "admin_record_share_handoff", "admin_record_delivery_sent"].includes(c.name))), false);
-      assert.equal(await page.evaluate(() => fixtures.event_settings[0].is_published), false);
-      await testDialog.getByRole("button", { name: "Close", exact: true }).click();
-      await page.evaluate(() => { window.__pictureFail = true; });
-      await section.getByRole("button", { name: "Save template", exact: true }).click();
-      await section.locator('.form-feedback[data-state="error"]').waitFor();
-      assert.notEqual(await value().inputValue(), "null", "failed save keeps picture draft");
-      await section.getByRole("button", { name: "Save template", exact: true }).click();
-      await section.locator(".local-editor-summary img").waitFor();
-      assert(await page.evaluate(() => window.__pictureSaves.at(-1).p_image.image.startsWith("data:image/jpeg;base64,")));
-      assert.equal(await section.locator("form").isVisible(), false);
-      await section.getByRole("button", { name: "Test sharing", exact: true }).click();
-      await testDialog.getByRole("button", { name: "Share picture and text", exact: true }).click();
-      await testDialog.getByText("Test share completed. Check the picture, text and preview link in your app.", { exact: true }).waitFor();
-      assert.equal((await page.evaluate(() => window.__pictureShares.at(-1))).text, "Hello " + new URL("/#guest-preview=landing", page.url()).href);
-      await testDialog.getByRole("button", { name: "Close", exact: true }).click();
-      await page.waitForFunction(() => document.getElementById("adminVersion")?.textContent === "v0.9.0-alpha.5");
-      assert.equal(await page.locator("#adminVersion").textContent(), "v0.9.0-alpha.5");
-      assert.equal(await page.locator("#adminVersion").isVisible(), width > 700);
-      const headerGeometry = await page.locator("header.topbar").evaluate((header) => {
-        const rectangles = Array.from(header.querySelectorAll("button,a.admin-icon-btn")).filter((node) => node.getClientRects().length).map((node) => node.getBoundingClientRect());
-        const collisions = rectangles.some((a, i) => rectangles.slice(i + 1).some((b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1));
-        return { collisions, singleRow: rectangles.every((r) => Math.abs(r.top - rectangles[0].top) < 1), withinViewport: rectangles.every((r) => r.left >= 0 && r.right <= innerWidth), touchSize: rectangles.every((r) => r.width >= 43 && r.height >= 43) };
+      await album.locator("[data-local-edit]").click();
+      await album
+        .getByLabel("Picture name", { exact: true })
+        .fill("Example picture");
+      await upload().setInputFiles({
+        name: "invalid.svg",
+        mimeType: "image/svg+xml",
+        buffer: Buffer.from("<svg/>"),
       });
-      assert.equal(headerGeometry.collisions, false, "toolbar controls cannot overlap");
-      assert.equal(headerGeometry.withinViewport, true, "toolbar controls fit the phone width");
+      await album
+        .getByText("Choose a JPEG under 1.4 MB.", { exact: true })
+        .waitFor();
+      await upload().setInputFiles({
+        name: "synthetic.jpg",
+        mimeType: "image/jpeg",
+        buffer: fixture,
+      });
+      await album.locator(".invitation-picture-editor img").waitFor();
+      const prepared = JSON.parse(
+        await album.locator("[data-invitation-picture]").inputValue(),
+      );
+      assert.notEqual(
+        prepared.image,
+        picture.image,
+        "album upload re-encodes JPEG without metadata",
+      );
+      await album
+        .getByRole("button", { name: "Add picture", exact: true })
+        .click();
+      await album.locator(".invitation-album-tile img").waitFor();
+      async function choosePicture() {
+        await section
+          .getByRole("button", { name: "Choose from album", exact: true })
+          .click();
+        await page
+          .getByRole("region", { name: "Choose from album", exact: true })
+          .getByRole("button", { name: "Example picture", exact: true })
+          .click();
+      }
+      await open();
+      assert.equal(
+        await section.locator('input[type="file"]').count(),
+        0,
+        "templates choose shared pictures instead of uploading",
+      );
+      await choosePicture();
+      await section
+        .getByRole("button", { name: "Cancel", exact: true })
+        .click();
+      await open();
+      assert.equal(
+        await value().inputValue(),
+        "null",
+        "Cancel discards album selection",
+      );
+      await choosePicture();
+      await section
+        .getByRole("button", { name: "Test sharing", exact: true })
+        .click();
+      const testDialog = page.getByRole("region", {
+        name: "Test sharing",
+        exact: true,
+      });
+      await testDialog
+        .getByRole("button", { name: "Share picture and text", exact: true })
+        .click();
+      await testDialog
+        .getByText(
+          "Test share completed. Check the picture, text and preview link in your app.",
+          { exact: true },
+        )
+        .waitFor();
+      const testPayload = await page.evaluate(() =>
+        window.__pictureShares.at(-1),
+      );
+      assert.equal(
+        testPayload.text,
+        "Hello " + new URL("/#guest-preview=landing", page.url()).href,
+      );
+      assert(testPayload.files.length === 1 && testPayload.activation);
+      assert.equal(
+        await page.evaluate(() =>
+          window.__calls.some((c) =>
+            [
+              "admin_authorize_device_send",
+              "admin_record_share_handoff",
+              "admin_record_delivery_sent",
+            ].includes(c.name),
+          ),
+        ),
+        false,
+      );
+      assert.equal(
+        await page.evaluate(() => fixtures.event_settings[0].is_published),
+        false,
+      );
+      await testDialog
+        .getByRole("button", { name: "Close", exact: true })
+        .click();
+      await page.evaluate(() => {
+        window.__pictureFail = true;
+      });
+      await section
+        .getByRole("button", { name: "Save", exact: true })
+        .click();
+      await section.locator('.form-feedback[data-state="error"]').waitFor();
+      assert.notEqual(
+        await value().inputValue(),
+        "null",
+        "failed save keeps picture draft",
+      );
+      await section
+        .getByRole("button", { name: "Save", exact: true })
+        .click();
+      await section.locator(".local-editor-summary img").waitFor();
+      assert(
+        await page.evaluate(() =>
+          window.__pictureSaves
+            .at(-1)
+            .p_image.image.startsWith("data:image/jpeg;base64,"),
+        ),
+      );
+      assert.equal(await section.locator("form").isVisible(), false);
+      await section
+        .getByRole("button", { name: "Test sharing", exact: true })
+        .click();
+      await testDialog
+        .getByRole("button", { name: "Share picture and text", exact: true })
+        .click();
+      await testDialog
+        .getByText(
+          "Test share completed. Check the picture, text and preview link in your app.",
+          { exact: true },
+        )
+        .waitFor();
+      assert.equal(
+        (await page.evaluate(() => window.__pictureShares.at(-1))).text,
+        "Hello " + new URL("/#guest-preview=landing", page.url()).href,
+      );
+      await testDialog
+        .getByRole("button", { name: "Close", exact: true })
+        .click();
+      await page.waitForFunction(
+        () =>
+          document.getElementById("adminVersion")?.textContent ===
+          "v0.9.0-alpha.5",
+      );
+      assert.equal(
+        await page.locator("#adminVersion").textContent(),
+        "v0.9.0-alpha.5",
+      );
+      assert.equal(
+        await page.locator("#adminVersion").isVisible(),
+        width > 700,
+      );
+      const headerGeometry = await page
+        .locator("header.topbar")
+        .evaluate((header) => {
+          const rectangles = Array.from(
+            header.querySelectorAll("button,a.admin-icon-btn"),
+          )
+            .filter((node) => node.getClientRects().length)
+            .map((node) => node.getBoundingClientRect());
+          const collisions = rectangles.some((a, i) =>
+            rectangles
+              .slice(i + 1)
+              .some(
+                (b) =>
+                  a.left < b.right - 1 &&
+                  b.left < a.right - 1 &&
+                  a.top < b.bottom - 1 &&
+                  b.top < a.bottom - 1,
+              ),
+          );
+          return {
+            collisions,
+            singleRow: rectangles.every(
+              (r) => Math.abs(r.top - rectangles[0].top) < 1,
+            ),
+            withinViewport: rectangles.every(
+              (r) => r.left >= 0 && r.right <= innerWidth,
+            ),
+            touchSize: rectangles.every((r) => r.width >= 43 && r.height >= 43),
+          };
+        });
+      assert.equal(
+        headerGeometry.collisions,
+        false,
+        "toolbar controls cannot overlap",
+      );
+      assert.equal(
+        headerGeometry.withinViewport,
+        true,
+        "toolbar controls fit the phone width",
+      );
       if (width < 700) {
-        assert.equal(headerGeometry.touchSize, true, "phone controls retain 44px tap areas");
-        assert.equal(headerGeometry.singleRow, true, "phone header fits on one line");
+        assert.equal(
+          headerGeometry.touchSize,
+          true,
+          "phone controls retain 44px tap areas",
+        );
+        assert.equal(
+          headerGeometry.singleRow,
+          true,
+          "phone header fits on one line",
+        );
         for (const id of ["refreshButton", "themeToggle", "guestPreviewButton"])
           assert.equal(await page.locator("#" + id).isVisible(), false);
       }
       if (process.env.RSVP_HEADER_PREVIEW_DIR) {
         fs.mkdirSync(process.env.RSVP_HEADER_PREVIEW_DIR, { recursive: true });
-        await page.screenshot({ path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/admin-template-${width}.png`, fullPage: true });
-        await page.locator("header.topbar").screenshot({ path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/admin-header-${width}.png` });
-        await section.screenshot({ path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/template-read-${width}.png` });
-        await page.locator(".admin-topbar-actions").screenshot({ path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/header-detail-${width}.png` });
+        await page.screenshot({
+          path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/admin-template-${width}.png`,
+          fullPage: true,
+        });
+        await page
+          .locator("header.topbar")
+          .screenshot({
+            path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/admin-header-${width}.png`,
+          });
+        await section.screenshot({
+          path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/template-read-${width}.png`,
+        });
+        await page
+          .locator(".admin-topbar-actions")
+          .screenshot({
+            path: `${process.env.RSVP_HEADER_PREVIEW_DIR}/header-detail-${width}.png`,
+          });
       }
       await open();
-      await section.getByRole("button", { name: "Remove picture", exact: true }).click();
+      await section
+        .getByRole("button", { name: "Choose from album", exact: true })
+        .click();
+      await page
+        .getByRole("region", { name: "Choose from album", exact: true })
+        .getByRole("button", { name: "No picture", exact: true })
+        .click();
       assert.equal(await value().inputValue(), "null");
-      await section.getByRole("button", { name: "Cancel", exact: true }).click();
-      assert(await section.locator(".local-editor-summary img").isVisible(), "Cancel restores saved picture");
+      await section
+        .getByRole("button", { name: "Cancel", exact: true })
+        .click();
+      assert(
+        await section.locator(".local-editor-summary img").isVisible(),
+        "Cancel restores saved picture",
+      );
       await selectWorkTab(page, "invites");
-      const household = await page.locator("#inviteRows [data-invite-household]").first().getAttribute("data-invite-household");
-      const householdRow = page.locator(`[data-invite-household="${household}"]`);
+      const household = await page
+        .locator("#inviteRows [data-invite-household]")
+        .first()
+        .getAttribute("data-invite-household");
+      const householdRow = page.locator(
+        `[data-invite-household="${household}"]`,
+      );
       await householdRow.locator(":scope > summary").click();
       const delivery = page.locator(`#invite-delivery-${household}`);
-      await delivery.evaluate((node) => { node.open = true; });
-      await delivery.locator("details").evaluateAll((nodes) => nodes.forEach((node) => { node.open = true; }));
+      await delivery.evaluate((node) => {
+        node.open = true;
+      });
+      await delivery.locator("details").evaluateAll((nodes) =>
+        nodes.forEach((node) => {
+          node.open = true;
+        }),
+      );
+      await householdRow.locator(":scope > summary").getByRole("button", {name:"Create",exact:true}).click();
       const draft = delivery.locator("form").first();
-      await draft.getByLabel("Delivery channel", { exact: true }).selectOption("whatsapp");
-      assert.notEqual(await draft.locator("[data-invitation-picture]").inputValue(), "null", "new drafts inherit the selected template picture");
-      await draft.getByRole("button", { name: "Create delivery draft", exact: true }).click();
-      await page.waitForFunction(() => window.__calls.some((c) => c.name === "admin_save_delivery"));
-      const savedDraft = await page.evaluate(() => window.__calls.find((c) => c.name === "admin_save_delivery").args.p_values);
-      assert(savedDraft.message_image.image.startsWith("data:image/jpeg;base64,"));
+      await draft
+        .getByLabel("Delivery channel", { exact: true })
+        .selectOption("whatsapp");
+      assert.notEqual(
+        await draft.locator("[data-invitation-picture]").inputValue(),
+        "null",
+        "new drafts inherit the selected template picture",
+      );
+      await draft
+        .getByRole("button", { name: "Save draft", exact: true })
+        .click();
+      await page.waitForFunction(() =>
+        window.__calls.some((c) => c.name === "admin_save_delivery"),
+      );
+      const savedDraft = await page.evaluate(
+        () =>
+          window.__calls.find((c) => c.name === "admin_save_delivery").args
+            .p_values,
+      );
+      assert(
+        savedDraft.message_image.image.startsWith("data:image/jpeg;base64,"),
+      );
       assert.equal(savedDraft.status, "draft");
-      assert.equal(await page.evaluate(() => fixtures.event_settings[0].is_published), false);
+      assert.equal(
+        await page.evaluate(() => fixtures.event_settings[0].is_published),
+        false,
+      );
       // Exercise the actual share dialog without publishing any fixture event.
       await page.evaluate((picture) => {
-        const host = document.createElement("div"); host.id = "pictureShareFixture"; document.body.prepend(host);
+        const host = document.createElement("div");
+        host.id = "pictureShareFixture";
+        document.body.prepend(host);
         window.RSVP_DEVICE_DELIVERY.appendShare(host, {
-          R: window.RSVP, T: (text) => window.RSVP_I18N.t(text),
-          q: { message_image: picture, message_body: "Hello\nhttps://example.invalid/?=ABCDEFGH", message_subject: "Invitation", invitation_code_snapshot: "ABCDEFGH" },
-          authorize: async () => true, recordHandoff: async () => { window.__pictureHandoffs = (window.__pictureHandoffs || 0) + 1; }, show: () => {},
+          R: window.RSVP,
+          T: (text) => window.RSVP_I18N.t(text),
+          q: {
+            message_image: picture,
+            message_body: "Hello\nhttps://example.invalid/?=ABCDEFGH",
+            message_subject: "Invitation",
+            invitation_code_snapshot: "ABCDEFGH",
+          },
+          authorize: async () => true,
+          recordHandoff: async () => {
+            window.__pictureHandoffs = (window.__pictureHandoffs || 0) + 1;
+          },
+          show: () => {},
         });
       }, picture);
       const trigger = page.locator("#pictureShareFixture button");
       await trigger.click();
-      const dialog = page.getByRole("dialog", { name: "Share invitation", exact: true });
+      const dialog = page.getByRole("region", {
+        name: "Share invitation",
+        exact: true,
+      });
       if (process.env.RSVP_PICTURE_PREVIEW_DIR) {
         fs.mkdirSync(process.env.RSVP_PICTURE_PREVIEW_DIR, { recursive: true });
-        await dialog.screenshot({ path: `${process.env.RSVP_PICTURE_PREVIEW_DIR}/invitation-share-${width}.png` });
+        await dialog.screenshot({
+          path: `${process.env.RSVP_PICTURE_PREVIEW_DIR}/invitation-share-${width}.png`,
+        });
       }
-      await dialog.getByRole("button", { name: "Share picture and text", exact: true }).click();
+      await dialog
+        .getByRole("button", { name: "Share picture and text", exact: true })
+        .click();
       const shared = await page.evaluate(() => window.__pictureShares.at(-1));
       assert.equal(shared.files[0].type, "image/jpeg");
       assert.equal(shared.files[0].size, fixture.length);
       assert.equal(shared.text, "Hello\nhttps://example.invalid/?=ABCDEFGH");
       assert.equal(shared.activation, true);
       assert.equal(shared.url, undefined);
-      await dialog.getByRole("button", { name: "Share picture", exact: true }).click();
-      const imageOnly = await page.evaluate(() => window.__pictureShares.at(-1));
+      await dialog
+        .getByRole("button", { name: "Share picture", exact: true })
+        .click();
+      const imageOnly = await page.evaluate(() =>
+        window.__pictureShares.at(-1),
+      );
       assert.equal(imageOnly.text, undefined);
       assert.equal(imageOnly.files.length, 1);
-      await dialog.getByRole("button", { name: "Copy message", exact: true }).click();
-      assert.equal(await page.evaluate(() => window.__pictureCopied), shared.text);
+      await dialog
+        .getByRole("button", { name: "Copy message", exact: true })
+        .click();
+      assert.equal(
+        await page.evaluate(() => window.__pictureCopied),
+        shared.text,
+      );
       await dialog.getByRole("button", { name: "Close", exact: true }).click();
-      await page.evaluate(() => { window.__rejectCombined = true; });
+      await page.evaluate(() => {
+        window.__rejectCombined = true;
+      });
       await trigger.click();
-      await dialog.getByRole("button", { name: "Share picture and text", exact: true }).click();
-      await dialog.getByText("System sharing is unavailable here. Use Copy message or open a device app.", { exact: true }).waitFor();
-      assert.equal(await dialog.getByRole("button", { name: "Share picture", exact: true }).isEnabled(), true);
+      await dialog
+        .getByRole("button", { name: "Share picture and text", exact: true })
+        .click();
+      await dialog
+        .getByText(
+          "System sharing is unavailable here. Use Copy message or open a device app.",
+          { exact: true },
+        )
+        .waitFor();
+      assert.equal(
+        await dialog
+          .getByRole("button", { name: "Share picture", exact: true })
+          .isEnabled(),
+        true,
+      );
       const before = await page.evaluate(() => window.__pictureHandoffs);
-      await page.evaluate(() => { window.__cancelShare = true; });
-      await dialog.getByRole("button", { name: "Share picture", exact: true }).click();
-      assert.equal(await page.evaluate(() => window.__pictureHandoffs), before, "cancelled share never logs a handoff");
-      assert.equal(await page.evaluate(() => window.__calls.some((c) => c.name === "admin_record_delivery_sent")), false);
-      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.evaluate(() => {
+        window.__cancelShare = true;
+      });
+      await dialog
+        .getByRole("button", { name: "Share picture", exact: true })
+        .click();
+      assert.equal(
+        await page.evaluate(() => window.__pictureHandoffs),
+        before,
+        "cancelled share never logs a handoff",
+      );
+      assert.equal(
+        await page.evaluate(() =>
+          window.__calls.some((c) => c.name === "admin_record_delivery_sent"),
+        ),
+        false,
+      );
+      assert.equal(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+        true,
+      );
       await dialog.getByRole("button", { name: "Close", exact: true }).click();
       if (width === 390) {
         await page.evaluate(() => {
           window.__accessPermissions.preset = "custom";
           window.__accessPermissions.sections.settings = "view";
         });
-        await page.locator("#refreshButton").evaluate((button) => button.click());
+        await page
+          .locator("#refreshButton")
+          .evaluate((button) => button.click());
         await page.locator("#settingsToggle").click();
         await page.getByRole("tab", { name: "Templates", exact: true }).click();
-        await page.waitForFunction(() => document.querySelectorAll("#invitationTemplatesList form").length === 0);
+        await page.waitForFunction(
+          () =>
+            document.querySelectorAll("#invitationTemplatesList form")
+              .length === 0,
+        );
         assert.equal(await section.locator("[data-local-edit]").count(), 0);
-        await section.getByRole("button", { name: "Test sharing", exact: true }).click();
-        await testDialog.getByRole("button", { name: "Copy message", exact: true }).click();
-        assert.equal(await page.evaluate(() => window.__pictureCopied), "Hello " + new URL("/#guest-preview=landing", page.url()).href);
-        assert.equal(await page.evaluate(() => window.__calls.some((c) => c.name === "admin_record_delivery_sent")), false);
+        await section
+          .getByRole("button", { name: "Test sharing", exact: true })
+          .click();
+        await testDialog
+          .getByRole("button", { name: "Copy message", exact: true })
+          .click();
+        assert.equal(
+          await page.evaluate(() => window.__pictureCopied),
+          "Hello " + new URL("/#guest-preview=landing", page.url()).href,
+        );
+        assert.equal(
+          await page.evaluate(() =>
+            window.__calls.some((c) => c.name === "admin_record_delivery_sent"),
+          ),
+          false,
+        );
       }
+      assert.equal(
+        productionRequests,
+        0,
+        "installed-site fixtures must not call production APIs",
+      );
       assert.deepEqual(errors, []);
-      console.log(`PASS ${width}px invitation picture upload/re-encode, Cancel, save retry, read preview, removal, combined/picture-only sharing, copy/link preservation and cancellation.`);
+      console.log(
+        `PASS ${width}px invitation picture upload/re-encode, Cancel, save retry, read preview, removal, combined/picture-only sharing, copy/link preservation and cancellation.`,
+      );
       await page.close();
     }
-  } finally { await browser.close(); await new Promise((r) => server.close(r)); }
-})().catch((error) => { console.error(error); process.exitCode = 1; });
+  } finally {
+    await browser.close();
+    await new Promise((r) => server.close(r));
+  }
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

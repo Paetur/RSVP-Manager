@@ -149,8 +149,11 @@
   margin-bottom: 0;
 }
 .rsvp-session > .venue-welcome {
-  margin-top: 0;
-  margin-bottom: 8px;
+  grid-column: 1/-1;
+  grid-row: 4;
+  margin: 8px 0 12px;
+  padding-left: calc((100% - 12px) * 0.85 / 3 + 12px);
+  text-align: center;
 }
 #rsvpEditor > .rsvp-rows {
   margin-bottom: 8px;
@@ -315,11 +318,16 @@
 }
 
 /* Save/Cancel stay at the start; guarded lifecycle actions finish the editor. */
-#adminApp .editor-lifecycle-actions {
-  display: inline-flex;
+#adminApp .editor-lifecycle-actions,
+#adminApp .form-actions .item-lifecycle-actions {
+  display: flex;
   gap: 8px;
   align-items: center;
-  margin-left: auto;
+  width: 100%;
+  flex-basis: 100%;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 8px;
   flex-wrap: wrap;
 }
 #adminApp .guest-edit-actions {
@@ -405,7 +413,7 @@
 #adminApp
   .settings-card-editing
   > .settings-card-heading
-  > .settings-card-pencil {
+  > :is(.settings-card-pencil, .settings-card-action) {
   display: none;
 }
 #adminApp .settings-card > .muted {
@@ -469,4 +477,39 @@
   #adminApp .settings-card-heading {
     gap: 10px;
   }
+}
+
+@media (max-width: 700px) {
+  .guest-courtesy-title { display: none; }
+  .rsvp-session > .venue-welcome { padding-left: 0; }
+}
+
+/* Inline editors belong to the represented record, without a modal backdrop. */
+.inline-editor-panel,
+#adminApp .inline-editor-panel {
+  position: static;
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  max-height: none;
+  overflow: visible;
+  margin: 14px 0;
+  padding: 16px 0 0 14px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-left: 3px solid var(--teal);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+  gap: 12px;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.inline-editor-panel > p { white-space: pre-line; }
+.inline-editor-panel .form-actions { flex-wrap: wrap; }
+.recipe-print-view { display: none; }
+@media print {
+  body:has(> .recipe-print-view) > :not(.recipe-print-view) { display: none !important; }
+  body > .recipe-print-view { display: block; font: 16px/1.5 system-ui; color: black; background: white; }
 }

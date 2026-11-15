@@ -105,11 +105,11 @@ const groupsRpc=client.rpc;client.rpc=async(name,args)=>{
         name: "Ungroup items",
         exact: true,
       });
-      page.once("dialog", (d) => d.dismiss());
       await ungroup.click();
+      await page.locator(".inline-confirmation").getByRole("button",{name:"Cancel",exact:true}).click();
       assert.equal(await page.evaluate(() => window.__ungroupAttempts), 0);
-      page.once("dialog", (d) => d.accept());
       await ungroup.click();
+      await page.locator(".inline-confirmation").getByRole("button",{name:"Ungroup items",exact:true}).click();
       await page
         .locator("#adminMessage")
         .filter({ hasText: "Synthetic ungroup conflict" })

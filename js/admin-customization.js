@@ -311,12 +311,18 @@
       ),
       make("p", {}, T("Please let us know who will attend.")),
     );
-    const choices = make("div", { class: "customization-sample-choices" });
-    choices.append(
-      make("span", {}, T("Guest")),
-      button("Attending", () => {}, ""),
-      button("Not attending", () => {}, "secondary"),
-    );
+    const choices = make("div", { class: "rsvp-inline customization-sample-choices" }),
+      person = make("div", { class: "rsvp-person-row" }),
+      sampleOptions = make("div", { class: "response-options" });
+    person.append(make("span", { class: "rsvp-person-name" }, T("Guest")), sampleOptions);
+    for (const [index, caption] of ["Attending", "Not attending"].entries()) {
+      const label = make("label", { class: "radio-pill" }),
+        radio = make("input", { type: "radio", name: "appearance-preview-attendance", value: String(index) });
+      radio.checked = index === 0;
+      label.append(radio, make("span", {}, T(caption)));
+      sampleOptions.append(label);
+    }
+    choices.append(person);
     session.append(choices);
     const sampleButton = button("Review RSVP", () => {}, "");
     sampleButton.disabled = true;

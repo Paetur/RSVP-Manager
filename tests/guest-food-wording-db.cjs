@@ -28,8 +28,8 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     );
     await db.query("SELECT public.admin_save_food_interest_reply($1,$2,$3)", [
       {
-        en: "Please return around {invite-deadline:+5}",
-        de: "Bitte am {invite-deadline:+5} wiederkommen",
+        en: "Please return around {rsvp_deadline:+5}",
+        de: "Bitte am {rsvp_deadline:+5} wiederkommen",
       },
       { en: "Please check again later." },
       [],
@@ -47,11 +47,11 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     );
     for (const [replies, fallbacks] of [
       [{ en: "{unknown}" }, {}],
-      [{ en: "{invite-deadline:+367}" }, {}],
-      [{ en: "{invite-deadline:5}" }, {}],
+      [{ en: "{rsvp_deadline:+367}" }, {}],
+      [{ en: "{rsvp_deadline:5}" }, {}],
       [{ en: "x".repeat(6001) }, {}],
       [{ xx: "Unknown language" }, {}],
-      [{}, { en: "{invite-deadline}" }],
+      [{}, { en: "{rsvp_deadline}" }],
     ]) {
       await assert.rejects(
         () =>
@@ -69,7 +69,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     await db.exec("SET ROLE authenticated");
     assert.equal(
       payload.event.food_interest_reply.en,
-      "Please return around {invite-deadline:+5}",
+      "Please return around {rsvp_deadline:+5}",
     );
     assert.equal(
       payload.event.food_interest_reply_fallback.en,

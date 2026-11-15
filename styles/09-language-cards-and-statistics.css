@@ -256,3 +256,33 @@
     min-height: 44px;
   }
 }
+
+.placeholder-reference-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.4fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.placeholder-reference-row p {
+  margin: 4px 0 0;
+}
+#placeholderReference > input {
+  max-width: 360px;
+  margin-bottom: 12px;
+}
+@media (max-width: 700px) {
+  .placeholder-reference-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .placeholder-reference-row > div {
+    grid-row: 2;
+    grid-column: 1/-1;
+  }
+  .placeholder-reference-row > button {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}

@@ -18,11 +18,11 @@ Allow food in Household details controls whether the household may participate i
 
 A venue is a place. A session is an activity at a place and time. Several sessions can use the same venue.
 
-Use Venues to create and order places and sessions. Check each session’s venue and local time carefully. Manage households on a session lets you add or remove household invitations in bulk. Invites also provides household defaults and individual guest exceptions.
+Use Venues to create and order places and sessions. Check each session’s venue and local time carefully. Manage households on a session lets you add or remove household invitations in bulk. Households → Household details provides session checkboxes and a collapsed Individual guest exceptions section. Save applies the household details and changed invitations together.
 
 ## Replies
 
-Open Invites for session invitations and RSVP management. Review which sessions each household and individual is invited to. Use the provided correction/reopening actions when a guest needs help changing a submitted reply; keep a clear reason for the change.
+Open Households → Household details for session invitations; use Invites for RSVP management. Review which sessions each household and individual is invited to. Use the provided correction/reopening actions when a guest needs help changing a submitted reply; keep a clear reason for the change.
 
 ## Preview the guest experience
 
@@ -44,7 +44,7 @@ Use `{invitation_link}` in the message. You can also use `{household_name}` and 
 
 Invites opens with event statistics, followed by active households containing guests grouped by top-level and relational group. Grouped Invites follows Households: configured top-level order, relational-group order, then parents before their descendants with manual sibling ordering. Empty grouping households are omitted from Invites while preserving their descendants’ place. Untick **Group by top-level / relational group** to use a flat list; filtering and refreshing data keep your current layout choice during the page session. Its progress buttons filter **Not sent**, **Ready**, **Marked sent**, **Awaiting reply** and **Replied**. Counts are households, not individual delivery attempts; sent/ready/replied categories can overlap when a reminder is being prepared. The latest draft/attempt and last recorded sent date remain separate from RSVP status. A reopened RSVP is awaiting a new response even if earlier responses remain in history.
 
-Search household or recipient details, or filter by group, language and delivery channel. Enable **Group by top-level / relational group** for a grouped view. Preview opens the authorized guest view; Prepare/Review/Follow up expands the delivery tools. Session invitations and RSVP management remain available inside the expanded row.
+Search household or recipient details, or filter by group, language and delivery channel. Enable **Group by top-level / relational group** for a grouped view. Preview opens the authorized guest view; Prepare/Review/Follow up expands the delivery tools. RSVP management remains available inside the expanded row; session invitation choices are in Household details.
 
 Drafts can be prepared while unpublished, using `{invitation_link}` as a placeholder without issuing or releasing a code. Marking ready, opening messaging apps and recording sending remain publication gated. After publication, reopen and save the draft to resolve its current link and recipient/code snapshot before marking it ready. Sent and cancelled records remain read-only; a reminder is a separate draft. Notes/reasons and sending acknowledgements use the existing delivery history.
 
@@ -70,7 +70,7 @@ A reminder is a new draft. It does not change the original sending record.
 
 Editing invitations and sending them are separate permissions. Someone may be allowed to prepare drafts without sending, or send a prepared invitation without editing it.
 
-In **Invites**, expand a household to see **Session invitations**, **RSVP**, and **Invitation delivery** in place. Use **Copy link** on the row to copy the private invitation link after publication.
+In **Invites**, expand a household to see **RSVP** and **Invitation delivery** in place. Session invitations are in **Households → Household details**, using the household’s Save/Cancel controls. Individual guest exceptions retain Follow household / Invited / Not invited, and RSVP history protects invitation changes. Use **Copy link** on the row to copy the private invitation link after publication.
 
 ## Guest and household contact details
 

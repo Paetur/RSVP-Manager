@@ -70,7 +70,7 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
       () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
     );
     await page.locator("#settingsToggle").click();
-    await page.locator("[data-settings-tab=interface]").click();
+    await page.locator("[data-settings-tab=checklist]").click();
     await openBox(page, "personal-preferences");
     return { context, page, errors };
   }
@@ -271,7 +271,7 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
     );
     assert.equal(profiles.a.user_metadata.rsvp_interface_language, "de");
     await page.locator("#settingsToggle").click();
-    await page.locator("[data-settings-tab=interface]").click();
+    await page.locator("[data-settings-tab=checklist]").click();
     assert.equal(
       await page.locator("#savePersonalPreferences").innerText(),
       "Speichern",

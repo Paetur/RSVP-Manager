@@ -13,8 +13,9 @@ const sql = fs.readFileSync("supabase/install.sql", "utf8");
       )
     ).rows;
     assert.equal(tables.filter((t) => t.schema === "public").length, 42);
-    assert.equal(tables.filter((t) => t.schema === "app_private").length, 5);
+    assert.equal(tables.filter((t) => t.schema === "app_private").length, 7);
     assert.ok(tables.filter((t) => t.schema === "public").every((t) => t.rls));
+    for (const name of ["backup_origin", "restore_safety_receipts"]) assert.ok(tables.some(t => t.schema === "app_private" && t.name === name && t.rls));
     for (const name of [
       "stuff_to_bring",
       "things_to_do",
@@ -53,7 +54,7 @@ const sql = fs.readFileSync("supabase/install.sql", "utf8");
     const created = [
       ...sql.matchAll(/^CREATE TABLE ((?:public|app_private)\.[a-z_]+) \(/gm),
     ].map((m) => m[1]);
-    assert.equal(created.length, 47);
+    assert.equal(created.length, 49);
     await db.exec(
       created
         .map((name) => "ALTER TABLE " + name + " ENABLE ROW LEVEL SECURITY;")

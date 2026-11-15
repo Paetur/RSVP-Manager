@@ -52,7 +52,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
    await food.getByRole('checkbox',{name:'Garden'}).check();
  }
  await food.locator('[name="description_en"]').fill('');
- await food.getByRole('button',{name:'Save food item',exact:true}).click();
+ await food.getByRole('button',{name:'Save',exact:true}).click();
  await page.waitForFunction(()=>window.__savedFood?.description_en==='');
  await food.getByRole('button',{name:'Edit food item',exact:true}).click();
  assert.equal(await food.locator('[name="description_en"]').inputValue(),'');
@@ -64,21 +64,26 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await food.getByRole('button',{name:'Edit food item',exact:true}).click();
  await food.locator('[name="quantity_needed"]').fill('6');
  await languageButton.click();
- const languageDialog=page.getByRole('dialog',{name:'Language · Sample dish',exact:true});
+ const languageDialog=page.getByRole("region",{name:'Language · Sample dish',exact:true});
  await languageDialog.waitFor();
  assert.equal(await languageDialog.getByLabel(/^Type ·/).count(),0);
  assert.equal(await languageDialog.getByLabel(/^Guest note ·/).count(),3);
  assert.equal(await languageDialog.locator('.food-translation-row').count(),3);
- for(const row of await languageDialog.locator('.food-translation-row').all())assert.equal(await row.getByRole('textbox').count(),2);
+ for(const row of await languageDialog.locator('.food-translation-row').all()){await languageDialog.locator('[data-inline-language-code="'+await row.getAttribute('data-language-code')+'"]').click();assert.equal(await row.getByRole('textbox').count(),2);}
+ await languageDialog.locator('[data-inline-language-code="fo"]').click();
  await languageDialog.locator('[data-language-code="fo"]').getByRole('textbox').first().fill('Discard this translation');
  await languageDialog.getByRole('button',{name:'Cancel',exact:true}).click();
  await languageDialog.waitFor({state:'detached'});
  assert.equal(await page.evaluate(()=>window.__foodTranslationSaves||0),0,'cancel does not save');
  await page.waitForFunction(()=>document.activeElement?.hasAttribute('data-food-language'));
  await languageButton.click();
+ await languageDialog.locator('[data-inline-language-code="fo"]').click();
  assert.notEqual(await languageDialog.locator('[data-language-code="fo"]').getByRole('textbox').first().inputValue(),'Discard this translation');
+ await languageDialog.locator('[data-inline-language-code="fo"]').click();
  await languageDialog.locator('[data-language-code="fo"]').getByRole('textbox').first().fill('Føroyskur rættur');
+ await languageDialog.locator('[data-inline-language-code="de"]').click();
  await languageDialog.locator('[data-language-code="de"]').getByRole('textbox').nth(1).fill('Bitte gekühlt bringen');
+ await languageDialog.locator('[data-inline-language-code="fo"]').click();
  await languageDialog.locator('[data-language-code="fo"]').getByRole('textbox').nth(1).fill('Tak við køldum');
  assert.equal(await page.evaluate(()=>window.__foodTranslationSaves||0),0,'typing does not save');
  await page.setViewportSize({width:390,height:844});
@@ -90,10 +95,11 @@ async function run(type){const browser=await type.launch({headless:true});try{
   await languageDialog.screenshot({path:process.env.FOOD_LANGUAGE_POPUP_PREVIEW+'/food-item-languages.png'});
  }
  await page.evaluate(()=>{window.__failFoodTranslations=true;});
- await languageDialog.getByRole('button',{name:'Save translations',exact:true}).click();
+ await languageDialog.getByRole('button',{name:'Save',exact:true}).click();
  await languageDialog.getByRole('alert').filter({hasText:'Simulated translation failure'}).waitFor();
+ await languageDialog.locator('[data-inline-language-code="fo"]').click();
  assert.equal(await languageDialog.locator('[data-language-code="fo"]').getByRole('textbox').first().inputValue(),'Føroyskur rættur');
- await languageDialog.getByRole('button',{name:'Save translations',exact:true}).click();
+ await languageDialog.getByRole('button',{name:'Save',exact:true}).click();
  await languageDialog.waitFor({state:'detached'});
  assert.equal(await page.evaluate(()=>window.__savedTranslations.p_changes.length),3);
  assert.equal(await food.locator('[name="quantity_needed"]').inputValue(),'6','unfinished food draft survives translation save');
@@ -101,17 +107,17 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await food.getByRole('button',{name:'Cancel',exact:true}).click();
  const recipeText='Melt:\n - 360g dark chocolate\n - 300g butter\n\nStir well';
  await food.getByRole('button',{name:'+ Recipe',exact:true}).click();
- const recipeDialog=page.getByRole('dialog',{name:'Recipe'});
+ const recipeDialog=page.getByRole("region",{name:'Recipe'});
  await recipeDialog.getByLabel('Recipe',{exact:true}).fill(recipeText);
  if(process.env.FOOD_PREVIEW&&type.name()==='chromium')await recipeDialog.screenshot({path:process.env.FOOD_PREVIEW+'/food-recipe-popup.png'});
  await recipeDialog.getByRole('button',{name:'Save',exact:true}).click();
  const recipeLink=food.getByRole('button',{name:'Recipe',exact:true});
  await recipeLink.waitFor();
- await page.evaluate(()=>{window.open=()=>{const doc=document.implementation.createHTMLDocument();return {document:doc,focus(){},print(){window.__recipePrint=doc.body.textContent;}};};});
- await recipeLink.click();await page.getByRole('dialog',{name:'Recipe',exact:true}).getByRole('button',{name:/^Edit/}).click();await page.getByRole('dialog',{name:'Recipe',exact:true}).getByRole('button',{name:'Preview',exact:true}).click();
+ await page.evaluate(()=>{window.print=()=>{window.__recipePrint=document.querySelector('.recipe-print-view').textContent;window.dispatchEvent(new Event('afterprint'));};});
+ await recipeLink.click();await page.getByRole("region",{name:'Recipe',exact:true}).getByRole('button',{name:/^Edit/}).click();await page.getByRole("region",{name:'Recipe',exact:true}).getByRole('button',{name:'Preview',exact:true}).click();
  assert.match(await page.evaluate(()=>window.__recipePrint),/^Sample dishMelt:/);
  assert.equal(await food.evaluate(n=>n.open),true);
- assert.equal(await page.evaluate(()=>window.__savedFood.recipe_text),recipeText);await page.getByRole('dialog',{name:'Recipe',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.__savedFood.recipe_text),recipeText);await page.getByRole("region",{name:'Recipe',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();
  const itemSelection=food.locator('.food-selection-editor');
  await itemSelection.locator('summary').click();
  await itemSelection.getByLabel('Household',{exact:true}).selectOption({label:'Example child'});
@@ -142,14 +148,14 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await claimRow.getByRole('button',{name:'Save',exact:true}).click();
  await summary.getByText('Example child · 3',{exact:true}).waitFor();
  if(process.env.PREVIEW_OUTPUT)await page.locator('[data-panel="food"]').screenshot({path:process.env.PREVIEW_OUTPUT+'/food-admin-draft.png'});
- page.once('dialog',dialog=>dialog.accept());
  await food.getByRole('button',{name:'Remove assignment for Example child'}).click();
+ await page.locator('.inline-confirmation [data-inline-confirm]').click();
  await summary.locator('.food-claim-summary').waitFor({state:'detached'});
  assert.equal(await page.locator('.food-category-heading .tree-count').first().textContent(),'1 item · Quantity: 0/4');
  await page.evaluate(()=>window.__fixtures.food_items.forEach(f=>{f.description_en=null;f.admin_comment=null;}));await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);assert.equal(await page.locator('.food-comment-grid').count(),0,'empty read-only comments are omitted');
- await page.locator('.food-category-heading').first().getByRole('button',{name:'Add item or sub-category',exact:true}).click();await page.getByRole('dialog',{name:'Add item or sub-category',exact:true}).getByRole('button',{name:'Add item',exact:true}).click();
+ await page.locator('.food-category-heading').first().getByRole('button',{name:'Add item or sub-category',exact:true}).click();await page.getByRole("dialog",{name:'Add item or sub-category',exact:true}).getByRole('button',{name:'Add item',exact:true}).click();
  await page.locator('#addFoodType').click();
- const typesDialog=page.getByRole('dialog',{name:'Manage units',exact:true});
+ const typesDialog=page.getByRole("region",{name:'Manage units',exact:true});
  await typesDialog.getByLabel('New food unit',{exact:true}).fill('Basket(s)');
  await typesDialog.getByRole('button',{name:'Add unit',exact:true}).click();
  await typesDialog.getByText('Unit added',{exact:true}).waitFor();
@@ -286,7 +292,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);
  await venue.locator(':scope > summary').evaluate(summary=>summary.parentElement.open=true);if(!await venue.locator('form.reading-editor').isVisible())await venue.locator('[data-record-pencil]').click();
  await venue.getByRole('button',{name:'Manage food',exact:true}).click();
- const foodDialog=page.getByRole('dialog',{name:'Venue food'});
+ const foodDialog=page.getByRole("region",{name:'Venue food'});
  assert.deepEqual(await foodDialog.locator('legend').allTextContents(),['Main dishes','Desserts']);
  assert.deepEqual(await foodDialog.getByRole('group',{name:'Main dishes'}).locator('label').allTextContents(),['First dish','Sample dish']);
  assert.ok(await foodDialog.getByRole('checkbox',{name:'First dish',exact:true}).isChecked());
@@ -317,7 +323,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  const dinner=page.locator('#sessionsList > details').filter({hasText:'Dinner'});
  await dinner.locator(':scope > summary').click();if(!await dinner.locator('form.reading-editor').isVisible())await dinner.locator('[data-record-pencil]').click();
  await dinner.getByRole('button',{name:'Manage households',exact:true}).click();
- const householdDialog=page.getByRole('dialog',{name:'Manage households'});
+ const householdDialog=page.getByRole("region",{name:'Manage households'});
  const protectedRow=householdDialog.getByRole('checkbox',{name:/Example parent/});
  assert.ok(await protectedRow.isDisabled());
  assert.ok(await protectedRow.isChecked());
@@ -339,7 +345,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  const adminEditor=page.locator('#adminList .permission-editor');
  await adminEditor.getByLabel('Display name',{exact:true}).fill('Updated example admin');
  if(process.env.ADMIN_NAME_PREVIEW&&type.name()==='chromium')await admin.screenshot({path:process.env.ADMIN_NAME_PREVIEW+'/administrator-name-edit.png'});
- page.once('dialog',dialog=>dialog.accept());await adminEditor.getByRole('button',{name:'Save',exact:true}).click();
+ await adminEditor.getByRole('button',{name:'Save',exact:true}).click();await page.locator('.inline-confirmation [data-inline-confirm]').click();
  await admin.getByText('Updated example admin',{exact:true}).waitFor();
  assert.ok(await admin.getByText('test-admin@example.invalid',{exact:true}).isVisible());
  await page.locator('#mainSectionToggle').click();await selectWorkTab(page,'other');assert.equal(await page.locator('.other-line').count(),1);assert.equal(await page.locator('.other-line input').first().isDisabled(),true);assert.equal(await page.locator('.other-line-summary input').count(),0,'plain text summaries');
@@ -350,7 +356,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  const guest=await browser.newPage();
  const guestMock=mock+`\nconst publicRpc=client.rpc;client.rpc=async(name,args)=>name.startsWith('get_public_event')?{data:{event:{event_name:'Example',default_language:'en',timezone:'UTC'},content:{},sessions:[]}}:publicRpc(name,args);let mine=0;const items=[{id:'dish',name_en:'Cake',description_en:'Bring chilled',recipe_text:${JSON.stringify(recipeText)},quantity_needed:2,claimed_total:0}];client.functions={invoke:async(name,request)=>{const a=request.body.action,p=request.body.params||request.body.args||{};if(a==='get_invitation_v2')return {data:{household:{name:'Example household',language:'en',rsvp_state:'open'},guests:[{id:'g',first_name:'Example'}],invitations:[]}};if(a==='get_household_food')return {data:{items,claims:mine?[{food_item_id:'dish',quantity:mine}]:[]}};if(a==='set_household_food_claim'){window.__pick=request.body;mine=1;items[0].claimed_total=1;return {data:null};}return {data:null};}};`;
  await guest.route('**/supabase.min.js',r=>r.fulfill({contentType:'text/javascript',body:guestMock}));await guest.goto('http://127.0.0.1:'+server.address().port+'/?ABCDEFGH');await guest.locator('#foodCard:not(.hidden)').waitFor();
- assert.equal(await guest.locator('#foodList input[type=number]').count(),1);assert.equal(await guest.locator('#foodList input[type=number]').inputValue(),'1');assert.equal(await guest.locator('#foodList input[type=number]').getAttribute('max'),'2');assert.match(await guest.locator('.food-availability').textContent(),/Needed: 2.*Still available: 2/);await guest.locator('.guest-food-information > summary').click();assert.ok((await guest.locator('.guest-food-note').textContent()).includes('Bring chilled'));await guest.getByRole('button',{name:'Recipe',exact:true}).click();assert.equal(await guest.locator('.recipe-content li').count(),2);await guest.evaluate(()=>{window.open=()=>{const doc=document.implementation.createHTMLDocument();return {document:doc,focus(){},print(){window.__recipePrint=doc.body.textContent;}};};});await guest.getByRole('button',{name:'Print',exact:true}).click();assert.match(await guest.evaluate(()=>window.__recipePrint),/^CakeMelt:360g dark chocolate300g butterStir well$/);if(process.env.PREVIEW_OUTPUT)await guest.locator('#foodCard').screenshot({path:process.env.PREVIEW_OUTPUT+'/food-guest-draft.png'});await guest.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();await guest.locator('.guest-food-choice>button').click();await guest.waitForFunction(()=>window.__pick);const pick=await guest.evaluate(()=>window.__pick);assert.equal((pick.params||pick.args||pick).p_quantity,1);await guest.close();
+ assert.equal(await guest.locator('#foodList input[type=number]').count(),1);assert.equal(await guest.locator('#foodList input[type=number]').inputValue(),'1');assert.equal(await guest.locator('#foodList input[type=number]').getAttribute('max'),'2');assert.match(await guest.locator('.food-availability').textContent(),/Needed: 2.*Still available: 2/);await guest.locator('.guest-food-information > summary').click();assert.ok((await guest.locator('.guest-food-note').textContent()).includes('Bring chilled'));await guest.getByRole('button',{name:'Recipe',exact:true}).click();assert.equal(await guest.locator('.recipe-content li').count(),2);await guest.evaluate(()=>{window.print=()=>{window.__recipePrint=document.querySelector('.recipe-print-view').textContent;window.dispatchEvent(new Event('afterprint'));};});await guest.getByRole('button',{name:'Print',exact:true}).click();assert.match(await guest.evaluate(()=>window.__recipePrint),/^CakeMelt:360g dark chocolate300g butterStir well$/);if(process.env.PREVIEW_OUTPUT)await guest.locator('#foodCard').screenshot({path:process.env.PREVIEW_OUTPUT+'/food-guest-draft.png'});await guest.getByRole("region").getByRole('button',{name:'Close',exact:true}).click();await guest.locator('.guest-food-choice>button').click();await guest.waitForFunction(()=>window.__pick);const pick=await guest.evaluate(()=>window.__pick);assert.equal((pick.params||pick.args||pick).p_quantity,1);await guest.close();
  console.log('PASS '+type.name()+': compact food, private/public comments, scoped translations, task sheet and guest quantity controls with one-unit default.');
 }finally{await browser.close();}}
 server.listen(0,'127.0.0.1',async()=>{try{await run(chromium);if(process.env.RSVP_TEST_BROWSER!=='chromium')await run(webkit);}catch(e){console.error(e);process.exitCode=1;}finally{server.close();}});

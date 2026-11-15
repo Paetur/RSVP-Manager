@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 const context = { window: {} };
+vm.runInNewContext(fs.readFileSync("js/household-name.js", "utf8"), context);
 vm.runInNewContext(fs.readFileSync("js/admin-overview.js", "utf8"), context);
 const { eventCounts, invitationOverview } = context.window.RSVP_ADMIN_OVERVIEW;
 const plain = (value) => JSON.parse(JSON.stringify(value));

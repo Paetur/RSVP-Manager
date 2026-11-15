@@ -55,24 +55,29 @@
 .invite-overview-viewbar > span {
   margin-left: auto;
 }
+#inviteRows {
+  --invite-columns: minmax(200px, 1.6fr) minmax(90px, 1fr) minmax(100px, 1fr) minmax(80px, .8fr) minmax(160px, 1.2fr);
+}
+#inviteRows.has-food-interest {
+  --invite-columns: minmax(200px, 1.7fr) minmax(90px, .9fr) minmax(100px, 1fr) minmax(80px, .7fr) minmax(90px, .8fr) minmax(160px, 1.2fr);
+}
 .invite-overview-heading,
 #adminApp .invite-overview-row {
   display: grid;
-  grid-template-columns:
-    minmax(140px, 1.4fr) minmax(100px, 1fr) minmax(115px, 1fr)
-    minmax(95px, 0.8fr) minmax(140px, auto);
+  grid-template-columns: var(--invite-columns);
   gap: 12px;
   align-items: center;
 }
 .invite-overview-heading {
   font-size: 0.72rem;
   color: var(--muted);
-  padding: 8px 10px;
+  padding: 8px 2px;
 }
 .invite-overview-row > .invite-overview-identity,
 .invite-overview-row > .invite-overview-recipient,
 .invite-overview-row > .invite-overview-delivery,
-.invite-overview-row > .invite-overview-reply {
+.invite-overview-row > .invite-overview-reply,
+.invite-overview-row > .invite-overview-interest {
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -102,15 +107,20 @@
 .invite-overview-row:before {
   display: none !important;
 }
-.invite-overview-identity:before {
-  content: "›";
-  float: left;
+/* The name owns the single disclosure arrow; identity is one inline row. */
+.invite-overview-row > .invite-overview-identity {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
-.invite-household[open]
-  > .invite-overview-row
-  .invite-overview-identity:before {
-  content: "⌄";
+.invite-overview-identity .invite-compact-name {
+  flex: 0 1 auto;
 }
+.invite-household-meta {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.invite-interest-label { display: none; }
 @media (max-width: 1000px) {
   .invite-overview-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -122,15 +132,20 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
+  #adminApp #inviteRows.has-food-interest .invite-overview-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
   .invite-overview-identity {
     grid-column: 1/-1;
   }
+  .invite-overview-interest { grid-column: 3; grid-row: 2; }
+  .invite-interest-label { display: block; }
   .invite-overview-row .invite-row-actions {
     grid-column: 1/-1;
     justify-content: flex-start;
   }
   .invite-overview-recipient {
-    grid-column: 1;
+    grid-column: 1/-1;
     grid-row: 3;
   }
   .invite-overview-reply {
@@ -223,4 +238,80 @@
   .invitation-template-test .small-tool {
     min-height: 44px;
   }
+}
+
+/* Shared private album; each template keeps an independent picture snapshot. */
+.invitation-album-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.invitation-album-tile {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--white);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.invitation-album-tile .invitation-picture {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  margin: 0;
+}
+.invitation-album-tile[aria-pressed="true"] {
+  border-color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
+}
+.invitation-album-tile[aria-pressed="true"] span::after {
+  content: " ✓";
+  color: var(--teal);
+}
+.invitation-album-dialog {
+  width: min(720px, calc(100% - 28px));
+}
+.invitation-album-dialog > .btn {
+  margin-right: 8px;
+}
+@media (max-width: 700px) {
+  .invitation-album-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Template-derived deliveries lead with a read view, with optional local overrides. */
+.delivery-draft-preview { display: grid; gap: 12px; min-width: 0; padding-block: 12px; }
+.delivery-draft-preview .delivery-message { margin: 0; }
+.delivery-customize > .form-grid { margin-top: 12px; }
+.delivery-review-form > .form-actions { flex-wrap: wrap; }
+@media (max-width: 700px) {
+  #adminApp .invite-overview-row small { font-size: .82rem; }
+}
+
+.invite-overview-row .invite-preview {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px;
+}
+.invite-preview svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#adminApp .invite-row-actions .invite-edit-household {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
 }

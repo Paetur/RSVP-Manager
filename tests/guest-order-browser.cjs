@@ -19,7 +19,7 @@ const { root, out, server, mock, extra, stageExtra } =
         r.fulfill({ contentType: "text/html", body: "<p>Map fixture</p>" }),
       );
       const order =
-        "\nwindow.__invite.guests=[{id:'child1',first_name:'Charlie',last_name:'Test',is_child:true,sort_order:0},{id:'adult1',first_name:'Zoe',last_name:'Test',is_child:false,sort_order:9},{id:'child2',first_name:'Ben',last_name:'Test',is_child:true,sort_order:4},{id:'adult2',first_name:'Alice',last_name:'Test',is_child:false,sort_order:2}];window.__invite.invitations=window.__invite.guests.map(g=>({guest_id:g.id,session_id:s1,requires_rsvp:true}));";
+        "\nwindow.__invite.household.last_name='Family';window.__invite.guests=[{id:'child1',first_name:'Charlie',last_name:'Test',is_child:true,sort_order:0},{id:'adult1',first_name:'Zoe',last_name:'Test',is_child:false,sort_order:9},{id:'child2',first_name:'Ben',last_name:'Test',is_child:true,sort_order:4},{id:'adult2',first_name:'Alice',last_name:'Test',is_child:false,sort_order:2}];window.__invite.invitations=window.__invite.guests.map(g=>({guest_id:g.id,session_id:s1,requires_rsvp:true}));";
       await page.route("**/supabase.min.js", (r) =>
         r.fulfill({
           contentType: "text/javascript",
@@ -29,6 +29,8 @@ const { root, out, server, mock, extra, stageExtra } =
       await page.goto(
         "http://127.0.0.1:" + server.address().port + "/?ABCDEFGH",
       );
+      await page.locator("#householdName").waitFor({ state: "visible" });
+      assert.match(await page.locator("#householdName").innerText(), / Family$/);
       const expected = ["Alice Test", "Zoe Test", "Charlie Test", "Ben Test"];
       await page.locator(".rsvp-person-name").first().waitFor();
       assert.deepEqual(

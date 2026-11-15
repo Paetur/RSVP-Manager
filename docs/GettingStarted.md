@@ -21,7 +21,7 @@ The other top actions refresh the data, change appearance, open the sign-in-prot
 1. Review event details in Settings.
 2. Add venues, then sessions with the right venue and local time.
 3. Add households and guests, preserving any parent–child grouping you need.
-4. Assign session invitations in Invites or through a session’s household manager.
+4. Assign session invitations in Households → Household details, or through a session’s household manager.
 5. Add food categories and items, quantities, units and venue availability.
 6. Review guest-facing text and translations.
 7. Test a complete guest journey and keep a protected backup.

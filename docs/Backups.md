@@ -41,9 +41,9 @@ Encrypted imports are detected automatically and request that file’s password.
 
 Encryption requires HTTPS or localhost, Web Crypto and Web Workers. See [encrypted backup details and development testing](BackupEncryption.md). Passwords are not saved in settings or browser storage and are not sent to the server for encryption.
 
-## Validate and restore
+## Clean-database recovery restore
 
-Restore requires an **empty, unpublished destination**. It cannot merge into or overwrite a populated event.
+Choose **Clean database** for the original recovery workflow. It requires an **empty, unpublished destination**.
 
 1. Prepare the destination with the current alpha baseline and a verified administrator.
 2. Choose the file. Its available sections and log flag determine the choices. Full restore is unavailable for Partial files.
@@ -56,9 +56,21 @@ The restored event stays **unpublished**. Review administrator access separately
 
 Store protected copies away from the planning device and agree retention and recovery ownership.
 
+## Replace event data on this installation
+
+Use this separate destination to return an existing unpublished event to an earlier backup before a test. It requires a full administrator and a complete current-schema Full backup downloaded from the same installation. Partial files and other installations are rejected.
+
+1. Install matching code/schema, then take a fresh Full backup before testing. Protect it and its encryption password.
+2. Select **Replace event data**, open that backup and validate. Review current versus restored record counts and the preserved security boundary.
+3. Download the fresh safety backup offered by the page. It captures the state being replaced and uses your selected compression/encryption options.
+4. Acknowledge replacement and type the displayed **REPLACE** event-name confirmation. If data changes or the 30-minute confirmation expires, validate again and download a new safety backup.
+5. After replacement, review representative invitations, replies, food, wording and pictures. The event remains unpublished.
+
+Event settings, private pictures, household invitation codes, replies, food commitments and delivery records return to the backup state. Current Auth accounts/passwords, administrator access/sessions, pending administrator invitations and security/restore audit history remain; a new restore audit is appended. Failed validation or replacement rolls back atomically. This cannot undo messages already sent or changes to Auth, hosting or runtime configuration.
+
 ## Current alpha format and infrastructure recovery
 
-Current exports use application backup **format 2**, schema **20261114034908**, with 40 application tables. This alpha accepts the current schema only; download a fresh backup when testing a changed schema. There is no old-backup compatibility adapter. Language CSV exports are separate.
+Current exports use application backup **format 2**, schema **20261114034908**, with 40 application tables. Column manifests use a stable field-name order, independent of physical database column order. This alpha accepts the current schema only; download a fresh backup when testing a changed schema. There is no old-backup compatibility adapter. Language CSV exports are separate.
 
 Passwords, Auth sessions, personal administrator Interface preferences, secret keys, email-service settings, rate-limit counters and hosting configuration require separate infrastructure recovery. App sign-in references, if included, are historical information rather than active sessions. Raw Auth-service audit records are not application-backup data. Keep the repository/deployment configuration with the installation owner and rehearse restoration.
 

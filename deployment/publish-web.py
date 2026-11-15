@@ -13,6 +13,7 @@ files = [pathlib.Path(name) for name in [
 for folder, suffixes in [
     ('js', {'.js'}), ('css', {'.css'}), ('locales', {'.json'}),
     ('docs', {'.md', '.html', '.js'}), ('supabase/studio', {'.ts', '.json'}),
+    ('supabase/upgrades', {'.sql'}),
 ]:
     files.extend(p.relative_to(source) for p in (source / folder).rglob('*')
                  if p.is_file() and p.suffix in suffixes

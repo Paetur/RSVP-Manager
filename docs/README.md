@@ -17,3 +17,5 @@ Choose the page that matches what you want to do.
 - [Encrypted backups](BackupEncryption.md) — optional password protection, browser requirements and file format.
 
 - [Automatic cloud setup](AutomaticSetup.md) — trusted local seven-step companion, credentials, retries and public configuration.
+
+- [Upgrade an existing alpha.6 installation to alpha.7](UpgradeAlpha7.md)

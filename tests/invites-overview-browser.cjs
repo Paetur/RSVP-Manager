@@ -15,7 +15,7 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const browser = await chromium.launch();
   try {
-    for (const width of [390, 1024, 1440]) {
+    for (const width of [320, 390, 1024, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 1100 } }),
         errors = [];
       page.setDefaultTimeout(8000);
@@ -46,12 +46,12 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
           .locator(".admin-main-tabs button")
           .first()
           .getAttribute("data-tab"),
-        "invites",
+        "overview",
       );
       assert.equal(await page.locator("[data-panel=dashboard]").count(), 0);
       assert.equal(
         await page
-          .locator("[data-panel=invites] > :first-child")
+          .locator("[data-panel=overview] > :first-child")
           .getAttribute("id"),
         "statsGrid",
       );
@@ -63,6 +63,22 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
       assert.ok(
         (await page.locator("#inviteRows .invite-overview-group").count()) > 0,
       );
+      const geometry = await page.locator(".invite-household > summary").first().evaluate((summary) => {
+        const identity = summary.querySelector('.invite-overview-identity'), name = identity.querySelector('strong'), meta = identity.querySelector('.invite-household-meta');
+        const a=name.getBoundingClientRect(), b=meta.getBoundingClientRect(), reply=summary.querySelector('.invite-overview-reply').getBoundingClientRect(), food=summary.querySelector('.invite-overview-interest').getBoundingClientRect();
+        return { extraArrow:getComputedStyle(identity,'::before').content, nameArrow:getComputedStyle(name,'::before').content, sameLine:Math.abs(a.top-b.top)<6 && b.left>=a.right-1, foodAfterReply:food.left>=reply.right-1, overflow:summary.scrollWidth>summary.clientWidth+1 };
+      });
+      assert.ok(['none','normal','""'].includes(geometry.extraArrow),'identity must not add a second arrow');
+      assert.match(geometry.nameArrow,/›/);
+      assert.equal(geometry.sameLine,true,'guest count and language stay beside the name');
+      assert.equal(geometry.foodAfterReply,true,'food interest follows RSVP as its own column');
+      assert.equal(geometry.overflow,false,'summary stays within its width');
+      assert.deepEqual(await page.locator('.invite-overview-heading > span').allTextContents(),['Household','Recipient / channel','Invitation','RSVP','Food interest','Actions']);
+      if (width > 1000) assert.equal(await page.evaluate(() => {
+        const labels=[...document.querySelectorAll('.invite-overview-heading > span')], cells=[...document.querySelector('.invite-household > summary').children];
+        return cells.every((cell,i)=>Math.abs(cell.getBoundingClientRect().left-labels[i].getBoundingClientRect().left)<3);
+      }),true,'column headings align with their cells');
+      if(process.env.RSVP_INVITE_PREVIEW_DIR){fs.mkdirSync(process.env.RSVP_INVITE_PREVIEW_DIR,{recursive:true});await page.locator('#inviteRows').screenshot({path:path.join(process.env.RSVP_INVITE_PREVIEW_DIR,`invites-${width}.png`)});}
       await page.locator("#settingsToggle").click();
       assert.equal(
         await page
@@ -201,10 +217,11 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
       assert.match(await sent.innerText(), /Manually recorded as sent/);
       const create = sent
         .locator(
-          "#invite-delivery-22222222-2222-4222-8222-222222222222>details",
+          "#invite-delivery-22222222-2222-4222-8222-222222222222>.delivery-create",
         )
         .first();
-      await create.evaluate((n) => (n.open = true));
+      // Direct editor contract: preserve sent history while saving a separate draft.
+      await create.evaluate((n) => (n.hidden = false));
       const form = create.locator("form");
       assert.equal(
         await form
@@ -213,12 +230,13 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
           .count(),
         0,
       );
+      await form.locator(".delivery-customize").evaluate((n) => { n.open = true; });
       await form
         .locator("textarea")
         .first()
         .fill("Draft message {invitation_link}");
       await form
-        .getByRole("button", { name: "Create delivery draft", exact: true })
+        .getByRole("button", { name: "Save draft", exact: true })
         .click();
       await page.waitForFunction(() => window.__draftWrites?.length === 1);
       assert.equal(
@@ -264,7 +282,7 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
       assert.equal(
         await sent
           .locator("button:visible")
-          .filter({ hasText: "Create delivery draft" })
+          .filter({ hasText: "Save draft" })
           .count(),
         0,
       );
@@ -275,6 +293,11 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
         ),
         true,
       );
+      await page.evaluate(() => { window.__accessPermissions.sections.food = "none"; });
+      await refreshFixture(page);
+      await page.waitForFunction(() => !document.querySelector('#refreshButton').disabled);
+      assert.equal(await page.locator('.invite-overview-interest').count(),0,'food column follows Food permission');
+      assert.equal(await page.locator('.invite-overview-heading > span').count(),5);
       assert.deepEqual(errors, []);
       await page.close();
     }

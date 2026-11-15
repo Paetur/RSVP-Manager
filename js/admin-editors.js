@@ -12,6 +12,7 @@
         "Interface",
         "personal",
       ],
+      ["#guestNamesHost form", "guest-names", "Guest titles", "settings"],
       ["#eventFeaturesHost form", "event-features", "Features", "settings"],
       [
         "#planningConfigHost form",
@@ -215,10 +216,15 @@
           )
           ?.focus();
       });
+      if (form.dataset.editorAction) {
+        button.className = "btn secondary edit-only settings-card-action";
+        button.textContent = T(form.dataset.editorAction);
+        button.setAttribute("aria-label", T(form.dataset.editorAction));
+      }
       button.disabled =
         form.getAttribute("aria-busy") === "true" || !editable(policy);
       button.dataset.localEdit = key;
-      button.classList.add("local-editor-pencil");
+      if (!form.dataset.editorAction) button.classList.add("local-editor-pencil");
       const source = form.parentElement.querySelector(
         ":scope > .planning-summary,:scope > .view-only",
       );
@@ -236,7 +242,7 @@
             event.stopPropagation();
           });
         header.append(button);
-        button.classList.add("settings-card-pencil");
+        if (!form.dataset.editorAction) button.classList.add("settings-card-pencil");
       } else box.insertBefore(button, feedback);
       form.classList.add("local-editor-form");
       form.localEditor = { key, box, summary, button, feedback, card };

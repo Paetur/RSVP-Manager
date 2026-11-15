@@ -5,6 +5,7 @@
   let ctx,
     backup = null,
     preview = null,
+    replacementToken = null,
     lastLanguageOrder = 0,
     fileGeneration = 0,
     translationScopeValue = "settings",
@@ -16,7 +17,6 @@
   const translationDrafts = new Map();
   let contentTranslationGroup = "welcome",
     foodTranslationSection = "food",
-    guestTranslationSection = "food-explanation",
     wordingLanguage = "",
     wordingCategory = "all",
     wordingPage = 0,
@@ -47,7 +47,12 @@
     if (error) throw error;
     return data;
   }
+  const replacing = () => $("backupRestoreDestination")?.value === "replace";
   function mode() {
+    const destination = $("backupRestoreDestination"), full = window.RSVP_ADMIN_ACCESS.can("full");
+    if (!full && destination.value === "replace") { destination.value = "clean"; preview = null; replacementToken = null; }
+    destination.disabled = !full || $("restoreBackupForm").getAttribute("aria-busy") === "true";
+
     for (const form of document.querySelectorAll("#languageRows form"))
       for (const control of form.elements)
         control.disabled =
@@ -84,7 +89,20 @@
       !ctx.isEditing() ||
       !preview?.can_restore ||
       !$("restoreBackupAck").checked ||
-      $("restoreBackupConfirmation").value !== "RESTORE " + preview.event_name;
+      $("restoreBackupConfirmation").value !== (replacing() ? "REPLACE " : "RESTORE ") + preview.event_name ||
+      (replacing() && !replacementToken);
+    $("restoreBackupButton").textContent = T(replacing() ? "Replace event data" : "Restore backup");
+    const ackLabel = $("restoreBackupAck").closest("label");
+    if (!ackLabel.dataset.originalSource) {
+      ackLabel.dataset.originalSource = ackLabel.textContent.trim();
+      for (const n of [...ackLabel.childNodes]) if (n.nodeType === Node.TEXT_NODE) n.remove();
+      const text = ctx.R.dom("span"); text.dataset.restoreAckText = "true"; ackLabel.append(text);
+    }
+    ackLabel.querySelector("[data-restore-ack-text]").textContent = T(replacing() ? "I understand current event data will be replaced." : ackLabel.dataset.originalSource);
+
+    $("prepareReplacementSafety").classList.toggle("hidden", !replacing());
+    $("prepareReplacementSafety").disabled = !preview?.can_restore || $("restoreBackupForm").getAttribute("aria-busy") === "true";
+    $("replacementHelp").classList.toggle("hidden", !replacing());
   }
   function foodTypeTranslationKeys() {
     return [
@@ -156,12 +174,13 @@
       renderFoodItemTranslations(body, item);
     }
   }
-  function translationCard(host, key, title) {
+  function translationCard(host, key, title, defaultOpen = false) {
     return window.RSVP_ADMIN_TRANSLATION_CARDS.create(host, {
       R: ctx.R,
       T,
       key,
       title,
+      defaultOpen,
     });
   }
   function matchesTranslation(search, record, prefix) {
@@ -228,9 +247,9 @@
       }))
       .filter((draft) => draft.value !== draft.original);
     const R = ctx.R,
-      dialog = R.dom("dialog", {
+      dialog = R.inlinePanel({
         class: "food-recipe-dialog food-language-dialog",
-      });
+      }, trigger);
     dialog.dataset.permissionEdit = String(!readOnly);
     const title =
       T("interface.messages.language") + " · " + (item.name_en || "");
@@ -239,6 +258,7 @@
     const host = R.dom("div");
     dialog.append(host);
     renderFoodItemTranslations(host, item, () => dialog.close(), readOnly);
+    window.RSVP_INLINE.languages(host);
     const form = host.querySelector("form");
     const cancel = Array.from(form.querySelectorAll("button")).find(
       (button) => button.textContent === T(readOnly ? "Close" : "Cancel"),
@@ -277,7 +297,7 @@
       { once: true },
     );
     $("adminApp").append(dialog);
-    dialog.showModal();
+    dialog.openInline();
     host.querySelector("input")?.focus();
   }
   async function openFoodCategoryTranslations(category, trigger) {
@@ -294,9 +314,9 @@
       editor = trigger.closest(".food-category-name-form"),
       draft = editor.querySelector("input").value,
       wasOpen = !editor.classList.contains("hidden");
-    const dialog = R.dom("dialog", {
+    const dialog = R.inlinePanel({
       class: "food-recipe-dialog food-language-dialog",
-    });
+    }, trigger);
     dialog.dataset.permissionEdit = String(!readOnly);
     dialog.setAttribute(
       "aria-label",
@@ -316,6 +336,7 @@
       () => dialog.close(),
       readOnly,
     );
+    window.RSVP_INLINE.languages(host);
     const form = host.querySelector("form");
     Array.from(form.querySelectorAll("button"))
       .find((b) => b.textContent === T(readOnly ? "Close" : "Cancel"))
@@ -343,7 +364,7 @@
       { once: true },
     );
     $("adminApp").append(dialog);
-    dialog.showModal();
+    dialog.openInline();
     host.querySelector("input")?.focus();
   }
   function renderFoodTypeTranslations(search) {
@@ -415,6 +436,11 @@
       },
     };
     const group = groups[category];
+    const expandedByDefault = new Set(
+      ["venue", "session"].includes(category)
+        ? group.records.slice(0, 3).map((record) => record.id)
+        : [],
+    );
     const records = group.records.filter((record) =>
       matchesTranslation(search, record, category + ":" + record.id + ":"),
     );
@@ -434,6 +460,7 @@
         host,
         category + ":" + record.id,
         record.name,
+        expandedByDefault.has(record.id),
       );
       const columns = group.fields.map(([label, field, source, kind]) => [
         label,
@@ -489,7 +516,7 @@
       row.dataset.languageCode = language.language_code;
       row.style.setProperty("--translation-columns", columns.length);
       row.append(R.dom("strong", {}, language.display_name));
-      for (const [label, key, kind] of columns) {
+      for (const [label, key, kind, choices] of columns) {
         const wrap = R.dom("label");
         wrap.append(R.dom("span", {}, T(label)));
         const value =
@@ -515,6 +542,7 @@
         const input = R.dom(kind || (multiline ? "textarea" : "input"), {
           type: "text",
         });
+        if (choices) for (const [code, name] of choices) input.append(R.dom("option", { value: code }, T(name)));
         input.value = value;
         input.maxLength = 12000;
         if (multiline || kind === "textarea") input.rows = 2;
@@ -537,6 +565,10 @@
         input.classList.add("translation-field");
         wrap.append(input, reading);
         row.append(wrap);
+        if (/^(welcome$|food-explanation$|venue:.*:welcome$|session:.*:description$)/.test(key)) {
+          const scope = key === "welcome" ? "event" : key.startsWith("venue:") ? "venue" : "invitation";
+          window.RSVP_PLACEHOLDER_HELP.attach(input, { R, T, kind: "invitation", tokens: window.RSVP_PLACEHOLDERS.tokens(scope) });
+        }
       }
       form.append(row);
     }
@@ -558,7 +590,7 @@
       T(
         form.dataset.translationCard
           ? "Save"
-          : "interface.messages.save_translations",
+          : "Save",
       ),
     );
     save.disabled = !ctx.isEditing();
@@ -594,7 +626,7 @@
       }
       form.setAttribute("aria-busy", "true");
       ctx.formFeedback(form, "saving");
-      for (const control of form.querySelectorAll("input,textarea,button"))
+      for (const control of form.querySelectorAll("input,textarea,select,button"))
         control.disabled = true;
       try {
         await saveChanges(changes, (change) => {
@@ -614,7 +646,7 @@
         ctx.show(R.safeError(error), "error");
       } finally {
         form.removeAttribute("aria-busy");
-        for (const control of form.querySelectorAll("input,textarea,button"))
+        for (const control of form.querySelectorAll("input,textarea,select,button"))
           control.disabled = !ctx.isEditing();
         form.updateSaveState?.();
       }
@@ -653,12 +685,12 @@
     for (const cell of cells) cell.input.dataset.cleanOriginal = cell.original;
     form.cleanSaveUpdate?.();
   }
-  function allowTranslationNavigation() {
+  async function allowTranslationNavigation() {
     const forms = [...$("foodTranslationGrid").querySelectorAll("form")];
     if (forms.some((form) => form.getAttribute("aria-busy") === "true"))
       return false;
     if (!forms.some((form) => form.hasTranslationChanges?.())) return true;
-    if (!confirm(T("Discard unsaved translation changes?"))) return false;
+    if (!await window.RSVP_INLINE.confirm(T("Discard unsaved translation changes?"), { action: "Discard and continue", onSave: () => window.RSVP_INLINE.saveForms(forms) })) return false;
     translationDrafts.clear();
     return true;
   }
@@ -674,8 +706,8 @@
       button.classList.toggle("active", value === selected);
       button.setAttribute("aria-selected", String(value === selected));
       button.tabIndex = value === selected ? 0 : -1;
-      button.addEventListener("click", () => {
-        if (allowTranslationNavigation()) select(value);
+      button.addEventListener("click", async () => {
+        if (await allowTranslationNavigation()) select(value);
       });
       host.append(button);
     }
@@ -691,7 +723,7 @@
       ),
     );
     renderTranslationRows(
-      translationCard(host, "welcome", T("Welcome Message")),
+      translationCard(host, "welcome", T("Welcome Message"), true),
       [["Translation", "welcome"]],
       () => "",
       saveTranslationRows,
@@ -1092,7 +1124,7 @@
     );
     $("foodTranslationTabs").classList.toggle(
       "hidden",
-      !content || !["food", "guests"].includes(contentTranslationGroup),
+      !content || contentTranslationGroup !== "food",
     );
     $("interfaceLanguageTabs").classList.toggle("hidden", content);
     $("wordingCategoryTabs").classList.toggle("hidden", content);
@@ -1108,8 +1140,8 @@
         ["welcome", T("interface.messages.welcome_message_title")],
         ["venue", T("Venues")],
         ["session", T("interface.messages.sessions")],
-        ["food", T("food.messages.food")],
         ["guests", T("Guests")],
+        ["food", T("food.messages.food")],
       ],
       contentTranslationGroup,
       (value) => {
@@ -1138,18 +1170,6 @@
         renderFoodTypeTranslations(search);
       else renderContentTranslations("food-category", search);
     } else if (contentTranslationGroup === "guests") {
-      renderTabs(
-        $("foodTranslationTabs"),
-        [
-          ["food-explanation", T("Food explanation")],
-          ["food-interest-reply", T("Food Interest Reply")],
-        ],
-        guestTranslationSection,
-        (value) => {
-          guestTranslationSection = value;
-          renderTranslationKeys();
-        },
-      );
       const guestWording = window.RSVP_ADMIN_GUEST_WORDING.create({
         ctx,
         I,
@@ -1158,9 +1178,7 @@
         renderTranslationRows,
         translationCard,
       });
-      if (guestTranslationSection === "food-interest-reply")
-        guestWording.renderReply();
-      else guestWording.renderExplanation();
+      guestWording.renderAll();
     } else if (contentTranslationGroup === "welcome")
       renderWelcomeTranslations();
     else renderContentTranslations(contentTranslationGroup, search);
@@ -1696,7 +1714,7 @@
               return;
             }
             if (
-              !confirm(T("Permanently delete {name}?", { name: category.name }))
+              !await window.RSVP_INLINE.confirm(T("Permanently delete {name}?", { name: category.name }), { action: "Delete category" })
             )
               return;
             await rpc("admin_delete_other_category", {
@@ -1976,6 +1994,9 @@
     };
   }
   function updateBackupChoices(exporting = false) {
+    if (!exporting && replacing()) {
+      for (const input of backupControls().mode.querySelectorAll("input")) { input.checked = input.value === "backup"; input.disabled = true; }
+    }
     const controls = backupControls(exporting),
       available = exporting ? null : backup?.payload?.selection,
       template = backupMode(exporting) === "template",
@@ -2002,7 +2023,7 @@
       if (input.disabled) input.checked = false;
     }
     controls.mode.querySelector('input[value="backup"]').disabled =
-      available?.mode === "template";
+      available?.mode === "template" || (!exporting && replacing());
     controls.logs.disabled =
       template || (!!available && !available.include_logs);
     if (controls.logs.disabled) controls.logs.checked = false;
@@ -2018,6 +2039,8 @@
     updateBackupChoices();
   }
   function resetRestorePreview() {
+    replacementToken = null;
+    $("replacementSafetyStatus").textContent = "";
     preview = null;
     $("backupPreview").replaceChildren();
     $("restoreBackupConfirmation").value = "";
@@ -2134,23 +2157,23 @@
         $("translationSearchToggle").focus();
       }
     };
-    $("translationSearchToggle").addEventListener("click", () => {
+    $("translationSearchToggle").addEventListener("click", async () => {
       const open =
         $("translationSearchToggle").getAttribute("aria-expanded") !== "true";
-      if (open || allowTranslationNavigation()) toggleSearch(open);
+      if (open || await allowTranslationNavigation()) toggleSearch(open);
     });
-    $("translationSearchClose").addEventListener("click", () => {
-      if (allowTranslationNavigation()) toggleSearch(false);
+    $("translationSearchClose").addEventListener("click", async () => {
+      if (await allowTranslationNavigation()) toggleSearch(false);
     });
-    $("translationSearch").addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && allowTranslationNavigation())
+    $("translationSearch").addEventListener("keydown", async (event) => {
+      if (event.key === "Escape" && await allowTranslationNavigation())
         toggleSearch(false);
     });
     $("translationSearch").addEventListener("input", () => {
       clearTimeout(translationSearchTimer);
       wordingPage = 0;
-      translationSearchTimer = setTimeout(() => {
-        if (allowTranslationNavigation()) {
+      translationSearchTimer = setTimeout(async () => {
+        if (await allowTranslationNavigation()) {
           $("translationSearch").dataset.accepted =
             $("translationSearch").value;
           renderTranslationKeys();
@@ -2208,6 +2231,8 @@
       backupEncryption.resetImport();
       backup = null;
       preview = null;
+      replacementToken = null;
+      $("replacementSafetyStatus").textContent = "";
       $("backupPreview").replaceChildren();
       $("previewBackup").disabled = true;
       $("restoreBackupConfirmation").value = "";
@@ -2267,16 +2292,16 @@
         options = backupOptions(),
         selection = JSON.stringify(options);
       preview = null;
+      replacementToken = null;
       mode();
       $("previewBackup").disabled = true;
       $("backupPreview").textContent = T(
         "interface.messages.validating_backup",
       );
       try {
-        const result = await rpc("admin_preview_backup", {
-          p_backup: candidate,
-          ...options,
-        });
+        const result = replacing()
+          ? await rpc("admin_preview_event_replacement", { p_backup: candidate })
+          : await rpc("admin_preview_backup", { p_backup: candidate, ...options });
         if (
           candidate !== backup ||
           selection !== JSON.stringify(backupOptions())
@@ -2300,10 +2325,10 @@
           ),
         );
         for (const [name, count] of Object.entries(preview.counts))
-          if (count)
-            box.append(ctx.R.dom("p", { class: "micro" }, name + ": " + count));
+          if (count || preview.current_counts?.[name])
+            box.append(ctx.R.dom("p", { class: "micro" }, name + ": " + (replacing() ? preview.preserved_tables?.includes(name) ? (preview.current_counts?.[name] || 0) + " · " + T("Preserved") : (preview.current_counts?.[name] || 0) + " → " + count : count)));
         $("restoreBackupConfirmation").placeholder =
-          "RESTORE " + preview.event_name;
+          (replacing() ? "REPLACE " : "RESTORE ") + preview.event_name;
       } catch (error) {
         if (
           candidate === backup &&
@@ -2316,6 +2341,25 @@
         $("previewBackup").disabled = !backup;
         mode();
       }
+    });
+    $("backupRestoreDestination").disabled = !window.RSVP_ADMIN_ACCESS.can("full");
+    $("backupRestoreDestination").addEventListener("change", () => { resetRestorePreview(); updateBackupChoices(); mode(); });
+    $("prepareReplacementSafety").addEventListener("click", async () => {
+      if (!replacing() || !preview?.can_restore) return;
+      const button = $("prepareReplacementSafety"), candidate = backup, checked = preview;
+      button.disabled = true;
+      replacementToken = null;
+      mode();
+      button.disabled = true;
+      try {
+        const result = await rpc("admin_prepare_event_replacement", { p_backup: candidate, p_expected_state: checked.destination_state });
+        const file = await window.RSVP_BACKUP_FILES.encode(result.safety_backup, $("backupExportCompressed").checked, backupEncryption.exportOptions());
+        if (candidate !== backup || checked !== preview || !replacing()) return;
+        ctx.R.dl("rsvp-safety-" + new Date().toISOString().slice(0,10) + file.extension, file.blob, file.blob.type);
+        replacementToken = result.token;
+        $("replacementSafetyStatus").textContent = T("Safety backup downloaded. Store it privately before replacing event data.");
+      } catch (error) { $("replacementSafetyStatus").textContent = ctx.R.safeError(error); }
+      finally { backupEncryption.clearPasswords(); mode(); }
     });
     $("restoreBackupConfirmation").addEventListener("input", mode);
     $("restoreBackupAck").addEventListener("change", mode);
@@ -2335,19 +2379,18 @@
       button.disabled = true;
       controls.forEach((control) => (control.disabled = true));
       try {
-        await rpc("admin_restore_backup", {
-          p_backup: backup,
-          p_confirmation: $("restoreBackupConfirmation").value,
-          ...options,
-        });
+        if (replacing()) await rpc("admin_replace_event_data", { p_backup: backup, p_confirmation: $("restoreBackupConfirmation").value, p_safety_token: replacementToken });
+        else await rpc("admin_restore_backup", { p_backup: backup, p_confirmation: $("restoreBackupConfirmation").value, ...options });
+        replacementToken = null;
         backup = null;
         preview = null;
         $("backupFile").value = "";
         $("backupPreview").textContent = T(
-          "interface.messages.application_restored_the_event_is_unpublished_review_administrato",
+          replacing() ? "Event data replaced. Current access and configuration are preserved; the event is unpublished." : "interface.messages.application_restored_the_event_is_unpublished_review_administrato",
         );
         await ctx.reload();
       } catch (error) {
+        if (replacing()) { replacementToken = null; preview = null; }
         $("backupPreview").textContent = ctx.R.safeError(error);
       } finally {
         e.target.removeAttribute("aria-busy");

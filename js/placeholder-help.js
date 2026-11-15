@@ -62,13 +62,11 @@
     );
     const tokens = allowedTokens
       ? allowedTokens.map((token) => [token, ""])
+      : kind === "invitation"
+        ? window.RSVP_INVITATION_TEXT.tokens.map((token) => [token, token.startsWith("{rsvp_deadline") ? T("RSVP deadline date") : ""])
       : kind === "food-reply"
-        ? [
-            ["{invite-deadline}", T("RSVP deadline date")],
-            ["{invite-deadline:+5}", T("Five days after the RSVP deadline")],
-            ["{invite-deadline:-2}", T("Two days before the RSVP deadline")],
-          ]
-        : [
+        ? window.RSVP_PLACEHOLDERS.tokens().map(token => [token, ""])
+      : [
             ["{invitation_link}", T("Link")],
             ["{event_name}", T("Event name")],
             ["{household_name}", T("Household name")],

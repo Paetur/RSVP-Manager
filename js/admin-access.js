@@ -66,8 +66,9 @@
       ...(features.food_enabled === false ? [] : ["food"]),
     ].every((section) => can(section));
   const settingsAllowed = (name) =>
-    name === "interface" ||
-    (name === "checklist" && can("full")) ||
+    name === "checklist" ||
+    (name === "placeholders" && (can("settings") || can("languages") || can("invites"))) ||
+    (name === "interface" && can("settings")) ||
     (name === "administrators" && can("administrators")) ||
     (name === "languages" && can("languages")) ||
     (["event", "templates"].includes(name) && can("settings")) ||
@@ -75,6 +76,7 @@
     (name === "logs" && can("full"));
   const tabAllowed = (name) =>
     name === "settings" ||
+    (name === "overview" && ["households", "invites", "food"].some((s) => can(s))) ||
     (name === "language" && can("languages")) ||
     can(name);
   async function refresh() {
@@ -114,19 +116,19 @@
     for (const panel of document.querySelectorAll("[data-settings-panel]")) {
       const name = panel.dataset.settingsPanel,
         section = {
-          checklist: "full",
+          checklist: "personal",
           event: "settings",
           templates: "settings",
           administrators: "administrators",
           languages: "languages",
-          interface: "personal",
+          interface: "settings",
           backups: "restoreBackup",
           logs: "full",
         }[name];
       panel.dataset.permissionEdit = String(
         section === "personal" || can(section, "edit"),
       );
-      if (name !== "interface" && !can(section, "edit"))
+      if (name !== "checklist" && !can(section, "edit"))
         for (const control of panel.querySelectorAll(
           "form input,form textarea,form button[type=submit]",
         ))
@@ -182,14 +184,12 @@
   }
   async function saveState(a, state) {
     if (
-      !confirm(
-        T(
+      !await window.RSVP_INLINE.confirm(T(
           state === "active"
             ? "Enable administrator {name} with their saved access?"
             : "Suspend administrator {name}? Their current sessions will lose application access.",
           { name: a.name },
-        ),
-      )
+        ), { action: state === "active" ? "Enable access" : "Suspend access" })
     )
       return;
     await rpc("admin_set_member_state", {
@@ -295,12 +295,10 @@
               "Remove administrator",
               async () => {
                 if (
-                  !confirm(
-                    T(
+                  !await window.RSVP_INLINE.confirm(T(
                       "Remove administrator {name}? Their Auth account and historical records remain.",
                       { name: a.name },
-                    ),
-                  )
+                    ), { action: "Remove administrator" })
                 )
                   return;
                 await rpc("admin_remove_member", { p_user_id: a.user_id });
@@ -508,7 +506,7 @@
       if (save.disabled || !can("administrators", "edit")) return;
       const nameValue = name.value.trim();
       if (!nameValue) return;
-      if (!confirm(T("Save access changes for {name}?", { name: a.name })))
+      if (!await window.RSVP_INLINE.confirm(T("Save access changes for {name}?", { name: a.name }) + "\n" + sections.filter(([key]) => draft.original.sections?.[key] !== draft.permissions.sections?.[key]).map(([key, label]) => T(label) + ": " + T(draft.original.sections?.[key] || "none") + " → " + T(draft.permissions.sections?.[key] || "none")).join("\n"), { action: "Save" }))
         return;
       form.setAttribute("aria-busy", "true");
       update();
@@ -593,13 +591,11 @@
           label,
           async () => {
             if (
-              !confirm(
-                T(
+              !await window.RSVP_INLINE.confirm(T(
                   s.current
                     ? "Revoke this session? You will return to login."
                     : "Revoke this application session?",
-                ),
-              )
+                ), { action: "Revoke session" })
             )
               return;
             await rpc("admin_revoke_session", { p_session_id: s.id });
@@ -625,7 +621,7 @@
     const own = R.byId("adminSessionsPanel"),
       target = document.querySelector(
         '[data-settings-panel="' +
-          (can("administrators") ? "administrators" : "interface") +
+          (can("administrators") ? "administrators" : "checklist") +
           '"]',
       );
     if (target && own) target.append(own);
@@ -651,12 +647,10 @@
         return;
       }
       if (
-        !confirm(
-          T(
+        !await window.RSVP_INLINE.confirm(T(
             "Add {email} with View only access? No invitation email will be sent.",
             { email: account.email },
-          ),
-        )
+          ), { action: "Add administrator" })
       )
         return;
       await rpc("admin_add_existing_user", { p_email: email, p_name: name });
@@ -687,7 +681,7 @@
     ctx = context;
     R.byId("addAdminManually").addEventListener("click", manual);
     R.byId("revokeOtherSessions").addEventListener("click", async () => {
-      if (!confirm(T("Revoke your other application sessions?"))) return;
+      if (!await window.RSVP_INLINE.confirm(T("Revoke your other application sessions?"), { action: "Revoke your other application sessions?" })) return;
       try {
         await rpc("admin_revoke_other_sessions");
         await renderSessions();

@@ -120,7 +120,7 @@
       recipient?.contact_name ||
       primary?.contact_name ||
       [guest?.first_name, guest?.last_name].filter(Boolean).join(" ") ||
-      h.household_name;
+      window.RSVP_HOUSEHOLD_NAME(h);
     const contactValue =
       recipient?.contact_value ||
       primary?.contact_value ||

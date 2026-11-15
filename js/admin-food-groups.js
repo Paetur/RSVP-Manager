@@ -176,7 +176,7 @@
           remove.addEventListener("click", async () => {
             if (
               !isEditing() ||
-              !confirm(T("interface.messages.group_delete_confirm"))
+              !await window.RSVP_INLINE.confirm(T("interface.messages.group_delete_confirm"), { action: "Ungroup items" })
             )
               return;
             remove.disabled = true;

@@ -398,7 +398,7 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
           .locator("#foodReview")
           .getByRole("button", { name: "Recipe · Chips", exact: true })
           .click();
-        const dialog = guestPage.getByRole("dialog", {
+        const dialog = guestPage.getByRole("region", {
           name: "Recipe",
           exact: true,
         });

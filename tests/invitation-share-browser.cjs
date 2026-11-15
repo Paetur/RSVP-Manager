@@ -81,7 +81,7 @@ const { server, mock, extra } = createFoodHarness("invitation-share");
         0,
       );
       await trigger.click();
-      const dialog = page.getByRole("dialog", {
+      const dialog = page.getByRole("region", {
         name: "Share invitation",
         exact: true,
       });

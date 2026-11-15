@@ -10,12 +10,14 @@ const server=http.createServer((req,res)=>{
  res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css'}[path.extname(file)]||'text/plain')+';charset=utf-8');res.end(path.extname(file)==='.html'?fs.readFileSync(file,'utf8').replace(/ integrity="[^"]+"/g,''):fs.readFileSync(file));
 });
 async function compact(locator,label){
- await locator.locator(':scope > summary').click();
+ // The summary center can contain an edit button; use its native keyboard toggle.
+ await locator.locator(':scope > summary').press('Enter');
  assert.equal(await locator.evaluate(n=>n.open),false,label+' closes');
  const size=await locator.evaluate(n=>({height:n.getBoundingClientRect().height,summary:n.querySelector(':scope > summary').getBoundingClientRect().height}));
  assert.ok(size.height<=size.summary+3,label+' retains hidden content space: '+JSON.stringify(size));
  assert.ok(size.height>=28,label+' retains a usable summary');
- await locator.locator(':scope > summary').click();
+ // The summary center can contain an edit button; use its native keyboard toggle.
+ await locator.locator(':scope > summary').press('Enter');
  assert.equal(await locator.evaluate(n=>n.open),true,label+' reopens');
  const open=await locator.evaluate(n=>({height:n.getBoundingClientRect().height,summary:n.querySelector(':scope > summary').getBoundingClientRect().height}));
  assert.ok(open.height>open.summary+3,label+' expanded content remains visible');
@@ -48,4 +50,4 @@ async function run(type){
   console.log('PASS '+type.name()+': compact collapsed disclosures and visible expanded content at desktop/mobile widths in light/dark themes');
  }finally{await browser.close();}
 }
-(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));try{await run(chromium);await run(webkit);}finally{server.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
+(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));try{for(const type of process.env.RSVP_TEST_BROWSER==='chromium'?[chromium]:[chromium,webkit])await run(type);}finally{server.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

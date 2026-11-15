@@ -4,14 +4,15 @@
   window.RSVP_ADMIN_GUEST_WORDING = {
     create({ ctx, I, T, rpc, renderTranslationRows, translationCard }) {
       const $ = (id) => document.getElementById(id);
-      function renderExplanation() {
+      function renderExplanation({ append = false } = {}) {
         const outer = $("foodTranslationGrid"),
           current = ctx.getStore().settings?.food_introduction || {};
-        outer.replaceChildren();
+        if (!append) outer.replaceChildren();
         const host = translationCard(
           outer,
           "food-explanation",
           T("Food explanation"),
+          true,
         );
         host.append(
           ctx.R.dom(
@@ -43,7 +44,7 @@
         for (const input of host.querySelectorAll("textarea"))
           input.maxLength = 6000;
       }
-      function renderReply() {
+      function renderReply({ append = false } = {}) {
         const outer = $("foodTranslationGrid"),
           store = ctx.getStore(),
           records = store.guestFoodReplies || [];
@@ -55,18 +56,19 @@
           );
         const replies = values("food-interest-reply"),
           fallbacks = values("food-interest-reply-no-deadline");
-        outer.replaceChildren();
+        if (!append) outer.replaceChildren();
         const host = translationCard(
           outer,
           "food-interest-reply",
           T("Food Interest Reply"),
+          true,
         );
         host.append(
           ctx.R.dom(
             "p",
             { class: "micro" },
             T(
-              "Shown after a saved Yes in Collect interest. Use {invite-deadline:+5} for the RSVP deadline plus five calendar days in the event timezone. Blank text uses the fallback language, then English.",
+              "Shown after a saved Yes in Collect interest. Use {rsvp_deadline:+5} for the RSVP deadline plus five calendar days in the event timezone. Blank text uses the fallback language, then English.",
             ),
           ),
         );
@@ -90,7 +92,7 @@
               window.RSVP_FOOD_INTEREST_REPLY.validate(c.value);
               if (
                 c.key === "food-interest-reply-no-deadline" &&
-                /[{}]/.test(c.value)
+                /\{rsvp_deadline/.test(c.value)
               )
                 throw Error(T("Invalid food interest reply placeholder"));
               (c.key === "food-interest-reply" ? updated : updatedFallbacks)[
@@ -114,6 +116,7 @@
             T,
             kind: "food-reply",
           });
+          window.RSVP_PLACEHOLDER_HELP.attach(inputs[1], { R: ctx.R, T, kind: "food-reply", tokens: window.RSVP_PLACEHOLDERS.tokens().filter(token => !token.startsWith("{rsvp_deadline")) });
           const preview = ctx.R.dom("output", { class: "micro span-2" });
           preview.setAttribute("aria-label", T("Preview"));
           function update() {
@@ -136,6 +139,7 @@
                 I.resolve(current(0), code),
                 {
                   deadline: store.settings?.rsvp_deadline,
+                  values: window.RSVP_PLACEHOLDERS.context(store, { language: code, sample: true }).values,
                   timezone: store.settings?.timezone || "UTC",
                   language: code,
                   fallback,
@@ -170,7 +174,12 @@
             .forEach((output) => output.updatePreview());
         };
       }
-      return { renderExplanation, renderReply };
+      function renderAll() {
+        $("foodTranslationGrid").replaceChildren();
+        renderExplanation({ append: true });
+        renderReply({ append: true });
+      }
+      return { renderExplanation, renderReply, renderAll };
     },
   };
 })();

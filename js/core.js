@@ -446,7 +446,7 @@
     );
     menu.append(content);
     button.setAttribute("aria-expanded", "false");
-    button.setAttribute("aria-haspopup", "dialog");
+
     button.setAttribute("aria-controls", menu.id);
     button.addEventListener("click", () => {
       if (activePopup?.button === button) {
@@ -505,7 +505,7 @@
   }
   function openRecipeDialog(label, text, trigger, onPrintBlocked) {
     closePopups();
-    const dialog = dom("dialog", { class: "food-recipe-dialog" });
+    const dialog = inlinePanel({ class: "food-recipe-dialog" }, trigger);
     dialog.dataset.permissionEdit = "false";
     dialog.setAttribute("aria-label", T("food.messages.recipe"));
     dialog.append(dom("h2", {}, T("food.messages.recipe") + " · " + label));
@@ -542,7 +542,7 @@
       { once: true },
     );
     (byId("adminApp") || document.body).append(dialog);
-    dialog.showModal();
+    dialog.openInline();
     (print.disabled ? close : print).focus();
     return dialog;
   }
@@ -570,21 +570,15 @@
     return body;
   }
   function printRecipe(label, text) {
-    const popup = window.open("", "_blank");
-    if (!popup) return false;
-    popup.opener = null;
-    const doc = popup.document;
-    doc.title = label;
-    doc.documentElement.lang = document.documentElement.lang;
-    const style = doc.createElement("style");
-    style.textContent =
-      "@page{margin:18mm}body{font:16px/1.5 system-ui;color:#161616;max-width:42rem;margin:2rem auto;padding:0 1rem}h1{line-height:1.15}h4,p,ul{margin:0 0 .3em}h4{break-after:avoid}.recipe-break{height:.7em}li{break-inside:avoid}@media print{body{margin:0;padding:0}}";
-    doc.head.append(style);
-    doc.body.append(dom("h1", {}, label), recipeContent(text));
-    popup.focus();
-    popup.print();
+    const view = dom("section", { class: "recipe-print-view" });
+    view.append(dom("h1", {}, label), recipeContent(text));
+    document.querySelector(".recipe-print-view")?.remove();
+    document.body.append(view);
+    window.addEventListener("afterprint", () => view.remove(), { once: true });
+    window.print();
     return true;
   }
+
   const foodTypes = [
     "Batch(s)",
     "Piece(s)",
@@ -679,7 +673,10 @@
     for (const h of members) visit(h);
     return result;
   }
+  const inlinePanel = (...args) => window.RSVP_INLINE.panel(...args);
   window.RSVP = {
+    householdName: window.RSVP_HOUSEHOLD_NAME,
+    inlinePanel,
     relationGroupOrder,
     householdTreeOrder,
     foodCategoryTree,

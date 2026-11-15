@@ -50,11 +50,9 @@
                     : "Restore this record?",
                 );
           if (
-            !confirm(
-              (info.bound && action === "archive"
+            !await window.RSVP_INLINE.confirm((info.bound && action === "archive"
                 ? T("interface.messages.archived_record_linked") + "\n"
-                : "") + prompt,
-            )
+                : "") + prompt, { action: action === "delete" ? "Delete" : action === "archive" ? "Archive" : "Restore" })
           )
             return;
           await managementRpc("admin_item_lifecycle", {
@@ -125,7 +123,7 @@
               : T(
                   "interface.messages.archive_this_record_it_can_be_restored_later",
                 );
-          if (!confirm(message)) return;
+          if (!await window.RSVP_INLINE.confirm(message, { action: restoring ? "Restore" : "Archive" })) return;
           await managementRpc("admin_set_archived", {
             p_entity: entity,
             p_id: record.id,
@@ -163,9 +161,9 @@
             return;
           const name =
             entity === "households"
-              ? record.household_name
+              ? R.householdName(record)
               : [record.first_name, record.last_name].filter(Boolean).join(" ");
-          if (!confirm(T("Permanently delete {name}?", { name }))) return;
+          if (!await window.RSVP_INLINE.confirm(T("Permanently delete {name}?", { name }), { action: "Delete" })) return;
           try {
             await managementRpc("admin_delete_archived_record", {
               p_entity: entity,

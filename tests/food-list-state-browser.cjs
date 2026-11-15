@@ -195,19 +195,19 @@ const listRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_delete_f
         .getByRole("button", { name: "Rename food category", exact: true })
         .click();
       const remove = empty.locator(".food-category-name-form button.danger");
-      page.once("dialog", (d) => d.dismiss());
       await remove.click();
+      await page.locator(".inline-confirmation").getByRole("button",{name:"Cancel",exact:true}).click();
       assert.equal(await page.evaluate(() => window.__deleted.length), 0);
       await page.evaluate(() => (window.__failDelete = true));
-      page.once("dialog", (d) => d.accept());
       await remove.click();
+      await page.locator(".inline-confirmation").getByRole("button",{name:"Delete category",exact:true}).click();
       await page
         .locator("#adminMessage")
         .filter({ hasText: "Synthetic category conflict" })
         .waitFor();
       assert.equal(await empty.count(), 1);
-      page.once("dialog", (d) => d.accept());
       await remove.click();
+      await page.locator(".inline-confirmation").getByRole("button",{name:"Delete category",exact:true}).click();
       await page.waitForFunction(
         () => !fixtures.food_categories.some((c) => c.id === "empty-category"),
       );

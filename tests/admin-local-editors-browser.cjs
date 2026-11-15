@@ -92,11 +92,12 @@ const { server, mock, extra, stageExtra, out } =
       "guest-customization",
       "notification-preferences",
     ]) {
+      await page.locator(key === "personal-preferences" ? "[data-settings-tab=checklist]" : "[data-settings-tab=interface]").click();
       const form = await openBox(page, key);
       assert(await form.isVisible());
       if (key === "personal-preferences")
         await page
-          .locator("[data-settings-panel=interface]")
+          .locator("[data-settings-panel=checklist]")
           .screenshot({ path: path.join(out, "interface-edit-phone.png") });
       const cancel = form.getByRole("button", { name: "Cancel", exact: true });
       await cancel.click();
@@ -137,7 +138,7 @@ const { server, mock, extra, stageExtra, out } =
         .count(),
       0,
     );
-    await page.locator("[data-settings-tab=interface]").click();
+    await page.locator("[data-settings-tab=checklist]").click();
     assert(
       await page
         .locator('[data-local-edit="personal-preferences"]')

@@ -235,7 +235,8 @@ export function schemaPlan(installer: string) {
     ) {
       permissions.push(sql);
     } else if (
-      /^INSERT INTO public\.(event_languages|event_settings) /.test(sql)
+      /^INSERT INTO public\.(event_languages|event_settings) /.test(sql) ||
+      /^INSERT INTO app_private\.backup_origin\(singleton\) VALUES\(true\)$/.test(sql)
     ) {
       seeds.push(sql + " ON CONFLICT DO NOTHING");
     } else throw Error("Unsupported installer statement: " + sql.slice(0, 65));

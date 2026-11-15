@@ -10,14 +10,14 @@ const { server, mock, extra, stageExtra } =
   createFoodHarness("guest-food-wording");
 const additions = String.raw`
 fixtures.event_settings[0].rsvp_deadline='2027-03-27T23:30:00Z';fixtures.event_settings[0].timezone='Europe/Berlin';fixtures.event_settings[0].food_introduction={en:'Original explanation',de:'Erklärung'};
-window.__replyRows=[{template_key:'food-interest-reply',language_code:'en',body:'Please return around {invite-deadline:+5}'},{template_key:'food-interest-reply-no-deadline',language_code:'en',body:'Please check later.'}];
+window.__replyRows=[{template_key:'food-interest-reply',language_code:'en',body:'Please return around {rsvp_deadline:+5}'},{template_key:'food-interest-reply-no-deadline',language_code:'en',body:'Please check later.'}];
 for(const [n,interest] of [['yes',true],['no',false],['unanswered',null]]){const id='report-'+n;fixtures.households.push({id,household_name:'Report '+n,planning_group_id:'group_a',relation_group_id:cat2,parent_id:null,language:'en',food:true,food_interest:interest});fixtures.guests.push({id:'guest-'+n,household_id:id,first_name:'Guest',last_name:n});}
 window.__foodAnswer=JSON.parse(localStorage.getItem('synthetic-food-answer')||'null');
 const wordingRpc=client.rpc;client.rpc=async(name,a)=>{
  if(name==='admin_save_food_explanation'){if(window.__failCopy){window.__failCopy=false;return {error:{message:'Synthetic save failure'}};}fixtures.event_settings[0].food_introduction=a.p_introduction;window.__explanationWrites=(window.__explanationWrites||0)+1;return {data:null};}
  if(name==='admin_save_food_interest_reply'){window.__replyWrites=(window.__replyWrites||0)+1;window.__replyRows=[];for(const [template_key,values] of [['food-interest-reply',a.p_values],['food-interest-reply-no-deadline',a.p_fallback_values]])for(const [language_code,body] of Object.entries(values))if(body.trim())window.__replyRows.push({template_key,language_code,body});return {data:null};}
  const r=await wordingRpc(name,a);if(name==='admin_load_data')r.data.guestFoodReplies=window.__replyRows;
- if(name==='get_public_event_v2'){Object.assign(r.data.event,{food_introduction:fixtures.event_settings[0].food_introduction,rsvp_deadline:fixtures.event_settings[0].rsvp_deadline,timezone:'Europe/Berlin',food_interest_reply:{en:'Please return around {invite-deadline:+5}',de:'Bitte am {invite-deadline:+5} wiederkommen'},food_interest_reply_fallback:{en:'Please check later.',de:'Bitte später nachsehen.'}});}
+ if(name==='get_public_event_v2'){Object.assign(r.data.event,{food_introduction:fixtures.event_settings[0].food_introduction,rsvp_deadline:fixtures.event_settings[0].rsvp_deadline,timezone:'Europe/Berlin',food_interest_reply:{en:'Please return around {rsvp_deadline:+5}',de:'Bitte am {rsvp_deadline:+5} wiederkommen'},food_interest_reply_fallback:{en:'Please check later.',de:'Bitte später nachsehen.'}});}
  return r;
 };
 const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,request)=>{const result=await wordingInvoke(name,request);if(request.body.action==='set_household_food_interest'&&!result.error)localStorage.setItem('synthetic-food-answer',JSON.stringify(window.__foodAnswer));return result;};
@@ -138,6 +138,8 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
       await form.getByRole("button", { name: "Cancel", exact: true }).click();
       form = await openBox(page, "translations:food-explanation");
       assert.equal(await en.inputValue(), "Original explanation");
+      const replyCard = await openBox(page, "translations:food-interest-reply");
+      await replyCard.locator("[data-language-code=en] textarea").first().fill("Independent reply draft");
       await en.fill("Updated explanation");
       await page.evaluate(() => (window.__failCopy = true));
       await form.locator("button[type=submit]").click();
@@ -145,11 +147,9 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
       assert.equal(await en.inputValue(), "Updated explanation");
       await form.locator("button[type=submit]").click();
       await page.waitForFunction(() => window.__explanationWrites === 1);
-      await page
-        .locator(
-          "#foodTranslationTabs [data-translation-tab=food-interest-reply]",
-        )
-        .click();
+      await page.waitForFunction(() => document.querySelector('[data-translation-record="food-explanation"] .local-editor-summary')?.textContent.includes('Updated explanation'));
+      assert.equal(await replyCard.locator("[data-language-code=en] textarea").first().inputValue(), "Independent reply draft", "saving one guest card retains the other draft");
+      await replyCard.getByRole("button", {name:"Cancel",exact:true}).click();
       form = await openBox(page, "translations:food-interest-reply");
       const reply = form.locator("[data-language-code=en] textarea").first();
       if (previews)
@@ -160,7 +160,7 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
           });
       assert.equal(
         await reply.inputValue(),
-        "Please return around {invite-deadline:+5}",
+        "Please return around {rsvp_deadline:+5}",
       );
       assert.equal(
         await form.locator("[data-language-code=en] output").textContent(),
@@ -170,7 +170,7 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
       await form.locator("button[type=submit]").click();
       await form.locator(".form-feedback[data-state=error]").waitFor();
       assert.equal(await page.evaluate(() => window.__replyWrites || 0), 0);
-      await reply.fill("Come back {invite-deadline:+5}");
+      await reply.fill("Come back {rsvp_deadline:+5}");
       await form.locator("button[type=submit]").click();
       await page.waitForFunction(() => window.__replyWrites === 1);
       assert.equal(

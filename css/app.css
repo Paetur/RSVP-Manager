@@ -2108,6 +2108,42 @@ html[data-theme="dark"] .topbar .admin-icon-btn .theme-moon {
     display: none;
   }
 }
+
+/* Main and Settings share a single scrolling tab row. */
+#adminApp :is(.admin-main-tabs, .settings-tabs) {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
+  gap: 4px;
+  scrollbar-width: thin;
+}
+#adminApp :is(.admin-main-tabs, .settings-tabs) > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+@media (max-width: 700px), (pointer: coarse) {
+  #adminApp :is(.admin-row-icon, .admin-icon-btn) {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex-basis: 44px;
+    padding: 10px;
+  }
+  #adminApp :is(.small-tool, .btn, .text-button),
+  #adminApp :is(.admin-main-tabs, .settings-tabs) > button {
+    min-height: 44px !important;
+    min-width: 44px;
+  }
+  #adminApp :is(.hierarchy-actions, .household-actions, .session-order-actions, .food-item-actions) {
+    flex-wrap: wrap;
+  }
+  #adminApp :is(.tree-planning-group, .tree-group) { flex-wrap: wrap; }
+  #adminApp input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+  #adminApp select, #adminApp textarea { font-size: 16px !important; }
+}
 /* System-following dark mode shared by every page. */
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -3025,6 +3061,9 @@ html[data-theme="dark"] code {
 #adminApp .invite-household > summary {
   list-style: none;
   cursor: pointer;
+}
+#adminApp .invite-household > summary::marker {
+  content: "";
 }
 #adminApp .invite-household > summary::-webkit-details-marker {
   display: none;
@@ -5187,7 +5226,10 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
 #adminApp .management-form > .household-food-toggle {
   display: flex;
   align-items: center;
-  justify-self: end;
+  justify-self: start;
+  align-self: end;
+  min-height: 44px;
+  margin: 0;
   gap: 8px;
 }
 #adminApp .household-food-toggle input {
@@ -5426,6 +5468,74 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
   .backup-mode-choices label {
     min-height: 44px;
   }
+}
+
+/* Session choices use the same checkbox fieldset as food-item venue choices. */
+.household-session-selection { border-top: 1px solid var(--line); padding-top: 16px; }
+.household-session-choices .checkbox-label { align-items: flex-start; }
+.household-session-choices .checkbox-label > span > small { display: block; font-weight: 400; }
+.household-session-exceptions { margin-top: 12px; }
+.household-session-exceptions > summary { cursor: pointer; font-size: .82rem; }
+.household-session-exceptions[open] { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.household-session-exceptions > summary { grid-column: 1/-1; }
+@media (max-width:700px) { .household-session-exceptions[open] { grid-template-columns: 1fr; } }
+
+/* Keep hierarchy cues without framing every nested editor. */
+#adminApp #householdRows .household-inline-editor {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding: 0;
+}
+#adminApp #householdRows .household-inline-editor[open] {
+  padding: 12px 0;
+}
+#adminApp #householdRows .tree-children .tree-children {
+  border-left: 0;
+}
+#adminApp #adminFoodList .food-category .food-category,
+#adminApp #adminFoodList .food-edit-form {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+#adminApp #adminFoodList .food-edit-form { padding-inline: 0; }
+@media (max-width: 700px) {
+  #adminApp :is(.household-node-name small, .household-guests, .food-item-info small) { font-size: .82rem; }
+}
+
+/* Record dates stay quiet and separate from editable venue/session details. */
+.record-timestamps { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 4px 12px; margin: 12px 0; }
+.record-timestamps dt { color: var(--muted); }
+.record-timestamps dd { margin: 0; overflow-wrap: anywhere; }
+#adminList .preview-titleline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; }
+
+/* Household details use equal single-line controls and paired text areas. */
+#adminApp .household-details-form {
+  align-items: start;
+}
+#adminApp .household-details-form > label:not(.checkbox-label) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  align-self: start;
+}
+#adminApp .household-details-form > label > :is(input:not([type=checkbox]), select) {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+#adminApp .household-details-form > label > textarea {
+  box-sizing: border-box;
+  width: 100%;
+  height: 88px;
+  min-height: 88px;
+  resize: vertical;
 }
 /* Guest food categories, bundled choices and add-person forms. */
 .guest-food-category {
@@ -5684,7 +5794,7 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
   gap: 6px;
   margin: 0;
   min-width: 0;
-  max-width: 340px;
+  max-width: none;
   justify-self: end;
   width: 100%;
 }
@@ -5710,10 +5820,15 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
   opacity: 0;
 }
 .rsvp-inline .radio-pill:has(input:checked) {
-  background: var(--teal);
-  color: #fff;
+  background: var(--white);
+  color: var(--ink);
   border-color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
   font-weight: 600;
+}
+.rsvp-inline .radio-pill:has(input:checked)::before {
+  content: "✓ ";
+  color: var(--teal);
 }
 .rsvp-inline .radio-pill:has(input:focus-visible) {
   outline: 2px solid var(--teal);
@@ -5724,9 +5839,9 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
   opacity: 0.7;
 }
 /* Approved compact phone layout; desktop attendance remains inline as before. */
-@media (max-width: 600px) {
+@media (max-width: 700px) {
   .rsvp-person-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
   }
   .rsvp-person-name {
@@ -5738,12 +5853,13 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
   }
   .rsvp-inline .response-options {
     gap: 5px;
+    max-width: none;
   }
   .rsvp-inline .radio-pill {
     font-size: 11px;
     line-height: 1.25;
     padding: 6px 3px;
-    min-height: 40px;
+    min-height: 48px;
   }
 }
 @media (max-width: 350px) {
@@ -6228,8 +6344,10 @@ body.guest-photo .radio-pill {
   background: rgba(24, 58, 43, 0.25);
 }
 body.guest-photo .rsvp-inline .radio-pill:has(input:checked) {
-  background: var(--teal);
-  color: #fff;
+  background: rgba(24, 58, 43, 0.25);
+  color: var(--ink);
+  border-color: #b4dcc7;
+  box-shadow: inset 0 0 0 1px #b4dcc7;
 }
 html[data-theme="light"] body.guest-photo .panel {
   background: rgba(245, 248, 239, 0.9);
@@ -6242,8 +6360,10 @@ html[data-theme="light"]
   body.guest-photo
   .rsvp-inline
   .radio-pill:has(input:checked) {
-  background: #286e56;
-  color: #fff;
+  background: rgba(248, 251, 244, 0.35);
+  color: var(--ink);
+  border-color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
 }
 
 body.guest-photo .guest-layout {
@@ -6349,6 +6469,18 @@ body.guest-photo .guest-layout {
   }
   .guest-food-category > .food-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+body.guest-photo .rsvp-inline .radio-pill:has(input:checked)::before { color: #b4dcc7; }
+html[data-theme="light"] body.guest-photo .rsvp-inline .radio-pill:has(input:checked)::before { color: var(--teal); }
+
+@media (max-width: 700px), (pointer: coarse) {
+  .guest-layout input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+  .guest-layout select, .guest-layout textarea { font-size: 16px; }
+  body:not(:has(#adminApp)) :is(.language-switch button, #themeToggle) {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 /* Shared interest/selection buttons and saved Yes reply. Theme and tile refinements stay explicit. */
@@ -6556,8 +6688,11 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
   margin-bottom: 0;
 }
 .rsvp-session > .venue-welcome {
-  margin-top: 0;
-  margin-bottom: 8px;
+  grid-column: 1/-1;
+  grid-row: 4;
+  margin: 8px 0 12px;
+  padding-left: calc((100% - 12px) * 0.85 / 3 + 12px);
+  text-align: center;
 }
 #rsvpEditor > .rsvp-rows {
   margin-bottom: 8px;
@@ -6722,11 +6857,16 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
 }
 
 /* Save/Cancel stay at the start; guarded lifecycle actions finish the editor. */
-#adminApp .editor-lifecycle-actions {
-  display: inline-flex;
+#adminApp .editor-lifecycle-actions,
+#adminApp .form-actions .item-lifecycle-actions {
+  display: flex;
   gap: 8px;
   align-items: center;
-  margin-left: auto;
+  width: 100%;
+  flex-basis: 100%;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 8px;
   flex-wrap: wrap;
 }
 #adminApp .guest-edit-actions {
@@ -6812,7 +6952,7 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
 #adminApp
   .settings-card-editing
   > .settings-card-heading
-  > .settings-card-pencil {
+  > :is(.settings-card-pencil, .settings-card-action) {
   display: none;
 }
 #adminApp .settings-card > .muted {
@@ -6876,6 +7016,41 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
   #adminApp .settings-card-heading {
     gap: 10px;
   }
+}
+
+@media (max-width: 700px) {
+  .guest-courtesy-title { display: none; }
+  .rsvp-session > .venue-welcome { padding-left: 0; }
+}
+
+/* Inline editors belong to the represented record, without a modal backdrop. */
+.inline-editor-panel,
+#adminApp .inline-editor-panel {
+  position: static;
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  max-height: none;
+  overflow: visible;
+  margin: 14px 0;
+  padding: 16px 0 0 14px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-left: 3px solid var(--teal);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+  gap: 12px;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.inline-editor-panel > p { white-space: pre-line; }
+.inline-editor-panel .form-actions { flex-wrap: wrap; }
+.recipe-print-view { display: none; }
+@media print {
+  body:has(> .recipe-print-view) > :not(.recipe-print-view) { display: none !important; }
+  body > .recipe-print-view { display: block; font: 16px/1.5 system-ui; color: black; background: white; }
 }
 /* Event planning and feature settings. Shared card geometry lives in shared-editor refinements. */
 .planning-summary .record-read-grid {
@@ -7044,6 +7219,57 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
   font-weight: bold;
   color: var(--accent);
 }
+
+/* Guest name preferences: compact choices with adjacent explanatory text. */
+#guestNamesHost .settings-card-heading {
+  margin-bottom: 8px;
+}
+.guest-name-preferences {
+  display: grid;
+  gap: 12px;
+}
+.guest-name-option {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.guest-name-preferences fieldset.guest-name-option {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px 12px;
+}
+.guest-name-option legend {
+  padding: 0 4px;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+.guest-name-languages {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 20px;
+  row-gap: 0;
+}
+#guestNamesHost .checkbox-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 44px;
+  margin: 0;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+#guestNamesHost .checkbox-label input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+.guest-name-option .micro {
+  margin: 2px 0 0;
+}
+#guestNamesHost .form-actions {
+  margin-top: 0;
+}
 /* Temporary status-message preferences use the existing access preset rhythm. */
 .notification-scopes {
   display: grid;
@@ -7117,7 +7343,7 @@ html[data-theme] body.guest-customized .panel {
   border-color: var(--line);
 }
 html[data-theme]
-  body.guest-customized
+  :is(body.guest-customized, .customization-sample)
   :is(
     .guest-response,
     .radio-pill,
@@ -7156,7 +7382,6 @@ html[data-theme]
   body.guest-customized
   :is(
     .btn:not(.secondary),
-    .rsvp-inline .radio-pill:has(input:checked),
     .language-switch button.selected
   ) {
   background: var(--guest-button);
@@ -7336,15 +7561,21 @@ html[data-theme]
   color: var(--guest-text);
   border-color: var(--guest-text);
 }
-.customization-sample-choices {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
+.customization-sample-choices { margin-bottom: 10px; }
+.customization-sample {
+  --ink: var(--guest-text);
+  --white: var(--guest-box);
+  --line: color-mix(in srgb, var(--guest-text) 35%, var(--guest-box));
+  --teal: var(--guest-button);
 }
-.customization-sample-choices > span {
-  flex-basis: 100%;
+html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline .radio-pill:has(input:checked) {
+  background: var(--guest-box);
+  color: var(--guest-text);
+  border-color: var(--guest-button);
+  box-shadow: inset 0 0 0 1px var(--guest-button);
+}
+html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline .radio-pill:has(input:checked)::before {
+  color: var(--guest-button);
 }
 .customization-sample footer {
   font-size: 0.7rem;
@@ -7424,24 +7655,29 @@ html[data-theme]
 .invite-overview-viewbar > span {
   margin-left: auto;
 }
+#inviteRows {
+  --invite-columns: minmax(200px, 1.6fr) minmax(90px, 1fr) minmax(100px, 1fr) minmax(80px, .8fr) minmax(160px, 1.2fr);
+}
+#inviteRows.has-food-interest {
+  --invite-columns: minmax(200px, 1.7fr) minmax(90px, .9fr) minmax(100px, 1fr) minmax(80px, .7fr) minmax(90px, .8fr) minmax(160px, 1.2fr);
+}
 .invite-overview-heading,
 #adminApp .invite-overview-row {
   display: grid;
-  grid-template-columns:
-    minmax(140px, 1.4fr) minmax(100px, 1fr) minmax(115px, 1fr)
-    minmax(95px, 0.8fr) minmax(140px, auto);
+  grid-template-columns: var(--invite-columns);
   gap: 12px;
   align-items: center;
 }
 .invite-overview-heading {
   font-size: 0.72rem;
   color: var(--muted);
-  padding: 8px 10px;
+  padding: 8px 2px;
 }
 .invite-overview-row > .invite-overview-identity,
 .invite-overview-row > .invite-overview-recipient,
 .invite-overview-row > .invite-overview-delivery,
-.invite-overview-row > .invite-overview-reply {
+.invite-overview-row > .invite-overview-reply,
+.invite-overview-row > .invite-overview-interest {
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -7471,15 +7707,20 @@ html[data-theme]
 .invite-overview-row:before {
   display: none !important;
 }
-.invite-overview-identity:before {
-  content: "›";
-  float: left;
+/* The name owns the single disclosure arrow; identity is one inline row. */
+.invite-overview-row > .invite-overview-identity {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
-.invite-household[open]
-  > .invite-overview-row
-  .invite-overview-identity:before {
-  content: "⌄";
+.invite-overview-identity .invite-compact-name {
+  flex: 0 1 auto;
 }
+.invite-household-meta {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.invite-interest-label { display: none; }
 @media (max-width: 1000px) {
   .invite-overview-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7491,15 +7732,20 @@ html[data-theme]
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
+  #adminApp #inviteRows.has-food-interest .invite-overview-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
   .invite-overview-identity {
     grid-column: 1/-1;
   }
+  .invite-overview-interest { grid-column: 3; grid-row: 2; }
+  .invite-interest-label { display: block; }
   .invite-overview-row .invite-row-actions {
     grid-column: 1/-1;
     justify-content: flex-start;
   }
   .invite-overview-recipient {
-    grid-column: 1;
+    grid-column: 1/-1;
     grid-row: 3;
   }
   .invite-overview-reply {
@@ -7592,6 +7838,82 @@ html[data-theme]
   .invitation-template-test .small-tool {
     min-height: 44px;
   }
+}
+
+/* Shared private album; each template keeps an independent picture snapshot. */
+.invitation-album-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.invitation-album-tile {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--white);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.invitation-album-tile .invitation-picture {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  margin: 0;
+}
+.invitation-album-tile[aria-pressed="true"] {
+  border-color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
+}
+.invitation-album-tile[aria-pressed="true"] span::after {
+  content: " ✓";
+  color: var(--teal);
+}
+.invitation-album-dialog {
+  width: min(720px, calc(100% - 28px));
+}
+.invitation-album-dialog > .btn {
+  margin-right: 8px;
+}
+@media (max-width: 700px) {
+  .invitation-album-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Template-derived deliveries lead with a read view, with optional local overrides. */
+.delivery-draft-preview { display: grid; gap: 12px; min-width: 0; padding-block: 12px; }
+.delivery-draft-preview .delivery-message { margin: 0; }
+.delivery-customize > .form-grid { margin-top: 12px; }
+.delivery-review-form > .form-actions { flex-wrap: wrap; }
+@media (max-width: 700px) {
+  #adminApp .invite-overview-row small { font-size: .82rem; }
+}
+
+.invite-overview-row .invite-preview {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px;
+}
+.invite-preview svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#adminApp .invite-row-actions .invite-edit-household {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
 }
 /* Content-language records, field token help and compact event statistics. */
 #adminApp #translationEditor {
@@ -7849,6 +8171,36 @@ html[data-theme]
   #adminApp #translationSearchClose {
     min-width: 44px;
     min-height: 44px;
+  }
+}
+
+.placeholder-reference-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.4fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.placeholder-reference-row p {
+  margin: 4px 0 0;
+}
+#placeholderReference > input {
+  max-width: 360px;
+  margin-bottom: 12px;
+}
+@media (max-width: 700px) {
+  .placeholder-reference-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .placeholder-reference-row > div {
+    grid-row: 2;
+    grid-column: 1/-1;
+  }
+  .placeholder-reference-row > button {
+    grid-column: 2;
+    grid-row: 1;
   }
 }
 /* Encryption transport controls; no changes to Full/Partial restore policy. */

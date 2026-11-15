@@ -13,7 +13,7 @@ const layoutRpc=client.rpc;client.rpc=async(name,args)=>{
   if(window.__failTranslation){window.__failTranslation=false;return {error:{message:'Synthetic translation failure'}};}
  }
  const result=await layoutRpc(name,args);
- if(name==='admin_load_data')result.data.guestFoodReplies=[{template_key:'food-interest-reply',language_code:'en',body:'Return {invite-deadline:+5}'}];
+ if(name==='admin_load_data')result.data.guestFoodReplies=[{template_key:'food-interest-reply',language_code:'en',body:'Return {rsvp_deadline:+5}'}];
  return result;
 };
 `;
@@ -43,6 +43,7 @@ const layoutRpc=client.rpc;client.rpc=async(name,args)=>{
         }),
       );
       await page.goto(base + "/admin/");
+      await page.locator("[data-tab=overview]").click();
       await page.locator("#statsGrid .stat-card-compact").first().waitFor();
       assert.equal(
         await page.locator("#statsGrid .stat-card-compact").count(),
@@ -133,35 +134,30 @@ const layoutRpc=client.rpc;client.rpc=async(name,args)=>{
         .click();
       assert((await grid.locator(".translation-record-card").count()) >= 6);
       await tab("guests").click();
-      await page
-        .locator(
-          "#foodTranslationTabs [data-translation-tab=food-interest-reply]",
-        )
-        .click();
       const reply = await openBox(page, "translations:food-interest-reply");
       assert.equal(
         await reply.locator(".placeholder-help-toggle").count(),
-        3,
-        "no token help on no-deadline fields",
+        6,
+        "shared tokens available on both reply fields",
       );
       const input = reply.locator("[data-language-code=en] textarea").first();
       await input.fill("Please return ");
       await reply
-        .locator("[data-language-code=en] .placeholder-help-toggle")
+        .locator("[data-language-code=en] .placeholder-help-toggle").first()
         .click();
       await reply
-        .locator("[data-language-code=en]")
+        .locator("[data-language-code=en] .placeholder-help").first()
         .getByRole("button", {
-          name: "Insert {invite-deadline:+5}",
+          name: "Insert {rsvp_deadline:+5}",
           exact: true,
         })
         .click();
       assert.equal(
         await input.inputValue(),
-        "Please return {invite-deadline:+5}",
+        "Please return {rsvp_deadline:+5}",
       );
       await input.press("Escape");
-      assert.equal(await reply.locator("[data-language-code=en] .placeholder-help").isVisible(), false);
+      assert.equal(await reply.locator("[data-language-code=en] .placeholder-help").first().isVisible(), false);
       assert.equal(
         await reply
           .getByRole("button", { name: "Save", exact: true })

@@ -14,10 +14,11 @@
     contactMethodLabel,
     canPreviewGuest,
     can,
+    iconAction,
+    editHousehold,
     setDisclosure,
     rememberDisclosure,
     deliverySection,
-    sessionAssignmentForm,
     rsvpSection,
     adminTime,
     show,
@@ -126,7 +127,7 @@
           (r) =>
             test(r) &&
             (!search ||
-              [r.h.household_name, r.contactName, r.contactValue]
+              [R.householdName(r.h), r.contactName, r.contactValue]
                 .join(" ")
                 .toLowerCase()
                 .includes(search)) &&
@@ -144,12 +145,14 @@
         "interface.messages.count_households",
         { count: visible.length },
       );
+      box.classList.toggle("has-food-interest", showFoodInterest);
       const heading = R.dom("div", { class: "invite-overview-heading" });
       for (const label of [
         "Household",
         "Recipient / channel",
         "Invitation",
         "RSVP",
+        ...(showFoodInterest ? ["Food interest"] : []),
         "Actions",
       ])
         heading.append(R.dom("span", {}, T(label)));
@@ -167,10 +170,10 @@
           }),
           identity = R.dom("span", { class: "invite-overview-identity" });
         identity.append(
-          R.dom("strong", { class: "invite-compact-name" }, h.household_name),
+          R.dom("strong", { class: "invite-compact-name" }, R.householdName(h)),
           R.dom(
             "small",
-            { class: "muted" },
+            { class: "muted invite-household-meta" },
             T("interface.messages.count_guests", { count: model.guests }) +
               " · " +
               (
@@ -180,20 +183,14 @@
               ).toUpperCase(),
           ),
         );
+        const foodInterest = R.dom("span", { class: "invite-overview-interest" });
         if (showFoodInterest) {
-          const state = window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, h);
-          const badge = R.dom(
-            "small",
-            { class: "muted invite-food-interest" },
-            T("Food interest") +
-              ": " +
-              T(
-                { yes: "Yes", no: "No", unanswered: "Unanswered" }[state] ||
-                  "Unanswered",
-              ),
-          );
+          const state = window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, h),
+            label = T({ yes: "Yes", no: "No", unanswered: "Unanswered" }[state] || "Unanswered"),
+            badge = R.dom("small", { class: "muted invite-food-interest" }, label);
           badge.dataset.foodInterest = state;
-          identity.append(badge);
+          foodInterest.setAttribute("aria-label", T("Food interest") + ": " + label);
+          foodInterest.append(R.dom("small", { class: "muted invite-interest-label" }, T("Food interest")), badge);
         }
         const recipient = R.dom("span", { class: "invite-overview-recipient" });
         recipient.append(
@@ -254,8 +251,7 @@
           if (filled) return;
           filled = true;
           for (const [section, label, build] of [
-            ["delivery", "Invitation delivery", deliverySection],
-            ["sessions", "Session invitations", sessionAssignmentForm],
+            ["delivery", "Invitation delivery", (household) => deliverySection(household, { allowCreate: true })],
             ["rsvp", "RSVP", rsvpSection],
           ]) {
             const detail = build(h);
@@ -281,16 +277,10 @@
         });
         if (row.open) fillSections();
         const actions = R.dom("span", { class: "invite-row-actions" });
-        if (canPreviewGuest()) {
-          const preview = R.dom("a", { class: "btn secondary" }, T("Preview"));
-          preview.href = R.guestPreviewURL(h.id);
-          preview.target = "_blank";
-          preview.rel = "noopener noreferrer";
-          preview.setAttribute(
-            "aria-label",
-            T("Preview") + " · " + h.household_name,
-          );
-          actions.append(preview);
+        if (!store.settings?.is_published && can("households", "edit")) {
+          const edit = iconAction("edit", T("interface.messages.edit_household") + R.householdName(h), () => editHousehold(h.id));
+          edit.classList.add("invite-edit-household");
+          actions.append(edit);
         }
         const prepare = R.dom(
           "button",
@@ -298,11 +288,9 @@
           T(
             !can("invites", "edit")
               ? "Review"
-              : model.sent
-                ? "Follow up"
-                : model.ready
-                  ? "Review"
-                  : "Prepare",
+              : model.latest
+                ? model.latest.status === "sent" ? "Follow up" : "Review"
+                : "Create",
           ),
         );
         prepare.addEventListener("click", (event) => {
@@ -315,10 +303,31 @@
           if (target) {
             target.open = true;
             rememberDisclosure(key + ":delivery", true);
-            target.querySelector(".edit-only")?.setAttribute("open", "");
+            const create = model.latest
+              ? [...target.querySelectorAll("[data-delivery-id]")].find((record) => record.dataset.deliveryId === model.latest.id)
+              : target.querySelector(".delivery-create");
+            if (create?.classList.contains("delivery-create")) create.hidden = false;
+            else create?.setAttribute("open", "");
+            if (model.latest?.status === "sent")
+              create?.querySelector(":scope > details.edit-only")?.setAttribute("open", "");
+            create?.scrollIntoView({ block: "nearest" });
           }
         });
         actions.append(prepare);
+        if (canPreviewGuest()) {
+          const preview = R.dom("a", { class: "btn secondary invite-preview" });
+          preview.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+          preview.title = T("Preview");
+          preview.href = R.guestPreviewURL(h.id);
+          preview.target = "_blank";
+          preview.rel = "noopener noreferrer";
+          preview.setAttribute(
+            "aria-label",
+            T("Preview") + " · " + R.householdName(h),
+          );
+          actions.append(preview);
+        }
+
         if (store.settings?.is_published && h.invite_code) {
           const copy = R.dom(
             "button",
@@ -329,7 +338,7 @@
             "aria-label",
             T("interface.messages.copy_invitation_link") +
               " · " +
-              h.household_name,
+              R.householdName(h),
           );
           copy.addEventListener("click", async (event) => {
             event.preventDefault();
@@ -345,7 +354,9 @@
           });
           actions.append(copy);
         }
-        summary.append(identity, recipient, delivery, reply, actions);
+        summary.append(identity, recipient, delivery, reply);
+        if (showFoodInterest) summary.append(foodInterest);
+        summary.append(actions);
         row.append(summary, content);
         container.append(row);
       }
@@ -406,7 +417,23 @@
         );
     }
 
-    return { render };
+    function openHousehold(householdId) {
+      inviteOverviewFilter = "all";
+      $("inviteSearch").value = "";
+      for (const id of ["inviteGroupFilter", "inviteLanguageFilter", "inviteChannelFilter", "inviteFoodInterestFilter"]) $(id).value = "all";
+      rememberDisclosure("invite-household:" + householdId, true);
+      render();
+      const row = [...$("inviteRows").querySelectorAll("[data-invite-household]")]
+        .find((element) => element.dataset.inviteHousehold === householdId);
+      if (!row) { $("inviteSearch").focus(); return; }
+      row.open = true;
+      row.dispatchEvent(new Event("toggle"));
+      const delivery = row.querySelector("#invite-delivery-" + householdId);
+      if (delivery) delivery.open = true;
+      row.scrollIntoView({ block: "nearest" });
+      row.querySelector("summary")?.focus();
+    }
+    return { render, openHousehold };
   }
   window.RSVP_ADMIN_INVITES = { create };
 })();

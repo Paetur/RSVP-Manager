@@ -169,12 +169,12 @@ const { root, out, server, mock, extra, stageExtra } =
     await openBox(page,'event-features');
     const stage = page.locator("#eventFeaturesHost form");
     assert.equal(await stage.locator(".feature-stage-card").count(), 2);
-    await stage.locator("label:has(input[value=selection])").click();
-    page.once("dialog", (d) => d.dismiss());
+    await stage.locator("input[value=selection]").check();
     await stage.locator("button[type=submit]").click();
+    await page.locator(".inline-confirmation").getByRole("button",{name:"Cancel",exact:true}).click();
     assert.equal(await page.evaluate(() => window.__stageWrites || 0), 0);
-    page.once("dialog", (d) => d.accept());
     await stage.locator("button[type=submit]").click();
+    await page.locator(".inline-confirmation").getByRole("button",{name:"Save",exact:true}).click();
     await page.waitForFunction(() => window.__stageWrites === 1);
     assert.equal(
       await page.evaluate(

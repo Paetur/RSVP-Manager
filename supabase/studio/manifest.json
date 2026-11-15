@@ -1,10 +1,10 @@
 {
   "format": 1,
-  "version": "0.9.0-alpha.6",
+  "version": "0.9.0-alpha.7",
   "functions": {
     "guest-gateway": {
       "file": "guest-gateway.ts",
-      "sha256": "63280681bddfae0c1f9113208946e2b0d46e3fef2fdab4673103c35b1d7a0b00",
+      "sha256": "4f7436c81dc52885607baf50fddee0c8df8a97536367033c8ea81cfb07a94b3c",
       "verify_jwt": false,
       "sources": {
         "supabase/functions/_shared/site-origin.mjs": "9b3b31903310d20199c36ac79f6f3155e5248fcfd9c3fb8a2ca66cd6d8ea3948",
@@ -14,7 +14,7 @@
     },
     "admin-invitations": {
       "file": "admin-invitations.ts",
-      "sha256": "aea217fb00631d6c81196e3de2309cf4d0644d1b0be59afe45de11dcd0a49e0b",
+      "sha256": "0b7bc3fc65a86bd78adf0046c9f18a454f6a9d2dc0e331d9a23447bd53f49b9b",
       "verify_jwt": false,
       "sources": {
         "supabase/functions/_shared/site-origin.mjs": "9b3b31903310d20199c36ac79f6f3155e5248fcfd9c3fb8a2ca66cd6d8ea3948",

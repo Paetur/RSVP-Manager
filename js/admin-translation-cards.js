@@ -2,7 +2,7 @@
 (function () {
   "use strict";
   const opened = new Map();
-  function create(host, { R, T, key, title }) {
+  function create(host, { R, T, key, title, defaultOpen = false }) {
     const card = R.dom("details", {
         class: "panel settings-card translation-record-card",
       }),
@@ -10,7 +10,7 @@
       body = R.dom("div", { class: "translation-record-body" });
     card.dataset.settingsCard = key;
     card.dataset.translationRecord = key;
-    card.open = opened.get(key) ?? false;
+    card.open = opened.get(key) ?? defaultOpen;
     heading.append(R.dom("h3", {}, title));
     card.append(heading, body);
     card.addEventListener("toggle", () => opened.set(key, card.open));
@@ -50,7 +50,7 @@
         class: "translation-language-reading",
       });
       language.append(source.querySelector(":scope > strong").cloneNode(true));
-      for (const input of source.querySelectorAll("input,textarea")) {
+      for (const input of source.querySelectorAll("input,textarea,select")) {
         const label = input
             .closest("label")
             .querySelector(".placeholder-field-heading > span, :scope > span"),
@@ -61,7 +61,7 @@
             { class: "muted" },
             label?.textContent || input.getAttribute("aria-label"),
           ),
-          R.dom("p", {}, input.value || "—"),
+          R.dom("p", {}, (input.tagName === "SELECT" ? input.selectedOptions[0]?.textContent : input.value) || "—"),
         );
         language.append(field);
       }

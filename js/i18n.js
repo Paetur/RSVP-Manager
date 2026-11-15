@@ -83,14 +83,14 @@
     paint();
     const selected=language;return loadCatalogs().then(()=>{if(language===selected){paint();document.dispatchEvent(new Event('rsvp:locale-ready'));}});
   }
-  function confirmLanguageReload(ignoredForm=null){
+  async function confirmLanguageReload(ignoredForm=null){
     const unsaved=[...dirtyForms].some(form=>{
       if(!form.isConnected||form===ignoredForm)return false;
       if(form.id==='personalPreferencesForm')return window.RSVP_ADMIN_PREFERENCES?.hasUnsaved()||false;
       if(!form.cleanSaveUpdate)return true;
       return [...form.querySelectorAll('input,select,textarea')].some(control=>(control.type==='checkbox'?String(control.checked):control.value)!==control.dataset.cleanOriginal);
     })||window.RSVP_ADMIN_TOOLS?.hasUnsavedTasks()||window.RSVP_CUSTOMIZATION?.hasUnsaved()||window.RSVP_ADMIN_NOTIFICATIONS?.hasUnsaved();
-    return !unsaved||window.confirm(t('Changing language reloads this page. Unsaved changes will be lost. Continue?'));
+    return !unsaved||await window.RSVP_INLINE.confirm(t('Changing language reloads this page. Unsaved changes will be lost. Continue?'), { action: "Discard and continue", onSave: () => window.RSVP_INLINE.saveForms([...dirtyForms].filter(form => form !== ignoredForm)) });
   }
   function reloadLanguagePage(){languageReloadApproved=true;location.reload();}
   function applyWording(source,lang,value){
@@ -158,7 +158,7 @@
       document.addEventListener('input',e=>{const form=e.target.closest('form');if(form&&!form.matches('.other-edit-form,.wording-edit-form')&&!['search'].includes(e.target.type))dirtyForms.add(form);});
       select.addEventListener('change',async()=>{
         if(window.RSVP_ADMIN_PREFERENCES){window.RSVP_ADMIN_PREFERENCES.stage('language',select.value);return;}
-        if(!confirmLanguageReload()){select.value=language;return;}
+        if(!await confirmLanguageReload()){select.value=language;return;}
         await setLanguage(select.value);reloadLanguagePage();
       });const preferences=document.getElementById('interfaceLanguageHost');if(preferences)preferences.append(label);else host.prepend(window.RSVP.iconPopup(button,label));
     }

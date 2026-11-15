@@ -206,7 +206,7 @@ const { PGlite } = require("@electric-sql/pglite"),
     );
     const venueData = (
       await db.query(
-        "SELECT to_jsonb(v)-'sort_order' AS v FROM public.event_locations v ORDER BY id",
+        "SELECT to_jsonb(v)-'sort_order'-'updated_at' AS v FROM public.event_locations v ORDER BY id",
       )
     ).rows;
     await db.exec("SET ROLE authenticated");
@@ -223,7 +223,7 @@ const { PGlite } = require("@electric-sql/pglite"),
     assert.deepEqual(
       (
         await db.query(
-          "SELECT to_jsonb(v)-'sort_order' AS v FROM public.event_locations v ORDER BY id",
+          "SELECT to_jsonb(v)-'sort_order'-'updated_at' AS v FROM public.event_locations v ORDER BY id",
         )
       ).rows,
       venueData,

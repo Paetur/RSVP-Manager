@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, "..");
 function plan(files, all = false) {
   const changed = (pattern) => all || files.some((name) => pattern.test(name));
   const commands = [];
+  if (changed(/^(js\/text-placeholders\.js|tools\/build-placeholder-contract\.cjs|supabase\/migrations\/)/)) commands.push(["node", "tools/build-placeholder-contract.cjs", "--check"]);
   if (changed(/^(styles\/|css\/|tools\/build-css\.cjs)/))
     commands.push(["node", "tools/build-css.cjs", "--check"]);
   if (
@@ -37,6 +38,8 @@ function plan(files, all = false) {
       "tests/admin-overview.cjs",
     ],
     [/food-interest-reply/, "tests/food-interest-reply.cjs"],
+    [/household-name/, "tests/household-name.cjs"],
+    [/text-placeholders|placeholder-contract/, "tests/text-placeholders.cjs"],
     [/invitation-templates/, "tests/invitation-templates.cjs"],
     [/backup-files/, "tests/backup-files.cjs"],
   ])

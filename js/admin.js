@@ -10,6 +10,7 @@
     store = {
       settings: null,
       invitationTemplates: [],
+      sessionInvitationLocks: [],
       guestFoodReplies: [],
       sessions: [],
       locations: [],
@@ -35,7 +36,7 @@
       tasks: [],
       otherCategories: [],
     };
-  const mainTabs = ["invites", "venues", "households", "food", "other"];
+  const mainTabs = ["invites", "overview", "venues", "households", "food", "other"];
   const defaultMainTab = () =>
     mainTabs.find((name) => !A.current || A.tabAllowed(name)) || "settings";
   let activeTab = "invites",
@@ -51,6 +52,7 @@
         "languages",
         "interface",
         "templates",
+        "placeholders",
         "backups",
         "logs",
       ].includes(saved)
@@ -122,9 +124,10 @@
           "languages",
           "interface",
           "templates",
+        "placeholders",
           "backups",
           "logs",
-        ].find((n) => A.settingsAllowed(n)) || "interface";
+        ].find((n) => A.settingsAllowed(n)) || "checklist";
     activeSettingsTab = name;
     try {
       sessionStorage.setItem("event-admin-settings-tab", name);
@@ -140,7 +143,12 @@
       .forEach((n) =>
         n.classList.toggle("hidden", n.dataset.settingsPanel !== name),
       );
+    requestAnimationFrame(() => {
+      document.querySelector('[data-settings-tab="' + name + '"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      updateTabOverflow();
+    });
     if (name === "logs") loadLogs(true);
+    if (name === "placeholders") window.RSVP_ADMIN_PLACEHOLDERS.render({ R, T });
   }
   function tab(name, updateUrl = true) {
     if (name === "tasks") name = "other";
@@ -227,15 +235,15 @@
     }
   }
   function updateTabOverflow() {
-    const nav = document.querySelector(".admin-main-tabs"),
-      hint = $("tabOverflowHint");
-    if (!nav || !hint) return;
-    hint.classList.toggle(
-      "hidden",
-      ["settings", "language"].includes(activeTab) ||
-        nav.scrollWidth <= nav.clientWidth + 1,
-    );
+    for (const [selector, id, visible] of [
+      [".admin-main-tabs", "tabOverflowHint", !["settings", "language"].includes(activeTab)],
+      [".settings-tabs", "settingsTabOverflowHint", activeTab === "settings"],
+    ]) {
+      const nav = document.querySelector(selector), hint = $(id);
+      if (nav && hint) hint.classList.toggle("hidden", !visible || nav.scrollWidth <= nav.clientWidth + 1);
+    }
   }
+
   function toggleSettings() {
     tab(activeTab === "settings" ? lastMainTab : "settings");
   }
@@ -316,6 +324,9 @@
     planningConfiguration,
   });
   function renderAll() {
+    const resumeInline = window.RSVP_INLINE?.suspend();
+    try {
+
     window.RSVP_NOTIFICATIONS.configure(
       "admin",
       store.settings?.notification_preferences?.admin,
@@ -399,15 +410,17 @@
     localEditors.refresh(true);
     if (!A.tabAllowed(activeTab)) tab(defaultMainTab(), false);
     else if (activeTab === "settings" && !A.settingsAllowed(activeSettingsTab))
-      settingsTab("interface");
+      settingsTab("checklist");
+
+    } finally { resumeInline?.(); }
   }
   function ordered(list, label) {
     return [...list].sort(
       (a, b) =>
         (a.sort_order || 0) - (b.sort_order || 0) ||
-        String(a[label] || "")
+        String((label === "household_name" ? R.householdName(a) : a[label]) || "")
           .toLowerCase()
-          .localeCompare(String(b[label] || "").toLowerCase()) ||
+          .localeCompare(String((label === "household_name" ? R.householdName(b) : b[label]) || "").toLowerCase()) ||
         a.id.localeCompare(b.id),
     );
   }
@@ -695,7 +708,7 @@
     const save = R.dom(
       "button",
       { type: "submit", class: "btn" },
-      T("interface.messages.save_guest"),
+      T("Save"),
     );
     const cancel = R.dom(
       "button",
@@ -944,15 +957,17 @@
   function householdForm(h, contactChoice = null) {
     const f = managementForm();
     f.dataset.formKey = "household:" + (h.id || "new");
+    f.classList.add("household-details-form");
     const name = field(
       f,
-      T("interface.messages.household_name"),
+      T("interface.messages.name"),
       h.household_name,
       null,
       "text",
       true,
       140,
     );
+    const lastName = field(f, T("interface.messages.last_name"), h.last_name || "", null, "text", false, 140);
     const planningGroup = field(
       f,
       T("Top-level group"),
@@ -1002,7 +1017,7 @@
           (x.relation_group_id || "") === group.value &&
           !isDescendantOf(x.id, h.id),
       ))
-        parent.append(R.dom("option", { value: x.id }, x.household_name));
+        parent.append(R.dom("option", { value: x.id }, R.householdName(x)));
       parent.value = [...parent.options].some((o) => o.value === selected)
         ? selected
         : "";
@@ -1056,9 +1071,9 @@
       : null;
     if (allowFood) {
       const label = allowFood.closest("label");
-      label.classList.add("household-food-toggle", "span-2");
+      label.classList.add("household-food-toggle");
       label.prepend(allowFood);
-      f.prepend(label);
+      f.insertBefore(label, address.closest("label"));
     }
     f.append(
       R.dom(
@@ -1073,17 +1088,19 @@
             ),
       ),
     );
+    const sessions = window.RSVP_ADMIN_HOUSEHOLD_SESSIONS.append(f, h, { R, T, getStore: () => store, ordered, can });
     if (contactChoice) f.append(contactChoice.row);
     return saveForm(
       f,
       h.id
-        ? T("interface.messages.save_household")
+        ? T("Save")
         : T("interface.messages.create_household"),
       () => {
         const args = {
           p_id: h.id || null,
           p_values: {
             household_name: name.value.trim(),
+            last_name: lastName.value.trim() || null,
             planning_group_id: planningGroup.value,
             relation_group_id: group.value || null,
             language: lang.value,
@@ -1093,6 +1110,7 @@
             notes: notes.value.trim(),
           },
         };
+        if (sessions.changed()) Object.assign(args.p_values, sessions.read());
         const foodChanged = allowFood && allowFood.checked !== !!h.food;
         const primaryChanged =
           contactChoice &&
@@ -1143,7 +1161,7 @@
                 !h.archived_at &&
                 h.rsvp_state === "open",
             )
-            .map((h) => [h.id, h.household_name]),
+            .map((h) => [h.id, R.householdName(h)]),
         ],
         "text",
         true,
@@ -1159,11 +1177,9 @@
       );
       saveForm(f, T("interface.messages.move_guest"), async () => {
         if (
-          !confirm(
-            T(
+          !await window.RSVP_INLINE.confirm(T(
               "interface.messages.move_this_guest_and_preserve_their_current_session_invitations",
-            ),
-          )
+            ), { action: "Move guest" })
         )
           return false;
         await managementRpc("admin_move_guest", {
@@ -1288,7 +1304,7 @@
             "span",
             { class: "tag" },
             T("interface.messages.guest") +
-              (source ? " · " + source.household_name : ""),
+              (source ? " · " + R.householdName(source) : ""),
           ),
         );
       }
@@ -1419,8 +1435,7 @@
           normalize(
             [
               guestLabel(g),
-              store.households.find((source) => source.id === g.household_id)
-                ?.household_name,
+              R.householdName(store.households.find((source) => source.id === g.household_id)),
             ].join(" "),
           ).includes(query),
         )
@@ -1451,11 +1466,11 @@
           T("interface.messages.select_guest") +
             guestLabel(g) +
             " — " +
-            household.household_name,
+            R.householdName(household),
         );
         button.append(
           R.dom("strong", {}, guestLabel(g)),
-          R.dom("small", {}, household.household_name),
+          R.dom("small", {}, R.householdName(household)),
         );
         if (!eligible)
           button.append(
@@ -1563,7 +1578,7 @@
     saveForm(
       f,
       c.id
-        ? T("interface.messages.save_contact")
+        ? T("Save")
         : T("interface.messages.create_contact"),
       () =>
         managementRpc("admin_save_contact", {
@@ -2203,11 +2218,9 @@
         d.append(
           saveForm(f, T("interface.messages.reopen_rsvp"), async () => {
             if (
-              !confirm(
-                T(
+              !await window.RSVP_INLINE.confirm(T(
                   "interface.messages.reopen_this_household_s_rsvp_while_preserving_its_submission_hist",
-                ),
-              )
+                ), { action: "Reopen RSVP" })
             )
               return false;
             return managementRpc("admin_reopen_household_rsvp", {
@@ -2292,6 +2305,10 @@
     actorName,
     field,
     reload,
+    viewInInvites: (householdId) => {
+      tab("invites");
+      invitesView.openHousehold(householdId);
+    },
   });
   function householdSummary(h, guests, primaryGuest) {
     const active = guests.filter((g) => !g.archived_at).length;
@@ -2342,6 +2359,32 @@
       contactChannel: primary ? primaryContactChannel(primary) : null,
     });
   }
+  function editHouseholdFromInvites(householdId) {
+    if (store.settings?.is_published || !can("households", "edit")) return;
+    const household = store.households.find((item) => item.id === householdId && !item.archived_at);
+    if (!household) return;
+    tab("households");
+    let form = $("household-form-" + householdId);
+    if (!form) {
+      // Clearing a filter rebuilds the Household list; retain unfinished edits.
+      if ([...$("householdRows").querySelectorAll("form")].some((item) => item.dataset.dirty === "true")) {
+        show(T("Unsaved changes. Select Save to update the database."));
+        return;
+      }
+      $("householdSearch").value = "";
+      renderHouseholds();
+      form = $("household-form-" + householdId);
+    }
+    if (!form) return;
+    for (let parent = form.parentElement; parent; parent = parent.parentElement) {
+      if (parent.tagName !== "DETAILS") continue;
+      parent.open = true;
+      const key = parent.dataset.householdDetailKey || parent.dataset.treeKey;
+      if (key) expandedGroups.set(key, true);
+    }
+    form.scrollIntoView({ block: "nearest" });
+    form.querySelector("input:not([type=checkbox]):not(:disabled)")?.focus({ preventScroll: true });
+  }
   const invitesView = window.RSVP_ADMIN_INVITES.create({
     R,
     T,
@@ -2354,10 +2397,11 @@
     contactMethodLabel,
     canPreviewGuest: () => A.canPreviewGuest(),
     can,
+    iconAction,
+    editHousehold: editHouseholdFromInvites,
     setDisclosure,
     rememberDisclosure: (key, open) => expandedGroups.set(key, open),
     deliverySection,
-    sessionAssignmentForm,
     rsvpSection,
     adminTime,
     show,
@@ -2510,7 +2554,7 @@
         .filter((h) => {
           const guests = store.guests.filter((g) => g.household_id === h.id);
           return [
-            h.household_name,
+            R.householdName(h),
             h.language,
             ...guests.map((g) => [g.first_name, g.last_name].join(" ")),
           ]
@@ -2630,7 +2674,7 @@
                 show(T("interface.messages.group_not_empty"), "error");
                 return;
               }
-              if (!confirm(T("Permanently delete {name}?", { name: label })))
+              if (!await window.RSVP_INLINE.confirm(T("Permanently delete {name}?", { name: label }), { action: "Delete" }))
                 return;
               const config = structuredClone(planningConfiguration());
               config.groups = config.groups.filter((g) => g.id !== groupKey);
@@ -2801,9 +2845,7 @@
                     return;
                   }
                   if (
-                    !confirm(
-                      T("Permanently delete {name}?", { name: relation.name }),
-                    )
+                    !await window.RSVP_INLINE.confirm(T("Permanently delete {name}?", { name: relation.name }), { action: "Delete" })
                   )
                     return;
                   await managementRpc("admin_manage_relation_group", {
@@ -2841,7 +2883,7 @@
             R.dom(
               "strong",
               {},
-              h.household_name || T("interface.messages.unnamed_household"),
+              R.householdName(h) || T("interface.messages.unnamed_household"),
             ),
           );
           const guests = store.guests.filter((g) => g.household_id === h.id);
@@ -2922,12 +2964,13 @@
             [T("interface.messages.notes"), h.notes, "wide"],
           ]);
           summary.classList.add("view-only");
-          editor.append(summary);
+          summary.append(window.RSVP_ADMIN_HOUSEHOLD_SESSIONS.reading(h, { R, T, getStore: () => store, ordered, can }));
+          if (!can("households", "edit") || h.archived_at) editor.append(summary);
           actions.append(
             iconAction(
               "edit",
               T("interface.messages.edit_household") +
-                (h.household_name || "household"),
+                (R.householdName(h) || "household"),
               () => {
                 node.open = true;
                 editor.open = !editor.open;
@@ -3007,6 +3050,7 @@
           card.append(primary);
           const expanded = R.dom("div", { class: "household-expanded" });
           expanded.append(editor, buildGuestList(guests));
+          if (can("invites")) expanded.append(deliverySection(h));
           if (!h.archived_at) {
             const add = disclosure(
               T("interface.messages.add_guest"),
@@ -3151,7 +3195,7 @@
     select.value = selected || "Piece(s)";
   }
   function openFoodTypes(select) {
-    const dialog = R.dom("dialog", {
+    const dialog = R.inlinePanel({
       class: "food-recipe-dialog food-type-manager",
     });
     dialog.setAttribute("aria-label", T("interface.messages.manage_types"));
@@ -3292,7 +3336,7 @@
       { capture: true },
     );
     $("adminApp").append(dialog);
-    dialog.showModal();
+    dialog.openInline();
     name.focus();
   }
   function foodVenueFields(host, current = null) {
@@ -3345,8 +3389,7 @@
   let newFoodVenues = () => null;
   function foodClaimName(claim) {
     return (
-      store.households.find((h) => h.id === claim.household_id)
-        ?.household_name || T("interface.messages.household_2")
+      R.householdName(store.households.find((h) => h.id === claim.household_id)) || T("interface.messages.household_2")
     );
   }
   function foodSelections(item, claims, claimed) {
@@ -3420,12 +3463,10 @@
               T("Remove assignment for {household}", { household: name }),
               async () => {
                 if (
-                  !confirm(
-                    T("Remove {household}’s assignment for {item}?", {
+                  !await window.RSVP_INLINE.confirm(T("Remove {household}’s assignment for {item}?", {
                       household: name,
                       item: foodItemName(item),
-                    }),
-                  )
+                    }), { action: "Remove assignment" })
                 )
                   return;
                 await rpcAction(
@@ -3454,7 +3495,7 @@
           !selected.has(h.id) &&
           foodVenueEligible(h, item),
       )
-      .map((h) => [h.id, h.household_name]);
+      .map((h) => [h.id, R.householdName(h)]);
     if (item.active && available > 0 && options.length) {
       const editor = disclosure(
         T("interface.messages.add_household"),
@@ -3605,7 +3646,7 @@
     const save = R.dom(
       "button",
       { type: "submit", class: "btn" },
-      T("food.messages.save_food_item"),
+      T("Save"),
     );
     const cancel = R.dom(
       "button",
@@ -3617,7 +3658,7 @@
       restoreDraft(form);
       form.classList.add("hidden");
     });
-    footer.append(save, cancel, activeLabel);
+    footer.append(save, cancel);
     const lifecycle = lifecycleControls("food_items", item);
     if (lifecycle) footer.append(lifecycle);
     form.append(footer);
@@ -3749,7 +3790,7 @@
       }
       return view;
     }
-    const dialog = R.dom("dialog", { class: "food-recipe-dialog" });
+    const dialog = R.inlinePanel({ class: "food-recipe-dialog" }, trigger);
     dialog.dataset.permissionEdit = String(editable);
     dialog.setAttribute("aria-label", T("food.messages.recipe"));
     dialog.append(
@@ -3825,7 +3866,7 @@
       { once: true },
     );
     $("adminApp").append(dialog);
-    dialog.showModal();
+    dialog.openInline();
     (recipe || dialog.querySelector("button"))?.focus();
   }
   function foodLanguageButton(open) {
@@ -3835,7 +3876,7 @@
     });
     button.append(actionGlyph("language"));
     button.title = T("interface.messages.language");
-    button.setAttribute("aria-haspopup", "dialog");
+
     button.setAttribute("aria-label", T("interface.messages.language"));
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -4003,7 +4044,7 @@
       );
       return;
     }
-    if (!confirm(T("Permanently delete {name}?", { name: category.name })))
+    if (!await window.RSVP_INLINE.confirm(T("Permanently delete {name}?", { name: category.name }), { action: "Delete category" }))
       return;
     await managementRpc("admin_delete_food_category", {
       p_category_id: category.id,
@@ -4213,13 +4254,11 @@
       });
       resend.addEventListener("click", async () => {
         if (
-          !confirm(
-            T(
+          !await window.RSVP_INLINE.confirm(T(
               "interface.messages.send_another_administrator_invitation_email_to",
             ) +
               invitation.email +
-              "?",
-          )
+              "?", { action: "Resend invitation" })
         )
           return;
         resend.disabled = true;
@@ -4245,11 +4284,9 @@
       });
       cancel.addEventListener("click", async () => {
         if (
-          !confirm(
-            T("interface.messages.cancel_administrator_invitation_for") +
+          !await window.RSVP_INLINE.confirm(T("interface.messages.cancel_administrator_invitation_for") +
               invitation.email +
-              "?",
-          )
+              "?", { action: "Cancel invitation" })
         )
           return;
         resend.disabled = true;
@@ -4417,6 +4454,7 @@
   function renderSettings() {
     renderNotificationSettings();
     renderFeatures();
+    window.RSVP_ADMIN_GUEST_NAMES.render({ R, T, getStore: () => store, languages, can, saveForm, managementRpc });
     renderGuestAppearance();
     const e = store.settings || {};
     for (const id of ["wordingLanguage"]) {
@@ -4439,6 +4477,11 @@
     }
     $("settingName").value = e.event_name || "";
     $("settingDate").value = e.event_date || "";
+    $("settingTime").value = e.event_time || "";
+    $("settingOrganizerName").value = e.organizer_name || "";
+    $("settingOrganizerEmail").value = e.organizer_email || "";
+    $("settingOrganizerPhone").value = e.organizer_phone || "";
+    $("settingFoodDeadline").value = stamp(e.food_deadline);
     $("settingTimezone").value = e.timezone || "UTC";
     $("settingUrl").value = e.website_url || "";
     $("settingDeadline").value = stamp(e.rsvp_deadline);
@@ -4511,6 +4554,7 @@
       null,
       "textarea",
     );
+    window.RSVP_PLACEHOLDER_HELP.attach(notes, { R, T, kind: "invitation", tokens: window.RSVP_PLACEHOLDERS.tokens("venue") });
     const welcome = Object.fromEntries(
       languages()
         .filter(
@@ -4564,8 +4608,10 @@
         ),
       ),
     );
-    for (const control of Object.values(welcome))
+    for (const control of Object.values(welcome)) {
       welcomeBox.append(control.closest("label"));
+      window.RSVP_PLACEHOLDER_HELP.attach(control, { R, T, kind: "invitation", tokens: window.RSVP_PLACEHOLDERS.tokens("venue") });
+    }
     if (v.id) welcomeBox.append(translate);
     f.append(welcomeBox);
     const archived = field(
@@ -4578,7 +4624,7 @@
     const form = saveForm(
       f,
       v.id
-        ? T("interface.messages.save_venue")
+        ? T("Save")
         : T("interface.messages.create_venue"),
       () =>
         managementRpc("admin_save_venue_with_translations", {
@@ -4610,7 +4656,7 @@
         { class: "btn secondary", type: "button" },
         T("food.messages.manage_food"),
       );
-      food.addEventListener("click", () => venueFoodDialog(v));
+      food.addEventListener("click", () => venueFoodDialog(v, food));
       footer.append(food);
     }
     const archiveLabel = archived.closest("label");
@@ -4701,7 +4747,7 @@
     return saveForm(
       f,
       s.id
-        ? T("interface.messages.save_session")
+        ? T("Save")
         : T("interface.messages.create_session"),
       () =>
         managementRpc("admin_save_session", {
@@ -4718,124 +4764,6 @@
         }),
     );
   }
-  function sessionAssignmentForm(h) {
-    const d = disclosure(T("interface.messages.session_invitations"));
-    d.append(
-      R.dom(
-        "p",
-        { class: "micro" },
-        T(
-          "interface.messages.household_defaults_apply_to_each_guest_unless_an_individual_excep",
-        ),
-      ),
-    );
-    const f = managementForm();
-    const fields = [];
-    const guests = store.guests.filter(
-      (g) => g.household_id === h.id && !g.archived_at,
-    );
-    const locked =
-      h.rsvp_state !== "open" ||
-      store.submissions.some((x) => x.household_id === h.id);
-    for (const s of ordered(store.sessions, "name")) {
-      const venue = store.locations.find((v) => v.id === s.location_id);
-      const title =
-        s.name +
-        (venue ? " · " + venue.name : "") +
-        (s.is_active ? "" : T("interface.messages.inactive_2"));
-      const invited = !!store.defaults.find(
-        (x) => x.household_id === h.id && x.session_id === s.id,
-      )?.is_invited;
-      const household = field(
-        f,
-        title + T("interface.messages.household"),
-        String(invited),
-        [
-          ["false", T("interface.messages.not_invited")],
-          ["true", T("interface.messages.invited")],
-        ],
-      );
-      fields.push({ session_id: s.id, guest_id: null, control: household });
-      for (const g of guests) {
-        const existing = store.overrides.find(
-          (x) => x.guest_id === g.id && x.session_id === s.id,
-        );
-        const control = field(
-          f,
-          [g.first_name, g.last_name].filter(Boolean).join(" ") +
-            " — " +
-            s.name,
-          existing ? String(existing.is_invited) : "inherit",
-          [
-            ["inherit", T("interface.messages.follow_household")],
-            ["true", T("interface.messages.invited")],
-            ["false", T("interface.messages.not_invited")],
-          ],
-        );
-        fields.push({ session_id: s.id, guest_id: g.id, control });
-      }
-      const summary = R.dom(
-        "p",
-        { class: "micro view-only" },
-        title +
-          ": " +
-          (invited
-            ? T("interface.messages.household_invited")
-            : T("interface.messages.household_not_invited")),
-      );
-      d.append(summary);
-      for (const g of guests) {
-        const o = store.overrides.find(
-          (x) => x.guest_id === g.id && x.session_id === s.id,
-        );
-        if (o)
-          d.append(
-            R.dom(
-              "p",
-              { class: "micro view-only" },
-              g.first_name +
-                ": " +
-                (o.is_invited
-                  ? T("interface.messages.invited")
-                  : T("interface.messages.not_invited")),
-            ),
-          );
-      }
-    }
-    if (locked) {
-      d.append(
-        R.dom(
-          "p",
-          { class: "notice" },
-          T(
-            "interface.messages.invitations_are_protected_because_this_household_has_rsvp_history",
-          ),
-        ),
-      );
-      return d;
-    }
-    saveForm(f, T("interface.messages.save_session_invitations"), () =>
-      managementRpc("admin_save_session_assignments", {
-        p_household_id: h.id,
-        p_assignments: fields.map((x) => ({
-          session_id: x.session_id,
-          guest_id: x.guest_id,
-          is_invited:
-            x.control.value === "inherit" ? null : x.control.value === "true",
-        })),
-      }),
-    );
-    if (fields.length) d.append(f);
-    else
-      d.append(
-        R.dom(
-          "p",
-          {},
-          T("interface.messages.create_sessions_in_settings_first"),
-        ),
-      );
-    return d;
-  }
   function assignmentDialog({
     title,
     name,
@@ -4843,10 +4771,11 @@
     empty,
     drawChoices,
     saveChanges,
+    trigger,
   }) {
-    const dialog = R.dom("dialog", {
+    const dialog = R.inlinePanel({
       class: "food-recipe-dialog venue-assignment-dialog",
-    });
+    }, trigger);
     dialog.setAttribute("aria-label", title);
     const form = R.dom("form");
     form.append(R.dom("p", { class: "micro" }, help));
@@ -4941,10 +4870,11 @@
     dialog.append(R.dom("h2", {}, title + " · " + name), form);
     dialog.addEventListener("close", () => dialog.remove(), { once: true });
     $("adminApp").append(dialog);
-    dialog.showModal();
+    dialog.openInline();
   }
-  function venueFoodDialog(venue) {
+  function venueFoodDialog(venue, trigger) {
     assignmentDialog({
+      trigger,
       title: T("food.messages.venue_food"),
       name: venue.name,
       help: T(
@@ -4984,7 +4914,7 @@
         }),
     });
   }
-  async function sessionHouseholdDialog(session) {
+  async function sessionHouseholdDialog(session, trigger) {
     const protectedIds = new Set(
       await managementRpc("admin_session_invitation_locks"),
     );
@@ -5019,6 +4949,7 @@
       }
     }
     assignmentDialog({
+      trigger,
       title: T("interface.messages.manage_households"),
       name: session.name,
       help: T(
@@ -5030,7 +4961,7 @@
           const members = guests.get(h.id);
           if (!members) {
             parent.append(
-              R.dom("p", { class: "micro muted" }, h.household_name),
+              R.dom("p", { class: "micro muted" }, R.householdName(h)),
             );
             return;
           }
@@ -5046,7 +4977,7 @@
           addCheck(
             parent,
             h.id,
-            h.household_name,
+            R.householdName(h),
             invited.has(h.id),
             locked,
             flags,
@@ -5067,6 +4998,7 @@
     getStore: () => store,
     isEditing: () => true,
     getLanguage: () => window.RSVP_I18N?.language || "en",
+    adminTime,
     ordered,
     disclosure,
     btn,
@@ -5270,6 +5202,18 @@
       .forEach((b) =>
         b.addEventListener("click", () => settingsTab(b.dataset.settingsTab)),
       );
+    for (const nav of document.querySelectorAll(".admin-main-tabs,.settings-tabs")) {
+      nav.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        const buttons = [...nav.querySelectorAll("button")].filter((b) => !b.disabled && !b.classList.contains("permission-hidden"));
+        const index = buttons.indexOf(document.activeElement);
+        if (index < 0) return;
+        event.preventDefault();
+        const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+        buttons[next].click();
+        buttons[next].focus({ preventScroll: true });
+      });
+    }
     $("settingsToggle").addEventListener("click", () => tab("settings"));
     $("logFilters").addEventListener("submit", (e) => {
       e.preventDefault();
@@ -5526,6 +5470,11 @@
       const settings = {
         event_name: $("settingName").value.trim(),
         event_date: $("settingDate").value || null,
+        event_time: $("settingTime").value || null,
+        organizer_name: $("settingOrganizerName").value.trim() || null,
+        organizer_email: $("settingOrganizerEmail").value.trim() || null,
+        organizer_phone: $("settingOrganizerPhone").value.trim() || null,
+        food_deadline: $("settingFoodDeadline").value ? new Date($("settingFoodDeadline").value).toISOString() : null,
         default_language: store.settings.default_language,
         fallback_language: store.settings?.fallback_language || "en",
         timezone: $("settingTimezone").value.trim(),
@@ -5574,11 +5523,9 @@
         return;
       }
       if (
-        !confirm(
-          T(
+        !await window.RSVP_INLINE.confirm(T(
             "food.messages.publish_this_event_now_invite_code_holders_may_access_guest_rsvp_",
-          ),
-        )
+          ), { action: "Publish event" })
       )
         return;
       const button = $("publishEventButton");
@@ -5597,11 +5544,9 @@
     });
     $("unpublishEventButton").addEventListener("click", async () => {
       if (
-        !confirm(
-          T(
+        !await window.RSVP_INLINE.confirm(T(
             "interface.messages.unpublish_this_event_guest_access_to_published_event_details_will",
-          ),
-        )
+          ), { action: "Unpublish event" })
       )
         return;
       const button = $("unpublishEventButton");

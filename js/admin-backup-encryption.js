@@ -52,7 +52,7 @@
       cancelPending();
       $("retryEncryptedBackup").classList.remove("hidden");
       return new Promise((resolve, reject) => {
-        const dialog = R.dom("dialog", { class: "backup-password-dialog" }),
+        const dialog = R.inlinePanel({ class: "backup-password-dialog" }, $("backupFile")),
           form = R.dom("form"),
           label = R.dom("label"),
           input = R.dom("input", {
@@ -119,7 +119,7 @@
           abort();
         });
         $("adminApp").append(dialog);
-        dialog.showModal();
+        dialog.openInline();
         input.focus();
       });
     }

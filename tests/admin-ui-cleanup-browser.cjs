@@ -1,5 +1,5 @@
 // Synthetic UI acceptance and previews only. No external database or real account changes.
-const {webkit}=require('playwright'),{mock}=require('./helpers/admin-fixture.cjs');
+const {webkit,chromium}=require('playwright'),{mock}=require('./helpers/admin-fixture.cjs');
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=process.cwd(),out=process.env.UI_PREVIEW||path.join(root,'artifacts/admin-ui-cleanup');
 const server=http.createServer((req,res)=>{let name=new URL(req.url,'http://localhost').pathname;if(name.endsWith('/'))name+='index.html';const p=path.resolve(root,'.'+name);if(!p.startsWith(root+path.sep)||!fs.existsSync(p)){res.writeHead(404);return res.end();}res.setHeader('content-type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json'}[path.extname(p)]||'text/plain'));res.end(path.extname(p)==='.html'?fs.readFileSync(p,'utf8').replace(/ integrity="[^"]+"/g,''):fs.readFileSync(p));});
@@ -9,7 +9,7 @@ fixtures.event_locations=[{id:'venue',name:'Garden hall',address:'12 Example Roa
 fixtures.food_items=[{id:'food-available',category:'Main dishes',name_en:'Garden salad',quantity_needed:4,quantity_type:'Tray(s)',active:true,sort_order:1,description_en:'Please keep chilled.'},{id:'food-full',category:'Main dishes',name_en:'Fresh bread',quantity_needed:2,quantity_type:'Batch(s)',active:true,sort_order:2},{id:'food-hidden',category:'Main dishes',name_en:'Chocolate cake',quantity_needed:3,quantity_type:'Piece(s)',active:false,sort_order:3}];fixtures.food_claims=[{household_id:h2,food_item_id:'food-full',quantity:2}];
 fixtures.other_categories=[{id:'other',name:'Preparations',sort_order:1}];fixtures.other_items=[{id:'task',category_id:'other',item:'Arrange chairs',notes:'Leave the aisle clear',assigned_to:'Example helper',status:'open',sort_order:1,updated_at:'2026-11-08T10:00:00Z'}];
 const oldRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_save_venue_with_translations'){window.__venueCalls=(window.__venueCalls||0)+1;if(window.__holdVenue)await new Promise(resolve=>window.__releaseVenue=resolve);if(window.__failVenue)return {data:null,error:{message:'Synthetic connection failure'}};Object.assign(fixtures.event_locations[0],args.p_values);return {data:'venue',error:null};}return oldRpc(name,args);};`;
-(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));fs.mkdirSync(out,{recursive:true});const browser=await webkit.launch({headless:true});try{
+(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));fs.mkdirSync(out,{recursive:true});const browser=await (process.env.RSVP_TEST_BROWSER==='chromium'?chromium:webkit).launch({headless:true});try{
  const page=await browser.newPage({viewport:{width:1100,height:950},hasTouch:true});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>localStorage.setItem('rsvp-interface-language','en'));await page.route('**/supabase.min.js',route=>route.fulfill({contentType:'text/javascript',body:mock+'\n'+extra}));
  const base='http://127.0.0.1:'+server.address().port;
  await page.route('**maps.google.com/**',r=>r.fulfill({contentType:'text/html',body:'Map fixture'}));
@@ -19,7 +19,7 @@ const oldRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_save_venu
  assert.equal(await venue.locator('input:visible,textarea:visible,select:visible').count(),0);assert.match(await venue.locator('.form-reading').innerText(),/Parking behind the hall/);
  await page.screenshot({path:path.join(out,'venues-view.png'),fullPage:true});
  await venue.locator('[data-record-pencil]').click();let form=venue.locator('form.management-form');
- const save=()=>form.getByRole('button',{name:'Save venue',exact:true});assert.equal(await save().isEnabled(),false);
+ const save=()=>form.getByRole('button',{name:'Save',exact:true});assert.equal(await save().isEnabled(),false);
  const name=()=>form.getByLabel('Venue name',{exact:true});await name().fill('Changed draft');assert.equal(await save().isEnabled(),true);
  await form.getByRole('button',{name:'Cancel',exact:true}).click();assert.equal(await name().inputValue(),'Garden hall');assert.equal(await form.isVisible(),false);
  await venue.locator('[data-record-pencil]').click();await name().fill('Garden pavilion');await page.evaluate(()=>{window.__failVenue=true;window.__holdVenue=true;});await save().click();

@@ -15,6 +15,7 @@ with tempfile.TemporaryDirectory(prefix='rsvp-publisher-') as tmp:
     public = {
         'index.html': 'website', 'setup.html': 'setup', 'setup-automatic.html': 'automatic setup', 'admin/index.html': 'admin',
         'INSTALL.md': 'current root installation guide',
+        'supabase/upgrades/alpha6-to-alpha7.sql': 'synthetic scoped upgrade',
         'supabase/install.sql': 'BEGIN; COMMIT;', 'supabase/install-manifest.json': '{}',
         'supabase/studio/manifest.json': '{}', 'supabase/studio/guest-gateway.ts': 'guest source',
         'supabase/studio/admin-invitations.ts': 'admin source',

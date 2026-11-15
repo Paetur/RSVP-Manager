@@ -155,6 +155,13 @@
     if (!old) document.body.prepend(layer);
     document.body.classList.add("guest-photo");
   }
+  function wording(text, binding = {}) {
+    const P = window.RSVP_PLACEHOLDERS;
+    if (!text || !P) return text || "";
+    const resolved = P.context({ ...eventData, guests: invitation?.guests || [], invitations: invitation?.invitations || [], responses: invitation?.responses || [] }, { household: invitation?.household, language, ...binding });
+    if (code) resolved.values.invitation_link = R.invitationURL(code);
+    try { const result = P.fill(text, resolved.values, resolved.options); return P.unresolved(result) ? window.RSVP_I18N.t("Details will follow.") : result; } catch (_) { return window.RSVP_I18N.t("Details will follow."); }
+  }
   function renderEvent() {
     const event = eventData?.event;
     if (!event) return;
@@ -180,7 +187,7 @@
       name + " | " + window.RSVP_I18N.t("interface.messages.invitation");
     const content = eventData.content || {};
     $("welcomeMessage").textContent =
-      window.RSVP_I18N.resolve(content, language) || t("welcome");
+      wording(window.RSVP_I18N.resolve(content, language) || t("welcome"));
   }
   function sessionLabel(session) {
     return translated("session:" + session.id + ":name", {}, session.name);
@@ -188,12 +195,22 @@
   function orderedInvitationGuests() {
     return R.orderedGuests(invitation?.guests);
   }
+  function guestTitle(guest) {
+    if (eventData?.event?.guest_title_visibility?.[language] === false) return "";
+    const title = guest?.courtesy_title || "";
+    return title === "Son" ? t("interface.messages.son") : title === "Daughter" ? t("interface.messages.daughter") : title;
+  }
+  function guestLastName(guest) {
+    return window.RSVP_GUEST_NAMES.lastName(guest, invitation, eventData?.event);
+  }
   function guestName(guest) {
-    return (
-      [guest?.courtesy_title, guest?.first_name, guest?.last_name]
-        .filter(Boolean)
-        .join(" ") || t("interface.messages.guest")
-    );
+    return [guestTitle(guest), guest?.first_name, guestLastName(guest)].filter(Boolean).join(" ") || t("interface.messages.guest");
+  }
+  function guestNameNode(guest, tag = "span", attrs = {}) {
+    const name = R.dom(tag, attrs);
+    if (guestTitle(guest)) name.append(R.dom("span", { class: "guest-courtesy-title" }, guestTitle(guest) + " "));
+    name.append(document.createTextNode([guest?.first_name, guestLastName(guest)].filter(Boolean).join(" ") || t("interface.messages.guest")));
+    return name;
   }
   function appendSessionDetails(card, session) {
     const venue = eventData?.locations?.find(
@@ -266,9 +283,11 @@
     const welcome = translated("venue:" + venue?.id + ":welcome", {
       en: venue?.welcome_en,
     });
-    if (welcome) card.append(R.dom("p", { class: "venue-welcome" }, welcome));
+    if (welcome) card.append(R.dom("p", { class: "venue-welcome" }, wording(welcome, { venueId: venue?.id, sessionId: session.id })));
+    const description = translated("session:" + session.id + ":description", {}, session.description);
+    if (description) card.append(R.dom("p", { class: "session-description" }, wording(description, { venueId: venue?.id, sessionId: session.id })));
     card.append(detailRow);
-    if (venue?.notes) card.append(R.dom("p", { class: "micro" }, venue.notes));
+    if (venue?.notes) card.append(R.dom("p", { class: "micro" }, wording(venue.notes, { venueId: venue?.id, sessionId: session.id })));
     if (venue?.map_url) {
       try {
         const url = new URL(venue.map_url);
@@ -327,7 +346,7 @@
     $("rsvpComment").value = rsvpCommentDraft;
     $("rsvpComment").disabled = locked || rsvpSubmitting;
     $("householdName").textContent =
-      h.name || t(previewTarget === "sample" ? "Sample household" : "dear");
+      R.householdName(h) || t(previewTarget === "sample" ? "Sample household" : "dear");
     $("invitationCard").classList.remove("hidden");
     const rows = $("rsvpRows"),
       guestHost = $("householdGuestHost");
@@ -354,7 +373,7 @@
       for (const [guest, link] of guests) {
         if (!link.requires_rsvp) {
           card.append(
-            R.dom("p", { class: "rsvp-guest small" }, guestName(guest)),
+            guestNameNode(guest, "p", { class: "rsvp-guest small" }),
           );
           continue;
         }
@@ -362,11 +381,7 @@
         fieldset.setAttribute("aria-label", guestName(guest));
         const personRow = R.dom("div", { class: "rsvp-person-row" });
         personRow.append(
-          R.dom(
-            "span",
-            { class: "rsvp-person-name", "aria-hidden": "true" },
-            guestName(guest),
-          ),
+          guestNameNode(guest, "span", { class: "rsvp-person-name", "aria-hidden": "true" }),
         );
         const options = R.dom("div", { class: "response-options" }),
           group = [];
@@ -610,7 +625,7 @@
       for (const response of responses) {
         const item = R.dom("li");
         item.append(
-          R.dom("span", {}, guestName(guests.get(response.guest_id))),
+          guestNameNode(guests.get(response.guest_id)),
           R.dom("strong", {}, t(response.status)),
         );
         list.append(item);
@@ -876,6 +891,7 @@
           window.RSVP_I18N.resolve(event.food_interest_reply || {}, language),
           {
             deadline: event.rsvp_deadline,
+            values: window.RSVP_PLACEHOLDERS.context({ ...eventData, guests: invitation?.guests || [], invitations: invitation?.invitations || [], responses: invitation?.responses || [] }, { household: invitation?.household, language }).values,
             timezone: event.timezone || "UTC",
             language,
             fallback,
@@ -943,10 +959,10 @@
       showSelection = !interestOnly && foodState.interest === true;
     $("foodCard").querySelector("h2").textContent = t("food");
     $("foodCard").querySelector("p").textContent =
-      window.RSVP_I18N.resolve(
+      wording(window.RSVP_I18N.resolve(
         eventData?.event?.food_introduction || {},
         language,
-      ) || t("interface.messages.food_interest_help");
+      ) || t("interface.messages.food_interest_help"));
     renderFoodInterest();
     let prompt = $("foodSelectionPrompt");
     if (!prompt) {
@@ -1160,7 +1176,7 @@
           { type: "button", class: "text-button quiet-link" },
           t("food.messages.recipe"),
         );
-        recipe.setAttribute("aria-haspopup", "dialog");
+
         recipe.addEventListener("click", () =>
           R.openRecipeDialog(label, item.recipe_text, recipe, () =>
             status(
@@ -1513,7 +1529,7 @@
           "aria-label",
           t("food.messages.recipe") + " · " + name,
         );
-        button.setAttribute("aria-haspopup", "dialog");
+
         button.addEventListener("click", () =>
           R.openRecipeDialog(name, item.recipe_text, button, () =>
             status(

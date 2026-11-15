@@ -57,7 +57,7 @@ const { server, mock, extra } = createFoodHarness("admin-delivery-editor");
     await subject.fill("Retained draft");
     await page.evaluate(() => (window.__editorFail = true));
     await form
-      .getByRole("button", { name: "Save delivery changes", exact: true })
+      .getByRole("button", { name: "Save", exact: true })
       .click();
     await form.locator(".form-feedback[data-state=error]").waitFor();
     assert.equal(await subject.inputValue(), "Retained draft");
@@ -67,7 +67,7 @@ const { server, mock, extra } = createFoodHarness("admin-delivery-editor");
       7,
     );
     await form
-      .getByRole("button", { name: "Save delivery changes", exact: true })
+      .getByRole("button", { name: "Save", exact: true })
       .click();
     await page.waitForFunction(
       () => fixtures.invitation_send_queue[0].revision === 8,

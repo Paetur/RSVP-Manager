@@ -53,7 +53,10 @@ try {
   );
   await install.run("database");
   assert.equal(install.publicState().steps.database, true);
+  const backupOrigin = (await f.db.query("SELECT installation_id FROM app_private.backup_origin WHERE singleton")).rows[0].installation_id;
+  assert.ok(backupOrigin);
   await install.run("database");
+  assert.equal((await f.db.query("SELECT installation_id FROM app_private.backup_origin WHERE singleton")).rows[0].installation_id, backupOrigin, "retry preserves the backup installation identity");
   assert.equal(
     (await f.db.query("SELECT is_published FROM public.event_settings")).rows[0]
       .is_published,

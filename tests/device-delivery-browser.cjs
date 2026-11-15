@@ -39,7 +39,7 @@ async function run(type){
 
   const email=page.locator('.invitation-template').filter({has:page.getByRole('heading',{name:'Email',exact:true})}).filter({visible:true});
   await email.locator('[data-local-edit]').click();
-  const save=email.getByRole('button',{name:'Save template',exact:true});
+  const save=email.getByRole('button',{name:'Save',exact:true});
   assert.ok(await save.isDisabled());
   await email.getByLabel('Message subject',{exact:true}).fill('Invitation for {household_name}');
   await email.getByLabel('Message text',{exact:true}).fill('Missing link');
@@ -61,6 +61,8 @@ async function run(type){
   const delivery=page.locator('#invite-delivery-'+householdId);
   await delivery.evaluate(n=>n.open=true);
   await delivery.locator('details').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
+  // Exercise the editor independently of the latest-record Review shortcut.
+  await delivery.locator(".delivery-create").evaluate(n=>n.hidden=false);
   const draft=delivery.locator('form').first();
   const channel=draft.getByLabel('Delivery channel');
   const draftBody=draft.getByLabel('Message text',{exact:true});
@@ -84,7 +86,7 @@ async function run(type){
   assert.equal(await record('device-0').locator('textarea').first().inputValue(),'Hey Føroyskt & Deutsch?');
   const reminder=record('sent-original').locator('details').filter({has:page.locator('summary',{hasText:'Prepare reminder'})});
   assert.ok((await reminder.locator('textarea').first().inputValue()).includes(await page.evaluate(()=>window.__deliveryHousehold.invite_code)));
-  await reminder.getByRole('button',{name:'Create delivery draft',exact:true}).click();
+  await reminder.getByRole('button',{name:'Save draft',exact:true}).click();
   await page.waitForFunction(()=>window.__calls.some(c=>c.name==='admin_save_delivery'));
   const call=await page.evaluate(()=>window.__calls.find(c=>c.name==='admin_save_delivery'));
   assert.equal(call.args.p_id,null);assert.equal(call.args.p_values.status,'draft');

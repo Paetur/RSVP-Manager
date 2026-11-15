@@ -94,15 +94,15 @@ const { root, out, server, mock, extra, stageExtra } =
         exact: true,
       });
       await recipe.click();
-      await page.getByRole("dialog", { name: "Recipe", exact: true }).waitFor();
+      await page.getByRole("region", { name: "Recipe", exact: true }).waitFor();
       assert.ok(
         (
           await page
-            .getByRole("dialog", { name: "Recipe", exact: true })
+            .getByRole("region", { name: "Recipe", exact: true })
             .innerText()
         ).includes("Mix the ingredients"),
       );
-      const recipeDialog = page.getByRole("dialog", {
+      const recipeDialog = page.getByRole("region", {
         name: "Recipe",
         exact: true,
       });

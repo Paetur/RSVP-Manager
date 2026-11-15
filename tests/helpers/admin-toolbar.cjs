@@ -17,3 +17,16 @@ async function toggleFixtureTheme(page) {
   else await button.evaluate((node) => node.click());
 }
 module.exports.toggleFixtureTheme = toggleFixtureTheme;
+// Suites that previously accepted native confirmations can accept the same
+// synthetic operation inline. Dedicated acceptance tests exercise Cancel/Stay.
+async function autoConfirmInline(page) {
+  await page.addInitScript(() => {
+    const observer = new MutationObserver(() => {
+      for (const button of document.querySelectorAll('[data-inline-confirm="true"]')) {
+        if (!button.disabled) button.click();
+      }
+    });
+    observer.observe(document, { childList: true, subtree: true });
+  });
+}
+module.exports.autoConfirmInline = autoConfirmInline;

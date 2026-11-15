@@ -255,7 +255,7 @@
   gap: 6px;
   margin: 0;
   min-width: 0;
-  max-width: 340px;
+  max-width: none;
   justify-self: end;
   width: 100%;
 }
@@ -281,10 +281,15 @@
   opacity: 0;
 }
 .rsvp-inline .radio-pill:has(input:checked) {
-  background: var(--teal);
-  color: #fff;
+  background: var(--white);
+  color: var(--ink);
   border-color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
   font-weight: 600;
+}
+.rsvp-inline .radio-pill:has(input:checked)::before {
+  content: "✓ ";
+  color: var(--teal);
 }
 .rsvp-inline .radio-pill:has(input:focus-visible) {
   outline: 2px solid var(--teal);
@@ -295,9 +300,9 @@
   opacity: 0.7;
 }
 /* Approved compact phone layout; desktop attendance remains inline as before. */
-@media (max-width: 600px) {
+@media (max-width: 700px) {
   .rsvp-person-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
   }
   .rsvp-person-name {
@@ -309,12 +314,13 @@
   }
   .rsvp-inline .response-options {
     gap: 5px;
+    max-width: none;
   }
   .rsvp-inline .radio-pill {
     font-size: 11px;
     line-height: 1.25;
     padding: 6px 3px;
-    min-height: 40px;
+    min-height: 48px;
   }
 }
 @media (max-width: 350px) {
@@ -799,8 +805,10 @@ body.guest-photo .radio-pill {
   background: rgba(24, 58, 43, 0.25);
 }
 body.guest-photo .rsvp-inline .radio-pill:has(input:checked) {
-  background: var(--teal);
-  color: #fff;
+  background: rgba(24, 58, 43, 0.25);
+  color: var(--ink);
+  border-color: #b4dcc7;
+  box-shadow: inset 0 0 0 1px #b4dcc7;
 }
 html[data-theme="light"] body.guest-photo .panel {
   background: rgba(245, 248, 239, 0.9);
@@ -813,8 +821,10 @@ html[data-theme="light"]
   body.guest-photo
   .rsvp-inline
   .radio-pill:has(input:checked) {
-  background: #286e56;
-  color: #fff;
+  background: rgba(248, 251, 244, 0.35);
+  color: var(--ink);
+  border-color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
 }
 
 body.guest-photo .guest-layout {
@@ -920,5 +930,17 @@ body.guest-photo .guest-layout {
   }
   .guest-food-category > .food-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+body.guest-photo .rsvp-inline .radio-pill:has(input:checked)::before { color: #b4dcc7; }
+html[data-theme="light"] body.guest-photo .rsvp-inline .radio-pill:has(input:checked)::before { color: var(--teal); }
+
+@media (max-width: 700px), (pointer: coarse) {
+  .guest-layout input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+  .guest-layout select, .guest-layout textarea { font-size: 16px; }
+  body:not(:has(#adminApp)) :is(.language-switch button, #themeToggle) {
+    min-width: 44px;
+    min-height: 44px;
   }
 }

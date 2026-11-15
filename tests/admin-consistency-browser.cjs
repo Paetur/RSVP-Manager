@@ -41,7 +41,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  const beforeTheme=await page.locator('html').getAttribute('data-theme');await page.locator('#themeToggle').click();assert.notEqual(await page.locator('html').getAttribute('data-theme'),beforeTheme);await page.locator('#themeToggle').click();
  if(preview&&type.name()==='webkit')await page.screenshot({path:preview+'/header-main.png',fullPage:true});
  if(preview&&type.name()==='webkit')await page.locator('.admin-main-tabs').screenshot({path:preview+'/main-menu.png'});
- assert.deepEqual(await page.locator('.admin-main-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.tab)),['invites','venues','households','food','other']);
+ assert.deepEqual(await page.locator('.admin-main-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.tab)),['overview','invites','venues','households','food','other']);
  await selectWorkTab(page,'venues');
  for(const id of ['venueList','sessionsList'])assert.equal(await page.locator('#'+id).evaluate(node=>node.closest('details').open),true);
  assert.equal(await page.locator('#newVenueForm').evaluate(node=>!!(node.closest('details').compareDocumentPosition(document.getElementById('venueList'))&Node.DOCUMENT_POSITION_FOLLOWING)),true);
@@ -58,7 +58,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  if(preview&&type.name()==='webkit')await page.locator('[data-panel="venues"]').screenshot({path:preview+'/venues-and-sessions.png'});
 
  await selectContentTranslation(page,'welcome');
- assert.deepEqual(await page.locator('#contentTranslationTabs button').allTextContents(),['Welcome Message','Venues','Sessions','Food','Guests']);
+ assert.deepEqual(await page.locator('#contentTranslationTabs button').allTextContents(),['Welcome Message','Venues','Sessions','Guests','Food']);
  assert.equal(await page.locator('#foodTranslationGrid textarea').count(),3);
  assert.equal(await page.locator('#translationSearch').isVisible(),false);
  assert.equal(await page.locator('#settingLanguage').count(),0);
@@ -66,8 +66,8 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.equal(await page.locator('#wordingCategoryTabs').isVisible(),false);
  if(preview&&type.name()==='webkit'){await page.evaluate(()=>document.documentElement.dataset.theme='dark');await page.locator('[data-panel="language"]').screenshot({path:preview+'/main-language-tabs.png'});await page.screenshot({path:preview+'/header-languages.png',fullPage:true});}
  await selectContentTranslation(page,'food');assert.deepEqual(await page.locator('#foodTranslationTabs button').allTextContents(),['Food','Categories','Units']);
- await selectContentTranslation(page,'guests');assert.deepEqual(await page.locator('#foodTranslationTabs button').allTextContents(),['Food explanation','Food Interest Reply']);
- await page.locator('#foodTranslationTabs [data-translation-tab=food-interest-reply]').click();assert.equal(await page.locator('#foodTranslationGrid textarea').count(),6);assert.equal(await page.locator('#foodTranslationGrid output').count(),3);
+ await selectContentTranslation(page,'guests');assert.equal(await page.locator('#foodTranslationTabs').isVisible(),false);
+ await openBox(page,'translations:food-interest-reply');const replies=page.locator('[data-translation-record="food-interest-reply"]');assert.equal(await replies.locator('textarea').count(),6);assert.equal(await replies.locator('output').count(),3);
  await selectWorkTab(page,'other');const task=page.locator('[data-other-id="task"]');
  assert.equal(await task.locator('input:visible,textarea:visible,select:visible').count(),0);
  await task.getByRole('button',{name:/Edit item/}).click();
@@ -96,7 +96,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'Other category controls fit mobile');await page.setViewportSize({width:1024,height:900});
  if(preview&&type.name()==='webkit')await page.locator('[data-panel="other"]').screenshot({path:preview+'/other-category-controls.png'});
  await newItem.getByRole('button',{name:'Save',exact:true}).click();await newItem.locator('form').waitFor({state:'hidden'});
- await empty.locator(':scope > summary').getByRole('button',{name:'Edit category',exact:true}).click();page.once('dialog',dialog=>dialog.accept());await empty.locator('.other-category-name-form').getByRole('button',{name:'Delete category',exact:true}).click();await empty.waitFor({state:'detached'});
+ await empty.locator(':scope > summary').getByRole('button',{name:'Edit category',exact:true}).click();await empty.locator('.other-category-name-form').getByRole('button',{name:'Delete category',exact:true}).click();await page.locator('.inline-confirmation').getByRole('button',{name:'Delete category',exact:true}).click();await empty.waitFor({state:'detached'});
  await selectWorkTab(page,'food');const item=page.locator('.food-compact-item').first();
  assert.equal(await item.evaluate(node=>node.open),false);
 
@@ -105,7 +105,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  if(preview&&type.name()==='webkit')await page.locator('[data-panel="food"]').screenshot({path:preview+'/collapsed-food-comments.png'});
 
  const foodCategory=page.locator('.food-category').first();
- await foodCategory.locator(':scope > summary').getByRole('button',{name:'Add item or sub-category',exact:true}).click();await page.getByRole('dialog',{name:'Add item or sub-category',exact:true}).getByRole('button',{name:'Add item',exact:true}).click();
+ await foodCategory.locator(':scope > summary').getByRole('button',{name:'Add item or sub-category',exact:true}).click();await page.getByRole("dialog",{name:'Add item or sub-category',exact:true}).getByRole('button',{name:'Add item',exact:true}).click();
  assert.equal(await page.locator('#newFoodCategory').inputValue(),'Main dishes');
  assert.ok(await foodCategory.locator('.food-inline-add-host #addFoodForm').isVisible());
  assert.equal(await page.locator('summary').filter({hasText:'＋ Add food item'}).count(),0);
@@ -113,7 +113,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  if(preview&&type.name()==='webkit')await page.locator('[data-panel="food"]').screenshot({path:preview+'/food-inline-create.png'});
  await page.locator('#addFoodForm button[type=submit]').click();await page.waitForFunction(()=>window.__createdFood?.name_en==='New sample dish');
  await page.locator('#addFoodForm').waitFor({state:'hidden'});
- await foodCategory.locator(':scope > summary').getByRole('button',{name:'Add item or sub-category',exact:true}).click();await page.getByRole('dialog',{name:'Add item or sub-category',exact:true}).getByRole('button',{name:'Add item',exact:true}).click();await page.locator('#newFoodName').fill('Discard this draft');await page.locator('#cancelFoodCreate').click();
+ await foodCategory.locator(':scope > summary').getByRole('button',{name:'Add item or sub-category',exact:true}).click();await page.getByRole("dialog",{name:'Add item or sub-category',exact:true}).getByRole('button',{name:'Add item',exact:true}).click();await page.locator('#newFoodName').fill('Discard this draft');await page.locator('#cancelFoodCreate').click();
 
  await foodCategory.locator(':scope > summary').getByRole('button',{name:'Rename food category',exact:true}).click();
  const categoryEditor=foodCategory.locator('.food-category-name-form');assert.equal(await categoryEditor.getByRole('button',{name:'Save',exact:true}).isDisabled(),true);
@@ -125,16 +125,16 @@ async function run(type){const browser=await type.launch({headless:true});try{
  const edit=item.getByRole('button',{name:'Edit food item',exact:true});assert.ok(await edit.isVisible());
  assert.equal(await edit.evaluate(button=>!!button.closest('summary .food-header-actions')),true);
  await edit.click();assert.ok(await item.locator('.food-edit-form').isVisible());
- assert.equal(await item.getByRole('button',{name:'Save food item',exact:true}).isDisabled(),true);
+ assert.equal(await item.getByRole('button',{name:'Save',exact:true}).isDisabled(),true);
  await item.locator('[data-food-language]').click();
  const popup=page.locator('.food-language-dialog');await popup.waitFor();
  assert.equal(await popup.getByLabel(/^Type ·/).count(),0);
  assert.equal(await popup.getByLabel(/^Guest note ·/).count(),3);
- assert.equal(await popup.getByRole('button',{name:'Save translations',exact:true}).isDisabled(),true);
+ assert.equal(await popup.getByRole('button',{name:'Save',exact:true}).isDisabled(),true);
  if(preview&&type.name()==='webkit')await popup.screenshot({path:preview+'/food-language-popup.png'});
  await popup.getByRole('button',{name:'Cancel',exact:true}).click();
  if(preview&&type.name()==='webkit')await page.locator('[data-panel="food"]').screenshot({path:preview+'/food-header-actions.png'});
- await page.locator('#addFoodType').click();const typeManager=page.getByRole('dialog',{name:'Manage units',exact:true});
+ await page.locator('#addFoodType').click();const typeManager=page.getByRole("region",{name:'Manage units',exact:true});
  assert.equal(await typeManager.locator('.type-manager-row').count(),6);
  await typeManager.getByLabel('New food unit',{exact:true}).fill('Basket(s)');
  await typeManager.getByRole('button',{name:'Add unit',exact:true}).click();await typeManager.getByText('Unit added',{exact:true}).waitFor();
@@ -143,7 +143,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await typeManager.getByRole('button',{name:'Translate · Basket(s)',exact:true}).click();
  assert.equal(await page.locator('#foodTranslationGrid [data-translation-record="ui:Food type: Basket(s)"]').evaluate(row=>row.open),true);
  assert.equal(await page.locator('#foodTranslationGrid [data-translation-record="ui:Food type: Basket(s)"]').getByLabel('Unit · English',{exact:true}).inputValue(),'Basket(s)');
- await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="interface"]').click();
+ await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="checklist"]').click();
  assert.match(await page.locator('#adminModeLabel').textContent(),/^Manage event details/);
  await openBox(page,'personal-preferences');assert.ok(await page.locator('#interfaceLanguageHost #interfaceLanguage').isVisible());assert.ok(await page.locator('#interfaceAppearanceHost #themePreference').isVisible());assert.equal(await page.locator('#languageToggle,#themeMenu,#closeSettings').count(),0);
  if(preview&&type.name()==='webkit'){await page.locator('#themePreference').selectOption('dark');await page.mouse.move(0,0);await page.screenshot({path:preview+'/settings-interface.png',fullPage:true});}

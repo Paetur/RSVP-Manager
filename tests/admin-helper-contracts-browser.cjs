@@ -396,8 +396,8 @@ const { server, mock, extra } = createFoodHarness("admin-helper-contracts");
         reject: true,
         confirm: true,
       };
-      const originalConfirm = window.confirm;
-      window.confirm = (text) => {
+      const originalConfirm = window.RSVP_INLINE.confirm;
+      window.RSVP_INLINE.confirm = async (text) => {
         prompts.push(text);
         return state.confirm;
       };
@@ -614,7 +614,7 @@ const { server, mock, extra } = createFoodHarness("admin-helper-contracts");
           "guest restore keeps the original payload",
         );
       } finally {
-        window.confirm = originalConfirm;
+        window.RSVP_INLINE.confirm = originalConfirm;
         root.remove();
       }
       return { checks };

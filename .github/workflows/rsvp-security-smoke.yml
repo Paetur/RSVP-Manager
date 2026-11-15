@@ -36,6 +36,13 @@ jobs:
         run: |
           node tools/build-install-sql.cjs --check
           node tests/fresh-install-db.cjs
+          node tests/backup-column-order-db.cjs
+          node tests/event-replacement-db.cjs
+          node tests/venue-session-timestamps-db.cjs
+          node tests/guest-names-db.cjs
+          node tests/household-display-db.cjs
+          node tests/text-placeholders.cjs
+          node tests/household-name.cjs
           node node_modules/typescript/bin/tsc --noEmit --target ES2023 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions --skipLibCheck setup-service/*.ts
           node --experimental-strip-types tests/automatic-setup.mjs
           node --experimental-strip-types tests/automatic-setup-http.mjs
@@ -53,6 +60,8 @@ jobs:
           python3 tests/local-web-publish.py
           node tests/invitation-templates.cjs
           node tests/invitation-picture-db.cjs
+          node tests/guest-album-db.cjs
+          node tests/household-sessions-db.cjs
           node tests/notification-preferences-db.cjs
           node tests/translation-registry-db.cjs
           node tests/canonical-locales-db.cjs
@@ -104,7 +113,7 @@ jobs:
         run: node tests/guest-feedback-concurrency.cjs
   browser-smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -178,13 +187,15 @@ jobs:
       - name: Test real administrator permissions and revoked-session UI
         run: node tests/admin-permissions-browser.cjs
       - name: Test device delivery handoffs and reminder drafts
-        run: node tests/device-delivery.cjs && node tests/device-delivery-browser.cjs && node tests/admin-delivery-views-browser.cjs && node tests/admin-delivery-editor-browser.cjs && node tests/invitation-share-browser.cjs && node tests/invitation-picture-browser.cjs
+        run: node tests/device-delivery.cjs && node tests/device-delivery-browser.cjs && node tests/admin-delivery-views-browser.cjs && node tests/admin-delivery-editor-browser.cjs && node tests/invitation-share-browser.cjs && node tests/invitation-picture-browser.cjs && node tests/guest-titles-placeholders-browser.cjs && node tests/household-sessions-browser.cjs
       - name: Test food interest answers and hidden menu UI
         run: node tests/languages-layout-browser.cjs && node tests/guest-food-wording-browser.cjs && node tests/food-interest-browser.cjs && node tests/food-click-browser.cjs && node tests/food-scroll-browser.cjs && node tests/food-review-browser.cjs && node tests/recipe-dialog-browser.cjs && node tests/private-guest-event-browser.cjs && node tests/guest-order-browser.cjs && node tests/admin-guest-order-browser.cjs && node tests/rsvp-confirmed-list-browser.cjs && node tests/venue-lines-browser.cjs && node tests/guest-background-browser.cjs && node tests/guest-appearance-browser.cjs
       - name: Test Food editing, category dropdowns and translation draft retention
         run: node tests/invitation-customization-browser.cjs && node tests/invites-overview-browser.cjs && node tests/food-groups-browser.cjs && node tests/food-list-state-browser.cjs && node tests/notification-preferences-browser.cjs && node tests/food-editing-browser.cjs && node tests/item-controls-browser.cjs && node tests/group-controls-browser.cjs
       - name: Test guest companions, food groups, categories and time preferences
         run: node tests/guest-feedback-browser.cjs && node tests/guest-rsvp-food-browser.cjs
+      - name: Test inline restore, delivery navigation and guest interface
+        run: node tests/inline-restore-browser.cjs && node tests/admin-design-flow-browser.cjs && node tests/guest-interface-browser.cjs
       - name: Test compact admin layout with mocked data
         run: node tests/admin-layout.cjs
       - name: Upload light and dark browser previews

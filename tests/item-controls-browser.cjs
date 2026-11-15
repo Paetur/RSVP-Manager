@@ -17,6 +17,8 @@ const lifecycleFixture = `\nfixtures.other_categories=[{id:'77777777-7777-4777-8
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       page.on("dialog", (d) => d.accept());
+await require("./helpers/admin-toolbar.cjs").autoConfirmInline(page);
+
       await page.addInitScript(() =>
         localStorage.setItem("rsvp-interface-language", "en"),
       );
