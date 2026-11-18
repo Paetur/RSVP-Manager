@@ -13,6 +13,11 @@ const files = {
     "admin-invitations/handler.mjs",
     "admin-invitations/index.ts",
   ],
+  "invitation-shortcuts": [
+    ...shared,
+    "invitation-shortcuts/handler.mjs",
+    "invitation-shortcuts/index.ts",
+  ],
 };
 function generatedFiles(sourceRoot = root) {
   const version = fs
@@ -78,7 +83,7 @@ if (require.main === module) {
   }
   console.log(
     (args.length ? "PASS" : "Built") +
-      " Studio entrypoints: two self-contained handlers with version/source hashes.",
+      " Studio entrypoints: " + Object.keys(files).length + " self-contained handlers with version/source hashes.",
   );
 }
 module.exports = { generatedFiles };

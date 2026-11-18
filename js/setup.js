@@ -3,12 +3,17 @@
   const T = (text, params) => window.RSVP_I18N?.t(text, params) || text;
   const R = window.RSVP,
     $ = R.byId;
+  const connectionAtEntry = { ...R.config() },
+    companionHandoff = location.hash.startsWith("#connection=")
+      ? location.hash.slice("#connection=".length) : null;
+  if (companionHandoff !== null)
+    history.replaceState(null, "", location.pathname + location.search);
   let step = 1,
     mode = "existing",
     connected = false,
     verified = false;
   let connectionVersion = 0;
-  let databaseLocation = "";
+  let databaseLocation = "", setupLocked = false;
   function localEndpoints() {
     const host =
       R.siteRoot.protocol === "http:" ? R.siteRoot.hostname : "localhost";
@@ -57,12 +62,14 @@
       .forEach((el) => el.classList.toggle("hidden", isLocal));
   }
   function invalidateConnection() {
+    $("bootstrapSql").value = "";
     connected = false;
     verified = false;
     return ++connectionVersion;
   }
   const stateMessage = (m, t = "info") => R.showStatus("setupStatus", m, t);
   function displayStep(next) {
+    if (setupLocked) return;
     if (next > 1 && mode === "new" && !databaseLocation) {
       stateMessage(T("Choose Local or Cloud before continuing."), "warning");
       return;
@@ -112,6 +119,7 @@
     try {
       const cfg = R.savePreview($("setupUrl").value, $("setupKey").value);
       const db = R.getClient();
+      if (!(await checkSetup(db))) return;
       const { error } = await db.rpc("get_public_event");
       if (version !== connectionVersion) return;
       if (error)
@@ -148,24 +156,76 @@
       button.disabled = false;
     }
   }
-  function makeBootstrap() {
-    const email = $("bootstrapEmail").value.trim();
+  function hideWizard() {
+    setupLocked = true;
+    $("bootstrapSql").value = "";
+    $("setupCompanionEntry").classList.add("hidden");
+    document.querySelectorAll(".steps, .wizard-step").forEach(node => node.classList.add("hidden"));
+  }
+  async function checkSetup(db) {
+    try {
+      const {data,error} = await db.rpc("get_setup_status");
+      if(error || !data || typeof data.initialized !== "boolean") throw Error();
+      if(data.setup_locked === true || data.initialized === true) {
+        hideWizard();
+        $("setupClosed").classList.remove("hidden");
+        $("setupProbeFailure").classList.add("hidden");
+        return false;
+      }
+      return true;
+    } catch {
+      hideWizard();
+      $("setupProbeFailure").classList.remove("hidden");
+      $("setupClosed").classList.add("hidden");
+      return false;
+    }
+  }
+  async function makeBootstrap() {
+    if (!connected || setupLocked) return;
+    const email = $("bootstrapEmail").value.trim(), version = connectionVersion;
+    $("bootstrapSql").value = "";
     if (!/^\S+@\S+\.\S+$/.test(email)) {
-      stateMessage(
-        T("interface.messages.enter_a_valid_administrator_email"),
-        "warning",
-      );
+      stateMessage(T("interface.messages.enter_a_valid_administrator_email"), "warning");
       return;
     }
-    const safe = email.replace(/'/g, "''");
-    $("bootstrapSql").value =
-      `-- Run ONLY in your own Supabase SQL Editor after creating and verifying this Auth user.\nINSERT INTO public.admins (user_id, name)\nSELECT id, 'Primary Administrator'\nFROM auth.users\nWHERE lower(email) = lower('${safe}')\n  AND email_confirmed_at IS NOT NULL\n  AND NOT EXISTS (SELECT 1 FROM public.admins)\nON CONFLICT (user_id) DO NOTHING;\n-- Check: SELECT count(*) FROM public.admins;`;
-    stateMessage(
-      T(
-        "interface.messages.first_admin_sql_generated_this_must_be_executed_in_the_private_su",
-      ),
-      "success",
-    );
+    const button = $("makeBootstrap");
+    button.disabled = true;
+    try {
+      if (!(await checkSetup(R.getClient())) || version !== connectionVersion || !connected || $("bootstrapEmail").value.trim() !== email) return;
+      const safeEmail = email.replace(/'/g, "''");
+      const populated = [
+        "households", "guests", "food_items", "food_claims", "other_items",
+        "event_locations", "event_sessions", "message_templates", "invitation_send_queue",
+        "invitation_deliveries", "guest_session_responses", "rsvp_submissions",
+      ].map(table => "EXISTS(SELECT 1 FROM public." + table + ")").join("\n    OR ");
+      $("bootstrapSql").value = `-- Run in your own Supabase SQL Editor after creating and confirming the Auth user.
+BEGIN;
+SELECT pg_advisory_xact_lock(19421,9201);
+LOCK TABLE public.admins IN SHARE ROW EXCLUSIVE MODE;
+DO $rsvp_first_admin$
+BEGIN
+  IF (public.get_setup_status()->>'setup_locked')::boolean IS DISTINCT FROM false
+    OR (SELECT is_published FROM public.event_settings WHERE id=1) IS DISTINCT FROM false
+    OR EXISTS(SELECT 1 FROM app_private.installation_state WHERE id)
+    OR ${populated}
+  THEN RAISE EXCEPTION 'First-time setup is closed or the event already contains data'; END IF;
+END $rsvp_first_admin$;
+INSERT INTO public.admins(user_id,name)
+SELECT id,'Primary Administrator' FROM auth.users
+WHERE lower(email)=lower('${safeEmail}')
+  AND email_confirmed_at IS NOT NULL
+  AND (SELECT count(*) FROM auth.users WHERE lower(email)=lower('${safeEmail}'))=1;
+DO $rsvp_first_admin$
+BEGIN
+  IF (SELECT count(*) FROM public.admins)<>1 THEN
+    RAISE EXCEPTION 'Create and confirm exactly one matching Auth account before running this SQL';
+  END IF;
+END $rsvp_first_admin$;
+COMMIT;`;
+      stateMessage(T("interface.messages.first_admin_sql_generated_this_must_be_executed_in_the_private_su"), "success");
+    } finally {
+      button.disabled = false;
+    }
   }
   async function verifyAdmin(e) {
     e.preventDefault();
@@ -205,43 +265,35 @@
     }
   }
   async function setup() {
+    const existing = connectionAtEntry, configured = !!(existing.supabaseUrl && existing.supabaseKey);
     let fromCompanion = false;
-    if (location.hash.startsWith("#connection=")) {
+    if (companionHandoff !== null) {
+      const handoff = companionHandoff;
       try {
-        const config = JSON.parse(
-          decodeURIComponent(location.hash.slice("#connection=".length)),
-        );
-        if (
-          !config ||
-          Object.keys(config).sort().join(",") !== "supabaseKey,supabaseUrl"
-        )
+        const config = JSON.parse(decodeURIComponent(handoff));
+        if (!config || Object.keys(config).sort().join(",") !== "supabaseKey,supabaseUrl")
           throw Error();
-        R.savePreview(config.supabaseUrl, config.supabaseKey);
+        const url = R.normalizeUrl(config.supabaseUrl), key = R.validateKey(config.supabaseKey);
+        if (configured) {
+          if (url !== R.normalizeUrl(existing.supabaseUrl) || key !== R.validateKey(existing.supabaseKey))
+            throw Error();
+          // A completed companion may reopen sign-in, never replace this installation.
+        } else {
+          R.savePreview(url, key);
+        }
         fromCompanion = true;
       } catch {
+        hideWizard();
+        $("setupProbeFailure").classList.remove("hidden");
         stateMessage(T("Invalid public connection configuration."), "error");
+        return;
       }
-      history.replaceState(null, "", location.pathname + location.search);
     }
+    if (configured && !(await checkSetup(R.getClient()))) return;
     const cfg = R.config();
     if (fromCompanion) {
       location.replace(new URL("admin/", R.siteRoot).href);
       return;
-    }
-    if (
-      cfg.supabaseUrl &&
-      cfg.supabaseKey &&
-      !new URLSearchParams(location.search).has("manual")
-    ) {
-      try {
-        const { data, error } = await R.getClient().rpc("get_setup_status");
-        if (!error && data?.initialized === true) {
-          location.replace(new URL("admin/", R.siteRoot).href);
-          return;
-        }
-      } catch {
-        /* Manual or incomplete projects continue through the existing wizard. */
-      }
     }
 
     $("setupAuthURLs").textContent = T("interface.messages.setup_auth_urls", {
@@ -284,20 +336,18 @@
       stateMessage("");
     });
     $("makeBootstrap").addEventListener("click", makeBootstrap);
-    $("copyBootstrap").addEventListener("click", () => {
+    $("bootstrapEmail").addEventListener("input", () => { $("bootstrapSql").value = ""; });
+    $("copyBootstrap").addEventListener("click", async () => {
       if (!$("bootstrapSql").value) {
         stateMessage(T("interface.messages.generate_sql_first"), "warning");
         return;
       }
-      navigator.clipboard
-        .writeText($("bootstrapSql").value)
-        .then(() => stateMessage(T("interface.messages.sql_copied"), "success"))
-        .catch(() =>
-          stateMessage(
-            T("interface.messages.unable_to_copy_sql_select_it_manually"),
-            "warning",
-          ),
-        );
+      try {
+        await navigator.clipboard.writeText($("bootstrapSql").value);
+        stateMessage(T("interface.messages.sql_copied"), "success");
+      } catch {
+        stateMessage(T("interface.messages.unable_to_copy_sql_select_it_manually"), "warning");
+      }
     });
     $("setupLoginForm").addEventListener("submit", verifyAdmin);
     $("downloadConfig").addEventListener("click", () =>
@@ -321,6 +371,7 @@
     displayStep(1);
   }
   document.addEventListener("DOMContentLoaded", () => {
+    $("setupRetry").addEventListener("click", () => location.reload());
     window.RSVP_I18N.load()
       .then(setup)
       .catch((e) => stateMessage(R.safeError(e), "error"));

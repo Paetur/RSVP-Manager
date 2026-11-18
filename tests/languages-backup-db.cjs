@@ -44,14 +44,28 @@ async function checksum(db,b){b.checksum=await value(db,"SELECT encode(sha256(co
  await src.query("SELECT public.admin_record_delivery_sent($1,1,'Synthetic delivery')",[sentDraft]);
  await src.exec('RESET ROLE');
  await src.query('INSERT INTO public.invitation_access_audit(id,household_id) OVERRIDING SYSTEM VALUE VALUES(9007199254740993,$1)',[household]);
+ // Durable device outcomes and qualified visits survive Full recovery even
+ // without activity logs. No bearer, lease or receipt belongs to the file.
+ const shortcutBatch='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',shortcutAttempt='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2';
+ await src.query("INSERT INTO public.invitation_shortcut_batches(id,mode,created_by,expires_at) VALUES($1,'live',$2,clock_timestamp()+interval '30 minutes')",[shortcutBatch,sourceAdmin]);
+ await src.query('INSERT INTO public.invitation_shortcut_items(batch_id,queue_id,ordinal,expected_revision) SELECT $1,id,1,revision FROM public.invitation_send_queue WHERE id=$2',[shortcutBatch,sentDraft]);
+ await src.query("INSERT INTO public.invitation_shortcut_attempts(id,batch_id,queue_id,attempt_number,state,claim_id,started_at,completed_at,text_processed,result_event_id,result_hash) VALUES($1,$2,$3,1,'processed',gen_random_uuid(),clock_timestamp(),clock_timestamp(),true,gen_random_uuid(),repeat('a',64))",[shortcutAttempt,shortcutBatch,sentDraft]);
+ await src.query('UPDATE public.invitation_send_queue SET handed_to_shortcuts_at=clock_timestamp(),shortcuts_processed_at=clock_timestamp(),verified_sent_at=clock_timestamp(),shortcuts_batch_id=$1,shortcuts_attempt_id=$2 WHERE id=$3',[shortcutBatch,shortcutAttempt,sentDraft]);
+ await src.query("UPDATE public.households SET first_visited_at='2026-11-16 10:00:00+00',last_visited_at='2026-11-16 11:00:00+00',visit_count=2 WHERE id=$1",[household]);
+ await src.query("INSERT INTO app_private.invitation_shortcut_capabilities(batch_id,token_hash,creator_id,session_id,installation_id,generation,expires_at) SELECT $1,repeat('f',64),$2,$3,o.installation_id,r.generation,clock_timestamp()+interval '30 minutes' FROM app_private.backup_origin o CROSS JOIN app_private.shortcut_runtime r",[shortcutBatch,sourceAdmin,session]);
+ await src.query("INSERT INTO app_private.invitation_shortcut_leases(attempt_id,expires_at) VALUES($1,clock_timestamp()+interval '5 minutes')",[shortcutAttempt]);
+ await src.query('INSERT INTO app_private.guest_visit_receipts(installation_id,generation,household_id,session_id) SELECT o.installation_id,s.generation,$1,$2 FROM app_private.backup_origin o CROSS JOIN app_private.guest_visit_scope s',[household,session]);
  await src.exec("INSERT INTO public.other_categories(name) VALUES('Recovery tasks');INSERT INTO public.other_items(item,category_id) VALUES('Chairs',(SELECT id FROM public.other_categories WHERE name='Recovery tasks')),('Prepare venue',(SELECT id FROM public.other_categories WHERE name='Recovery tasks'));UPDATE public.event_settings SET is_published=false;SET ROLE authenticated;");
  await src.query("SELECT public.admin_prepare_invitation('invited@example.invalid','Recipient')");
  await src.exec('RESET ROLE');await src.query("INSERT INTO auth.users VALUES('99999999-9999-4999-8999-999999999995','former@example.invalid',now(),'not-exported')");await src.query("INSERT INTO public.admins(user_id,name) VALUES('99999999-9999-4999-8999-999999999995','Former admin name')");await src.exec('SET ROLE authenticated');
  await dst.exec('RESET ROLE');await dst.query("INSERT INTO auth.users VALUES('99999999-9999-4999-8999-999999999996','former@example.invalid',now(),'not-exported')");await dst.exec('SET ROLE authenticated');
- await src.query("SELECT public.admin_save_invitation_template('en','email','{event_name}','Hello {household_name} {invitation_link}')");
+ await require("./helpers/named-template.cjs").saveTemplate(src, { channel: "email", subject: "{event_name}", body: "Hello {household_name} {invitation_link}" });
  const backup=await value(src,'SELECT public.admin_export_backup() value');
  // Export and import use the same current, explicit section manifest.
  assert.equal(backup.version,2);
+ assert.equal(Object.keys(backup.payload.tables).length,43);
+ assert.equal(backup.payload.tables['public.households'].find(h=>h.id===household).visit_count,'2');
+ for(const name of ['shortcut_runtime','invitation_shortcut_capabilities','invitation_shortcut_leases','shortcut_rate_limits','shortcut_gateway_rate_limits','guest_visit_scope','guest_visit_receipts','restore_safety_receipts'])assert.equal(backup.payload.tables['app_private.'+name],undefined);
  assert.deepEqual(backup.payload.selection,{mode:'backup',sections:['venues','households','food','other','wording'],include_logs:true});
  const exportChoice=(mode,sections,logs)=>value(src,'SELECT public.admin_export_backup($1,$2,$3) value',[mode,sections,logs]);
  const withoutLogs=await exportChoice('backup',['households'],false);
@@ -64,6 +78,9 @@ async function checksum(db,b){b.checksum=await value(db,"SELECT encode(sha256(co
  assert.equal(withoutLogs.payload.tables['public.invitation_send_queue'][0].status,'sent');
  assert.equal(withoutLogs.payload.tables['public.invitation_deliveries'].length,1);
  assert.deepEqual(withoutLogs.payload.tables['public.invitation_delivery_audit'],[]);
+ for(const name of ['invitation_shortcut_batches','invitation_shortcut_items','invitation_shortcut_attempts'])assert.deepEqual(withoutLogs.payload.tables['public.'+name],backup.payload.tables['public.'+name]);
+ assert.ok(withoutLogs.payload.tables['public.invitation_send_queue'][0].shortcuts_processed_at);
+ assert.ok(withoutLogs.payload.tables['public.invitation_send_queue'][0].verified_sent_at);
  for(const name of ['public.rsvp_household_audit','public.rsvp_response_audit','public.management_audit','public.invitation_access_audit','public.admin_invitations','public.backup_restore_audit'])assert.deepEqual(withoutLogs.payload.tables[name],[]);
  assert.deepEqual(withoutLogs.payload.sign_in_log_reference,[]);
  assert.deepEqual(withoutLogs.payload.administrator_reference,[]);
@@ -78,10 +95,22 @@ async function checksum(db,b){b.checksum=await value(db,"SELECT encode(sha256(co
  assert.equal((await value(dst,'SELECT public.admin_preview_backup($1) value',[otherOnly])).can_restore,true);
  const settingsOnly=await exportChoice('backup',[],false);assert.equal(settingsOnly.payload.selection.sections.length,0);
  assert.equal((await value(dst,'SELECT public.admin_preview_backup($1) value',[settingsOnly])).can_restore,true);
+ const emptyDestination=await setup(destAdmin,true);
+ try{
+  await emptyDestination.exec('RESET ROLE');
+  const scopes=await value(emptyDestination,"SELECT jsonb_build_array((SELECT generation FROM app_private.shortcut_runtime),(SELECT generation FROM app_private.guest_visit_scope)) value");
+  await emptyDestination.exec('SET ROLE authenticated');
+  await emptyDestination.query('SELECT public.admin_restore_backup($1,$2)',[settingsOnly,'RESTORE My event']);
+  await emptyDestination.exec('RESET ROLE');
+  const restoredScopes=await value(emptyDestination,"SELECT jsonb_build_array((SELECT generation FROM app_private.shortcut_runtime),(SELECT generation FROM app_private.guest_visit_scope)) value");
+  assert.ok(restoredScopes.every((scope,i)=>scope!==scopes[i]),'even an empty selected restore invalidates pre-restore bearers');
+ }finally{await emptyDestination.close();}
  const planning=await exportChoice('template',['food','households'],false);
  assert.deepEqual(planning.payload.selection,{mode:'template',sections:['households','food'],include_logs:false});
  assert.deepEqual(planning.payload.tables['public.rsvp_submissions'],[]);
  assert.deepEqual(planning.payload.tables['public.food_claims'],[]);
+ for(const name of ['invitation_shortcut_batches','invitation_shortcut_items','invitation_shortcut_attempts'])assert.deepEqual(planning.payload.tables['public.'+name],[]);
+ assert.ok(planning.payload.tables['public.households'].every(h=>h.first_visited_at===null&&h.last_visited_at===null&&h.visit_count==='0'));
  assert.deepEqual(planning.payload.sign_in_log_reference,[]);
  assert.deepEqual(planning.payload.identities,[]);
  assert.ok(planning.payload.tables['public.households'].every(h=>h.invite_code===null&&h.rsvp_state==='open'&&!h.food_confirmed));
@@ -98,15 +127,35 @@ async function checksum(db,b){b.checksum=await value(db,"SELECT encode(sha256(co
  await assert.rejects(()=>dst.query('SELECT public.admin_preview_backup($1)',[hiddenLogs]),/excluded section or activity log/);
  const v1=copy(backup);v1.version=1;await assert.rejects(()=>dst.query('SELECT public.admin_preview_backup($1)',[v1]),/Unsupported backup format/);
  assert.equal(backup.payload.selection.include_logs,true,'transformations must not mutate the source file');
- // Restore an actual selected backup with logs excluded, preserving operational state.
+ // Restore a Full selected backup without logs, retaining durable outcomes and
+ // invalidating destination operational scopes even when it was otherwise empty.
  const selectedDestination=await setup(destAdmin,true);
  try {
+  await selectedDestination.exec('RESET ROLE');
+  const beforeScopes=await value(selectedDestination,"SELECT jsonb_build_array((SELECT generation FROM app_private.shortcut_runtime),(SELECT generation FROM app_private.guest_visit_scope)) value");
+  await selectedDestination.query("INSERT INTO app_private.shortcut_rate_limits(subject_id,bucket,period_start,request_count) VALUES($1,'create',clock_timestamp(),1)",[destAdmin]);
+  await selectedDestination.query("INSERT INTO app_private.restore_safety_receipts(actor,session_id,source_checksum,destination_state) VALUES($1,$2,'stale','stale')",[destAdmin,session]);
+  await selectedDestination.exec('SET ROLE authenticated');
+  const rehearsal=await value(selectedDestination,'SELECT public.admin_preview_backup($1) value',[withoutLogs]);assert.equal(rehearsal.can_restore,true,rehearsal.reason);
+  await selectedDestination.exec('RESET ROLE');
+  assert.deepEqual(await value(selectedDestination,"SELECT jsonb_build_array((SELECT generation FROM app_private.shortcut_runtime),(SELECT generation FROM app_private.guest_visit_scope)) value"),beforeScopes,'preview must roll generation rotation back');
+  assert.equal(await value(selectedDestination,'SELECT count(*)::int value FROM app_private.shortcut_rate_limits'),1);
+  await selectedDestination.exec('SET ROLE authenticated');
   await selectedDestination.query('SELECT public.admin_restore_backup($1,$2)',[withoutLogs,'RESTORE My event']);
   assert.equal(await value(selectedDestination,'SELECT count(*)::int value FROM public.food_claims'),1);
   assert.equal(await value(selectedDestination,'SELECT count(*)::int value FROM public.rsvp_submissions'),1);
   assert.equal(await value(selectedDestination,'SELECT count(*)::int value FROM public.management_audit'),0);
   assert.equal(await value(selectedDestination,'SELECT count(*)::int value FROM public.backup_restore_audit'),1,'always retain the new restore audit');
   assert.equal(await value(selectedDestination,'SELECT is_published value FROM public.event_settings'),false);
+  const recovered=await value(selectedDestination,'SELECT public.admin_export_backup() value');
+  for(const name of ['invitation_shortcut_batches','invitation_shortcut_items','invitation_shortcut_attempts'])assert.equal(recovered.payload.tables['public.'+name].length,1);
+  assert.equal(recovered.payload.tables['public.invitation_shortcut_batches'][0].created_by,destAdmin,'durable batch actors map by verified email');
+  assert.equal(recovered.payload.tables['public.households'].find(h=>h.id===household).visit_count,'2');
+  assert.ok(recovered.payload.tables['public.invitation_send_queue'][0].shortcuts_processed_at);
+  await selectedDestination.exec('RESET ROLE');
+  const afterScopes=await value(selectedDestination,"SELECT jsonb_build_array((SELECT generation FROM app_private.shortcut_runtime),(SELECT generation FROM app_private.guest_visit_scope)) value");
+  assert.ok(afterScopes.every((scope,i)=>scope!==beforeScopes[i]));
+  for(const table of ['invitation_shortcut_capabilities','invitation_shortcut_leases','shortcut_rate_limits','shortcut_gateway_rate_limits','guest_visit_receipts','restore_safety_receipts'])assert.equal(await value(selectedDestination,'SELECT count(*)::int value FROM app_private.'+table),0);
  } finally {await selectedDestination.close();}
  checks+=52;
  // Corrected operation matrix: only Full modes may include logs.
@@ -163,6 +212,8 @@ async function checksum(db,b){b.checksum=await value(db,"SELECT encode(sha256(co
   assert.equal(await value(template,'SELECT count(*)::int value FROM public.message_templates'),1);
   assert.equal((await value(template,'SELECT public.admin_list_members() value')).length,1);
   assert.equal(await value(template,'SELECT count(*)::int value FROM public.other_items'),0);
+  assert.equal(await value(template,'SELECT visit_count::text value FROM public.households WHERE id=$1',[household]),'0');
+  for(const name of ['invitation_shortcut_batches','invitation_shortcut_items','invitation_shortcut_attempts'])assert.equal(await value(template,'SELECT count(*)::int value FROM public.'+name),0);
   checks+=10;
  }finally{await template.close();}
  const outsider='33333333-3333-4333-8333-333333333333',otherSession='dddddddd-dddd-4ddd-8ddd-dddddddddddd';

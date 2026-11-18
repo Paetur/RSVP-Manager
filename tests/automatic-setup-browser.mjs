@@ -42,6 +42,7 @@ for (const width of [390, 1160]) {
     await page
       .locator('#automaticAdministrator [name="password"]')
       .fill(privateValues[2]);
+    await page.locator('#automaticAdministrator [name="confirmPassword"]').fill(privateValues[2]);
     await page.locator("#automaticAdministrator button[type=submit]").click();
     await page.locator('[data-auto-panel="3"]:not(.hidden)').waitFor();
     assert.equal(

@@ -153,31 +153,34 @@
       const view = R.dom("div", { class: "form-reading" }),
         list = R.dom("dl", { class: "record-read-grid" });
       view.dataset.readingFor = key;
-      for (const control of form.querySelectorAll("input,textarea,select")) {
-        if (control.type === "hidden") continue;
-        const label = control.closest("label");
-        const text =
-          control.getAttribute("aria-label") ||
-          Array.from(label?.childNodes || [])
-            .filter(
-              (n) =>
-                n.nodeType === Node.TEXT_NODE ||
-                (n.nodeType === Node.ELEMENT_NODE && n.tagName === "SPAN"),
-            )
-            .map((n) => n.textContent)
-            .join(" ")
-            .trim();
-        const value =
-          control.type === "checkbox"
-            ? T(control.checked ? "Enabled" : "Disabled")
-            : control.tagName === "SELECT"
-              ? control.selectedOptions[0]?.textContent
-              : control.value;
-        if (text && value) {
-          list.append(R.dom("dt", {}, text), R.dom("dd", {}, value));
+      if (form.renderReadSummary) form.renderReadSummary(view);
+      else {
+        for (const control of form.querySelectorAll("input,textarea,select")) {
+          if (control.type === "hidden") continue;
+          const label = control.closest("label");
+          const text =
+            control.getAttribute("aria-label") ||
+            Array.from(label?.childNodes || [])
+              .filter(
+                (n) =>
+                  n.nodeType === Node.TEXT_NODE ||
+                  (n.nodeType === Node.ELEMENT_NODE && n.tagName === "SPAN"),
+              )
+              .map((n) => n.textContent)
+              .join(" ")
+              .trim();
+          const value =
+            control.type === "checkbox"
+              ? T(control.checked ? "Enabled" : "Disabled")
+              : control.tagName === "SELECT"
+                ? control.selectedOptions[0]?.textContent
+                : control.value;
+          if (text && value) {
+            list.append(R.dom("dt", {}, text), R.dom("dd", {}, value));
+          }
         }
+        view.append(list);
       }
-      view.append(list);
       form.before(view);
       form.classList.add("reading-editor");
       form.dataset.recordEditor = key;
@@ -315,6 +318,7 @@
           if (form.dataset.recordEditor)
             recordEditors.delete(form.dataset.recordEditor);
           window.RSVP_LOCAL_EDITORS?.saved(form);
+          form.dispatchEvent(new Event("rsvp:form-saved", { bubbles: true }));
           const editor = form.closest(".household-inline-editor");
           const keepPosition =
             form.id &&

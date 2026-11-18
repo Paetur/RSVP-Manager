@@ -1,4 +1,18 @@
 /* Encryption transport controls; no changes to Full/Partial restore policy. */
+#adminApp [data-settings-panel="backups"]:not(.hidden) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+#adminApp [data-settings-panel="backups"] > .panel {
+  min-width: 0;
+}
+@media (min-width: 1100px) {
+  #adminApp [data-settings-panel="backups"]:not(.hidden) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .backup-password-dialog {
   width: min(30rem, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
@@ -30,3 +44,6 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.backup-protection { display: flex; flex-wrap: wrap; gap: 12px 22px; border: 1px solid var(--line); border-radius: 12px; margin: 14px 0; padding: 10px 14px; }
+.backup-protection label { display: inline-flex; align-items: center; gap: 8px; margin: 0; }

@@ -165,7 +165,7 @@ const { root, out, server, mock, extra, stageExtra } =
       true,
     );
     await form.getByRole("button", { name: "Cancel", exact: true }).click();
-    await page.locator("#settingsToggle").click();
+    await page.locator("[data-tab=events]").click();
     await openBox(page,'event-features');
     const stage = page.locator("#eventFeaturesHost form");
     assert.equal(await stage.locator(".feature-stage-card").count(), 2);

@@ -4,7 +4,7 @@ Encryption is optional and independent of gzip compression. It protects a downlo
 
 ## Using encryption
 
-Under Settings → Backups, select **Encrypt backup**, enter a backup password and repeat it. Download produces `.encrypted.json`, with optional gzip applied **before** encryption. Keep the password separately: the application cannot recover an encrypted file without it. Passwords are cleared after the export attempt and when leaving the backup screen; they are not saved in event settings, browser storage or RPC arguments.
+Under Settings → Database, select **Encrypt backup**, enter a backup password and repeat it. Download produces `.encrypted.json`, with optional gzip applied **before** encryption. Keep the password separately: the application cannot recover an encrypted file without it. Passwords are cleared after the export attempt and when leaving the backup screen; they are not saved in event settings, browser storage or RPC arguments.
 
 On import, select the file normally. Encrypted files are recognized by their contents, regardless of filename. A password dialog appears only for a supported encrypted file. Incorrect passwords or corrupted ciphertext prevent opening and cannot reach database validation/restore. Use **Open encrypted backup** to retry; Cancel leaves validation/restore disabled. Successful decryption continues through the existing JSON/selection checks, Validate backup and restore confirmation/acknowledgement. It does not restore automatically.
 

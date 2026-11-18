@@ -12,14 +12,14 @@ Guests use their own invitation link. Organizers sign in to manage the event, wi
 - Collect food interest before opening category-based choices; Food Groups reserve every included item together without exceeding capacity.
 - Open shared read-only recipe dialogs with Print and Close, including printable PDFs.
 - Track practical jobs and things to bring in Other.
-- Prepare invitations and reminders for Mail, Messages or WhatsApp on your device.
+- Prepare invitations and reminders for Mail, Messages or WhatsApp on your device. Select up to ten households in Manage Invites for review and handoff.
 - Manage event wording in multiple languages.
 - Give administrators Full, View only or Custom access.
 - Download JSON/gzip backups, optionally protect them with password-based encryption, and rehearse recovery separately.
 
 ## Downloads and installation
 
-Use a tagged GitHub Release for an installation package with checksums, or fork this repository to change the source. [Installation instructions](INSTALL.md) describe the separate website, Supabase and administrator setup. Each installation starts unconfigured and has its own data. Current version: **0.9.0-alpha.7**.
+Use a tagged GitHub Release for an installation package with checksums, or fork this repository to change the source. [Installation instructions](INSTALL.md) describe the separate website, Supabase and administrator setup. Each installation starts unconfigured and has its own data. The current version is **0.9.0-alpha.8**.
 
 For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 

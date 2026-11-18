@@ -121,7 +121,7 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
           .screenshot({
             path: path.join(previews, "interest-overview-" + width + ".png"),
           });
-      await page.locator("#settingsToggle").click();
+      await page.locator("[data-tab=events]").click();
       await openBox(page, "event-features");
       assert.equal(
         await page.locator("#eventFeaturesHost textarea").count(),

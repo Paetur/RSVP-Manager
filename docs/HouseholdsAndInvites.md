@@ -2,13 +2,13 @@
 
 ## People and household details
 
-Open Households to browse the nested list. Expand a household to see its guests. Use the pencil to change details, add people or manage contacts.
+Open Households to browse the nested list. Expand a household to see its guests. Household details keeps its primary-contact name/number/service and conditional Food caption visible collapsed or expanded. Expanded reading shows unlabelled address/landline, group path and invited sessions; use the household pencil to edit those details. Save or Cancel returns to the summary.
 
 The top-level and relational-group headers have order arrows, an add icon and a pencil. Guarded Delete is at the lower right of each group editor, opposite Save/Cancel. Household and individual guest editors use the same footer layout for Archive/Restore/Delete; archived records can be opened for Restore while their data fields stay read-only. A top-level add icon creates a relational group in that section. A relational-group add icon opens Add household with both groups selected. There is no separate Add household section above the list. Top-level editing requires Settings edit access; relational groups and households require Households edit access.
 
 Existing shared relational groups retain their links and are marked Shared group. Renaming or reordering one applies wherever it appears. New relational groups belong to the selected top-level group. Delete requires an empty group, including no archived households; a top-level group must also have no scoped relational groups, and at least one top-level group must remain.
 
-Show archived records sits beside Expand all / Collapse all. The household statistics box above Invites also shows configured top-level and distinct relational-group counts.
+Show archived records sits beside Expand all / Collapse all. The household statistics box on Overview also shows configured top-level and distinct relational-group counts.
 
 Parent–child grouping, indentation and saved order are kept when browsing invitations. Use the order arrows where available. Archive unused records when you want to retain their history.
 
@@ -20,6 +20,8 @@ A venue is a place. A session is an activity at a place and time. Several sessio
 
 Use Venues to create and order places and sessions. Check each session’s venue and local time carefully. Manage households on a session lets you add or remove household invitations in bulk. Households → Household details provides session checkboxes and a collapsed Individual guest exceptions section. Save applies the household details and changed invitations together.
 
+On wide screens, the Venues and Sessions & scheduling boxes appear side by side. Opening an editor or Add venue/session expands that box across the row; reading views return to columns when editing closes. Narrower screens stack the boxes.
+
 ## Replies
 
 Open Households → Household details for session invitations; use Invites for RSVP management. Review which sessions each household and individual is invited to. Use the provided correction/reopening actions when a guest needs help changing a submitted reply; keep a clear reason for the change.
@@ -28,25 +30,37 @@ Open Households → Household details for session invitations; use Invites for R
 
 Use the eye icon in the administrator toolbar to preview the landing page. In **Invites**, use **Preview** beside a household to see its invitation before publishing. Preview requires a signed-in administrator with view access to Households, Invites and Venues, plus Food when that feature is enabled. Test replies, food selections and added household guests stay in that preview only and disappear when you reload or close the tab. Preview guest additions never change the real guest list.
 
-While the event is unpublished, you can keep planning and previewing invitations. New invitation codes are issued when you publish. Previously issued codes stay reserved. Once published, use **Copy link** to share a household’s private invitation.
+While the event is unpublished, you can keep planning and previewing invitations. New invitation codes are issued when you publish. Previously issued codes stay reserved. Published Invites rows hide the preview eye and household pencil. Create or review a delivery and use its share controls; Sent remains a separate manual confirmation.
 
 ## Set up invitation templates
 
-Open **Settings → Templates** and use the pencil for the channel you want to edit. Expand a language, enter the message for Email, SMS or WhatsApp, and save that channel before editing the next one. Email can also have a subject. Use **Manual / Messenger** for the default wording/picture of Manual delivery drafts, including Messenger sharing.
+Open the **Settings → Templates → Add template** disclosure, enter a name and check Email, SMS, WhatsApp and/or Messenger. Enable the content you want under Options: Subject, Message, Short Message and Picture. Short Message is a single-line field used for SMS when enabled; otherwise SMS uses Message. SMS remains text only. Unchecked options hide their fields and placeholder help while retaining content. Picture controls open immediately below their button. Templates have no language controls: choose a named template with the wording you want. Venue/session context, the private album and placeholder help remain available. Use the pencil to edit, Save/Cancel on the left and red Delete on the right. Deleting a template leaves existing delivery snapshots/history unchanged.
 
 To test on your phone while the event remains unpublished, use **Test sharing** beside a saved template, or open its pencil to test an unsaved picture/text draft. The dialog uses example names and this installation's landing-page preview link (`#guest-preview=landing`), never a household invitation code. The landing preview retains its existing administrator sign-in and permission requirements. Choose yourself in WhatsApp or Messenger and check the picture/text/link. It creates no invitation or delivery record and does not mark anything Sent. Unsaved picture/text edits can be tested before Save.
 
 An optional **Invitation picture** accepts a JPEG under 1.4 MB. The application re-encodes it, removes embedded metadata and limits it to 2400 pixels. It is stored privately with the template and copied into each new delivery draft. You can replace or remove the picture in a draft. Saving a changed template does not change existing drafts or sent history. Cancel discards your picture edit; a failed save retains it for retry.
 
-Use `{invitation_link}` in the message. You can also use `{household_name}` and `{event_name}`. New drafts fill these in automatically. If the household’s language has no template for the chosen channel, the draft uses the event’s fallback language, then English. If no template applies, the draft starts with the invitation link.
+Use `{invitation_link}` in the message. You can also use `{household_name}` and `{event_name}`. New drafts fill these in automatically. The chosen named template supplies the same content regardless of household language. If no template applies, the draft starts with the invitation link.
 
 ## Invites overview
 
-Invites opens with event statistics, followed by active households containing guests grouped by top-level and relational group. Grouped Invites follows Households: configured top-level order, relational-group order, then parents before their descendants with manual sibling ordering. Empty grouping households are omitted from Invites while preserving their descendants’ place. Untick **Group by top-level / relational group** to use a flat list; filtering and refreshing data keep your current layout choice during the page session. Its progress buttons filter **Not sent**, **Ready**, **Marked sent**, **Awaiting reply** and **Replied**. Counts are households, not individual delivery attempts; sent/ready/replied categories can overlap when a reminder is being prepared. The latest draft/attempt and last recorded sent date remain separate from RSVP status. A reopened RSVP is awaiting a new response even if earlier responses remain in history.
+Overview holds the existing statistics cards. Invites opens with active households containing guests grouped by top-level and relational group. Grouped Invites follows Households: configured top-level order, relational-group order, then parents before their descendants with manual sibling ordering. Empty grouping households are omitted from Invites while preserving their descendants’ place. Use **Settings → Interface → Invites appearance** to save or cancel **Group by top-level / relational group**. The saved preference controls grouped/flat Invites and follows your administrator account across devices. Its progress buttons filter **Not sent**, **Ready**, **Marked sent**, **Awaiting reply** and **Replied**. Counts are households, not individual delivery attempts; sent/ready/replied categories can overlap when a reminder is being prepared. The latest draft/attempt and last recorded sent date remain separate from RSVP status. A reopened RSVP is awaiting a new response even if earlier responses remain in history.
 
-Search household or recipient details, or filter by group, language and delivery channel. Enable **Group by top-level / relational group** for a grouped view. Preview opens the authorized guest view; Prepare/Review/Follow up expands the delivery tools. RSVP management remains available inside the expanded row; session invitation choices are in Household details.
+Search household or recipient details, or filter by group, language and delivery channel. Save **Group by top-level / relational group** under Invites appearance inside the Interface box for a grouped view. Before publication the controls are **+**, preview eye and household pencil. **+** opens the named template chooser, then creates a draft and opens its inline delivery review. **Shown fields**, at the top right of the Invites box, controls the optional columns. Wide action buttons stay on one row when Food is shown. Food Interest appears only during Collect interest, and Food items during Choose food; unanswered/zero is shown as a dash. When published, a share icon appears for households with delivery records and opens **Invitation delivery** inline, including draft editing, Ready actions and history. Empty delivery sections are hidden. RSVP management remains available inside the expanded row; session invitation choices are in Household details.
 
-Drafts can be prepared while unpublished, using `{invitation_link}` as a placeholder without issuing or releasing a code. Marking ready, opening messaging apps and recording sending remain publication gated. After publication, reopen and save the draft to resolve its current link and recipient/code snapshot before marking it ready. Sent and cancelled records remain read-only; a reminder is a separate draft. Notes/reasons and sending acknowledgements use the existing delivery history.
+Drafts can be prepared while unpublished, using `{invitation_link}` as a placeholder without issuing or releasing a code. Marking ready, opening messaging apps and recording sending remain publication gated. After publication, reopen and save the draft to resolve its current link and recipient/code snapshot before marking it ready. Sent and cancelled records remain read-only; a reminder is a separate draft. Use Delete in a saved draft’s reading footer or editor to remove an unsent draft from active delivery lists. Its retired snapshot and audit history remain retained; Ready, Sent and handed-off records cannot be deleted this way. Notes/reasons and sending acknowledgements use the existing delivery history.
+
+## Make and send bulk invites
+
+**Main → Overview → Manage Invites** prepares existing household invitations in one compact list. **Create all household templates** creates a Draft for each active household with guests and no current delivery record, using its matching saved template. Existing drafts, Ready records and delivery history are retained. Draft preparation is available while unpublished.
+
+Use **Shown Services** to display Messages, Email, WhatsApp, SMS and None. Messages is the default mobile route when no service was chosen. SMS retains an explicit SMS choice. None supports a manual invitation without guessing a recipient address or phone number.
+
+**Shown Invites** filters Sent, Draft and No Draft. Draft includes Ready and Failed records, and the filter uses the current delivery for each household.
+
+Select up to ten households using the right-hand checkboxes. After publication, use **Review selected drafts** and **Mark ready** to approve complete drafts. **Apple Share** and **Copy & Paste** then show each selected household separately with its own recipient and private invitation link. Apple Share needs HTTPS or localhost and native browser sharing support. Copy & Paste also offers manual text selection.
+
+**Send via Apple Shortcuts** opens the existing iPhone Shortcuts batch review for the selected eligible Ready WhatsApp drafts. It requires the experimental feature, a trusted HTTPS website/API and sending permission. Continue the existing review and launch steps there. Native Runner device acceptance remains pending. Sharing or preparing a batch leaves Sent confirmation to the organizer.
 
 ## Send an invitation or reminder
 
@@ -93,3 +107,9 @@ Guests can add one optional household comment while reviewing attendance, for ex
 ## Food-interest follow-up
 
 With Food View permission, Invites offers **Food interest → All / Yes / No / Unanswered**, retaining search, other filters and household hierarchy order. Each household’s row shows its stored answer; these states are independent of RSVP and delivery. The Food items summary shows counts for active households with active guests, excluding archived and empty grouping households. Answering Yes alone does not reserve food or grant access to the detailed list.
+
+## Placeholder categories and correction
+
+Settings → Placeholders and the field's {…} help use category tabs and search. Field help offers only tokens supported by that field. Choose Event, Household, Venue or another available category; there is no context dropdown.
+
+If a template identifies a retired `{invite-deadline}` token, choose its explicit replacement with `{rsvp_deadline}`. A signed offset such as `:+4` is retained. This changes only the current draft; Save applies it and Cancel discards it. Stored templates are not rewritten automatically, and unsupported tokens remain rejected.

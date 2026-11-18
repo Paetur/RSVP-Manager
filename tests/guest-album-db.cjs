@@ -33,10 +33,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
         ]),
       /changed/,
     );
-    await q(
-      "SELECT public.admin_save_invitation_template('de','whatsapp','',$1,$2)",
-      ["Reply {rsvp_deadline:+5}: {invitation_link}", picture],
-    );
+    await require("./helpers/named-template.cjs").saveTemplate(db, { language: "de", body: "Reply {rsvp_deadline:+5}: {invitation_link}", image: picture });
     for (const token of [
       "{unknown}",
       "{rsvp_deadline:+367}",
@@ -47,11 +44,8 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     ])
       await assert.rejects(
         () =>
-          q(
-            "SELECT public.admin_save_invitation_template('en','whatsapp','',$1,null)",
-            [token + " {invitation_link}"],
-          ),
-        /unknown placeholder/,
+          require("./helpers/named-template.cjs").saveTemplate(db, { body: token + " {invitation_link}" }),
+        /placeholder/,
       );
     await q("SELECT public.admin_save_guest_title_visibility($1,$2)", [
       { de: false, en: true },
@@ -126,7 +120,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     );
     assert.equal((await settings()).invitation_picture_album.length, 0);
     assert.deepEqual(
-      (await value("SELECT public.admin_load_data() v")).invitationTemplates[0]
+      (await value("SELECT public.admin_load_data() v")).invitationTemplates[0].versions.de
         .message_image,
       picture,
       "album removal preserves template snapshot",

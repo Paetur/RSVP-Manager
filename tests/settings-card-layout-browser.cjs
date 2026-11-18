@@ -3,10 +3,10 @@ const { chromium } = require("playwright"),
   assert = require("node:assert/strict"),
   fs = require("node:fs"),
   path = require("node:path");
-const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
+const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
 const { openBox } = require("./helpers/local-edit-ui.cjs");
-const { server, mock, extra, stageExtra, out } =
-  createFoodHarness("settings-cards");
+const { server, mock, extra, stageExtra, out, cleanup } =
+  createPublicFoodHarness("settings-cards");
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const browser = await chromium.launch();
@@ -24,21 +24,15 @@ const { server, mock, extra, stageExtra, out } =
           page.on("pageerror", (e) => errors.push(e.message));
           await page.addInitScript(
             ({ language, theme }) => {
-              localStorage.setItem("rsvp-interface-language", language);
-              localStorage.setItem("event-appearance", theme);
+              if (window === window.top) {
+                localStorage.setItem("rsvp-interface-language", language);
+                localStorage.setItem("event-appearance", theme);
+              }
             },
             { language, theme },
           );
           const seed = `fixtures.event_languages.forEach(l=>l.display_name={en:'English',fo:'Føroyskt',de:'Deutsch'}[l.language_code]);fixtures.event_settings[0].is_published=false;fixtures.event_settings[0].event_type='wedding';fixtures.event_settings[0].planning_config={groups:[{id:'family',names:{en:'Family',fo:'Familja',de:'Familie'}},{id:'friends',names:{en:'Friends',fo:'Vinir',de:'Freunde'}}],labels:{households:{en:'Households'},guests:{en:'Guests'}}};fixtures.households[0].planning_group_id='family';`;
-          await page.route("**/supabase.min.js", (r) =>
-            r.fulfill({
-              contentType: "text/javascript",
-              body: mock + "\n" + extra + "\n" + stageExtra + "\n" + seed,
-            }),
-          );
-          await page.route("**maps.google.com/**", (r) =>
-            r.fulfill({ contentType: "text/html", body: "Map fixture" }),
-          );
+          await routeSyntheticSdk(page, mock + "\n" + extra + "\n" + stageExtra + "\n" + seed);
           await page.goto(
             "http://127.0.0.1:" + server.address().port + "/admin/",
           );
@@ -46,8 +40,7 @@ const { server, mock, extra, stageExtra, out } =
             () =>
               document.querySelectorAll("#statsGrid .stat-card").length === 4,
           );
-          await page.locator("#settingsToggle").click();
-          await page.locator("[data-settings-tab=event]").click();
+          await page.locator("[data-tab=events]").click();
           const saveText = { en: "Save", de: "Speichern", fo: "Goym" }[
             language
           ];
@@ -63,24 +56,27 @@ const { server, mock, extra, stageExtra, out } =
               saveText,
             );
           const cards = page.locator(
-            "[data-settings-panel=event] .settings-card",
+            "[data-panel=events] .settings-card",
           );
           const rects = await cards.evaluateAll((nodes) =>
             nodes.map((n) => {
               const r = n.getBoundingClientRect();
-              return { y: r.y, bottom: r.bottom };
+              return { x: r.x, right: r.right, y: r.y, bottom: r.bottom, width: r.width };
             }),
           );
-          assert.equal(rects.length, 4);
-          for (let i = 1; i < rects.length; i++)
-            assert(
-              Math.abs(rects[i].y - rects[i - 1].bottom - 16) < 2,
-              "equal 16px card gaps",
-            );
+          assert.equal(rects.length, 3);
+          if (width >= 1100) {
+            assert(Math.abs(rects[0].y - rects[1].y) < 2, "reading cards share the wide row");
+            assert(Math.abs(rects[1].x - rects[0].right - 16) < 2, "wide cards retain a 16px horizontal gap");
+            assert(Math.abs(rects[2].y - Math.max(rects[0].bottom, rects[1].bottom) - 16) < 2, "next reading row retains a 16px gap");
+          } else {
+            for (let i = 1; i < rects.length; i++)
+              assert(Math.abs(rects[i].y - rects[i - 1].bottom - 16) < 2, "narrow cards stack with 16px gaps");
+          }
           async function checkPencils() {
             for (const button of await page
               .locator(
-                ".settings-subsection:not(.hidden) .settings-card-heading > :is([data-record-pencil],[data-local-edit]):visible",
+                ":is([data-panel=events],.settings-subsection):not(.hidden) .settings-card-heading > :is([data-record-pencil],[data-local-edit]):visible",
               )
               .all()) {
               const geometry = await button.evaluate((n) => {
@@ -112,18 +108,10 @@ const { server, mock, extra, stageExtra, out } =
             await page.locator("#planningConfigHost form").isVisible(),
             false,
           );
-          assert.equal(
-            await page
-              .locator("#planningConfigHost .planning-summary li")
-              .count(),
-            2,
-          );
-          assert.equal(
-            await page
-              .locator("#planningConfigHost .planning-summary dt")
-              .count(),
-            3,
-          );
+          const planningSummary = page.locator("#planningConfigHost .compact-read-grid");
+          assert.equal(await planningSummary.locator("dt").count(), 3);
+          const groupNames = { en: "Family · Friends", de: "Familie · Freunde", fo: "Familja · Vinir" }[language];
+          assert.equal(await planningSummary.getByText(groupNames, { exact: true }).isVisible(), true);
           const planning = await openBox(page, "event-planning");
           assert(await planning.isVisible());
           const sizes = await planning.evaluate((n) => ({
@@ -152,11 +140,12 @@ const { server, mock, extra, stageExtra, out } =
             assert(Math.max(...tops) - Math.min(...tops) < 2);
           }
           if (language === "en" && theme === "dark")
-            await page.locator("[data-settings-panel=event]").screenshot({
+            await page.locator("[data-panel=events]").screenshot({
               path: path.join(out, "event-planning-edit-" + width + ".png"),
             });
           await planning.locator("[data-discard]").click();
           assert.equal(await planning.isVisible(), false);
+          await page.locator("#settingsToggle").click();
           await page.locator("[data-settings-tab=languages]").click();
           await checkPencils();
           assert.equal(
@@ -203,6 +192,7 @@ const { server, mock, extra, stageExtra, out } =
   } finally {
     await browser.close();
     await new Promise((r) => server.close(r));
+    cleanup();
   }
 })().catch((e) => {
   console.error(e);

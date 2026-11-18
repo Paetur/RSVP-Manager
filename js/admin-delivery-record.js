@@ -23,6 +23,41 @@
     viewInInvites,
   }) {
     const $ = R.byId;
+    const pendingDeletes = new Set();
+    function canDeleteDraft(q) {
+      // Handoff audit stays server-owned; the RPC also rejects any prior handoff.
+      return q.id && q.status === "draft" && can("invites", "edit") &&
+        !getStore().deliveries.some(delivery => delivery.queue_id === q.id);
+    }
+    function deleteDraftButton(q) {
+      const remove = R.dom("button", { type: "button", class: "btn secondary danger" }, T("Delete"));
+      remove.dataset.deleteDraft = q.id;
+      remove.addEventListener("click", async () => {
+        const record = remove.closest("[data-delivery-id]"),
+          form = remove.closest("form") || record?.querySelector("form.delivery-review-form");
+        if (pendingDeletes.has(q.id) || !canDeleteDraft(q) || form?.getAttribute("aria-busy") === "true") return;
+        pendingDeletes.add(q.id);
+        const buttons = record?.querySelectorAll("[data-delete-draft]") || [remove];
+        for (const button of buttons) button.disabled = true;
+        form?.setAttribute("aria-busy", "true");
+        form?.cleanSaveUpdate?.();
+        let failed = false;
+        try {
+          if (!await window.RSVP_INLINE.confirm(T("Delete draft?"), { action: "Delete", trigger: remove })) return;
+          if (!canDeleteDraft(q) || !remove.isConnected) return;
+          await managementRpc("admin_delete_delivery_draft", { p_id: q.id, p_expected_revision: q.revision });
+          await reload();
+        } catch (error) { failed = true; show(R.safeError(error), "error"); }
+        finally {
+          pendingDeletes.delete(q.id);
+          for (const button of buttons) button.disabled = false;
+          form?.removeAttribute("aria-busy");
+          form?.cleanSaveUpdate?.();
+          if (failed && remove.isConnected && !remove.disabled && remove.getClientRects().length) remove.focus({ preventScroll: true });
+        }
+      });
+      return remove;
+    }
     function deliveryEditor(h, q = {}) {
       const primary = householdPrimaryContact(h),
         guest = householdPrimaryGuest(h);
@@ -93,7 +128,7 @@
       contact.addEventListener("change", showRecipient);
       f.append(recipient);
       const useTemplate = !q.id && !q.message_body;
-      let automatic = useTemplate ? invitationDraft(h, channel.value) : null;
+      let automatic = useTemplate ? invitationDraft(h, channel.value, { templateId: q.template_id }) : null;
       if (automatic?.hasTemplate) f.dataset.initialDraft = "true";
       const venueContext = field(f, T("Venue context"), automatic?.context?.venueId || "", [["", T("No specific venue")], ...getStore().locations.filter(v=>!v.archived_at).map(v=>[v.id,v.name])]);
       const sessionContext = field(f, T("Session context"), automatic?.context?.sessionId || "", [["", T("No specific session")], ...getStore().sessions.filter(s=>s.is_active).map(s=>[s.id,s.name])]);
@@ -147,7 +182,7 @@
         const changeContext = () => {
           const session = getStore().sessions.find(s => s.id === sessionContext.value);
           if (session && venueContext.value && session.location_id !== venueContext.value) sessionContext.value = "";
-          const next = invitationDraft(h, channel.value, { venueId: venueContext.value, sessionId: sessionContext.value });
+          const next = invitationDraft(h, channel.value, { templateId: q.template_id, venueId: venueContext.value, sessionId: sessionContext.value });
           if (subject.value === automatic.subject) subject.value = next.subject;
           if (body.value === automatic.body) body.value = next.body;
           automatic = next;
@@ -162,7 +197,7 @@
       custom.addEventListener("invalid", () => { custom.open = true; }, true);
       if (useTemplate)
         channel.addEventListener("change", () => {
-          const next = invitationDraft(h, channel.value);
+          const next = invitationDraft(h, channel.value, { templateId: q.template_id });
           venueContext.value = next.context.venueId;
           sessionContext.value = next.context.sessionId;
           if (subject.value === automatic.subject) subject.value = next.subject;
@@ -255,6 +290,10 @@
             },
           }),
       );
+      if (canDeleteDraft(q)) {
+        const lifecycle = R.dom("span", { class: "editor-lifecycle-actions" });
+        lifecycle.append(deleteDraftButton(q)); form.saveActions.append(lifecycle);
+      }
       if (!q.id) {
         const save = form.saveActions.querySelector('button[type="submit"]');
         save.addEventListener("click", () => { status.value = "draft"; });
@@ -539,6 +578,11 @@
         });
         d.append(form);
       }
+      if (editable && canDeleteDraft(q)) {
+        const actions = R.dom("div", { class: "form-actions delivery-read-actions edit-only" }),
+          lifecycle = R.dom("span", { class: "editor-lifecycle-actions" });
+        lifecycle.append(deleteDraftButton(q)); actions.append(copy, lifecycle); d.append(actions);
+      }
       return d;
     }
     function deliverySection(h, { allowCreate = false } = {}) {
@@ -564,12 +608,6 @@
             : T("interface.messages.no_delivery_recorded_yet"),
         ),
       );
-      if (allowCreate && !h.archived_at && can("invites", "edit")) {
-        const create = R.dom("div", { class: "edit-only delivery-create" });
-        create.hidden = true;
-        create.append(deliveryEditor(h));
-        d.append(create);
-      }
       if (!allowCreate && can("invites")) {
         const link = R.dom("a", { class: "btn secondary" }, T("View in Invites"));
         link.href = "#invites";
@@ -579,16 +617,6 @@
         });
         d.append(link);
       }
-      if (!store.settings?.is_published)
-        d.append(
-          R.dom(
-            "p",
-            { class: "micro" },
-            T(
-              "Prepare drafts now. Marking ready and sending become available after publication.",
-            ),
-          ),
-        );
       records.forEach((q) => d.append(deliveryRecord(h, q, allowCreate)));
       return d;
     }

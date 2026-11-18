@@ -27,13 +27,14 @@ const stageExtra = `fixtures.event_settings[0].food_stage='interest';window.__fo
 const stageRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_save_features'){window.__stageWrites=(window.__stageWrites||0)+1;fixtures.event_settings[0].food_stage=args.p_stage;fixtures.event_settings[0].food_enabled=args.p_food;fixtures.event_settings[0].other_enabled=args.p_other;fixtures.event_settings[0].food_introduction=args.p_introduction;return {data:null};}const result=await stageRpc(name,args);if(name==='get_public_event_v2'&&result.data?.event)result.data.event.food_introduction={de:'Deutsche Erklärung',en:'English explanation',fo:'Føroysk frágreiðing'};return result;};`;
 
 // Each suite owns its server and artifact directory; fixtures are synthetic only.
-function createFoodHarness(artifactName = "food-interest") {
-  const out = path.join(root, "artifacts", artifactName);
+function createFoodHarness(artifactName = "food-interest", options = {}) {
+  const siteRoot = options.root || root;
+  const out = options.out || path.join(root, "artifacts", artifactName);
   const server = http.createServer((req, res) => {
     let name = new URL(req.url, "http://localhost").pathname;
     if (name.endsWith("/")) name += "index.html";
-    const p = path.resolve(root, "." + name);
-    if (!p.startsWith(root + path.sep) || !fs.existsSync(p)) {
+    const p = path.resolve(siteRoot, "." + name);
+    if (!p.startsWith(siteRoot + path.sep) || !fs.existsSync(p)) {
       res.writeHead(404);
       return res.end();
     }
@@ -52,6 +53,6 @@ function createFoodHarness(artifactName = "food-interest") {
         : fs.readFileSync(p),
     );
   });
-  return { root, out, server, mock, extra, stageExtra };
+  return { root: siteRoot, out, server, mock, extra, stageExtra };
 }
 module.exports = { createFoodHarness };

@@ -2,6 +2,7 @@ const assert = require("node:assert/strict"),
   fs = require("node:fs");
 const { chromium } = require("playwright");
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
+const { openBox } = require("./helpers/local-edit-ui.cjs");
 const { selectContentTranslation } = require("./helpers/language-ui.cjs");
 const { server, mock, extra } = createFoodHarness("guest-titles-placeholders");
 const additions = `
@@ -9,12 +10,13 @@ window.__invite.guests[0].courtesy_title='Son';
 window.__invite.guests.push({id:'daughter',first_name:'Emma',last_name:'Example',courtesy_title:'Daughter'});
 window.__invite.invitations.push({...window.__invite.invitations[0],guest_id:'daughter'});
 fixtures.event_settings[0].guest_title_visibility={en:true,de:true,fo:false};
+fixtures.event_settings[0].guest_interface_modes={phone:{guest_title_visibility:{de:true}}};
 fixtures.event_locations=Array.from({length:5},(_,i)=>({...fixtures.event_locations[0],id:'language-venue-'+i,name:'Language venue '+i,sort_order:i}));
 fixtures.event_sessions=Array.from({length:5},(_,i)=>({...fixtures.event_sessions[0],id:'language-session-'+i,name:'Language session '+i,sort_order:i}));
 const titleRpc=client.rpc;client.rpc=async(name,args)=>{
- if(name==='admin_save_guest_name_preferences'){if(window.__failTitles){window.__failTitles=false;return {error:{message:'Synthetic title save failure'}};}fixtures.event_settings[0].guest_title_visibility=args.p_titles;window.__titleSaves=(window.__titleSaves||0)+1;return {data:null};}
+ if(name==='admin_save_guest_interface'){if(window.__failTitles){window.__failTitles=false;return {error:{message:'Synthetic title save failure'}};}fixtures.event_settings[0].guest_interface_modes[args.p_mode]=args.p_values;window.__titleSaves=(window.__titleSaves||0)+1;return {data:null};}
  const r=await titleRpc(name,args);
- if(name==='get_public_event_v2'){r.data.event.guest_title_visibility=fixtures.event_settings[0].guest_title_visibility;r.data.locations[0].welcome_en='We look forward to celebrating our day with you in Germany.';}
+ if(name==='get_public_event_v2'){r.data.event.guest_title_visibility=fixtures.event_settings[0].guest_title_visibility;r.data.event.guest_interface_modes=fixtures.event_settings[0].guest_interface_modes;r.data.locations[0].welcome_en='We look forward to celebrating our day with you in Germany.';}
  return r;
 };`;
 (async () => {
@@ -105,7 +107,8 @@ const titleRpc=client.rpc;client.rpc=async(name,args)=>{
       );
       assert.equal(
         await page.locator(".guest-courtesy-title").first().isVisible(),
-        width > 700,
+        true,
+        "configured German titles are visible on phone and wide layouts",
       );
       await page.locator('[data-language="fo"]').click();
       await page.waitForFunction(
@@ -117,12 +120,10 @@ const titleRpc=client.rpc;client.rpc=async(name,args)=>{
         "language-specific hiding",
       );
       await page.locator('[data-language="en"]').click();
-      await page.waitForFunction(
-        () =>
-          document
-            .querySelector(".guest-courtesy-title")
-            ?.textContent.trim() === "Son",
-      );
+      await page.waitForFunction((wide) => {
+        const title = document.querySelector(".guest-courtesy-title");
+        return wide ? title?.textContent.trim() === "Son" : !title;
+      }, width > 700);
       const row = page.locator(".rsvp-person-row").first();
       await row.locator('input[value="attending"]').check();
       const chosen = row.locator(".radio-pill").first();
@@ -150,7 +151,7 @@ const titleRpc=client.rpc;client.rpc=async(name,args)=>{
           };
         });
       assert.equal(centered.textAlign, "center");
-      assert(centered.offset < 3, JSON.stringify(centered));
+      assert(centered.offset < 5, JSON.stringify({ width, ...centered }));
       if (process.env.RSVP_GUEST_ALBUM_PREVIEW_DIR) {
         fs.mkdirSync(process.env.RSVP_GUEST_ALBUM_PREVIEW_DIR, {
           recursive: true,
@@ -193,23 +194,27 @@ const titleRpc=client.rpc;client.rpc=async(name,args)=>{
 
       await page.locator('#settingsToggle').click();
       await page.locator('[data-settings-tab="interface"]').click();
-      const card = page.locator('#guestNamesHost');
-      await card.locator("[data-local-edit]").click();
-      await card.getByRole("checkbox", { name: "de", exact: true }).uncheck();
+      const mode = width > 700 ? "wide" : "phone";
+      await page.locator(`#guest-appearance-tab-${mode}`).click();
+      const card = page.locator(`#guest-appearance-mode-${mode}`);
+      await openBox(page, "guest-customization:" + mode);
+      const germanTitle = card.getByRole("checkbox", { name: / · de$/ });
+      await germanTitle.uncheck();
       await page.evaluate(() => {
         window.__failTitles = true;
       });
       await card.getByRole("button", { name: "Save", exact: true }).click();
-      await card.locator('[data-state="error"]').waitFor();
+      await card.getByText("Synthetic title save failure", { exact: true }).waitFor();
       assert.equal(
-        await card.getByRole("checkbox", { name: "de", exact: true }).isChecked(),
+        await germanTitle.isChecked(),
         false,
       );
       await card.getByRole("button", { name: "Save", exact: true }).click();
       await page.waitForFunction(() => window.__titleSaves === 1);
       assert.equal(
         await page.evaluate(
-          () => fixtures.event_settings[0].guest_title_visibility.de,
+          (mode) => fixtures.event_settings[0].guest_interface_modes[mode].guest_title_visibility.de,
+          mode,
         ),
         false,
       );

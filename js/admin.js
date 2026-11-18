@@ -5,6 +5,7 @@
     $ = R.byId,
     A = window.RSVP_ADMIN_ACCESS;
   const can = (section, level = "view") => A.can(section, level);
+  let authRecovery = null;
   let db = null,
     user = null,
     store = {
@@ -33,32 +34,24 @@
       responses: [],
       queue: [],
       deliveries: [],
+      shortcutBatches: [],
+      shortcutItems: [],
+      shortcutAttempts: [],
       tasks: [],
       otherCategories: [],
     };
-  const mainTabs = ["invites", "overview", "venues", "households", "food", "other"];
+  let publicationBusy = false;
+  const mainTabs = ["invites", "overview", "events", "venues", "households", "food", "other"];
+  let appearanceMode = "wide",
+    appearanceOwner = null,
+    appearancePreviewOpen = false,
+    notificationMode = "wide",
+    notificationOwner = null;
   const defaultMainTab = () =>
     mainTabs.find((name) => !A.current || A.tabAllowed(name)) || "settings";
   let activeTab = "invites",
     lastMainTab = "invites",
-    activeSettingsTab = "event";
-  try {
-    const saved = sessionStorage.getItem("event-admin-settings-tab");
-    if (
-      [
-        "checklist",
-        "event",
-        "administrators",
-        "languages",
-        "interface",
-        "templates",
-        "placeholders",
-        "backups",
-        "logs",
-      ].includes(saved)
-    )
-      activeSettingsTab = saved;
-  } catch (_) {}
+    activeSettingsTab = "application";
   const expandedGroups = new Map(),
     foodCategoryMessages = new Map();
   let foodCreationCategory = null;
@@ -118,20 +111,17 @@
     if (A.current && !A.settingsAllowed(name))
       name =
         [
+          "application",
           "checklist",
-          "event",
           "administrators",
           "languages",
           "interface",
           "templates",
-        "placeholders",
+          "placeholders",
           "backups",
           "logs",
         ].find((n) => A.settingsAllowed(n)) || "checklist";
     activeSettingsTab = name;
-    try {
-      sessionStorage.setItem("event-admin-settings-tab", name);
-    } catch (_) {}
     document.querySelectorAll("[data-settings-tab]").forEach((b) => {
       const active = b.dataset.settingsTab === name;
       b.classList.toggle("active", active);
@@ -204,7 +194,7 @@
   function updateSectionDescription() {
     const description =
       activeTab === "settings"
-        ? "Manage event details and administrator access."
+        ? "Manage application settings and administrator access."
         : activeTab === "language"
           ? "Translate event content for guests."
           : "Manage invitations, food and event details.";
@@ -246,6 +236,18 @@
 
   function toggleSettings() {
     tab(activeTab === "settings" ? lastMainTab : "settings");
+  }
+  function returnToOverviewAfterDatabaseChange(message) {
+    window.RSVP_ADMIN_TOOLS.completeDatabaseChange();
+    const url = new URL(location.href);
+    url.hash = "overview";
+    history.replaceState({
+      adminSection: "overview",
+      databaseChangeNotice: { actor: user?.id, message },
+    }, "", url);
+    window.scrollTo(0, 0);
+    location.reload();
+    return true;
   }
   const {
     formFeedback,
@@ -323,19 +325,24 @@
     planningLabel,
     planningConfiguration,
   });
+  matchMedia("(max-width: 700px)").addEventListener("change", () => {
+    window.RSVP_NOTIFICATIONS.configure("admin", window.RSVP_GUEST_INTERFACE.effective(store.settings, undefined, store.languages).notification_preferences?.admin);
+  });
   function renderAll() {
+    window.RSVP_POPUPS.reconcile(can);
     const resumeInline = window.RSVP_INLINE?.suspend();
     try {
 
     window.RSVP_NOTIFICATIONS.configure(
       "admin",
-      store.settings?.notification_preferences?.admin,
+      window.RSVP_GUEST_INTERFACE.effective(store.settings, undefined, store.languages).notification_preferences?.admin,
     );
     qs('[data-tab="households"]').textContent = planningLabel("households");
     $("householdsTitle").textContent = planningLabel("households");
     $("adminEventTitle").textContent =
       store.settings?.event_name || T("interface.messages.event_dashboard");
     statisticsView.render();
+    bulkInvitesView.render();
     const deployed = window.RSVP_CONFIG || {};
     let websiteConfigured = false;
     try {
@@ -373,16 +380,7 @@
       ],
       [T("interface.messages.event_published"), !!store.settings?.is_published],
     ];
-    $("launchChecklist").replaceChildren(
-      ...checks.map(([label, yes]) => {
-        const li = R.dom("li");
-        li.append(
-          R.dom("span", { class: yes ? "yes" : "no" }, yes ? "✓" : "○"),
-          document.createTextNode(label),
-        );
-        return li;
-      }),
-    );
+    window.RSVP_ADMIN_APPLICATION.render({ R, T, checks, settings: store.settings, canEdit: can("settings", "edit"), busy: publicationBusy });
     renderHouseholds();
     renderInvites();
     renderDeliveryLog();
@@ -394,11 +392,14 @@
     renderSessions();
     renderContent();
     window.RSVP_ADMIN_TOOLS?.render();
+    experimentalView.render();
+    databaseView.render();
+    compactRead.apply();
     updateSectionDescription();
     for (const form of $("adminApp").querySelectorAll(
       "#eventSettingsForm,.management-form,.guest-edit-form",
     ))
-      cleanSave(form);
+      cleanSave(form, !form.cleanSaveUpdate);
     for (const form of document.querySelectorAll(
       "#venueList form.management-form,#sessionsList form.management-form",
     ))
@@ -464,6 +465,7 @@
         "M10.5 6.1c5.8-.7 9.4 3.6 11.5 5.9a18 18 0 0 1-4.3 4.1",
         "M6.2 7.8A18 18 0 0 0 2 12s3.5 6 10 6c1.2 0 2.3-.2 3.3-.5",
       ],
+      share: ["M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6", "M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6", "M18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6", "m8.5 10.5 7-4", "m8.5 3 7 4"],
       archive: ["M3 3h18v4H3z", "M5 7v14h14V7", "M10 11h4"],
       restore: ["M4 10a8 8 0 1 1 1 8", "M4 4v6h6"],
     };
@@ -2266,7 +2268,7 @@
     }
     return d;
   }
-  const { draft: invitationDraft, render: renderInvitationTemplates } =
+  const { draft: invitationDraft, choices: invitationTemplateChoices, render: renderInvitationTemplates } =
     window.RSVP_ADMIN_INVITATION_TEMPLATES.create({
       R,
       T,
@@ -2281,6 +2283,7 @@
       saveForm,
       managementRpc,
       show,
+      reload,
     });
   const {
     editor: deliveryEditor,
@@ -2382,6 +2385,7 @@
       const key = parent.dataset.householdDetailKey || parent.dataset.treeKey;
       if (key) expandedGroups.set(key, true);
     }
+    form.closest(".household-inline-editor")?.classList.add("household-detail-editing");
     form.scrollIntoView({ block: "nearest" });
     form.querySelector("input:not([type=checkbox]):not(:disabled)")?.focus({ preventScroll: true });
   }
@@ -2402,12 +2406,76 @@
     setDisclosure,
     rememberDisclosure: (key, open) => expandedGroups.set(key, open),
     deliverySection,
+    deliveryEditor,
+    invitationTemplateChoices,
+    invitationDraft,
+    managementRpc,
+    reload,
     rsvpSection,
+    householdFacts: h => shortcutsView.householdFacts(h),
     adminTime,
     show,
   });
+  function shortcutApiBase() {
+    try {
+      const backend = new URL(R.config().supabaseUrl);
+      if (backend.protocol !== "https:" || backend.username || backend.password || backend.search || backend.hash || !["", "/"].includes(backend.pathname)) return null;
+      return backend.origin + "/functions/v1/invitation-shortcuts";
+    } catch (_) { return null; }
+  }
+  const shortcutsView = window.RSVP_ADMIN_SHORTCUTS.create({
+    R,
+    T,
+    getStore: () => store,
+    getActor: () => user?.id || null,
+    can,
+    managementRpc,
+    reload,
+    adminTime,
+    show,
+    apiBase: shortcutApiBase,
+    isSecure: () => window.isSecureContext && Boolean(shortcutApiBase()),
+    confirm: (message, trigger) => window.RSVP_INLINE.confirm(message, { trigger }),
+  });
+  const bulkInvitesView = window.RSVP_ADMIN_BULK_INVITES.create({
+    R, T, getStore: () => store, getActor: () => user?.id || null, can, managementRpc, reload, show,
+    primaryContact: householdPrimaryContact, primaryGuest: householdPrimaryGuest, invitationDraft,
+    shortcuts: shortcutsView,
+    openShortcuts: () => {
+      tab("invites");
+      const workspace = $("shortcutWorkspace");
+      workspace.open = true;
+      workspace.querySelector("summary")?.focus({ preventScroll: true });
+      workspace.scrollIntoView({ block: "nearest" });
+    },
+  });
+  const compactRead = window.RSVP_ADMIN_READ_SUMMARIES.create({ R, T, getStore: () => store, adminTime, planningName });
+  const experimentalView = window.RSVP_ADMIN_EXPERIMENTAL.create({
+    R, T, getStore: () => store, getActor: () => user?.id || null, can,
+    managementRpc, reload, show,
+    onChange: () => { shortcutsView.clear(); shortcutsView.render(); },
+    saved: form => localEditors.saved(form),
+    cancelled: form => localEditors.cancel(form),
+  });
+  const databaseView = window.RSVP_ADMIN_DATABASE.create({
+    R, T, getStore: () => store, getActor: () => user?.id || null,
+    can, rpc: managementRpc, adminTime, onMessage: show,
+    confirm: window.RSVP_INLINE.confirmIrreversible,
+    downloadSafetyBackup: (...args) => window.RSVP_ADMIN_TOOLS.downloadSafetyBackup(...args),
+    reload: () => returnToOverviewAfterDatabaseChange("Application data cleared. The event is unpublished."),
+    signOut: async () => {
+      window.RSVP_ADMIN_TOOLS.completeDatabaseChange();
+      const result = await db.auth.signOut({ scope: "local" });
+      if (result.error) throw result.error;
+      A.clear(); user = null;
+      shortcutsView.clear(); bulkInvitesView.clear(); experimentalView.clear(); databaseView.clear();
+      location.replace(new URL("setup.html", R.siteRoot));
+      return true;
+    },
+  });
   function renderInvites() {
     invitesView.render();
+    shortcutsView.render();
   }
 
   function renderInvitationHierarchy(
@@ -2902,70 +2970,36 @@
           editor.classList.add("household-inline-editor");
           editor.dataset.householdDetailKey = "household-details:" + h.id;
           setDisclosure(editor, editor.dataset.householdDetailKey);
-          const contactNames = [
-            ...new Set(
-              store.contacts
-                .filter((c) => c.household_id === h.id && !c.archived_at)
-                .map(
-                  (c) =>
-                    c.contact_name ||
-                    [
-                      store.guests.find((g) => g.id === c.guest_id)?.first_name,
-                      store.guests.find((g) => g.id === c.guest_id)?.last_name,
-                    ]
-                      .filter(Boolean)
-                      .join(" "),
-                )
-                .filter(Boolean),
-            ),
-          ];
           const primaryName = primaryGuest
-            ? [primaryGuest.first_name, primaryGuest.last_name]
-                .filter(Boolean)
-                .join(" ") || T("interface.messages.unnamed_guest")
+            ? [primaryGuest.first_name, primaryGuest.last_name].filter(Boolean).join(" ") || T("interface.messages.unnamed_guest")
             : savedContact?.contact_name || savedContact?.contact_value || "";
           const detailHeading = editor.querySelector("summary");
-          if (primaryName) {
-            const caption = R.dom("small", {
-              class: "primary-contact-summary muted",
-            });
-            const tick = R.dom("span", {}, "✓\u00a0");
-            tick.setAttribute("aria-hidden", "true");
-            caption.append(tick, primaryName);
-            detailHeading.append(caption);
-          } else if (contactNames.length) {
-            detailHeading.append(
-              R.dom(
-                "small",
-                { class: "household-contact-summary muted view-only" },
-                T("interface.messages.contacts") +
-                  ": " +
-                  contactNames.join(" · "),
-              ),
-            );
+          const contactValue = savedContact?.contact_value || primaryGuest?.mobile || primaryGuest?.phone || primaryGuest?.email || "";
+          const channel = savedContact ? primaryContactChannel(savedContact) : primaryGuest?.preferred_contact_method;
+          const caption = R.dom("small", { class: "primary-contact-summary muted" });
+          if (primaryName) caption.append(R.dom("span", { "aria-hidden": "true" }, "✓"), R.dom("span", {}, primaryName));
+          if (primaryName && contactValue && contactValue !== primaryName) caption.append(R.dom("span", {}, contactValue));
+          if (primaryName && channel) caption.append(R.dom("span", {}, "(" + (contactMethodLabel(channel) || channel) + ")"));
+          if (h.food) caption.append(R.dom("span", {}, (primaryName ? "- " : "") + T("Food")));
+          detailHeading.append(caption);
+          const summary = R.dom("div", { class: "household-compact-reading view-only" });
+          function compactLine(values, separator) {
+            const parts = values.filter(Boolean);
+            if (!parts.length) return;
+            const line = R.dom("div", { class: "household-reading-line" });
+            parts.forEach((value, index) => {
+              if (index) line.append(R.dom("span", { "aria-hidden": "true" }, separator));
+              line.append(R.dom("span", {}, value));
+            }); summary.append(line);
           }
-          const summary = householdProfile([
-            [
-              T("interface.messages.language"),
-              languages(h.language).find(
-                ([code]) => code === h.language,
-              )?.[1] || h.language,
-            ],
-            [
-              T("food.messages.allow_food"),
-              T(
-                h.food
-                  ? "interface.messages.enabled"
-                  : "interface.messages.disabled",
-              ),
-            ],
-            [T("interface.messages.household_landline"), h.phone],
-            [T("interface.messages.postal_address"), h.postal_address, "wide"],
-            [T("interface.messages.notes"), h.notes, "wide"],
-          ]);
-          summary.classList.add("view-only");
-          summary.append(window.RSVP_ADMIN_HOUSEHOLD_SESSIONS.reading(h, { R, T, getStore: () => store, ordered, can }));
-          if (!can("households", "edit") || h.archived_at) editor.append(summary);
+          compactLine([h.postal_address, h.phone], "-");
+          compactLine([groupLabel(h.planning_group_id), store.relationGroups.find(g => g.id === h.relation_group_id)?.name, R.householdName(store.households.find(parent => parent.id === h.parent_id)) || T("None (top level)")], "→");
+          if (can("invites")) {
+            const invited = ordered(store.sessions.filter(session => session.is_active), "name").filter(session => guests.some(guest => !guest.archived_at && (store.overrides.find(o => o.guest_id === guest.id && o.session_id === session.id)?.is_invited ?? store.defaults.find(d => d.household_id === h.id && d.session_id === session.id)?.is_invited)));
+            if (invited.length) compactLine([T("Sessions"), invited.map(session => session.name).join(" · ")], "");
+          }
+          if (h.notes) compactLine([h.notes], "");
+          editor.append(summary);
           actions.append(
             iconAction(
               "edit",
@@ -2973,8 +3007,9 @@
                 (R.householdName(h) || "household"),
               () => {
                 node.open = true;
-                editor.open = !editor.open;
-                if (editor.open) editor.querySelector("input")?.focus();
+                editor.open = true;
+                editor.classList.add("household-detail-editing");
+                editor.querySelector("input")?.focus();
               },
               false,
               "edit-only",
@@ -3017,6 +3052,8 @@
           const choice = h.archived_at ? null : householdContactChoice(h);
           const form = householdForm(h, choice);
           form.id = "household-form-" + h.id;
+          form.addEventListener("rsvp:form-saved", () => editor.classList.remove("household-detail-editing"));
+          form.addEventListener("click", event => { if (event.target.closest("[data-discard]")) editor.classList.remove("household-detail-editing"); });
           editor.append(form);
           if (choice) editor.append(choice.panel);
           const contacts = contactSection(h, primaryGuest, primaryName);
@@ -3044,13 +3081,14 @@
           footer
             .querySelector('button[type="submit"]')
             .setAttribute("form", form.id);
-          if (contacts) editor.append(contacts);
+          if (contacts) { contacts.classList.add("household-contact-editor"); editor.append(contacts); }
+          footer.addEventListener("click", event => { if (event.target.closest("[data-discard]")) editor.classList.remove("household-detail-editing"); });
           editor.append(footer);
           primary.append(actions);
           card.append(primary);
           const expanded = R.dom("div", { class: "household-expanded" });
           expanded.append(editor, buildGuestList(guests));
-          if (can("invites")) expanded.append(deliverySection(h));
+          if (can("invites") && store.queue.some(q => q.household_id === h.id)) expanded.append(deliverySection(h));
           if (!h.archived_at) {
             const add = disclosure(
               T("interface.messages.add_guest"),
@@ -4433,28 +4471,112 @@
     featuresView.render();
   }
   function renderGuestAppearance() {
-    window.RSVP_CUSTOMIZATION?.render({
-      R,
-      getStore: () => store,
-      can,
-      isEditing: () => true,
-      reload,
-      show,
-    });
+    const host = $("guestAppearanceHost");
+    const owner = user?.id || null,
+      retain = owner === appearanceOwner && can("settings"),
+      previousSections = new Map(retain ? [...host.querySelectorAll(".guest-mode-settings-card")].map(section =>
+        [section.dataset.settingsCard.split(":")[1], section]) : []);
+    if (!retain) window.RSVP_CUSTOMIZATION?.clear();
+    appearanceOwner = owner;
+    appearancePreviewOpen = host.querySelector(".guest-appearance-preview")?.open ?? appearancePreviewOpen;
+    host.replaceChildren();
+    const heading = R.dom("div", { class: "settings-card-heading guest-appearance-heading" });
+    heading.append(R.dom("h3", {}, T("Invitation appearance"))); host.append(heading);
+    const modes = R.dom("nav", { class: "guest-appearance-mode-tabs" }),
+      columns = R.dom("div", { class: "guest-mode-settings guest-appearance-modes" }),
+      preview = R.dom("details", { class: "guest-appearance-preview" }),
+      previewSummary = R.dom("summary"),
+      previewLabel = R.dom("span", { class: "guest-appearance-preview-label" }),
+      previewMode = R.dom("span", { class: "micro" }),
+      previewContent = R.dom("div", { class: "guest-appearance-preview-content" }),
+      sections = new Map(), previews = new Map();
+    modes.setAttribute("role", "tablist"); modes.setAttribute("aria-label", T("Invitation appearance"));
+    previewLabel.append(actionGlyph("show"), R.dom("span", {}, T("Preview")), previewMode);
+    previewSummary.append(previewLabel);
+    preview.append(previewSummary, previewContent); preview.open = appearancePreviewOpen;
+    preview.addEventListener("toggle", () => { if (preview.isConnected) appearancePreviewOpen = preview.open; });
+    host.append(modes, columns, preview);
+    const updateMode = () => {
+      const busy = !!host.querySelector('form[aria-busy="true"]');
+      for (const button of modes.querySelectorAll("button")) {
+        const selected = button.dataset.appearanceMode === appearanceMode;
+        button.setAttribute("aria-selected", String(selected)); button.tabIndex = selected ? 0 : -1; button.disabled = busy;
+      }
+      for (const [mode, section] of sections) section.classList.toggle("hidden", mode !== appearanceMode);
+      const activePreview = previews.get(appearanceMode);
+      if (activePreview && activePreview.parentElement !== previewContent) previewContent.replaceChildren(activePreview);
+      previewMode.textContent = T(appearanceMode === "phone" ? "Phone" : "Wide");
+      host.dataset.appearanceMode = appearanceMode;
+    };
+    for (const mode of ["wide", "phone"]) {
+      const button = R.dom("button", { type: "button", id: "guest-appearance-tab-" + mode }, T(mode === "phone" ? "Phone" : "Wide")),
+        section = previousSections.get(mode) || R.dom("section", { class: "guest-mode-settings-card", id: "guest-appearance-mode-" + mode });
+      button.setAttribute("role", "tab"); section.setAttribute("role", "tabpanel");
+      button.dataset.appearanceMode = mode; button.setAttribute("aria-controls", section.id);
+      section.setAttribute("aria-labelledby", button.id); section.dataset.settingsCard = "guest-customization:" + mode;
+      sections.set(mode, section); columns.append(section); modes.append(button);
+      button.addEventListener("click", () => {
+        if (button.disabled) return;
+        appearanceMode = mode; updateMode(); localEditors.refresh();
+      });
+      window.RSVP_CUSTOMIZATION?.render({ R, host: section, mode, languages, sharedPreview: true,
+        mountPreview: node => { previews.set(mode, node); updateMode(); }, onUpdate: updateMode,
+        refreshEditors: () => localEditors.refresh(),
+        getStore: () => ({ ...store, settings: window.RSVP_GUEST_INTERFACE.effective(store.settings, mode, store.languages) }), can, isEditing: () => true, reload, show }, true);
+    }
+    updateMode(); localEditors.refresh();
   }
   function renderNotificationSettings() {
-    window.RSVP_ADMIN_NOTIFICATIONS.render({
-      R,
-      getStore: () => store,
-      can,
-      isEditing: () => true,
-      reload,
-    });
+    const host = $("notificationSettingsHost"), owner = user?.id || null,
+      retain = owner === notificationOwner && can("settings"),
+      previous = new Map(retain ? [...host.querySelectorAll(".notification-mode-card")].map(section =>
+        [section.dataset.settingsCard.split(":")[1], section]) : []);
+    if (!retain) window.RSVP_ADMIN_NOTIFICATIONS.clear();
+    notificationOwner = owner;
+    host.replaceChildren();
+    const heading = R.dom("div", { class: "settings-card-heading guest-appearance-heading notification-heading" }),
+      modes = R.dom("nav", { class: "guest-appearance-mode-tabs notification-mode-tabs" }),
+      columns = R.dom("div", { class: "notification-mode-settings" }), sections = new Map();
+    heading.append(R.dom("h3", {}, T("Status messages")));
+    modes.setAttribute("role", "tablist"); modes.setAttribute("aria-label", T("Status messages"));
+    host.append(heading, modes, columns);
+    const landing = document.querySelector(".guest-landing-settings");
+    if (landing && host.parentElement !== landing) landing.append(host);
+    const updateMode = () => {
+      const busy = !!host.querySelector('form[aria-busy="true"]');
+      for (const button of modes.querySelectorAll("button")) {
+        const selected = button.dataset.notificationMode === notificationMode;
+        button.setAttribute("aria-selected", String(selected)); button.tabIndex = selected ? 0 : -1; button.disabled = busy;
+      }
+      for (const [mode, section] of sections) section.classList.toggle("hidden", mode !== notificationMode);
+      host.dataset.notificationMode = notificationMode;
+    };
+    for (const mode of ["wide", "phone"]) {
+      const button = R.dom("button", { type: "button", id: "notification-tab-" + mode }, T(mode === "phone" ? "Phone" : "Wide")),
+        section = previous.get(mode) || R.dom("section", { class: "notification-mode-card", id: "notification-mode-" + mode });
+      button.setAttribute("role", "tab"); button.setAttribute("aria-controls", section.id); button.dataset.notificationMode = mode;
+      section.setAttribute("role", "tabpanel"); section.setAttribute("aria-labelledby", button.id);
+      section.dataset.settingsCard = "notification-preferences:" + mode;
+      sections.set(mode, section); columns.append(section); modes.append(button);
+      button.addEventListener("click", () => {
+        if (button.disabled) return;
+        notificationMode = mode; updateMode(); localEditors.refresh();
+      });
+      window.RSVP_ADMIN_NOTIFICATIONS.render({ R, host: section, mode,
+        getStore: () => ({ ...store, settings: window.RSVP_GUEST_INTERFACE.effective(store.settings, mode, store.languages) }),
+        can, isEditing: () => true, reload, onUpdate: updateMode, refreshEditors: () => localEditors.refresh() }, true);
+    }
+    updateMode(); localEditors.refresh();
+  }
+
+  function syncApplicationPublication() {
+    window.RSVP_ADMIN_APPLICATION.sync({ R, T, settings: store.settings, canEdit: can("settings", "edit"), busy: publicationBusy });
   }
   function renderSettings() {
+    window.RSVP_GUEST_INTERFACE.controls({ R, T, getStore: () => store, render: renderSettings });
     renderNotificationSettings();
     renderFeatures();
-    window.RSVP_ADMIN_GUEST_NAMES.render({ R, T, getStore: () => store, languages, can, saveForm, managementRpc });
+    $("guestNamesHost").hidden = true;
     renderGuestAppearance();
     const e = store.settings || {};
     for (const id of ["wordingLanguage"]) {
@@ -4496,6 +4618,7 @@
     $("publicationState").classList.toggle("warning", !e.is_published);
     $("publishEventButton").disabled = !!e.is_published;
     $("unpublishEventButton").disabled = !e.is_published;
+    syncApplicationPublication();
   }
   function venueForm(v) {
     const f = managementForm();
@@ -5012,8 +5135,10 @@
     venuesView.render();
   }
   async function checkAccess() {
+    if (authRecovery?.blocksAccess()) return;
     const { data: access, error } = await R.adminRpc("is_admin");
     if (error) throw error;
+    if (authRecovery?.blocksAccess()) return;
     if (access !== true) {
       const invitation = await R.adminRpc("admin_my_invitation");
       if (invitation.error)
@@ -5028,6 +5153,7 @@
             "interface.messages.no_active_administrator_invitation_was_found_for_this_account_ask",
           ),
         );
+      if (authRecovery?.blocksAccess()) return;
       pendingAdminInvitation = invitation.data;
       $("loginPanel").classList.add("hidden");
       $("acceptInvitationPanel").classList.remove("hidden");
@@ -5042,6 +5168,7 @@
       return;
     }
     await window.RSVP_ADMIN_PREFERENCES.load(user);
+    if (authRecovery?.blocksAccess()) return;
     $("acceptInvitationPanel").classList.add("hidden");
     pendingAdminInvitation = null;
     $("loginPanel").classList.add("hidden");
@@ -5065,10 +5192,16 @@
       : defaultMainTab();
     tab(activeTab, false);
 
-    await reload();
+    const loaded = await reload();
     const logged = await R.adminRpc("admin_record_session", {
       p_action: "login",
     });
+    const { databaseChangeNotice, ...entry } = history.state || {};
+    if (databaseChangeNotice) {
+      history.replaceState(entry, "");
+      if (loaded && !logged.error && databaseChangeNotice.actor === user?.id)
+        show(T(databaseChangeNotice.message), "success");
+    }
     if (logged.error)
       show(
         T("interface.messages.signed_in_but_session_logging_is_unavailable"),
@@ -5086,7 +5219,12 @@
     document.addEventListener("rsvp:admin-access-lost", () => {
       A.clear();
       window.RSVP_ADMIN_PREFERENCES.clear();
+      window.RSVP_CUSTOMIZATION?.clear(); appearanceOwner = null;
       user = null;
+      shortcutsView.clear();
+      bulkInvitesView.clear();
+      experimentalView.clear();
+      databaseView.clear();
       $("adminApp").classList.add("hidden");
       $("adminTopActions").classList.add("hidden");
       document.querySelector(".admin-section-menu").classList.add("hidden");
@@ -5114,7 +5252,7 @@
       )
         return;
       const buttons = Array.from(nav.querySelectorAll('[role="tab"]')).filter(
-        (button) => !button.disabled,
+        (button) => !button.disabled && button.getClientRects().length > 0,
       );
       const index = buttons.indexOf(event.target);
       if (index < 0) return;
@@ -5139,8 +5277,25 @@
         false,
       );
     });
-    await window.RSVP_I18N.load();
+    authRecovery = window.RSVP_ADMIN_AUTH_RECOVERY.create({
+      R, T, onMessage: show,
+      onBlock: () => {
+        A.clear();
+        window.RSVP_ADMIN_PREFERENCES.clear();
+        user = null;
+        shortcutsView.clear();
+        bulkInvitesView.clear();
+        experimentalView.clear();
+        databaseView.clear();
+        pendingAdminInvitation = null;
+      },
+    });
+    // Consume recovery credentials in an isolated client before normal Auth
+    // (including language configuration) can read or replace its shared session.
+    await authRecovery.start();
     db = R.getClient();
+    await window.RSVP_I18N.load();
+    authRecovery.refreshText();
     if (!db) {
       $("loginPanel").classList.remove("hidden");
       show(
@@ -5152,9 +5307,8 @@
       $("loginForm").querySelector("button").disabled = true;
       return;
     }
-    const {
-      data: { user: current },
-    } = await db.auth.getUser();
+    const current = authRecovery.blocksAccess() ? null :
+      (await db.auth.getUser()).data?.user;
     if (current) {
       user = current;
       try {
@@ -5165,6 +5319,7 @@
     }
     $("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (authRecovery.blocksAccess()) return;
       show("");
       const button = e.target.querySelector("button");
       button.disabled = true;
@@ -5190,6 +5345,10 @@
       const result = await db.auth.signOut();
       if (result.error) show(R.safeError(result.error), "error");
       else {
+        shortcutsView.clear();
+        bulkInvitesView.clear();
+        experimentalView.clear();
+        databaseView.clear();
         window.RSVP_ADMIN_PREFERENCES.clear();
         location.reload();
       }
@@ -5202,18 +5361,6 @@
       .forEach((b) =>
         b.addEventListener("click", () => settingsTab(b.dataset.settingsTab)),
       );
-    for (const nav of document.querySelectorAll(".admin-main-tabs,.settings-tabs")) {
-      nav.addEventListener("keydown", (event) => {
-        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-        const buttons = [...nav.querySelectorAll("button")].filter((b) => !b.disabled && !b.classList.contains("permission-hidden"));
-        const index = buttons.indexOf(document.activeElement);
-        if (index < 0) return;
-        event.preventDefault();
-        const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
-        buttons[next].click();
-        buttons[next].focus({ preventScroll: true });
-      });
-    }
     $("settingsToggle").addEventListener("click", () => tab("settings"));
     $("logFilters").addEventListener("submit", (e) => {
       e.preventDefault();
@@ -5258,9 +5405,9 @@
       "inviteLanguageFilter",
       "inviteChannelFilter",
       "inviteFoodInterestFilter",
-      "inviteGroupView",
     ])
       $(id).addEventListener("change", renderInvites);
+    document.addEventListener("rsvp:invites-appearance", () => { if (store.settings) renderInvites(); });
     $("deliveryStatusFilter").addEventListener("change", renderDeliveryLog);
     $("showArchived").addEventListener("change", renderHouseholds);
     function setFoodDisclosure(selector, open) {
@@ -5498,6 +5645,7 @@
       e.target.cleanSaveUpdate?.();
     });
     $("publishEventButton").addEventListener("click", async () => {
+      if (publicationBusy || !can("settings", "edit") || store.settings?.is_published) return;
       if (!$("publishAck").checked) {
         show(
           T(
@@ -5507,13 +5655,13 @@
         );
         return;
       }
-      const ready =
+      const ready = () =>
         store.settings?.event_name &&
         store.settings?.event_date &&
         store.settings?.website_url &&
         store.sessions.some((x) => x.is_active) &&
         store.defaults.some((x) => x.is_invited);
-      if (!ready) {
+      if (!ready()) {
         show(
           T(
             "interface.messages.complete_the_event_name_date_website_url_active_session_and_invit",
@@ -5528,39 +5676,40 @@
           ), { action: "Publish event" })
       )
         return;
-      const button = $("publishEventButton");
-      button.disabled = true;
-      const { error } = await db
-        .from("event_settings")
-        .update({ is_published: true, updated_at: new Date().toISOString() })
-        .eq("id", 1);
-      if (error) show(R.safeError(error), "error");
-      else {
-        show(T("interface.messages.event_published_2"), "success");
-        $("publishAck").checked = false;
-        await reload();
-      }
-      button.disabled = false;
+      if (publicationBusy || !can("settings", "edit") || !$("publishAck").checked || store.settings?.is_published || !ready()) return;
+      publicationBusy = true;
+      syncApplicationPublication();
+      try {
+        const { error } = await db.from("event_settings").update({ is_published: true, updated_at: new Date().toISOString() }).eq("id", 1);
+        if (error) show(R.safeError(error), "error");
+        else {
+          show(T("interface.messages.event_published_2"), "success");
+          $("publishAck").checked = false;
+          await reload();
+        }
+      } catch (error) { show(R.safeError(error), "error"); }
+      finally { publicationBusy = false; syncApplicationPublication(); }
     });
     $("unpublishEventButton").addEventListener("click", async () => {
+      if (publicationBusy || !can("settings", "edit") || !store.settings?.is_published) return;
       if (
         !await window.RSVP_INLINE.confirm(T(
             "interface.messages.unpublish_this_event_guest_access_to_published_event_details_will",
           ), { action: "Unpublish event" })
       )
         return;
-      const button = $("unpublishEventButton");
-      button.disabled = true;
-      const { error } = await db
-        .from("event_settings")
-        .update({ is_published: false, updated_at: new Date().toISOString() })
-        .eq("id", 1);
-      if (error) show(R.safeError(error), "error");
-      else {
-        show(T("interface.messages.event_unpublished"), "success");
-        await reload();
-      }
-      button.disabled = false;
+      if (publicationBusy || !can("settings", "edit")) return;
+      publicationBusy = true;
+      syncApplicationPublication();
+      try {
+        const { error } = await db.from("event_settings").update({ is_published: false, updated_at: new Date().toISOString() }).eq("id", 1);
+        if (error) show(R.safeError(error), "error");
+        else {
+          show(T("interface.messages.event_unpublished"), "success");
+          await reload();
+        }
+      } catch (error) { show(R.safeError(error), "error"); }
+      finally { publicationBusy = false; syncApplicationPublication(); }
     });
   }
   document.addEventListener("DOMContentLoaded", () => {
@@ -5578,7 +5727,9 @@
     window.RSVP_ADMIN_TOOLS?.init({
       R,
       getStore: () => store,
+      getActor: () => user?.id || null,
       reload,
+      returnToOverviewAfterDatabaseChange,
       isEditing: () => true,
       show,
       foodMenuCategories,

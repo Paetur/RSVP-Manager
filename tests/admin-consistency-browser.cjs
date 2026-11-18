@@ -41,7 +41,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  const beforeTheme=await page.locator('html').getAttribute('data-theme');await page.locator('#themeToggle').click();assert.notEqual(await page.locator('html').getAttribute('data-theme'),beforeTheme);await page.locator('#themeToggle').click();
  if(preview&&type.name()==='webkit')await page.screenshot({path:preview+'/header-main.png',fullPage:true});
  if(preview&&type.name()==='webkit')await page.locator('.admin-main-tabs').screenshot({path:preview+'/main-menu.png'});
- assert.deepEqual(await page.locator('.admin-main-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.tab)),['overview','invites','venues','households','food','other']);
+ assert.deepEqual(await page.locator('.admin-main-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.tab)),['overview','events','invites','venues','households','food','other']);
  await selectWorkTab(page,'venues');
  for(const id of ['venueList','sessionsList'])assert.equal(await page.locator('#'+id).evaluate(node=>node.closest('details').open),true);
  assert.equal(await page.locator('#newVenueForm').evaluate(node=>!!(node.closest('details').compareDocumentPosition(document.getElementById('venueList'))&Node.DOCUMENT_POSITION_FOLLOWING)),true);
@@ -75,7 +75,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  if(preview&&type.name()==='webkit')await page.locator('[data-panel="other"]').screenshot({path:preview+'/other-text-and-editor.png'});
  await task.getByRole('button',{name:'Save',exact:true}).click();await task.locator('form').waitFor({state:'hidden'});
  assert.ok((await task.locator('.other-line-summary').textContent()).includes('Bring linen'));
- const gap=await page.locator('.admin-main-tabs').evaluate(nav=>{const other=nav.querySelector('[data-tab=other]').getBoundingClientRect(),invites=nav.querySelector('[data-tab=invites]').getBoundingClientRect();return invites.left-other.right;});assert.ok(gap<25,'Invites follows Other without an auto margin');
+ const gap=await page.locator('.admin-main-tabs').evaluate(nav=>{const events=nav.querySelector('[data-tab=events]').getBoundingClientRect(),invites=nav.querySelector('[data-tab=invites]').getBoundingClientRect();return invites.left-events.right;});assert.ok(gap>=0&&gap<25,'Invites follows Events without an auto margin');
  const category=page.locator('[data-other-category="other"]'),empty=page.locator('[data-other-category="empty"]');
  const addCategory=page.locator('[data-panel="other"] summary').filter({hasText:'Add category'});
  assert.ok(await addCategory.isVisible());assert.equal(await addCategory.locator('.action-symbol').count(),0);
@@ -144,9 +144,9 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.equal(await page.locator('#foodTranslationGrid [data-translation-record="ui:Food type: Basket(s)"]').evaluate(row=>row.open),true);
  assert.equal(await page.locator('#foodTranslationGrid [data-translation-record="ui:Food type: Basket(s)"]').getByLabel('Unit · English',{exact:true}).inputValue(),'Basket(s)');
  await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="checklist"]').click();
- assert.match(await page.locator('#adminModeLabel').textContent(),/^Manage event details/);
- await openBox(page,'personal-preferences');assert.ok(await page.locator('#interfaceLanguageHost #interfaceLanguage').isVisible());assert.ok(await page.locator('#interfaceAppearanceHost #themePreference').isVisible());assert.equal(await page.locator('#languageToggle,#themeMenu,#closeSettings').count(),0);
- if(preview&&type.name()==='webkit'){await page.locator('#themePreference').selectOption('dark');await page.mouse.move(0,0);await page.screenshot({path:preview+'/settings-interface.png',fullPage:true});}
+ assert.match(await page.locator('#adminModeLabel').textContent(),/^Manage application settings and administrator access/);
+ await openBox(page,'personal-preferences');assert.ok(await page.locator('[data-preference-choices="language"]').isVisible());assert.ok(await page.locator('[data-preference-choices="appearance"]').isVisible());assert.equal(await page.locator('#languageToggle,#themeMenu,#closeSettings').count(),0);
+ if(preview&&type.name()==='webkit'){await page.locator('[data-preference-choices="appearance"] [data-preference-choice="dark"]').click();await page.mouse.move(0,0);await page.screenshot({path:preview+'/settings-interface.png',fullPage:true});}
  await page.locator('[data-settings-tab="languages"]').click();
  assert.equal(await page.locator('.settings-tabs').getAttribute('role'),'tablist');
  assert.equal(await page.locator('#contentTranslationTabs').isVisible(),false);
@@ -177,7 +177,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await page.getByRole('heading',{name:'Choose enabled languages',exact:true}).waitFor();
  const language=page.locator('#languageRows [data-language-code="de"]');
  assert.equal(await language.locator('button[type="submit"]').textContent(),'Save');
- const downloadEvent=page.waitForEvent('download');await page.locator('[data-editor-key="language:de"] .local-editor-summary').getByRole('button',{name:/Export CSV/}).click();const download=await downloadEvent;
+ const [download]=await Promise.all([page.waitForEvent('download'),page.locator('[data-editor-key="language:de"] .settings-card-heading').getByRole('button',{name:/Export CSV/}).click()]);
  assert.equal(download.suggestedFilename(),'rsvp-locales-v2-de.csv');const csv=fs.readFileSync(await download.path(),'utf8');
  const rows=parseCsv(csv);assert.deepEqual(rows[0],['format_version','catalog_version','language_code','category','key','source','translation']);assert.equal(rows[1][0],'2');assert.match(rows[1][1],/^sha256:[0-9a-f]{64}$/);assert.equal(rows.find(row=>row[5]==='Households')[6],translated);
  const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'rsvp-browser-csv-'));
@@ -198,8 +198,8 @@ async function run(type){const browser=await type.launch({headless:true});try{
  for(const icon of await page.locator('.topbar .admin-icon-btn:visible').all()){const box=await icon.boundingBox();assert.ok(box.width>=44&&box.height>=44,'toolbar touch targets');}
  await page.locator('[data-tab="language"]').click();assert.equal(await page.locator('.admin-main-tabs').isVisible(),false);assert.equal(await page.locator('#contentLanguagesToggle').getAttribute('aria-pressed'),'true');
  assert.equal(await page.locator('#tabOverflowHint').isVisible(),false);
- await page.locator('#settingsToggle').click();
- await page.locator('[data-settings-tab=event]').click();
+ await page.locator('#mainSectionToggle').click();
+ await page.locator('[data-tab=events]').click();
 
  await openBox(page,'event-planning');const planning=page.locator('#planningConfigHost');
  const savePlanning=planning.getByRole('button',{name:'Save'});

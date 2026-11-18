@@ -1,0 +1,52 @@
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { chromium } from "playwright";
+import { createSetupServer } from "../setup-service/server.ts";
+const require=createRequire(import.meta.url),{fixture}=require("./helpers/setup-management-fixture.cjs");
+for(const width of [390,1160]){
+ const f=await fixture({installed:true});
+ const transport=(input,init)=>{const url=new URL(typeof input==="string"?input:input.url||String(input));url.protocol="https:";url.host=new URL(f.config.projectUrl).host;return f.fetcher(url.href,init);};
+ const localQuery=async(sql,parameters=[])=>{try{return parameters.length?(await f.db.query(sql,parameters)).rows:(await f.db.exec(sql)).at(-1)?.rows||[];}catch(error){await f.db.exec("ROLLBACK").catch(()=>{});throw error;}};
+ f.secrets.set("RSVP_SITE_ORIGIN","http://localhost:8080");
+ const server=createSetupServer(process.cwd(),{fetcher:transport,localQuery});
+ await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
+ const origin="http://127.0.0.1:"+server.address().port,browser=await chromium.launch();
+ try{
+  const page=await browser.newPage({viewport:{width,height:1000}}),errors=[];
+  page.on("pageerror",error=>errors.push(error.message));
+  await page.goto(origin+"/");await page.locator("#automaticWizard:not(.hidden)").waitFor();
+  await page.locator('input[name="target"][value="local"]').check();
+  assert.equal(await page.locator('[name="accessToken"]').isVisible(),false);
+  assert.equal(await page.locator('[name="projectRef"]').isVisible(),false);
+  const values={projectUrl:"http://127.0.0.1:54321",publicKey:f.config.publicKey,serviceKey:f.config.serviceKey,databaseUrl:"postgresql://postgres:synthetic@127.0.0.1:54322/postgres",siteUrl:"http://localhost:8080/"};
+  for(const [name,value]of Object.entries(values))await page.locator('#automaticConnect [name="'+name+'"]').fill(value);
+  await page.locator('#automaticConnect button[type="submit"]').click();
+  await page.locator('[data-auto-panel="1"]:not(.hidden)').waitFor();
+  assert.equal(await page.locator('[data-auto-step]:visible').count(),4);
+  assert.equal(await page.locator('[data-run="database"]').textContent(),"Verify database");
+  await page.locator('[data-run="database"]').click();
+  await page.locator('[data-auto-panel="2"]:not(.hidden)').waitFor();
+  const password="Synthetic local browser password!";
+  await page.locator('#automaticAdministrator [name="email"]').fill("organizer@example.invalid");
+  await page.locator('#automaticAdministrator [name="password"]').fill(password);
+  await page.locator('#automaticAdministrator [name="confirmPassword"]').fill("Mismatch");
+  assert(await page.locator('#automaticAdministrator button[type="submit"]').isDisabled());
+  await page.locator('#automaticAdministrator [name="confirmPassword"]').fill(password);
+  await page.locator('#automaticShowPassword').check();
+  assert.equal(await page.locator('#automaticAdministrator [name="password"]').getAttribute('type'),"text");
+  await page.locator('#automaticAdministrator button[type="submit"]').click();
+  await page.locator('[data-auto-panel="6"]:not(.hidden)').waitFor();
+  assert(await page.locator('[data-auto-step="2"]').isDisabled());
+  assert.equal(await page.locator('#automaticAdministrator [name="password"]').inputValue(),"");
+  assert.equal(await page.locator('#automaticAdministrator [name="confirmPassword"]').inputValue(),"");
+  assert.equal(await page.locator('#automaticShowPassword').isChecked(),false);
+  await page.locator('[data-run="verification"]').click();
+  await page.locator('#automaticComplete:not(.hidden)').waitFor();
+  assert.equal(f.state.created,1);
+  const storage=await page.evaluate(()=>JSON.stringify({...localStorage,...sessionStorage}));
+  for(const secret of [password,values.databaseUrl,values.serviceKey])assert(!storage.includes(secret));
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();await new Promise(resolve=>server.close(resolve));await f.db.close();}
+}
+console.log("PASS Local first-admin browser: four steps, local-only credential fields, confirmed passwords, reveal/clearing, closed creation, actual disposable Auth/SQL workflow, finish and no secret storage/overflow at390/1160.");

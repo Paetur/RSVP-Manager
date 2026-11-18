@@ -37,8 +37,7 @@ return priorPlanningRpc(name,args);};`;
     await page.waitForFunction(
       () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
     );
-    await page.locator("#settingsToggle").click();
-    await page.locator("[data-settings-tab=event]").click();
+    await page.locator("[data-tab=events]").click();
 
     await openBox(page, "event-planning");
     const host = page.locator("#planningConfigHost"),

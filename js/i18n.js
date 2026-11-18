@@ -129,7 +129,7 @@
     })();
     return loaded;
   }
-  window.RSVP_I18N={t,setLanguage,confirmLanguageReload,reloadLanguagePage,markClean:form=>dirtyForms.delete(form),get language(){return language;},get languageReloadApproved(){return languageReloadApproved;},hasPreference:()=>preference,
+  window.RSVP_I18N={isDirty:form=>dirtyForms.has(form),t,setLanguage,confirmLanguageReload,reloadLanguagePage,markClean:form=>dirtyForms.delete(form),get language(){return language;},get languageReloadApproved(){return languageReloadApproved;},hasPreference:()=>preference,
     csvContract:window.RSVP_LOCALE_CONTRACT,
     unitSource:name=>sourceByKey.get(window.RSVP_UNIT_KEYS?.[name])||name,
     locale:()=>{try{const code={fo:'fo-FO',en:'en-GB',de:'de-DE'}[language]||language;return Intl.DateTimeFormat.supportedLocalesOf(code).length?code:'en-GB';}catch(_){return 'en-GB';}},catalog,applyWording,

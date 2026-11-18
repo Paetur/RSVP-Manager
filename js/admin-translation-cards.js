@@ -50,10 +50,11 @@
         class: "translation-language-reading",
       });
       language.append(source.querySelector(":scope > strong").cloneNode(true));
-      for (const input of source.querySelectorAll("input,textarea,select")) {
-        const label = input
-            .closest("label")
-            .querySelector(".placeholder-field-heading > span, :scope > span"),
+      // Placeholder search inputs are editor tools, not translated fields.
+      for (const input of source.querySelectorAll(".translation-field")) {
+        const wrap = input.closest("label"),
+          label = wrap?.querySelector(".placeholder-field-heading > span") ||
+            wrap?.querySelector(":scope > span"),
           field = R.dom("div", { class: "translation-reading-field" });
         field.append(
           R.dom(

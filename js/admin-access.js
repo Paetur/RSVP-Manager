@@ -71,13 +71,14 @@
     (name === "interface" && can("settings")) ||
     (name === "administrators" && can("administrators")) ||
     (name === "languages" && can("languages")) ||
-    (["event", "templates"].includes(name) && can("settings")) ||
+    (["application", "templates"].includes(name) && can("settings")) ||
     (name === "backups" && (can("exportBackup") || can("restoreBackup"))) ||
     (name === "logs" && can("full"));
   const tabAllowed = (name) =>
     name === "settings" ||
     (name === "overview" && ["households", "invites", "food"].some((s) => can(s))) ||
     (name === "language" && can("languages")) ||
+    (name === "events" && can("settings")) ||
     can(name);
   async function refresh() {
     access = await rpc("admin_get_access");
@@ -98,7 +99,7 @@
       setHidden(tab, !settingsAllowed(tab.dataset.settingsTab));
     for (const panel of document.querySelectorAll("[data-panel]")) {
       const name = panel.dataset.panel,
-        section = name === "language" ? "languages" : name;
+        section = name === "language" ? "languages" : name === "events" ? "settings" : name;
       setHidden(panel, !tabAllowed(name));
       panel.dataset.permissionEdit = String(
         name === "settings" || can(section, "edit"),
@@ -117,7 +118,7 @@
       const name = panel.dataset.settingsPanel,
         section = {
           checklist: "personal",
-          event: "settings",
+          application: "settings",
           templates: "settings",
           administrators: "administrators",
           languages: "languages",
@@ -143,8 +144,6 @@
     for (const id of [
       "backupFile",
       "previewBackup",
-      "restoreBackupConfirmation",
-      "restoreBackupAck",
       "restoreBackupButton",
     ])
       setHidden(

@@ -13,7 +13,10 @@ const layoutRpc=client.rpc;client.rpc=async(name,args)=>{
   if(window.__failTranslation){window.__failTranslation=false;return {error:{message:'Synthetic translation failure'}};}
  }
  const result=await layoutRpc(name,args);
- if(name==='admin_load_data')result.data.guestFoodReplies=[{template_key:'food-interest-reply',language_code:'en',body:'Return {rsvp_deadline:+5}'}];
+ if(name==='admin_load_data'){
+  result.data.guestFoodReplies=[{template_key:'food-interest-reply',language_code:'en',body:'Return {rsvp_deadline:+5}'}];
+  result.data.invitationTemplates=[{id:'99999999-1111-4111-8111-111111111111',name:'Synthetic email',channels:['email'],versions:{en:{subject:'Invitation',body:'{invitation_link}',options:['subject','message']}}}];
+ }
  return result;
 };
 `;
@@ -83,7 +86,7 @@ const layoutRpc=client.rpc;client.rpc=async(name,args)=>{
           document.querySelectorAll(".translation-record-card").length === 2,
       );
       let first = await openBox(page, "translations:venue:venue-a:name");
-      assert.equal(await first.locator("input,textarea").count(), 9);
+      assert.equal(await first.locator("[data-language-code]").count(), 3);
       await first
         .getByLabel("Name · en", { exact: true })
         .fill("Unsaved first hall");
@@ -167,19 +170,18 @@ const layoutRpc=client.rpc;client.rpc=async(name,args)=>{
       await reply.getByRole("button", { name: "Cancel", exact: true }).click();
       await page.locator("#settingsToggle").click();
       await page.locator("[data-settings-tab=templates]").click();
-      const template = await openBox(page, "invitation-templates:en:email");
+      const template = await openBox(page, "invitation-template:99999999-1111-4111-8111-111111111111");
       assert.equal(
-        await template.locator(".placeholder-help-toggle").count(),
+        await template.locator(".placeholder-help-toggle:visible").count(),
         2,
       );
       const body = template.getByLabel("Message text", { exact: true });
       await body.fill("Link: ");
       await body.evaluate((node) => node.setSelectionRange(0, 4));
       await body.dispatchEvent("select");
-      await template.locator(".placeholder-help-toggle").last().click();
+      await template.locator(".placeholder-help-toggle:visible").last().click();
       await template
-        .locator(".placeholder-help")
-        .last()
+        .locator(".placeholder-help:visible")
         .getByRole("button", { name: "Insert {invitation_link}", exact: true })
         .click();
       assert.equal(await body.inputValue(), "{invitation_link}: ");

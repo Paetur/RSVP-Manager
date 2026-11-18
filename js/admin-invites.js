@@ -19,12 +19,50 @@
     setDisclosure,
     rememberDisclosure,
     deliverySection,
+    deliveryEditor,
+    invitationTemplateChoices,
+    invitationDraft,
+    managementRpc,
+    reload,
     rsvpSection,
+    householdFacts,
     adminTime,
     show,
   }) {
     const $ = R.byId;
-    let inviteOverviewFilter = "all";
+    let inviteOverviewFilter = "all", focusAfterSave = null;
+    const shown = new Set(["recipient", "delivery", "reply", "food"]);
+    function openDelivery(h) {
+      const row = [...$("inviteRows").querySelectorAll("[data-invite-household]")].find(n => n.dataset.inviteHousehold === h.id);
+      if (!row) return;
+      for (let parent = row.parentElement; parent; parent = parent.parentElement) if (parent.tagName === "DETAILS") parent.open = true;
+      row.open = true; row.dispatchEvent(new Event("toggle"));
+      const section = document.getElementById("invite-delivery-" + h.id);
+      if (section) { section.open = true; const latest = section.querySelector("[data-delivery-id]"); if (latest) latest.open = true; }
+      rememberDisclosure("invite-household:" + h.id, true);
+      rememberDisclosure("invite-household:" + h.id + ":delivery", true);
+    }
+    async function create(h, model, trigger) {
+      const preferred = model.channel === "postal" ? "manual" : model.channel;
+      let choices = invitationTemplateChoices(h, preferred).map(t => ({ template: t, channel: preferred }));
+      if (!choices.length) choices = getStore().invitationTemplates.map(t => ({ template: t, channel: t.channels[0] }));
+      async function save(choice) {
+        const channel = choice?.channel || preferred;
+        const draft = invitationDraft(h, channel, { templateId: choice?.template.id });
+        try {
+          await managementRpc("admin_save_delivery", { p_id: null, p_household_id: h.id, p_expected_revision: null, p_values: { channel, contact_id: null, message_subject: draft.subject, message_body: draft.body, message_image: draft.image, status: "draft", reason: "" } });
+          if (await reload()) openDelivery(h);
+        } catch (error) { show(R.safeError(error), "error"); }
+      }
+      if (!choices.length) return save(null);
+      const dialog = window.RSVP_POPUPS.create("template-choice:" + h.id, { class: "template-choice-popup" }, trigger);
+      dialog.setAttribute("aria-label", T("Choose template")); dialog.append(R.dom("h2", {}, T("Choose template")));
+      for (const choice of choices) {
+        const button = R.dom("button", { type: "button", class: "btn secondary" }, choice.template.name);
+        button.addEventListener("click", () => { dialog.close(); save(choice); }); dialog.append(button);
+      }
+      const cancel = R.dom("button", { type: "button", class: "btn secondary" }, T("Cancel")); cancel.addEventListener("click", () => dialog.close()); dialog.append(cancel); dialog.openInline();
+    }
     function render() {
       const store = getStore();
       const box = $("inviteRows");
@@ -102,7 +140,9 @@
           ]),
         ]);
       const showFoodInterest =
-        can("food") && store.settings?.food_enabled !== false;
+        can("food") && store.settings?.food_enabled !== false && store.settings?.food_stage === "interest";
+      const showFoodItems = can("food") && store.settings?.food_enabled !== false && store.settings?.food_stage === "selection";
+      const showFood = shown.has("food") && (showFoodInterest || showFoodItems);
       $("inviteFoodInterestFilterLabel").classList.toggle(
         "hidden",
         !showFoodInterest,
@@ -141,21 +181,22 @@
               window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, r.h) ===
                 interest),
         );
-      $("inviteResultCount").textContent = T(
-        "interface.messages.count_households",
-        { count: visible.length },
-      );
+      $("inviteResultCount").hidden = true;
       box.classList.toggle("has-food-interest", showFoodInterest);
+      const fieldHost = $("inviteShownFieldsHost");
+      let fields = fieldHost.querySelector(".invite-shown-fields");
+      if (!fields) {
+        fields = R.dom("fieldset", { class: "invite-shown-fields" }); fields.append(R.dom("legend", {}, T("Shown fields")));
+        for (const [key, label] of [["recipient","Recipient / channel"],["delivery","Invitation"],["reply","RSVP"],["food","Food"]]) {
+          const wrap = R.dom("label", { class: "checkbox-label" }), input = R.dom("input", { type: "checkbox" }); input.checked = shown.has(key);
+          wrap.append(input, document.createTextNode(T(label))); fields.append(wrap);
+          input.addEventListener("change", () => { if (input.checked) shown.add(key); else shown.delete(key); render(); });
+        } fieldHost.append(fields);
+      }
+      const columns = [{ key:"identity", label:"Household" }, ...["recipient","delivery","reply"].filter(k => shown.has(k)).map(key => ({ key, label: {recipient:"Recipient / channel",delivery:"Invitation",reply:"RSVP"}[key] })), ...(showFood ? [{key:"food",label:showFoodInterest ? "Food interest" : "Food items"}] : []), {key:"actions",label:"Actions"}];
+      box.style.setProperty("--invite-columns", "minmax(160px, 1.6fr) " + columns.slice(1,-1).map(() => "minmax(75px, 1fr)").join(" ") + " minmax(152px, 1fr)");
       const heading = R.dom("div", { class: "invite-overview-heading" });
-      for (const label of [
-        "Household",
-        "Recipient / channel",
-        "Invitation",
-        "RSVP",
-        ...(showFoodInterest ? ["Food interest"] : []),
-        "Actions",
-      ])
-        heading.append(R.dom("span", {}, T(label)));
+      for (const col of columns) heading.append(R.dom("span", {}, T(col.label)));
       box.append(heading);
       const list = R.dom("div", { class: "invite-compact-list" });
       box.append(list);
@@ -186,11 +227,15 @@
         const foodInterest = R.dom("span", { class: "invite-overview-interest" });
         if (showFoodInterest) {
           const state = window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, h),
-            label = T({ yes: "Yes", no: "No", unanswered: "Unanswered" }[state] || "Unanswered"),
+            label = T({ yes: "Yes", no: "No", unanswered: "–" }[state] || "Unanswered"),
             badge = R.dom("small", { class: "muted invite-food-interest" }, label);
           badge.dataset.foodInterest = state;
           foodInterest.setAttribute("aria-label", T("Food interest") + ": " + label);
           foodInterest.append(R.dom("small", { class: "muted invite-interest-label" }, T("Food interest")), badge);
+        }
+        if (showFoodItems) {
+          const count = (store.claims || []).filter(c => c.household_id === h.id).reduce((n,c) => n + Number(c.quantity || 0), 0);
+          foodInterest.append(R.dom("small", { class: "muted invite-interest-label" }, T("Food items")), R.dom("small", { class: "invite-food-interest" }, count || "–"));
         }
         const recipient = R.dom("span", { class: "invite-overview-recipient" });
         recipient.append(
@@ -250,10 +295,12 @@
         function fillSections() {
           if (filled) return;
           filled = true;
+          if (householdFacts) content.append(householdFacts(h));
           for (const [section, label, build] of [
             ["delivery", "Invitation delivery", (household) => deliverySection(household, { allowCreate: true })],
             ["rsvp", "RSVP", rsvpSection],
           ]) {
+            if (section === "delivery" && !store.queue.some(q => q.household_id === h.id)) continue;
             const detail = build(h);
             detail.id = "invite-" + section + "-" + h.id;
             detail.querySelector("summary").textContent = T(label);
@@ -277,45 +324,17 @@
         });
         if (row.open) fillSections();
         const actions = R.dom("span", { class: "invite-row-actions" });
-        if (!store.settings?.is_published && can("households", "edit")) {
-          const edit = iconAction("edit", T("interface.messages.edit_household") + R.householdName(h), () => editHousehold(h.id));
-          edit.classList.add("invite-edit-household");
-          actions.append(edit);
+        if (can("invites", "edit")) {
+          const add = R.dom("button", { type: "button", class: "admin-row-icon invite-create", "aria-label": T("Create") }, "+");
+          add.setAttribute("aria-label", T("Create"));
+          add.addEventListener("click", async event => { event.preventDefault(); event.stopPropagation(); add.disabled = true; try { await create(h, model, add); } finally { if (add.isConnected) add.disabled = false; } }); actions.append(add);
         }
-        const prepare = R.dom(
-          "button",
-          { type: "button", class: "btn secondary" },
-          T(
-            !can("invites", "edit")
-              ? "Review"
-              : model.latest
-                ? model.latest.status === "sent" ? "Follow up" : "Review"
-                : "Create",
-          ),
-        );
-        prepare.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          row.open = true;
-          rememberDisclosure(key, true);
-          fillSections();
-          const target = content.querySelector("#invite-delivery-" + h.id);
-          if (target) {
-            target.open = true;
-            rememberDisclosure(key + ":delivery", true);
-            const create = model.latest
-              ? [...target.querySelectorAll("[data-delivery-id]")].find((record) => record.dataset.deliveryId === model.latest.id)
-              : target.querySelector(".delivery-create");
-            if (create?.classList.contains("delivery-create")) create.hidden = false;
-            else create?.setAttribute("open", "");
-            if (model.latest?.status === "sent")
-              create?.querySelector(":scope > details.edit-only")?.setAttribute("open", "");
-            create?.scrollIntoView({ block: "nearest" });
-          }
-        });
-        actions.append(prepare);
-        if (canPreviewGuest()) {
-          const preview = R.dom("a", { class: "btn secondary invite-preview" });
+        if (store.settings?.is_published && model.latest) {
+          const share = iconAction("share", T("Invitation delivery"), () => openDelivery(h));
+          share.classList.add("invite-share"); actions.append(share);
+        }
+        if (!store.settings?.is_published && canPreviewGuest()) {
+          const preview = R.dom("a", { class: "admin-row-icon invite-preview" });
           preview.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
           preview.title = T("Preview");
           preview.href = R.guestPreviewURL(h.id);
@@ -328,39 +347,15 @@
           actions.append(preview);
         }
 
-        if (store.settings?.is_published && h.invite_code) {
-          const copy = R.dom(
-            "button",
-            { type: "button", class: "invite-text-action" },
-            T("Copy link"),
-          );
-          copy.setAttribute(
-            "aria-label",
-            T("interface.messages.copy_invitation_link") +
-              " · " +
-              R.householdName(h),
-          );
-          copy.addEventListener("click", async (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            try {
-              await navigator.clipboard.writeText(
-                R.invitationURL(h.invite_code),
-              );
-              show(T("interface.messages.invitation_link_copied"), "success");
-            } catch (error) {
-              show(R.safeError(error), "error");
-            }
-          });
-          actions.append(copy);
+        if (!store.settings?.is_published && can("households", "edit")) {
+          const edit = iconAction("edit", T("interface.messages.edit_household") + R.householdName(h), () => editHousehold(h.id)); edit.classList.add("invite-edit-household"); actions.append(edit);
         }
-        summary.append(identity, recipient, delivery, reply);
-        if (showFoodInterest) summary.append(foodInterest);
-        summary.append(actions);
+        const cells = { identity, recipient, delivery, reply, food: foodInterest, actions };
+        for (const col of columns) summary.append(cells[col.key]);
         row.append(summary, content);
         container.append(row);
       }
-      if ($("inviteGroupView").checked) {
+      if (window.RSVP_ADMIN_PREFERENCES.invitesGrouped) {
         for (const top of planningConfiguration().groups) {
           const members = visible.filter(
             (r) => r.h.planning_group_id === top.id,
@@ -415,6 +410,11 @@
             T("No households match these filters."),
           ),
         );
+      if (focusAfterSave) {
+        const household = [...box.querySelectorAll("[data-invite-household]")].find(n => n.dataset.inviteHousehold === focusAfterSave);
+        household?.querySelector(".invite-share,.invite-create")?.focus({ preventScroll: true });
+        focusAfterSave = null;
+      }
     }
 
     function openHousehold(householdId) {

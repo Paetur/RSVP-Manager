@@ -1,4 +1,4 @@
-const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture, setInvitesGrouping } = require("./helpers/admin-toolbar.cjs");
 // Actual UI with synthetic APIs only. No live accounts or event data.
 const { chromium } = require("playwright");
 const fs = require("node:fs"),
@@ -8,9 +8,11 @@ const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
 const { root, out, server, mock, extra, stageExtra } =
   createFoodHarness("invites-overview");
 const overviewMock = String.raw`
+fixtures.event_settings[0].food_stage='interest';
 fixtures.guests.push({id:'99999999-9999-4999-8999-999999999999',household_id:h3,first_name:'Other',last_name:'Example'});
 fixtures.invitation_send_queue=[{id:'queue-sent',household_id:h2,channel:'email',status:'sent',message_body:'Sent example',created_at:'2026-11-10T12:00:00Z',updated_at:'2026-11-10T12:00:00Z',revision:2,recipient_snapshot:{contact_name:'Example recipient',contact_value:'example@example.invalid'}},{id:'queue-ready',household_id:h3,channel:'sms',status:'ready',message_body:'Ready example',created_at:'2026-11-11T12:00:00Z',updated_at:'2026-11-11T12:00:00Z',revision:1,recipient_snapshot:{contact_name:'Other recipient',contact_value:'+298123456'}}];fixtures.invitation_deliveries=[{queue_id:'queue-sent',confirmed_at:'2026-11-10T12:00:00Z',confirmed_by:h1}];
-const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_delivery'){(window.__draftWrites??=[]).push(a);const item={id:crypto.randomUUID(),household_id:a.p_household_id,...a.p_values,revision:1,created_at:'2026-11-12T12:00:00Z',updated_at:'2026-11-12T12:00:00Z',recipient_snapshot:{contact_name:'Synthetic recipient',contact_value:'synthetic@example.invalid'}};fixtures.invitation_send_queue.push(item);return {data:item.id};}return overviewRpc(name,a);};`;
+const overviewTemplate={id:'overview-template',name:'Synthetic invitation',channels:['email'],versions:{en:{language_code:'en',subject:'Synthetic subject',body:'Draft message {invitation_link}',options:['subject','message']}}};
+const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_delivery'){(window.__draftWrites??=[]).push(a);let item;if(a.p_id){item=fixtures.invitation_send_queue.find(q=>q.id===a.p_id);Object.assign(item,a.p_values,{revision:item.revision+1,updated_at:'2026-11-12T13:00:00Z'});}else{item={id:crypto.randomUUID(),household_id:a.p_household_id,...a.p_values,revision:1,created_at:'2026-11-12T12:00:00Z',updated_at:'2026-11-12T12:00:00Z',recipient_snapshot:{contact_name:'Synthetic recipient',contact_value:'synthetic@example.invalid'}};fixtures.invitation_send_queue.push(item);window.__createdDraftId=item.id;}return {data:item.id};}const result=await overviewRpc(name,a);if(name==='admin_load_data')result.data.invitationTemplates=[overviewTemplate];return result;};`;
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const browser = await chromium.launch();
@@ -85,12 +87,12 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
           .locator(".settings-tabs button")
           .first()
           .getAttribute("data-settings-tab"),
-        "checklist",
+        "application",
       );
-      await page.locator("[data-settings-tab=checklist]").click();
+      await page.locator("[data-settings-tab=application]").click();
       assert.equal(
         await page
-          .locator("[data-settings-panel=checklist] #launchChecklist")
+          .locator("[data-settings-panel=application] #launchChecklist")
           .isVisible(),
         true,
       );
@@ -110,7 +112,7 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
         await page.locator("[data-panel=invites]").isVisible(),
         true,
       );
-      await page.locator("#inviteGroupView").uncheck();
+      await setInvitesGrouping(page, false);
       assert.equal(
         await page.locator("#inviteRows .invite-household").count(),
         2,
@@ -189,76 +191,43 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
         1,
       );
       await page.locator("#inviteChannelFilter").selectOption("all");
-      await page.locator("#inviteGroupView").check();
+      await setInvitesGrouping(page, true);
       assert.ok((await page.locator(".invite-overview-group").count()) > 0);
-      await page.locator("#inviteGroupView").uncheck();
+      await setInvitesGrouping(page, false);
 
       const sent = page.locator(
         '[data-invite-household="22222222-2222-4222-8222-222222222222"]',
       );
-      await sent
-        .getByRole("button", { name: "Follow up", exact: true })
-        .click();
-      await sent
-        .getByText(
-          "Prepare drafts now. Marking ready and sending become available after publication.",
-          { exact: true },
-        )
-        .waitFor();
-      assert.equal(
-        await sent
-          .getByRole("button", { name: "Record as sent", exact: true })
-          .count(),
-        0,
-      );
-      await sent
-        .locator("[data-delivery-id=queue-sent]")
-        .evaluate((n) => (n.open = true));
-      assert.match(await sent.innerText(), /Manually recorded as sent/);
-      const create = sent
-        .locator(
-          "#invite-delivery-22222222-2222-4222-8222-222222222222>.delivery-create",
-        )
-        .first();
-      // Direct editor contract: preserve sent history while saving a separate draft.
-      await create.evaluate((n) => (n.hidden = false));
-      const form = create.locator("form");
-      assert.equal(
-        await form
-          .getByRole("combobox", { name: "Delivery status", exact: true })
-          .locator("option[value=ready]")
-          .count(),
-        0,
-      );
-      await form.locator(".delivery-customize").evaluate((n) => { n.open = true; });
-      await form
-        .locator("textarea")
-        .first()
-        .fill("Draft message {invitation_link}");
-      await form
-        .getByRole("button", { name: "Save draft", exact: true })
-        .click();
+      // The current + action uses a named template and creates a separate draft.
+      await sent.getByRole("button", { name: "Create", exact: true }).click();
+      await page.locator(".template-choice-popup").getByRole("button", { name: "Synthetic invitation", exact: true }).click();
       await page.waitForFunction(() => window.__draftWrites?.length === 1);
-      assert.equal(
-        await page.evaluate(() => window.__draftWrites[0].p_values.status),
-        "draft",
-      );
-      assert.equal(
-        await page.evaluate(
-          () =>
-            fixtures.invitation_send_queue.find((q) => q.id === "queue-sent")
-              .message_body,
-        ),
-        "Sent example",
-      );
-      assert.equal(
-        await page.evaluate(() => fixtures.event_settings[0].is_published),
-        false,
-      );
-      assert.match(
-        await page.locator("[data-invite-filter=sent]").innerText(),
-        /1/,
-      );
+      assert.equal(await page.evaluate(() => window.__draftWrites[0].p_id), null);
+      assert.equal(await page.evaluate(() => window.__draftWrites[0].p_values.status), "draft");
+      assert.equal(await page.evaluate(() => window.__draftWrites[0].p_values.message_subject), "Synthetic subject");
+      assert.equal(await page.evaluate(() => window.__draftWrites[0].p_values.message_body), "Draft message {invitation_link}");
+      assert.equal(await sent.getByRole("button", { name: "Record as sent", exact: true }).count(), 0);
+      await sent.locator("[data-delivery-id=queue-sent]").evaluate(node => { node.open = true; });
+      assert.match(await sent.innerText(), /Manually recorded as sent/);
+      const draftId = await page.evaluate(() => window.__createdDraftId);
+      const draft = sent.locator('[data-delivery-id="' + draftId + '"]');
+      await draft.evaluate(node => { node.open = true; });
+      await draft.getByText("Edit delivery", { exact: true }).click();
+      const form = draft.locator("form.delivery-review-form");
+      assert.equal(await form.getByRole("combobox", { name: "Delivery status", exact: true }).locator("option[value=ready]").count(), 0, "unpublished drafts cannot be marked Ready");
+      await form.locator(".delivery-customize").evaluate(node => { node.open = true; });
+      await form.getByRole("textbox", { name: "Message text", exact: true }).fill("Updated draft {invitation_link}");
+      await form.getByRole("button", { name: "Save", exact: true }).click();
+      await page.waitForFunction(() => window.__draftWrites.length === 2);
+      assert.equal(await page.evaluate(() => window.__draftWrites[1].p_id), draftId);
+      assert.equal(await page.evaluate(() => window.__draftWrites[1].p_values.status), "draft");
+      assert.equal(await page.evaluate(() => fixtures.invitation_send_queue.find(queue => queue.id === window.__createdDraftId).message_body), "Updated draft {invitation_link}");
+      assert.equal(await page.evaluate(() => fixtures.invitation_send_queue.find(queue => queue.id === "queue-sent").message_body), "Sent example");
+      assert.equal(await page.evaluate(() => fixtures.invitation_deliveries.length), 1, "draft creation/editing preserves the original Sent confirmation");
+      assert.equal(await page.evaluate(() => fixtures.event_settings[0].is_published), false);
+      assert.match(await page.locator("[data-invite-filter=sent]").innerText(), /1/);
+      assert.equal(await sent.locator('.invite-household-content > .shortcut-facts [data-shortcut-fact="visits"]').textContent(), "0", "every expanded household shows visit tracking without requiring a Shortcuts batch");
+      assert.equal(await sent.locator('.invite-household-content > .shortcut-facts [data-shortcut-fact="rsvp"]').textContent(), "Awaiting reply", "Sent and zero visits do not imply RSVP confirmation");
       // The extracted view must pick up changed permissions on the next reload.
       await page.evaluate(() => {
         window.__accessPermissions.preset = "custom";
@@ -268,25 +237,14 @@ const overviewRpc=client.rpc;client.rpc=async(name,a)=>{if(name==='admin_save_de
       await page.waitForFunction(
         () => !document.querySelector("#refreshButton").disabled,
       );
-      assert.equal(
-        await sent.getByRole("button", { name: "Review", exact: true }).count(),
-        1,
-      );
-      assert.equal(
-        await sent
-          .getByRole("button", { name: "Follow up", exact: true })
-          .count(),
-        0,
-      );
-      await sent.getByRole("button", { name: "Review", exact: true }).click();
-      assert.equal(
-        await sent
-          .locator("button:visible")
-          .filter({ hasText: "Save draft" })
-          .count(),
-        0,
-      );
-      assert.equal(await page.evaluate(() => window.__draftWrites.length), 1);
+      assert.equal(await sent.getByRole("button", { name: "Create", exact: true }).count(), 0, "view-only invitation access cannot create drafts");
+      await sent.evaluate(node => { node.open = true; node.dispatchEvent(new Event("toggle")); });
+      await sent.locator("[data-delivery-id=queue-sent]").evaluate(node => { node.open = true; });
+      assert.match(await sent.innerText(), /Sent example/);
+      assert.match(await sent.innerText(), /Manually recorded as sent/);
+      assert.equal(await sent.getByText("Edit delivery", { exact: true }).count(), 0, "view-only access keeps delivery records read-only");
+      assert.equal(await sent.locator("form.delivery-review-form").count(), 0);
+      assert.equal(await page.evaluate(() => window.__draftWrites.length), 2);
       assert.equal(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth + 1,

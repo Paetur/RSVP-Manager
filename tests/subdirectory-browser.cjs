@@ -3,6 +3,13 @@ const { chromium } = require('playwright');
 const http = require('node:http'), assert = require('node:assert/strict');
 const { createFoodHarness } = require('./helpers/food-browser-harness.cjs');
 const harness = createFoodHarness('subdirectory');
+const setupFixture = `
+const originalSetupRpc = client.rpc;
+client.rpc = async (name, args) =>
+  name === 'get_setup_status'
+    ? { data: { initialized: false, setup_locked: false }, error: null }
+    : originalSetupRpc(name, args);
+`;
 const outside = [];
 const server = http.createServer((req, res) => {
   if (!req.url.startsWith('/marriage/')) {
@@ -21,7 +28,7 @@ const server = http.createServer((req, res) => {
       const page = await browser.newPage({viewport:{width,height:1000}}), errors=[];
       page.on('pageerror', e => errors.push(e.message));
       await page.addInitScript(language => localStorage.setItem('rsvp-interface-language', language), language);
-      await page.route('**/supabase.min.js', r => r.fulfill({contentType:'text/javascript',body:harness.mock+'\n'+harness.extra+'\n'+harness.stageExtra}));
+      await page.route('**/supabase.min.js', r => r.fulfill({contentType:'text/javascript',body:harness.mock+'\n'+harness.extra+'\n'+harness.stageExtra+'\n'+setupFixture}));
       await page.route('**maps.google.com/**', r => r.fulfill({contentType:'text/html',body:'Synthetic map'}));
       await page.goto(base + '?ABCDEFGH');
       await page.locator('#foodCard:not(.hidden)').waitFor();

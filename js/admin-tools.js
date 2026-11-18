@@ -1,11 +1,15 @@
 (function () {
   "use strict";
+  let databaseChangeCompleted = false;
   const I = window.RSVP_I18N,
     T = (text, params) => I.t(text, params);
   let ctx,
     backup = null,
     preview = null,
     replacementToken = null,
+    restoreConfirmationPending = false,
+    restorePreparationPending = false,
+    restoreSelection = 0,
     lastLanguageOrder = 0,
     fileGeneration = 0,
     translationScopeValue = "settings",
@@ -47,11 +51,29 @@
     if (error) throw error;
     return data;
   }
-  const replacing = () => $("backupRestoreDestination")?.value === "replace";
+  const wiping = () => $("backupRestoreMode")?.querySelector("input:checked")?.value === "wipe";
+  const replacing = () => wiping() || $("backupRestoreDestination")?.value === "replace";
+  const confirmationPrefix = () => wiping() ? "WIPE " : replacing() ? "REPLACE " : "RESTORE ";
   function mode() {
     const destination = $("backupRestoreDestination"), full = window.RSVP_ADMIN_ACCESS.can("full");
-    if (!full && destination.value === "replace") { destination.value = "clean"; preview = null; replacementToken = null; }
-    destination.disabled = !full || $("restoreBackupForm").getAttribute("aria-busy") === "true";
+    const wipeChoice = $("backupRestoreMode").querySelector("input[value=wipe]");
+    wipeChoice.disabled = !full || backup?.payload?.selection?.mode === "template";
+    if (!full && (destination.value === "replace" || wipeChoice.checked)) {
+      destination.value = "clean";
+      if (wipeChoice.checked) {
+        wipeChoice.checked = false;
+        $("backupRestoreMode").querySelector("input[value=backup]").checked = true;
+      }
+      clearRestorePreview();
+    }
+    const wipe = wiping(), restoreForm = $("restoreBackupForm"),
+      restoring = restoreForm.getAttribute("aria-busy") === "true",
+      busy = restoring || restorePreparationPending || restoreConfirmationPending,
+      canRestore = ctx.isEditing() && window.RSVP_ADMIN_ACCESS.can("restoreBackup");
+    destination.closest("label").classList.toggle("hidden", wipe);
+    destination.disabled = !full || restoring;
+    $("backupTemplateSections").classList.toggle("hidden", wipe);
+    $("backupRestoreLogsHelp").classList.toggle("hidden", wipe);
 
     for (const form of document.querySelectorAll("#languageRows form"))
       for (const control of form.elements)
@@ -84,25 +106,20 @@
     taskMode();
     for (const form of document.querySelectorAll(".other-category-name-form"))
       form.cleanSaveUpdate?.();
-    $("restoreBackupButton").disabled =
-      $("restoreBackupForm").getAttribute("aria-busy") === "true" ||
-      !ctx.isEditing() ||
-      !preview?.can_restore ||
-      !$("restoreBackupAck").checked ||
-      $("restoreBackupConfirmation").value !== (replacing() ? "REPLACE " : "RESTORE ") + preview.event_name ||
-      (replacing() && !replacementToken);
-    $("restoreBackupButton").textContent = T(replacing() ? "Replace event data" : "Restore backup");
-    const ackLabel = $("restoreBackupAck").closest("label");
-    if (!ackLabel.dataset.originalSource) {
-      ackLabel.dataset.originalSource = ackLabel.textContent.trim();
-      for (const n of [...ackLabel.childNodes]) if (n.nodeType === Node.TEXT_NODE) n.remove();
-      const text = ctx.R.dom("span"); text.dataset.restoreAckText = "true"; ackLabel.append(text);
-    }
-    ackLabel.querySelector("[data-restore-ack-text]").textContent = T(replacing() ? "I understand current event data will be replaced." : ackLabel.dataset.originalSource);
-
+    $("previewBackup").classList.toggle("hidden", wipe);
+    $("previewBackup").disabled = wipe || busy || !canRestore || !backup;
     $("prepareReplacementSafety").classList.toggle("hidden", !replacing());
-    $("prepareReplacementSafety").disabled = !preview?.can_restore || $("restoreBackupForm").getAttribute("aria-busy") === "true";
+    $("prepareReplacementSafety").disabled =
+      busy || !canRestore || !full || (wipe ? !backup : !preview?.can_restore);
+
+    restoreForm.classList.toggle("hidden", wipe && !replacementToken);
+    $("restoreBackupButton").disabled =
+      busy || !canRestore || !preview?.can_restore || (replacing() && !replacementToken);
+    $("restoreBackupButton").textContent = T(wipe ? "Wipe and restore" : replacing() ? "Replace event data" : "Restore backup");
+
     $("replacementHelp").classList.toggle("hidden", !replacing());
+    if (wiping()) $("replacementHelp").textContent = T("Wipe accepts Full backups from other installations. Your administrator and destination configuration are kept; other administrators are disabled. Historical actors without a verified matching account are mapped to you, with original identities retained in the restore audit.");
+    else $("replacementHelp").textContent = T("Replace event data requires a Full backup from this installation. Download a safety backup before replacing current event data.");
   }
   function foodTypeTranslationKeys() {
     return [
@@ -223,6 +240,9 @@
     );
   }
   async function openFoodTranslations(item, trigger) {
+    const popupKey = "food-language:" + item.id;
+    const existing = window.RSVP_POPUPS.get(popupKey);
+    if (existing) { existing.querySelector("input,button")?.focus(); return; }
     const readOnly =
       !ctx.isEditing() || !window.RSVP_ADMIN_ACCESS.can("languages", "edit");
     trigger.disabled = true;
@@ -232,6 +252,7 @@
       trigger.disabled = false;
     }
     if (!trigger.isConnected) return;
+    if (window.RSVP_POPUPS.get(popupKey)) return;
     const editor = trigger
       .closest(".food-compact-item")
       .querySelector(".food-edit-form");
@@ -247,7 +268,7 @@
       }))
       .filter((draft) => draft.value !== draft.original);
     const R = ctx.R,
-      dialog = R.inlinePanel({
+      dialog = window.RSVP_POPUPS.create(popupKey, {
         class: "food-recipe-dialog food-language-dialog",
       }, trigger);
     dialog.dataset.permissionEdit = String(!readOnly);
@@ -258,7 +279,6 @@
     const host = R.dom("div");
     dialog.append(host);
     renderFoodItemTranslations(host, item, () => dialog.close(), readOnly);
-    window.RSVP_INLINE.languages(host);
     const form = host.querySelector("form");
     const cancel = Array.from(form.querySelectorAll("button")).find(
       (button) => button.textContent === T(readOnly ? "Close" : "Cancel"),
@@ -301,6 +321,9 @@
     host.querySelector("input")?.focus();
   }
   async function openFoodCategoryTranslations(category, trigger) {
+    const popupKey = "food-category-language:" + category.id;
+    const existing = window.RSVP_POPUPS.get(popupKey);
+    if (existing) { existing.querySelector("input,button")?.focus(); return; }
     const readOnly =
       !ctx.isEditing() || !window.RSVP_ADMIN_ACCESS.can("languages", "edit");
     trigger.disabled = true;
@@ -310,11 +333,12 @@
       trigger.disabled = false;
     }
     if (!trigger.isConnected) return;
+    if (window.RSVP_POPUPS.get(popupKey)) return;
     const R = ctx.R,
       editor = trigger.closest(".food-category-name-form"),
       draft = editor.querySelector("input").value,
       wasOpen = !editor.classList.contains("hidden");
-    const dialog = R.inlinePanel({
+    const dialog = window.RSVP_POPUPS.create(popupKey, {
       class: "food-recipe-dialog food-language-dialog",
     }, trigger);
     dialog.dataset.permissionEdit = String(!readOnly);
@@ -1971,10 +1995,8 @@
     };
   }
   function backupMode(exporting = false) {
-    return (
-      backupControls(exporting).mode.querySelector("input:checked")?.value ||
-      "backup"
-    );
+    const value = backupControls(exporting).mode.querySelector("input:checked")?.value || "backup";
+    return value === "wipe" ? "backup" : value;
   }
   function backupOptions(exporting = false) {
     const controls = backupControls(exporting);
@@ -1994,8 +2016,11 @@
     };
   }
   function updateBackupChoices(exporting = false) {
-    if (!exporting && replacing()) {
-      for (const input of backupControls().mode.querySelectorAll("input")) { input.checked = input.value === "backup"; input.disabled = true; }
+    if (!exporting && replacing() && !wiping()) {
+      for (const input of backupControls().mode.querySelectorAll("input")) { input.checked = input.value === "backup"; input.disabled = input.value !== "wipe"; }
+    }
+    if (!exporting && (wiping() || $("backupRestoreDestination").value !== "replace")) {
+      for (const input of backupControls().mode.querySelectorAll("input")) input.disabled = false;
     }
     const controls = backupControls(exporting),
       available = exporting ? null : backup?.payload?.selection,
@@ -2023,29 +2048,93 @@
       if (input.disabled) input.checked = false;
     }
     controls.mode.querySelector('input[value="backup"]').disabled =
-      available?.mode === "template" || (!exporting && replacing());
+      available?.mode === "template" || (!exporting && replacing() && !wiping());
     controls.logs.disabled =
-      template || (!!available && !available.include_logs);
-    if (controls.logs.disabled) controls.logs.checked = false;
+      template || (!exporting && replacing()) || (!!available && !available.include_logs);
+    if (!exporting && replacing()) controls.logs.checked = available?.include_logs === true;
+    if (controls.logs.disabled && (template || !available?.include_logs)) controls.logs.checked = false;
   }
   function initializeRestoreChoices() {
     const available = backup.payload.selection,
       controls = backupControls();
+    const selectedMode = wiping() && available.mode === "backup" && window.RSVP_ADMIN_ACCESS.can("full")
+      ? "wipe" : available.mode;
     for (const input of controls.mode.querySelectorAll("input"))
-      input.checked = input.value === available.mode;
+      input.checked = input.value === selectedMode;
     for (const input of controls.sections.querySelectorAll("input[value]"))
       input.checked = available.sections.includes(input.value);
     controls.logs.checked = available.include_logs;
     updateBackupChoices();
   }
-  function resetRestorePreview() {
+  function clearRestorePreview() {
+    restoreSelection++;
     replacementToken = null;
     $("replacementSafetyStatus").textContent = "";
     preview = null;
     $("backupPreview").replaceChildren();
-    $("restoreBackupConfirmation").value = "";
-    $("restoreBackupAck").checked = false;
+  }
+  function resetRestorePreview() {
+    clearRestorePreview();
     mode();
+  }
+  async function prepareRestore(download) {
+    const action = $(download ? "prepareReplacementSafety" : "previewBackup");
+    const actor = ctx.getActor();
+    if (!actor || action.disabled) return;
+    const candidate = backup, selection = restoreSelection, wipe = wiping(), replace = replacing();
+    const stillCurrent = () =>
+      actor === ctx.getActor() && candidate === backup && selection === restoreSelection &&
+      wipe === wiping() && replace === replacing() && window.RSVP_ADMIN_ACCESS.can("restoreBackup") &&
+      (!replace || window.RSVP_ADMIN_ACCESS.can("full"));
+    const previewBox = $("backupPreview"), safetyStatus = $("replacementSafetyStatus");
+    const validate = !download || wipe;
+    let status = validate ? previewBox : safetyStatus;
+    restorePreparationPending = true;
+    replacementToken = null;
+    safetyStatus.textContent = "";
+    mode();
+    try {
+      if (validate) {
+        preview = null;
+        previewBox.textContent = T("interface.messages.validating_backup");
+        const result = replace
+          ? await rpc(wipe ? "admin_preview_wipe" : "admin_preview_event_replacement", { p_backup: candidate })
+          : await rpc("admin_preview_backup", { p_backup: candidate, ...backupOptions() });
+        if (!stillCurrent()) return;
+        if (!result?.counts)
+          throw Error(T("interface.messages.backup_validation_is_unavailable"));
+        preview = result;
+        previewBox.replaceChildren(
+          ctx.R.dom("h3", {}, preview.event_name),
+          ctx.R.dom("p", {}, preview.can_restore
+            ? T("interface.messages.restore_rehearsal_passed_no_data_was_changed")
+            : T("interface.messages.this_destination_cannot_be_restored") + (preview.reason || "")),
+        );
+        for (const [name, count] of Object.entries(preview.counts))
+          if (count || preview.current_counts?.[name])
+            previewBox.append(ctx.R.dom("p", { class: "micro" }, name + ": " + (replace ? preview.preserved_tables?.includes(name) ? (preview.current_counts?.[name] || 0) + " · " + T("Preserved") : (preview.current_counts?.[name] || 0) + " → " + count : count)));
+      }
+      if (!download || !preview?.can_restore) return;
+      status = safetyStatus;
+      const result = await rpc(wipe ? "admin_prepare_wipe" : "admin_prepare_event_replacement", {
+        p_backup: candidate, p_expected_state: preview.destination_state,
+      });
+      if (!stillCurrent()) return;
+      if (!result?.token || !result.safety_backup)
+        throw Error(T("The safety backup could not be downloaded. Review the current data and prepare again."));
+      if (!(await downloadSafetyBackup(result.safety_backup, stillCurrent)) || !stillCurrent()) return;
+      replacementToken = result.token;
+      safetyStatus.textContent = T("Safety backup downloaded. Store it privately before replacing event data.");
+    } catch (error) {
+      if (stillCurrent()) {
+        if (status === previewBox) preview = null;
+        status.textContent = ctx.R.safeError(error);
+      }
+    } finally {
+      if (download) backupEncryption.clearPasswords();
+      restorePreparationPending = false;
+      mode();
+    }
   }
   function init(context) {
     ctx = context;
@@ -2054,7 +2143,7 @@
       T,
     });
     window.addEventListener("beforeunload", (e) => {
-      if (hasUnsavedTasks() && !I.languageReloadApproved) {
+      if (!databaseChangeCompleted && hasUnsavedTasks() && !I.languageReloadApproved) {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -2230,14 +2319,7 @@
       const generation = ++fileGeneration;
       backupEncryption.resetImport();
       backup = null;
-      preview = null;
-      replacementToken = null;
-      $("replacementSafetyStatus").textContent = "";
-      $("backupPreview").replaceChildren();
-      $("previewBackup").disabled = true;
-      $("restoreBackupConfirmation").value = "";
-      $("restoreBackupAck").checked = false;
-      mode();
+      resetRestorePreview();
       const file = $("backupFile").files[0];
       if (!file) return;
       try {
@@ -2264,7 +2346,7 @@
           );
         backupEncryption.opened();
         initializeRestoreChoices();
-        $("previewBackup").disabled = false;
+        mode();
       } catch (error) {
         if (generation === fileGeneration) {
           backup = null;
@@ -2282,126 +2364,82 @@
           }
           updateBackupChoices(exporting);
           if (!exporting) resetRestorePreview();
+          mode();
         });
       }
       updateBackupChoices(exporting);
     }
-    $("previewBackup").addEventListener("click", async () => {
-      if (!backup) return;
-      const candidate = backup,
-        options = backupOptions(),
-        selection = JSON.stringify(options);
-      preview = null;
-      replacementToken = null;
-      mode();
-      $("previewBackup").disabled = true;
-      $("backupPreview").textContent = T(
-        "interface.messages.validating_backup",
-      );
-      try {
-        const result = replacing()
-          ? await rpc("admin_preview_event_replacement", { p_backup: candidate })
-          : await rpc("admin_preview_backup", { p_backup: candidate, ...options });
-        if (
-          candidate !== backup ||
-          selection !== JSON.stringify(backupOptions())
-        )
-          return;
-        preview = result;
-        if (!preview?.counts)
-          throw Error(T("interface.messages.backup_validation_is_unavailable"));
-        const box = $("backupPreview");
-        box.replaceChildren(
-          ctx.R.dom("h3", {}, preview.event_name),
-          ctx.R.dom(
-            "p",
-            {},
-            preview.can_restore
-              ? T(
-                  "interface.messages.restore_rehearsal_passed_no_data_was_changed",
-                )
-              : T("interface.messages.this_destination_cannot_be_restored") +
-                  (preview.reason || ""),
-          ),
-        );
-        for (const [name, count] of Object.entries(preview.counts))
-          if (count || preview.current_counts?.[name])
-            box.append(ctx.R.dom("p", { class: "micro" }, name + ": " + (replacing() ? preview.preserved_tables?.includes(name) ? (preview.current_counts?.[name] || 0) + " · " + T("Preserved") : (preview.current_counts?.[name] || 0) + " → " + count : count)));
-        $("restoreBackupConfirmation").placeholder =
-          (replacing() ? "REPLACE " : "RESTORE ") + preview.event_name;
-      } catch (error) {
-        if (
-          candidate === backup &&
-          selection === JSON.stringify(backupOptions())
-        ) {
-          $("backupPreview").textContent = ctx.R.safeError(error);
-          preview = null;
-        }
-      } finally {
-        $("previewBackup").disabled = !backup;
-        mode();
-      }
-    });
+    $("previewBackup").addEventListener("click", () => prepareRestore(false));
     $("backupRestoreDestination").disabled = !window.RSVP_ADMIN_ACCESS.can("full");
     $("backupRestoreDestination").addEventListener("change", () => { resetRestorePreview(); updateBackupChoices(); mode(); });
-    $("prepareReplacementSafety").addEventListener("click", async () => {
-      if (!replacing() || !preview?.can_restore) return;
-      const button = $("prepareReplacementSafety"), candidate = backup, checked = preview;
-      button.disabled = true;
-      replacementToken = null;
-      mode();
-      button.disabled = true;
-      try {
-        const result = await rpc("admin_prepare_event_replacement", { p_backup: candidate, p_expected_state: checked.destination_state });
-        const file = await window.RSVP_BACKUP_FILES.encode(result.safety_backup, $("backupExportCompressed").checked, backupEncryption.exportOptions());
-        if (candidate !== backup || checked !== preview || !replacing()) return;
-        ctx.R.dl("rsvp-safety-" + new Date().toISOString().slice(0,10) + file.extension, file.blob, file.blob.type);
-        replacementToken = result.token;
-        $("replacementSafetyStatus").textContent = T("Safety backup downloaded. Store it privately before replacing event data.");
-      } catch (error) { $("replacementSafetyStatus").textContent = ctx.R.safeError(error); }
-      finally { backupEncryption.clearPasswords(); mode(); }
-    });
-    $("restoreBackupConfirmation").addEventListener("input", mode);
-    $("restoreBackupAck").addEventListener("change", mode);
-    $("restoreBackupForm").addEventListener("submit", async (e) => {
+    $("prepareReplacementSafety").addEventListener("click", () => prepareRestore(true));
+    const restoreForm = $("restoreBackupForm");
+    restoreForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const button = $("restoreBackupButton");
-      if (button.disabled) return;
-      const options = backupOptions(),
+      const button = $("restoreBackupButton"), actor = ctx.getActor();
+      if (!actor || button.disabled) return;
+      const candidate = backup, checked = preview, token = replacementToken,
+        confirmation = confirmationPrefix() + checked.event_name;
+      restoreConfirmationPending = true;
+      button.disabled = true;
+      let approved;
+      try { approved = await window.RSVP_INLINE.confirmIrreversible(button); }
+      finally { restoreConfirmationPending = false; mode(); }
+      if (!approved || button.disabled || actor !== ctx.getActor() || backup !== candidate ||
+          preview !== checked || replacementToken !== token) return;
+      const options = backupOptions(), replace = replacing(), wipe = wiping(),
         controls = [
+          $("backupRestoreDestination"),
           $("backupRestoreMode"),
           $("backupTemplateSections"),
           $("backupRestoreLogs"),
           $("backupFile"),
           $("previewBackup"),
         ];
-      e.target.setAttribute("aria-busy", "true");
+      restoreForm.setAttribute("aria-busy", "true");
       button.disabled = true;
       controls.forEach((control) => (control.disabled = true));
       try {
-        if (replacing()) await rpc("admin_replace_event_data", { p_backup: backup, p_confirmation: $("restoreBackupConfirmation").value, p_safety_token: replacementToken });
-        else await rpc("admin_restore_backup", { p_backup: backup, p_confirmation: $("restoreBackupConfirmation").value, ...options });
-        replacementToken = null;
-        backup = null;
-        preview = null;
-        $("backupFile").value = "";
-        $("backupPreview").textContent = T(
-          replacing() ? "Event data replaced. Current access and configuration are preserved; the event is unpublished." : "interface.messages.application_restored_the_event_is_unpublished_review_administrato",
-        );
-        await ctx.reload();
+        if (replace) await rpc(wipe ? "admin_wipe_restore" : "admin_replace_event_data", { p_backup: candidate, p_confirmation: confirmation, p_safety_token: token });
+        else await rpc("admin_restore_backup", { p_backup: candidate, p_confirmation: confirmation, ...options });
+        if (backup === candidate) {
+          backup = null;
+          clearRestorePreview();
+          $("backupFile").value = "";
+        }
+        if (actor !== ctx.getActor()) return;
+        ctx.returnToOverviewAfterDatabaseChange(replace
+          ? "Event data replaced. Current access and configuration are preserved; the event is unpublished."
+          : "interface.messages.application_restored_the_event_is_unpublished_review_administrato");
       } catch (error) {
-        if (replacing()) { replacementToken = null; preview = null; }
+        if (replace) clearRestorePreview();
         $("backupPreview").textContent = ctx.R.safeError(error);
       } finally {
-        e.target.removeAttribute("aria-busy");
+        restoreForm.removeAttribute("aria-busy");
         controls.forEach((control) => (control.disabled = false));
         updateBackupChoices();
-        $("previewBackup").disabled = !backup;
+        if (!backup) $("replacementSafetyStatus").textContent = "";
         mode();
       }
     });
   }
+  async function downloadSafetyBackup(candidate, stillCurrent = () => true) {
+    if (!ctx || !backupEncryption || !window.RSVP_ADMIN_ACCESS.can("full") || !stillCurrent()) return false;
+    try {
+      const file = await window.RSVP_BACKUP_FILES.encode(candidate, $("backupExportCompressed").checked, backupEncryption.exportOptions());
+      if (!window.RSVP_ADMIN_ACCESS.can("full") || !stillCurrent()) return false;
+      ctx.R.dl("rsvp-safety-" + new Date().toISOString().slice(0, 10) + file.extension, file.blob, file.blob.type);
+      return true;
+    } finally { backupEncryption.clearPasswords(); }
+  }
+  function completeDatabaseChange() {
+    databaseChangeCompleted = true;
+    backup = null; preview = null; replacementToken = null;
+    backupEncryption?.clearPasswords();
+  }
   window.RSVP_ADMIN_TOOLS = {
+    completeDatabaseChange,
+    downloadSafetyBackup,
     init,
     render,
     mode,

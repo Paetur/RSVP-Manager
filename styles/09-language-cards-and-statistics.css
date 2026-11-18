@@ -1,4 +1,16 @@
 /* Content-language records, field token help and compact event statistics. */
+#adminApp .settings-language-card > .settings-card-heading {
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+#adminApp .settings-language-card > .settings-card-heading > h3 {
+  margin-inline-end: auto;
+}
+#adminApp .settings-language-card > .settings-card-heading > [data-read-only-action] {
+  margin: 0;
+  flex: 0 0 auto;
+}
 #adminApp #translationEditor {
   max-width: 62rem;
   margin-inline: auto;
@@ -257,32 +269,14 @@
   }
 }
 
-.placeholder-reference-row {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.4fr) auto;
-  gap: 16px;
-  align-items: center;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--line);
-}
-.placeholder-reference-row p {
-  margin: 4px 0 0;
-}
-#placeholderReference > input {
-  max-width: 360px;
-  margin-bottom: 12px;
-}
-@media (max-width: 700px) {
-  .placeholder-reference-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px;
-  }
-  .placeholder-reference-row > div {
-    grid-row: 2;
-    grid-column: 1/-1;
-  }
-  .placeholder-reference-row > button {
-    grid-column: 2;
-    grid-row: 1;
-  }
-}
+/* Scoped token pickers share category tabs, search and compact rows. */
+.placeholder-category-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px; }
+.placeholder-category-tabs button { min-height: 36px; font-size: .8rem; white-space: nowrap; }
+.placeholder-browser > input[type="search"] { width: 100%; max-width: 360px; margin: 0 0 10px; }
+.placeholder-browser .placeholder-reference-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.placeholder-browser .placeholder-reference-row > div { min-width: 0; }
+.placeholder-browser .placeholder-reference-row code { overflow-wrap: anywhere; }
+.placeholder-browser .placeholder-reference-row small { display: block; margin-top: 4px; color: var(--muted); }
+.placeholder-browser .placeholder-reference-row > input { grid-column: 1 / -1; }
+.placeholder-no-results { color: var(--muted); }
+@media (pointer: coarse) { .placeholder-category-tabs button { min-height: 44px; } }

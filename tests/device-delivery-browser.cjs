@@ -14,19 +14,14 @@ async function run(type){
  try{
   const page=await browser.newPage({viewport:{width:820,height:1180}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   const seed=mock+`\nfixtures.event_settings[0].is_published=true;const h=fixtures.households.find(h=>!h.archived_at&&h.invite_code);window.__deliveryHousehold=h;fixtures.invitation_send_queue=['email','sms','whatsapp'].map((channel,i)=>({id:'device-'+i,household_id:h.id,channel,status:'ready',revision:1,created_at:'2026-11-01T12:00:00Z',updated_at:'2026-11-01T12:00:00Z',invitation_code_snapshot:h.invite_code,recipient_snapshot:{contact_value:channel==='email'?'test@example.invalid':'+298 123456'},message_subject:'Invitation',message_body:'Hey Føroyskt & Deutsch?'}));fixtures.invitation_send_queue.push({...fixtures.invitation_send_queue[0],id:'sent-original',status:'sent'},{...fixtures.invitation_send_queue[0],id:'stale',invitation_code_snapshot:'RETIRED'});`;
-  const hierarchy=`\nfor(const [id,name,order] of [['tree-a','Zulu first',1],['tree-b','Alpha second',2]]){fixtures.households.push({...h,id,household_name:name,parent_id:h.id,sort_order:order});fixtures.guests.push({id:'guest-'+id,household_id:id,first_name:name});}`;
+  const hierarchy=`\nfor(const [id,name,order,service] of [['tree-a','Zulu first',1,'sms'],['tree-b','Alpha second',2,'whatsapp']]){const guestId='guest-'+id;fixtures.households.push({...h,id,household_name:name,parent_id:h.id,sort_order:order,primary_guest_id:guestId});fixtures.guests.push({id:guestId,household_id:id,first_name:name,preferred_contact_method:service});}`;
   const templates=`
     h.language='en';h.household_name='Example household';fixtures.event_settings[0].default_language='en';fixtures.event_settings[0].fallback_language='de';
-    const templateRows=[{language_code:'en',channel:'whatsapp',body:'WhatsApp message {invitation_link}'},{language_code:'de',channel:'sms',body:'SMS fallback {invitation_link}'}];
+    const templateRows=[{language_code:'en',name:'WhatsApp invitation',channel:'whatsapp',body:'WhatsApp message {invitation_link}'},{language_code:'de',name:'SMS invitation',channel:'sms',body:'SMS message {invitation_link}'}];
     const beforeTemplateRpc=client.rpc;
     client.rpc=async(name,args)=>{
-      if(name==='admin_save_invitation_template'){
-        window.__calls.push({name,args});
-        templateRows.push({language_code:args.p_language,channel:args.p_channel,subject:args.p_subject,body:args.p_body});
-        return {data:null,error:null};
-      }
       const result=await beforeTemplateRpc(name,args);
-      if(name==='admin_load_data')result.data.invitationTemplates=templateRows;
+      if(name==='admin_load_data')result.data.invitationTemplates=templateRows.map((t,i)=>({id:String(i),name:t.name,channels:[t.channel],versions:{[t.language_code]:t}})).concat({id:'email',name:'Email invitation',channels:['email'],versions:{en:{subject:'Invitation for {household_name}',body:'Hello {household_name}\\n{invitation_link}'}}});
       return result;
     };
   `;
@@ -34,22 +29,6 @@ async function run(type){
   await page.route('**/supabase.min.js',r=>r.fulfill({contentType:'text/javascript',body:seed+hierarchy+templates}));
   await page.goto('http://127.0.0.1:'+server.address().port+'/admin/');
   await page.waitForFunction(()=>document.querySelectorAll('#inviteRows [data-invite-household]').length>0);
-  await page.locator('#settingsToggle').click();
-  await page.getByRole('tab',{name:'Templates',exact:true}).click();
-
-  const email=page.locator('.invitation-template').filter({has:page.getByRole('heading',{name:'Email',exact:true})}).filter({visible:true});
-  await email.locator('[data-local-edit]').click();
-  const save=email.getByRole('button',{name:'Save',exact:true});
-  assert.ok(await save.isDisabled());
-  await email.getByLabel('Message subject',{exact:true}).fill('Invitation for {household_name}');
-  await email.getByLabel('Message text',{exact:true}).fill('Missing link');
-  await save.click();
-  await email.locator('.form-feedback[data-state="error"]').waitFor();
-  assert.equal(await page.evaluate(()=>window.__calls.some(c=>c.name==='admin_save_invitation_template')),false);
-  await email.getByLabel('Message text',{exact:true}).fill('Hello {household_name}\n{invitation_link}');
-  await save.click();
-  await email.locator('.form-feedback[data-state="saved"]').waitFor({state:'attached'});
-  await page.locator('#mainSectionToggle').click();
   await selectWorkTab(page,'invites');
   await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
   const rows=await page.locator('#inviteRows [data-invite-household]').evaluateAll(nodes=>nodes.map(n=>n.dataset.inviteHousehold));
@@ -57,24 +36,30 @@ async function run(type){
   assert.equal(await page.locator('#inviteRows .hierarchy-section').count(),0,'Invites defaults to a flat delivery overview');
   assert.ok(await page.locator('[data-invite-household="tree-a"] .invite-overview-delivery').isVisible(),'overview shows delivery status');
   const householdId=await page.evaluate(()=>window.__deliveryHousehold.id);
-  await page.locator('[data-invite-household="'+householdId+'"] > summary').click();
+  const household = id => page.locator('[data-invite-household="'+id+'"]');
+  const chooser = page.getByRole('dialog', { name: 'Choose template', exact: true });
+  async function chooseTemplate(id, name, channel) {
+   await household(id).locator('.invite-create').click();
+   await chooser.getByRole('button', { name, exact: true }).click();
+   await page.waitForFunction(({id, channel}) => fixtures.invitation_send_queue.some(q=>q.household_id===id&&q.channel===channel&&q.status==='draft'), {id, channel});
+   return page.evaluate(({id, channel}) => fixtures.invitation_send_queue.find(q=>q.household_id===id&&q.channel===channel&&q.status==='draft'), {id, channel});
+  }
+  const email = await chooseTemplate(householdId, 'Email invitation', 'email');
+  assert.equal(email.message_subject, 'Invitation for Example household');
+  assert.match(email.message_body, /^Hello Example household\nhttp:/);
+  const sms = await chooseTemplate('tree-a', 'SMS invitation', 'sms');
+  assert.match(sms.message_body, /^SMS message http:/);
+  const whatsapp = await chooseTemplate('tree-b', 'WhatsApp invitation', 'whatsapp');
+  assert.match(whatsapp.message_body, /^WhatsApp message http:/);
+  await household(householdId).locator('.invite-share').click();
   const delivery=page.locator('#invite-delivery-'+householdId);
-  await delivery.evaluate(n=>n.open=true);
   await delivery.locator('details').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
-  // Exercise the editor independently of the latest-record Review shortcut.
-  await delivery.locator(".delivery-create").evaluate(n=>n.hidden=false);
-  const draft=delivery.locator('form').first();
+  const draft=delivery.locator('[data-form-key="delivery:'+email.id+'"]');
   const channel=draft.getByLabel('Delivery channel');
   const draftBody=draft.getByLabel('Message text',{exact:true});
-  await channel.selectOption('email');
-  assert.equal(await draft.getByLabel('Message subject',{exact:true}).inputValue(),'Invitation for Example household');
-  assert.match(await draftBody.inputValue(),/^Hello Example household\nhttp:/);
-  await channel.selectOption('sms');
-  assert.match(await draftBody.inputValue(),/^SMS fallback http:/);
-  await channel.selectOption('whatsapp');
-  assert.match(await draftBody.inputValue(),/^WhatsApp message http:/);
+  assert.equal(await draftBody.inputValue(), email.message_body);
   await draftBody.fill('Hand-edited text');
-  await channel.selectOption('email');
+  await channel.selectOption('sms');
   assert.equal(await draftBody.inputValue(),'Hand-edited text');
   const record=id=>page.locator('#inviteRows [data-delivery-id="'+id+'"]');
   assert.ok((await record('device-0').getByRole('link',{name:'Open email',exact:true}).getAttribute('href')).startsWith('mailto:'));
@@ -86,9 +71,10 @@ async function run(type){
   assert.equal(await record('device-0').locator('textarea').first().inputValue(),'Hey Føroyskt & Deutsch?');
   const reminder=record('sent-original').locator('details').filter({has:page.locator('summary',{hasText:'Prepare reminder'})});
   assert.ok((await reminder.locator('textarea').first().inputValue()).includes(await page.evaluate(()=>window.__deliveryHousehold.invite_code)));
+  const deliveryWrites = await page.evaluate(()=>window.__calls.filter(c=>c.name==='admin_save_delivery').length);
   await reminder.getByRole('button',{name:'Save draft',exact:true}).click();
-  await page.waitForFunction(()=>window.__calls.some(c=>c.name==='admin_save_delivery'));
-  const call=await page.evaluate(()=>window.__calls.find(c=>c.name==='admin_save_delivery'));
+  await page.waitForFunction(before=>window.__calls.filter(c=>c.name==='admin_save_delivery').length>before, deliveryWrites);
+  const call=await page.evaluate(()=>window.__calls.findLast(c=>c.name==='admin_save_delivery'));
   assert.equal(call.args.p_id,null);assert.equal(call.args.p_values.status,'draft');
   assert.equal(await page.evaluate(()=>fixtures.invitation_send_queue.find(q=>q.id==='sent-original').status),'sent');
   await page.locator('[data-invite-household="'+householdId+'"] > summary .invite-compact-name').click();

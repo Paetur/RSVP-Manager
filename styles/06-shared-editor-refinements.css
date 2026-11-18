@@ -323,11 +323,9 @@
   display: flex;
   gap: 8px;
   align-items: center;
-  width: 100%;
-  flex-basis: 100%;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-  margin-top: 8px;
+  width: auto;
+  flex-basis: auto;
+  margin-left: auto;
   flex-wrap: wrap;
 }
 #adminApp .guest-edit-actions {
@@ -377,7 +375,8 @@
 }
 
 /* Consistent settings cards and header pencils, including legacy record read views. */
-#adminApp [data-settings-panel="event"]:not(.hidden),
+#adminApp [data-panel="events"]:not(.hidden),
+#adminApp [data-settings-panel="application"]:not(.hidden),
 #adminApp [data-settings-panel="languages"]:not(.hidden),
 #adminApp [data-settings-panel="interface"]:not(.hidden) {
   display: grid;
@@ -480,7 +479,7 @@
 }
 
 @media (max-width: 700px) {
-  .guest-courtesy-title { display: none; }
+
   .rsvp-session > .venue-welcome { padding-left: 0; }
 }
 
@@ -512,4 +511,27 @@
 @media print {
   body:has(> .recipe-print-view) > :not(.recipe-print-view) { display: none !important; }
   body > .recipe-print-view { display: block; font: 16px/1.5 system-ui; color: black; background: white; }
+}
+
+/* Disclosure reads the record; its pencil explicitly opens editing. */
+.household-inline-editor:not(.household-detail-editing) > .household-details-form,
+.household-inline-editor:not(.household-detail-editing) > .household-contact-choice,
+.household-inline-editor:not(.household-detail-editing) > .household-form-footer,
+.household-inline-editor:not(.household-detail-editing) > .household-contact-editor { display: none; }
+.household-inline-editor.household-detail-editing > .view-only { display: none; }
+
+/* Reading stays compact; the record's pencil still owns its full editor. */
+.household-compact-reading { display: grid; gap: 4px; padding: 0 0 8px 18px; }
+.household-reading-line, .primary-contact-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; }
+.household-reading-line { overflow-wrap: anywhere; font-size: .9rem; }
+.household-inline-editor > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; padding-block: 6px; }
+.household-inline-editor > .household-compact-reading { margin-top: 0; }
+.form-actions .form-feedback { flex-basis: 100%; }
+
+/* Grouping is a separate preference editor inside the personal Interface box. */
+.interface-invites-appearance {
+  position: relative;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
 }

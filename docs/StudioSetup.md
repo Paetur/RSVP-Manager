@@ -76,7 +76,7 @@ Return to the wizard and retry **Test connection**. If a function reports **BOOT
 
 ## 6. Wizard step 3: the first administrator
 
-Create/confirm the first Auth user and follow the wizard’s first-administrator SQL instructions. Existing installations use their existing administrator; do not replay the installer or bootstrap SQL.
+In step 3, use the trusted companion or expand **Manual setup**. For manual setup, create and confirm the first Auth user under **Authentication → Users**, enter that account’s email and generate the first-administrator SQL. Run it in your private Supabase SQL Editor, then verify login in the wizard. The SQL checks for an empty, uninitialized application and a single matching confirmed Auth account. Existing installations use their administrator sign-in.
 
 ## 7. Wizard step 4: publish the browser configuration
 

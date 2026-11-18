@@ -143,16 +143,18 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
           .click();
         await page.locator("#previewBackup:enabled").waitFor();
         await page.locator("#previewBackup").click();
-        await page.locator("#restoreBackupButton:disabled").waitFor();
-        await page.waitForFunction(() =>
-          window.__backupRequests.some(
-            (request) => request.name === "admin_preview_backup",
-          ),
-        );
+        const restore = page.locator("#restoreBackupButton");
+        await page.locator("#restoreBackupButton:enabled").waitFor();
+        await restore.click();
+        const decision = page.locator(".inline-confirmation");
+        await decision.getByText("Are you really sure. This can NOT be undone", { exact: true }).waitFor();
+        await decision.getByRole("button", { name: "No", exact: true }).click();
         assert.equal(
-          await page.locator("#restoreBackupButton").isDisabled(),
-          true,
-          "decryption does not bypass confirmation/acknowledgement",
+          await page.evaluate(() => window.__backupRequests.filter(
+            (request) => request.name !== "admin_export_backup",
+          ).length),
+          previewBefore + 1,
+          "decryption and validation do not bypass final confirmation",
         );
         const requests = await page.evaluate(() =>
           JSON.stringify(window.__backupRequests),

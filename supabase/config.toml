@@ -7,3 +7,8 @@ verify_jwt = false
 [functions.admin-invitations]
 verify_jwt = false
 
+# Organizer JWT for creation; scoped expiring capabilities for device operations.
+# Every request is authenticated inside the handler and guarded database RPCs.
+[functions.invitation-shortcuts]
+verify_jwt = false
+

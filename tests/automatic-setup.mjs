@@ -93,9 +93,10 @@ try {
   ).rows[0];
   assert.equal(admin.access_state, "active");
   assert.equal(admin.access_permissions.preset, "full");
-  await assert.rejects(() =>
-    install.run("administrator", { email: "other@example.invalid", password }),
-  );
+  const createdBeforeReplay = f.state.created;
+  await install.run("administrator", { email: "other@example.invalid", password });
+  assert.equal(f.state.created, createdBeforeReplay, "completed first-admin step never creates or claims another Auth account");
+  assert.equal((await f.db.query("SELECT count(*)::int AS n FROM public.admins")).rows[0].n, 1);
   await assert.rejects(
     () =>
       install.run("secrets", {
@@ -148,6 +149,16 @@ try {
     f.authConfig.uri_allow_list.includes("/wedding/admin/?admin-invitation=1"),
   );
   assert(!f.restConfig.db_schema.includes("app_private"));
+  await assert.rejects(
+    () => install.rows("SELECT app_private.permission_preset('full') AS preset", [], true),
+    (error) => error.code === "management" && error.status === 502,
+    "Management's read-only role cannot execute the private permission helper",
+  );
+  assert.match(f.state.lastSqlError, /permission denied for function permission_preset/);
+  const helperAccess = (await f.db.query(
+    "SELECT has_function_privilege('anon','app_private.permission_preset(text)','EXECUTE') AS anon,has_function_privilege('authenticated','app_private.permission_preset(text)','EXECUTE') AS authenticated,has_function_privilege('service_role','app_private.permission_preset(text)','EXECUTE') AS service_role",
+  )).rows[0];
+  assert.deepEqual(helperAccess, { anon: false, authenticated: false, service_role: false });
   f.secrets.delete("RSVP_SITE_ORIGIN");
   await assert.rejects(() => install.run("verification"), /secret/);
   assert.equal(
@@ -179,8 +190,10 @@ try {
   assert.deepEqual(Object.keys(publicStatus).sort(), [
     "initialized",
     "schema_version",
+    "setup_locked",
   ]);
   assert.equal(publicStatus.initialized, true);
+  assert.equal(publicStatus.setup_locked, true);
   await assert.rejects(
     () => f.db.query("SELECT * FROM app_private.installation_state"),
     /permission/,
@@ -191,7 +204,8 @@ try {
   ).length;
   const existing = await connection(f);
   assert.equal(existing.publicState().initialized, true);
-  await existing.run("database");
+  for (const step of ["database", "administrator", "secrets", "functions", "configuration", "verification"])
+    await existing.run(step, { email: "another@example.invalid", password });
   assert.equal(
     f.calls.filter(
       (c) => c.method !== "GET" && !c.path.endsWith("/database/query"),
@@ -215,8 +229,17 @@ try {
   await partial.db.query(
     "UPDATE public.event_settings SET event_name='Keep this event'",
   );
+  const shortcutRuntime = (await partial.db.query(
+    "UPDATE app_private.shortcut_runtime SET enabled=true WHERE singleton RETURNING generation,enabled",
+  )).rows[0];
   await partial.db.exec(
-    "DROP FUNCTION public.get_setup_status();DROP POLICY section_update ON public.venue_translations;DROP TRIGGER IF EXISTS food_claim_audit ON public.food_claims",
+    `DROP FUNCTION public.get_setup_status();
+     DROP FUNCTION public.guest_gateway_allow_request(text,text,text);
+     DROP POLICY section_update ON public.venue_translations;
+     DROP TRIGGER IF EXISTS food_claim_audit ON public.food_claims;
+     ALTER TABLE public.invitation_send_queue DROP COLUMN handed_to_shortcuts_at;
+     ALTER TABLE public.households DROP CONSTRAINT households_visit_order, DROP COLUMN visit_count;
+     DELETE FROM app_private.guest_visit_scope WHERE singleton;`,
   );
   const install = await connection(partial);
   await install.run("database");
@@ -229,6 +252,19 @@ try {
     (await partial.db.query(assets.plan.verifySQL)).rows[0].valid,
     true,
   );
+  assert.deepEqual((await partial.db.query(
+    "SELECT generation,enabled FROM app_private.shortcut_runtime WHERE singleton",
+  )).rows[0], shortcutRuntime, "repair preserves the configured Shortcuts singleton");
+  assert.ok((await partial.db.query(
+    "SELECT generation FROM app_private.guest_visit_scope WHERE singleton",
+  )).rows[0]?.generation, "repair seeds the missing guest visit singleton");
+  const gateway = (await partial.db.query(`
+    SELECT public.guest_gateway_allow_request(repeat('a',64),'ABCDEFGH','acknowledge_household_visit') AS visits_allowed,
+           has_function_privilege('anon','public.guest_gateway_allow_request(text,text,text)','EXECUTE') AS anon,
+           has_function_privilege('authenticated','public.guest_gateway_allow_request(text,text,text)','EXECUTE') AS authenticated,
+           has_function_privilege('service_role','public.guest_gateway_allow_request(text,text,text)','EXECUTE') AS service_role
+  `)).rows[0];
+  assert.deepEqual(gateway, { visits_allowed: true, anon: false, authenticated: false, service_role: true });
 } finally {
   await partial.db.close();
 }
@@ -247,9 +283,50 @@ try {
     ).rows[0].n,
     0,
   );
+  await incompatible.db.exec(`
+    ALTER TABLE public.other_items RENAME COLUMN missing_assignment TO assigned_to;
+    ALTER TABLE public.invitation_send_queue ALTER COLUMN shortcuts_error TYPE boolean USING NULL;
+  `);
+  await assert.rejects(() => install.run("database"));
+  assert.match(incompatible.state.lastSqlError, /Existing schema objects are incompatible/);
+  await incompatible.db.exec(`
+    ALTER TABLE public.invitation_send_queue ALTER COLUMN shortcuts_error TYPE text USING NULL;
+    CREATE OR REPLACE FUNCTION public.guest_gateway_allow_request(p_ip_hash text,p_code text,p_action text)
+    RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path TO '' AS $$ SELECT false $$;
+  `);
+  await assert.rejects(() => install.run("database"));
+  assert.match(incompatible.state.lastSqlError, /Existing schema objects are incompatible/);
+  assert.equal((await incompatible.db.query(
+    "SELECT public.guest_gateway_allow_request(repeat('a',64),'ABCDEFGH','acknowledge_household_visit') AS visits_allowed",
+  )).rows[0].visits_allowed, false, "repair leaves an incompatible existing function intact");
+  assert.equal((await incompatible.db.query(
+    "SELECT count(*)::int AS n FROM app_private.installation_state",
+  )).rows[0].n, 0, "incompatible alpha.8 objects cannot claim the installation");
 } finally {
   await incompatible.db.close();
 }
+
+// Anonymous setup availability never depends only on an active-admin/completion combination.
+for (const checkpoint of ["empty", "suspended-administrator", "completed-marker", "published-event"]) {
+  const locked = await fixture({ installed: true });
+  try {
+    if (checkpoint === "suspended-administrator")
+      await locked.db.exec("INSERT INTO auth.users(id,email) VALUES('11111111-1111-4111-8111-111111111111','checkpoint@example.invalid');INSERT INTO public.admins(user_id,name,access_state) VALUES('11111111-1111-4111-8111-111111111111','Checkpoint','suspended')");
+    if (checkpoint === "completed-marker")
+      await locked.db.query(
+        "INSERT INTO app_private.installation_state(installation_id,schema_version,release_version,installer_hash,site_url,initialized_at) VALUES('11111111-1111-4111-8111-111111111111',$1,$2,$3,'https://setup.example.invalid/',now())",
+        [assets.schema, assets.version, assets.digest]);
+    if (checkpoint === "published-event")
+      await locked.db.exec("UPDATE public.event_settings SET is_published=true WHERE id=1");
+    await locked.db.exec("SET ROLE anon");
+    const status = (await locked.db.query("SELECT public.get_setup_status() AS value")).rows[0].value;
+    assert.deepEqual(Object.keys(status).sort(), ["initialized", "schema_version", "setup_locked"]);
+    assert.equal(status.setup_locked, checkpoint !== "empty", checkpoint);
+    assert.equal(status.initialized, false, "setup lock is independent of active/full initialized state");
+    await assert.rejects(() => locked.db.query("SELECT first_admin_id,admin_email FROM app_private.installation_state"), /permission/);
+    await locked.db.exec("RESET ROLE");
+  } finally { await locked.db.close(); }
+}
 console.log(
-  "PASS automated setup: fresh SQL, invalid credentials/permissions, atomic failure/retry, Auth Admin creation and lost-response reuse, protected full administrator, secrets and functions retry/config preservation, partial repair, incompatible-schema refusal, completion guards, login and secret-free state.",
+  "PASS automated setup: fresh SQL, invalid credentials/permissions, atomic failure/retry, Auth Admin creation and lost-response reuse, closed first-admin replay, protected full administrator, secrets and functions retry/config preservation, partial repair, incompatible-schema refusal, all-step initialized reopen, minimal anonymous setup locks for inactive admin/completed marker/publication, login and secret-free state.",
 );

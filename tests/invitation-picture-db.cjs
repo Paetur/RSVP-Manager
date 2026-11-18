@@ -11,11 +11,9 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
   };
   try {
     await signIn(db);
-    const save = (picture, body = "Hello {invitation_link}") => q(
-      "SELECT public.admin_save_invitation_template('en','whatsapp','',$1,$2)", [body, picture],
-    );
+    const save = (picture, body = "Hello {invitation_link}") => require("./helpers/named-template.cjs").saveTemplate(db, { image: picture, body });
     await save(image);
-    assert.deepEqual((await v("SELECT public.admin_load_data() v")).invitationTemplates[0].message_image, image);
+    assert.deepEqual((await v("SELECT public.admin_load_data() v")).invitationTemplates[0].versions.en.message_image, image);
     const h = await v("SELECT public.admin_save_household(null,$1) v", [{ household_name: "Synthetic", planning_group_id: "general", language: "en" }]);
     await q("SELECT public.admin_create_guest($1,$2)", [h, { first_name: "Example" }]);
     const values = { channel: "manual", status: "draft", message_body: "Hello {invitation_link}", message_image: image };
@@ -37,7 +35,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
       await db.exec("SET ROLE authenticated");
     }
     await save(image, "");
-    assert.equal((await v("SELECT public.admin_load_data() v")).invitationTemplates[0].body, "{invitation_link}", "picture-only template retains a link fallback");
+    assert.equal((await v("SELECT public.admin_load_data() v")).invitationTemplates[0].versions.en.body, "{invitation_link}", "picture-only template retains a link fallback");
     const backup = await v("SELECT public.admin_export_backup() v");
     assert.deepEqual(backup.payload.tables["public.message_templates"][0].message_image, image);
     assert.deepEqual(backup.payload.tables["public.invitation_send_queue"][0].message_image, image);
@@ -48,7 +46,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
       assert.equal(rehearsal.can_restore, true, rehearsal.reason);
       await destination.query("SELECT public.admin_restore_backup($1,$2) v", [backup, "RESTORE " + backup.payload.tables["public.event_settings"][0].event_name]);
       const restored = (await destination.query("SELECT public.admin_load_data() v")).rows[0].v;
-      assert.deepEqual(restored.invitationTemplates[0].message_image, image);
+      assert.deepEqual(restored.invitationTemplates[0].versions.en.message_image, image);
       assert.deepEqual(restored.queue[0].message_image, image);
     } finally { await destination.close(); }
     assert.equal(await v("SELECT is_published v FROM public.event_settings"), false);

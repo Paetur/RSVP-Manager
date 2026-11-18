@@ -2,9 +2,11 @@
 
 Application backups are private downloads and may contain names, contacts, invitation codes, replies, commitments and the invitation background photo.
 
+Under **Settings → Database**, Backups and Validate and restore appear side by side on wide screens and stack on narrower screens. Resizing preserves your selected modes, sections and file options. Validation and confirmation are still required before restoring.
+
 ## Full and Partial modes
 
-Open **Settings → Backups** and choose one mode using the checkmarks.
+Open **Settings → Database** and choose one mode using the checkmarks.
 
 | Operation | Activity logs |
 |---|---|
@@ -29,13 +31,13 @@ Without logs means old activity history is omitted. Every completed restore stil
 
 ## Compressed files
 
-Tick **Compress backup (.json.gz)** to download a smaller gzip file in either Full or Partial mode. Leave it unticked for JSON. Restore accepts either file and opens gzip automatically; the backup contents, checksum and validation rules are unchanged. Both the uploaded file and its opened contents must be at most 20 MB. Damaged or oversized compressed files are rejected before validation or restore.
+Tick **Compression** under File options to download a smaller gzip file in either Full or Partial mode. Leave it unticked for JSON. Restore accepts either file and opens gzip automatically; the backup contents, checksum and validation rules are unchanged. Both the uploaded file and its opened contents must be at most 20 MB. Damaged or oversized compressed files are rejected before validation or restore.
 
-Compression alone does not encrypt the file. Select **Encrypt backup** separately to protect it with a password. If your browser does not support gzip, the compression option is disabled; use JSON instead.
+Compression alone does not encrypt the file. Select **Encryption** separately to protect it with a password. If your browser does not support gzip, the compression option is disabled; use JSON instead.
 
 ## Optional encryption
 
-Select **Encrypt backup**, enter a password and confirm it. Compression and encryption are independent; gzip is applied first. Encrypted files download as `.encrypted.json`. Keep the password separately: the file cannot be recovered without it.
+Select **Encryption**, enter a password and confirm it. Compression and encryption are independent; gzip is applied first. Encrypted files download as `.encrypted.json`. Keep the password separately: the file cannot be recovered without it.
 
 Encrypted imports are detected automatically and request that file’s password. Incorrect passwords or damaged files stop before database validation; use Open encrypted backup to retry. Unencrypted JSON/gzip continues unchanged. Decryption does not bypass Validate backup or restore confirmation.
 
@@ -49,8 +51,8 @@ Choose **Clean database** for the original recovery workflow. It requires an **e
 2. Choose the file. Its available sections and log flag determine the choices. Full restore is unavailable for Partial files.
 3. Choose a mode, sections where applicable, and the Full-mode log option. Changing any choice invalidates prior validation/confirmation.
 4. Validate. The server rehearses the restore and rolls it back. Full restore may require matching verified historical actor accounts wherever retained records reference them. Resolve reported problems before proceeding.
-5. Review the result, acknowledge restoration and type the event-name confirmation.
-6. Check representative households, replies/comments, food, translations, assignments and any included logs afterward.
+5. Review the result and select **Restore backup**. Choose **Yes** to proceed or **No** to return to the review.
+6. The application returns to **Main → Overview** after a successful restore. Check representative households, replies/comments, food, translations, assignments and any included logs.
 
 The restored event stays **unpublished**. Review administrator access separately: included historical administrator references return disabled with View only permissions; source access rights are not automatically granted.
 
@@ -63,15 +65,39 @@ Use this separate destination to return an existing unpublished event to an earl
 1. Install matching code/schema, then take a fresh Full backup before testing. Protect it and its encryption password.
 2. Select **Replace event data**, open that backup and validate. Review current versus restored record counts and the preserved security boundary.
 3. Download the fresh safety backup offered by the page. It captures the state being replaced and uses your selected compression/encryption options.
-4. Acknowledge replacement and type the displayed **REPLACE** event-name confirmation. If data changes or the 30-minute confirmation expires, validate again and download a new safety backup.
-5. After replacement, review representative invitations, replies, food, wording and pictures. The event remains unpublished.
+4. Select **Replace event data** and choose **Yes** to proceed or **No** to return to the review. If data changes or the 30-minute confirmation expires, validate again and download a new safety backup.
+5. After replacement, **Main → Overview** opens. Review representative invitations, replies, food, wording and pictures. The event remains unpublished.
 
 Event settings, private pictures, household invitation codes, replies, food commitments and delivery records return to the backup state. Current Auth accounts/passwords, administrator access/sessions, pending administrator invitations and security/restore audit history remain; a new restore audit is appended. Failed validation or replacement rolls back atomically. This cannot undo messages already sent or changes to Auth, hosting or runtime configuration.
 
 ## Current alpha format and infrastructure recovery
 
-Current exports use application backup **format 2**, schema **20261114034908**, with 40 application tables. Column manifests use a stable field-name order, independent of physical database column order. This alpha accepts the current schema only; download a fresh backup when testing a changed schema. There is no old-backup compatibility adapter. Language CSV exports are separate.
+Current exports use application backup **format 2**, schema **20261114034908**, with 43 application tables. Column manifests use a stable field-name order, independent of physical database column order. This alpha accepts the current schema only; download a fresh backup when testing a changed schema. There is no old-backup compatibility adapter. Language CSV exports are separate.
 
 Passwords, Auth sessions, personal administrator Interface preferences, secret keys, email-service settings, rate-limit counters and hosting configuration require separate infrastructure recovery. App sign-in references, if included, are historical information rather than active sessions. Raw Auth-service audit records are not application-backup data. Keep the repository/deployment configuration with the installation owner and rehearse restoration.
 
 [All user guides](README.md)
+
+## Wipe and restore application data
+
+Choose **Restore mode → Wipe** to import a complete Full backup into an existing unpublished installation, including one exported by another installation. Both installations must have the same current schema and exact backup fields; older alpha files are not adapted. The file may include or omit logs. Wipe uses the whole file and its log selection; Full and Partial clean recovery remain separate.
+
+1. Open the Full backup and select **Download safety backup**. This validates the file and downloads a fresh safety backup if validation passes. Store it privately.
+2. Review the record counts, then select **Wipe and restore**. Choose **Yes** to proceed or **No** to return to the review. If data or administrator access changes, or the 30-minute receipt expires, select **Download safety backup** again.
+3. Review the imported event from **Main → Overview**. It stays unpublished.
+
+Wipe replaces application data and cancels imported pending administrator invitations. It keeps the signed-in administrator's access, Auth account and personal preferences, destination website address and runtime/connection configuration. Other administrator accounts are suspended and their application sessions revoked; their Auth accounts/passwords are not deleted. Historical actors are matched by verified email. If no verified destination account matches, the importing administrator is used for the foreign key; original identities and per-record attribution are retained in the new restore audit. The destination installation ID remains unchanged.
+
+Wipe cannot undo messages sent from another app. A database/Auth/runtime backup remains the way to recover infrastructure and account state; an application safety backup does not replace it.
+
+## Wipe all without importing a backup
+
+**Settings → Database → Wipe all** clears application data. It requires a Full administrator and an unpublished event. It is separate from the Wipe restore mode above, which imports a Full backup.
+
+1. Review the current counts and choose whether to retain your current administrator.
+2. Download the required fresh safety backup. The download uses the selected backup compression and encryption options. Keep the file and any password privately.
+3. Select **Wipe all**, then choose **Yes** to proceed or **No** to return to the review. A changed destination, expired preparation or uncertain response requires a new review; the page does not retry automatically.
+
+This clears event content, private pictures, household links, replies, food commitments, delivery history and application administrator access. With **Retain current administrator** checked, only your current application administrator remains and **Main → Overview** opens. With it unchecked, the application signs you out and opens the first-administrator setup wizard. Supabase Auth accounts and passwords are retained in either case. Connection configuration, the database schema and installation identity remain. Retired invitation codes and session revocations remain protected against reuse.
+
+The empty event is unpublished. All Shortcuts capabilities are revoked and the experimental feature is disabled. An application safety backup does not restore Auth passwords or infrastructure configuration; follow the installation owner's recovery procedure.

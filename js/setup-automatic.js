@@ -30,15 +30,27 @@
     const result = await response.json();
     if (!response.ok)
       throw Error(
-        result.error ||
+        (result.error && T(result.error)) ||
           T(
             "Setup could not complete this step. Retry after checking the project connection and permissions.",
           ),
       );
     return result;
   }
+  const activeNames = () => state?.local ? ["database", "administrator", "verification"] : names;
   function render() {
     const complete = !!state?.initialized;
+    const local = !!state?.local || document.querySelector('input[name="target"]:checked')?.value === "local";
+    $("automaticWizard").classList.toggle("automatic-local", local);
+    document.querySelector('[data-run="database"]').textContent = T(local ? "Verify database" : "Initialize database");
+    document.querySelector('[data-auto-panel="1"] h2').textContent = T(local ? "Verify database" : "Initialize database");
+    document.querySelector('[data-auto-panel="1"] p').textContent = T(local
+      ? "Local mode creates the first administrator on an installed empty schema. Complete the local database, Auth and Edge Function installation first."
+      : "Install the current schema, or add missing objects in a compatible partial installation. Existing rows are kept. Incompatible schemas and initialized applications are not overwritten.");
+    document.querySelectorAll("[data-auto-step]").forEach(button => {
+      const index = Number(button.dataset.autoStep);
+      button.classList.toggle("hidden", local && index > 2 && index < 6);
+    });
     document
       .querySelectorAll("[data-auto-panel]")
       .forEach((node) =>
@@ -52,8 +64,8 @@
         allowed =
           index === 0 ||
           (!!state &&
-            names.slice(0, index - 1).every((name) => state.steps[name]));
-      button.disabled = busy || complete || !allowed;
+            names.slice(0, index - 1).filter(name => activeNames().includes(name)).every((name) => state.steps[name]));
+      button.disabled = busy || complete || !allowed || (index === 2 && !!state?.steps.administrator);
       button.classList.toggle("active", index === selected);
       button.setAttribute(
         "aria-current",
@@ -68,7 +80,8 @@
       .querySelectorAll(
         "[data-auto-panel] button, #automaticAddSecret, #automaticDisconnect",
       )
-      .forEach((button) => (button.disabled = busy));
+      .forEach((button) => (button.disabled = busy || complete || (button.closest("#automaticAdministrator") !== null && !!state?.steps.administrator)));
+    $("automaticAdministrator").querySelector('button[type="submit"]').disabled ||= !administratorValid();
     $("automaticComplete").classList.toggle("hidden", !complete);
     if (complete && state.publicConfig) {
       $("automaticCompletionNote").textContent = T(
@@ -82,10 +95,31 @@
       $("automaticLogin").href = bridge.href;
     }
   }
-  const nextStep = () =>
-    state?.initialized
-      ? 6
-      : Math.max(0, names.findIndex((name) => !state?.steps[name]) + 1);
+  const nextStep = () => {
+    if (state?.initialized) return 6;
+    const missing = activeNames().find(name => !state?.steps[name]);
+    return missing ? names.indexOf(missing) + 1 : 6;
+  };
+  function administratorValid() {
+    const form = $("automaticAdministrator"), password = form.elements.password, confirm = form.elements.confirmPassword;
+    const mismatch = confirm.value.length > 0 && confirm.value !== password.value;
+    confirm.setCustomValidity(mismatch ? T("The passwords do not match.") : "");
+    $("automaticAdministratorValidation").textContent = mismatch ? T("The passwords do not match.") : "";
+    $("automaticAdministratorValidation").hidden = !mismatch;
+    return form.elements.email.validity.valid && password.validity.valid && confirm.validity.valid;
+  }
+  function targetChoice() {
+    const local = document.querySelector('input[name="target"]:checked')?.value === "local";
+    document.querySelectorAll("[data-cloud-field]").forEach(input => {
+      input.disabled = local; input.closest("label").classList.toggle("hidden", local);
+    });
+    const database = $("automaticConnect").elements.databaseUrl;
+    database.disabled = !local; database.required = local;
+    $("automaticDatabaseConnectionLabel").classList.toggle("hidden", !local);
+    $("automaticLocalHelp").classList.toggle("hidden", !local);
+    $("automaticConnect").elements.projectUrl.placeholder = local ? "http://127.0.0.1:54321" : "https://your-project.supabase.co";
+    render();
+  }
   async function operate(action, input = {}, sourceForm = null) {
     if (busy) return;
     if (action === "connect") state = null;
@@ -107,8 +141,10 @@
       );
     } finally {
       // Values are intentionally not retained for retry; project progress is retained server-side.
+      $("automaticShowPassword").checked = false;
+      $("automaticAdministrator").querySelectorAll("[data-sensitive]").forEach(input => input.type = "password");
       sourceForm
-        ?.querySelectorAll('input[type="password"]')
+        ?.querySelectorAll('input[type="password"], [data-sensitive]')
         .forEach((input) => (input.value = ""));
       if (action === "secrets")
         $("automaticOptionalSecrets")
@@ -194,16 +230,23 @@
         render();
       }),
     );
+    document.querySelectorAll('input[name="target"]').forEach(input => input.addEventListener("change", targetChoice));
+    $("automaticAdministrator").addEventListener("input", render);
+    $("automaticShowPassword").addEventListener("change", event => {
+      $("automaticAdministrator").querySelectorAll("[data-sensitive]").forEach(input => input.type = event.target.checked ? "text" : "password");
+    });
     $("automaticConnect").addEventListener("submit", (event) => {
       event.preventDefault();
       const form = event.target;
       const input = Object.fromEntries(new FormData(form));
+      if (input.target === "cloud") delete input.target;
       operate("connect", input, form);
     });
     $("automaticAdministrator").addEventListener("submit", (event) => {
       event.preventDefault();
       const form = event.target;
-      operate("administrator", Object.fromEntries(new FormData(form)), form);
+      if (!administratorValid()) return;
+      operate("administrator", {email:form.elements.email.value,password:form.elements.password.value}, form);
     });
     document
       .querySelectorAll("[data-run]")
@@ -243,7 +286,7 @@
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
-    render();
+    targetChoice();
   }
   document.addEventListener("DOMContentLoaded", () =>
     init().catch(() =>

@@ -5,9 +5,10 @@ const { chromium, webkit } = require("playwright"),
   path = require("node:path"),
   zlib = require("node:zlib");
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
+const { reopenDatabaseAfterRecovery } = require("./helpers/admin-toolbar.cjs");
 const { server, mock, extra, out } = createFoodHarness("backup-compression");
 const behavior = `const envelope={format:'rsvp-application-backup',version:2,checksum:'synthetic',payload:{selection:{mode:'backup',sections:['venues','households','food','other','wording'],include_logs:true},tables:{'public.event_settings':[{event_name:'Synthetic recovery'}]}}};
-window.__backupRequests=[];const backupRpc=client.rpc;client.rpc=async(name,args)=>{if(['admin_export_backup','admin_preview_backup','admin_restore_backup'].includes(name)){window.__backupRequests.push({name,args});if(name==='admin_export_backup')return {data:{...envelope,payload:{...envelope.payload,selection:{mode:args.p_mode,sections:args.p_sections,include_logs:args.p_include_logs}}}};if(name==='admin_preview_backup')return {data:{event_name:'Synthetic recovery',can_restore:true,counts:{'public.households':1}}};return {data:{restored:true,is_published:false}};}return backupRpc(name,args);};`;
+window.__backupRequests=JSON.parse(sessionStorage.getItem('syntheticBackupRequests')||'[]');const backupRpc=client.rpc;client.rpc=async(name,args)=>{if(['admin_export_backup','admin_preview_backup','admin_restore_backup'].includes(name)){window.__backupRequests.push({name,args});sessionStorage.setItem('syntheticBackupRequests',JSON.stringify(window.__backupRequests));if(name==='admin_export_backup')return {data:{...envelope,payload:{...envelope.payload,selection:{mode:args.p_mode,sections:args.p_sections,include_logs:args.p_include_logs}}}};if(name==='admin_preview_backup')return {data:{event_name:'Synthetic recovery',can_restore:true,counts:{'public.households':1}}};return {data:{restored:true,is_published:false}};}return backupRpc(name,args);};`;
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   fs.mkdirSync(out, { recursive: true });
@@ -47,9 +48,9 @@ window.__backupRequests=[];const backupRpc=client.rpc;client.rpc=async(name,args
                 1,
                 "Full includes only the optional logs row",
               );
-            await page.locator("#backupExportCompressed").check();
             let full;
             for (const mode of ["backup", "template"]) {
+              await page.locator("#backupExportCompressed").check();
               await page
                 .locator("#backupExportMode input[value=" + mode + "]")
                 .check();
@@ -110,11 +111,8 @@ window.__backupRequests=[];const backupRpc=client.rpc;client.rpc=async(name,args
                 mode === "backup",
               );
               await page.locator("#previewBackup").click();
-              await page.waitForFunction(
-                () =>
-                  document.querySelector("#restoreBackupConfirmation")
-                    .placeholder === "RESTORE Synthetic recovery",
-              );
+              await page.locator("#restoreBackupButton:enabled").waitFor();
+              assert.equal(await page.locator("#restoreBackupConfirmation").count(), 0);
               const request = await page.evaluate(() =>
                 window.__backupRequests
                   .filter((x) => x.name === "admin_preview_backup")
@@ -122,27 +120,18 @@ window.__backupRequests=[];const backupRpc=client.rpc;client.rpc=async(name,args
               );
               assert.deepEqual(request.args.p_backup, data);
               assert.equal(request.args.p_include_logs, mode === "backup");
-              await page
-                .locator("#restoreBackupConfirmation")
-                .fill("RESTORE Synthetic recovery");
-              await page.locator("#restoreBackupAck").check();
               await page.locator("#restoreBackupButton").click();
-              await page.waitForFunction(
-                (n) =>
-                  window.__backupRequests.filter(
-                    (x) => x.name === "admin_restore_backup",
-                  ).length === n,
-                mode === "backup" ? 1 : 2,
+              await page.locator(".inline-confirmation [data-inline-confirm]").click();
+              await reopenDatabaseAfterRecovery(page);
+              const restoreCount = await page.evaluate(() =>
+                window.__backupRequests.filter(x => x.name === "admin_restore_backup").length,
               );
-              assert.deepEqual(
-                await page.evaluate(
-                  () =>
-                    window.__backupRequests
-                      .filter((x) => x.name === "admin_restore_backup")
-                      .at(-1).args.p_backup,
-                ),
-                data,
+              assert.equal(restoreCount, mode === "backup" ? 1 : 2);
+              const restored = await page.evaluate(() =>
+                window.__backupRequests.filter(x => x.name === "admin_restore_backup").at(-1).args,
               );
+              assert.deepEqual(restored.p_backup, data);
+              assert.equal(restored.p_confirmation, "RESTORE Synthetic recovery");
             }
             if (width === 390 && lang === "en") {
               const before = await page.evaluate(
@@ -211,9 +200,8 @@ window.__backupRequests=[];const backupRpc=client.rpc;client.rpc=async(name,args
                 window.CompressionStream = undefined;
                 window.DecompressionStream = undefined;
               });
-              await page
-                .locator("#backupExportMode input[value=backup]")
-                .check();
+              await page.locator("#backupExportMode input[value=template]").check();
+              await page.locator("#backupExportMode input[value=backup]").check();
               assert.equal(
                 await page.locator("#backupExportCompressed").isDisabled(),
                 true,

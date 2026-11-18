@@ -12,10 +12,10 @@ const sql = fs.readFileSync("supabase/install.sql", "utf8");
         "SELECT n.nspname schema,c.relname name,c.relrowsecurity rls FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','app_private') AND c.relkind='r' ORDER BY 1,2",
       )
     ).rows;
-    assert.equal(tables.filter((t) => t.schema === "public").length, 42);
-    assert.equal(tables.filter((t) => t.schema === "app_private").length, 7);
+    assert.equal(tables.filter((t) => t.schema === "public").length, 45);
+    assert.equal(tables.filter((t) => t.schema === "app_private").length, 14);
     assert.ok(tables.filter((t) => t.schema === "public").every((t) => t.rls));
-    for (const name of ["backup_origin", "restore_safety_receipts"]) assert.ok(tables.some(t => t.schema === "app_private" && t.name === name && t.rls));
+    for (const name of ["backup_origin", "restore_safety_receipts", "shortcut_runtime", "invitation_shortcut_capabilities", "invitation_shortcut_leases", "shortcut_rate_limits", "shortcut_gateway_rate_limits", "guest_visit_scope", "guest_visit_receipts"]) assert.ok(tables.some(t => t.schema === "app_private" && t.name === name && t.rls));
     for (const name of [
       "stuff_to_bring",
       "things_to_do",
@@ -49,12 +49,14 @@ const sql = fs.readFileSync("supabase/install.sql", "utf8");
         fs.readFileSync(fs.existsSync("version.json") ? "version.json" : "release/manifest.json"),
       ).backupSchema,
     );
-    assert.equal(Object.keys(payload.tables).length, 40);
+    assert.equal(Object.keys(payload.tables).length, 43);
+    for (const name of ["invitation_shortcut_batches", "invitation_shortcut_items", "invitation_shortcut_attempts"]) assert.deepEqual(payload.tables["public." + name], []);
+    for (const name of ["shortcut_runtime", "invitation_shortcut_capabilities", "invitation_shortcut_leases", "shortcut_rate_limits", "shortcut_gateway_rate_limits", "guest_visit_scope", "guest_visit_receipts", "restore_safety_receipts"]) assert.equal(payload.tables["app_private." + name], undefined);
     // Studio may append automatic RLS statements for every CREATE TABLE. All targets must still exist.
     const created = [
       ...sql.matchAll(/^CREATE TABLE ((?:public|app_private)\.[a-z_]+) \(/gm),
     ].map((m) => m[1]);
-    assert.equal(created.length, 49);
+    assert.equal(created.length, 59);
     await db.exec(
       created
         .map((name) => "ALTER TABLE " + name + " ENABLE ROW LEVEL SECURITY;")

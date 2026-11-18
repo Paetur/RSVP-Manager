@@ -3,16 +3,16 @@ const { openBox } = require("./helpers/local-edit-ui.cjs");
 // Synthetic APIs only. Message filters never alter saved audit/receipt content.
 const { chromium } = require("playwright"),
   assert = require("node:assert/strict");
-const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
-const { server, mock, extra, stageExtra } = createFoodHarness(
-  "notification-preferences",
+const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
+const { server, mock, extra, stageExtra, cleanup } = createPublicFoodHarness(
+  "notification-preferences:phone",
 );
 const behavior = `
 window.__noticeWrites=[];
 const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
- if(name==='admin_save_notification_preferences'){
+ if(name==='admin_save_guest_interface'){
   if(window.__failNotices){window.__failNotices=false;return {error:{message:'Synthetic notification save failure'}};}
-  window.__noticeWrites.push(args);fixtures.event_settings[0].notification_preferences=args.p_preferences;return {data:null};
+  window.__noticeWrites.push(args);fixtures.event_settings[0].guest_interface_modes||={};fixtures.event_settings[0].guest_interface_modes[args.p_mode]={...fixtures.event_settings[0].guest_interface_modes[args.p_mode],...args.p_values};return {data:null};
  }
  const result=await noticesRpc(name,args);
  if(name==='get_public_event_v2'&&result.data?.event)result.data.event.notification_preferences={guest:fixtures.event_settings[0].notification_preferences?.guest};
@@ -27,30 +27,17 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
         viewport: { width: 390, height: 1100 },
       });
       page.setDefaultTimeout(8000);
-      await page.addInitScript(() =>
-        localStorage.setItem("rsvp-interface-language", "en"),
-      );
+      await page.addInitScript(() => {
+        if (window.top === window) localStorage.setItem("rsvp-interface-language", "en");
+      });
       await page.route("**maps.google.com/**", (r) =>
         r.fulfill({ contentType: "text/html", body: "Map fixture" }),
       );
-      await page.route("**/supabase.min.js", (r) =>
-        r.fulfill({
-          contentType: "text/javascript",
-          body:
-            mock +
-            "\n" +
-            extra +
-            "\n" +
-            stageExtra +
-            "\n" +
-            behavior +
-            (policy
-              ? '\nfixtures.event_settings[0].food_stage="selection";window.__foodAnswer=true;fixtures.food_items[0].recipe_text="Synthetic recipe";fixtures.event_settings[0].notification_preferences={guest:' +
-                JSON.stringify(policy) +
-                "};"
-              : ""),
-        }),
-      );
+      await routeSyntheticSdk(page,
+        mock + "\n" + extra + "\n" + stageExtra + "\n" + behavior +
+        (policy
+          ? '\nfixtures.event_settings[0].food_stage="selection";window.__foodAnswer=true;fixtures.food_items[0].recipe_text="Synthetic recipe";fixtures.event_settings[0].notification_preferences={guest:' + JSON.stringify(policy) + "};"
+          : ""));
       return page;
     }
     const base = "http://127.0.0.1:" + server.address().port,
@@ -63,12 +50,13 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
     );
     await page.locator("#settingsToggle").click();
     await page.locator("[data-settings-tab=interface]").click();
-    const host = page.locator("#notificationSettingsHost");
-    await host
-      .getByRole("heading", { name: "Status messages", exact: true })
-      .waitFor();
+    assert.equal(await page.locator("details.notification-settings-disclosure").count(), 0);
+    assert.equal(await page.locator("#notificationSettingsHost > .settings-card-heading").isVisible(), true);
+    await page.locator('button[data-notification-mode="phone"]').click();
+    const host = page.locator('[data-settings-card="notification-preferences:phone"]');
+    await host.waitFor();
     assert.equal(await host.locator("form").isVisible(), false);
-    await openBox(page, "notification-preferences");
+    await openBox(page, "notification-preferences:phone");
 
     let admin = host.getByRole("group", { name: "Admin", exact: true }),
       guest = host.getByRole("group", { name: "Guest", exact: true });
@@ -151,9 +139,9 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
     await host
       .getByText("Status message preferences saved.", { exact: true })
       .waitFor();
-    assert.equal(
+    assert.deepEqual(
       await page.evaluate(() => window.__noticeWrites[0].p_expected),
-      null,
+      { notification_preferences: null },
     );
     assert.equal(
       await page.evaluate(() => fixtures.event_settings[0].is_published),
@@ -162,21 +150,21 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
     assert.equal(
       await page.evaluate(
         () =>
-          fixtures.event_settings[0].notification_preferences.guest.autoDismiss,
+          fixtures.event_settings[0].guest_interface_modes.phone.notification_preferences.guest.autoDismiss,
       ),
       true,
     );
     assert.equal(
       await page.evaluate(
         () =>
-          fixtures.event_settings[0].notification_preferences.admin.autoDismiss,
+          fixtures.event_settings[0].guest_interface_modes.phone.notification_preferences.admin.autoDismiss,
       ),
       false,
     );
     assert.equal(
       await page.evaluate(
         () =>
-          fixtures.event_settings[0].notification_preferences.admin
+          fixtures.event_settings[0].guest_interface_modes.phone.notification_preferences.admin
             .showTimestamp,
       ),
       false,
@@ -184,7 +172,7 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
     assert.equal(
       await page.evaluate(
         () =>
-          fixtures.event_settings[0].notification_preferences.guest
+          fixtures.event_settings[0].guest_interface_modes.phone.notification_preferences.guest
             .showTimestamp,
       ),
       true,
@@ -200,7 +188,7 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
       await page.locator("#adminMessage").innerText(),
       "Error example",
     );
-    await openBox(page, "notification-preferences");
+    await openBox(page, "notification-preferences:phone");
     admin = host.getByRole("group", { name: "Admin", exact: true });
     await admin
       .getByRole("radio", { name: "All messages", exact: true })
@@ -221,7 +209,7 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
     );
     assert.equal(
       await page.evaluate(
-        () => fixtures.event_settings[0].notification_preferences.admin.preset,
+        () => fixtures.event_settings[0].guest_interface_modes.phone.notification_preferences.admin.preset,
       ),
       "custom",
     );
@@ -234,13 +222,13 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
     assert.equal(
       await page.evaluate(
         () =>
-          fixtures.event_settings[0].notification_preferences.admin
+          fixtures.event_settings[0].guest_interface_modes.phone.notification_preferences.admin
             .showTimestamp,
       ),
       false,
     );
     await host.getByRole("button", { name: "Cancel", exact: true }).click();
-    await openBox(page, "notification-preferences");
+    await openBox(page, "notification-preferences:phone");
     assert.equal(
       await host
         .getByRole("group", { name: "Admin", exact: true })
@@ -465,6 +453,7 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
   } finally {
     await browser.close();
     await new Promise((r) => server.close(r));
+    cleanup();
   }
 })().catch((e) => {
   console.error(e);

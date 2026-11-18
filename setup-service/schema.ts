@@ -88,12 +88,17 @@ type ObjectDefinition = { sql: string; missing: string; name: string };
 const identifier = "[a-z_][a-z0-9_]*";
 const qualified = `(${identifier}\\.${identifier})`;
 
+function columnCatalog(table: string, name: string) {
+  return `SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid=to_regclass(${quote(table)}) AND attname=${quote(name)} AND NOT attisdropped`;
+}
+
 export function schemaPlan(installer: string) {
   const objects: ObjectDefinition[] = [],
     permissions: string[] = [],
     seeds: string[] = [],
     checks: string[] = [];
   const tables: string[] = [];
+  const functions = new Map<string, { object: ObjectDefinition; check: number }>();
   for (const sql of statements(installer)) {
     let match: RegExpMatchArray | null;
     if (
@@ -139,31 +144,37 @@ export function schemaPlan(installer: string) {
         const name = column[1],
           type = column[2].replace(/,$/, "");
         checks.push(
-          `EXISTS (SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid=to_regclass(${quote(table)}) AND attname=${quote(name)} AND NOT attisdropped AND atttypid=to_regtype(${quote(type)}))`,
+          `EXISTS (${columnCatalog(table, name)} AND atttypid=to_regtype(${quote(type)}))`,
         );
       }
     } else if (
       (match = sql.match(
-        new RegExp(`^CREATE FUNCTION ${qualified}\\(([^]*?)\\) RETURNS`),
+        new RegExp(`^CREATE (OR REPLACE )?FUNCTION ${qualified}\\(([^]*?)\\) RETURNS`),
       ))
     ) {
       // Dump arguments always name their parameters; split defaults without losing commas in literals.
-      const types = statements(match[2], ",").map((arg) =>
+      const types = statements(match[3], ",").map((arg) =>
         arg.replace(/\s+DEFAULT[^]*$/, "").replace(/^\S+\s+/, ""),
       );
-      const name = match[1] + "(" + types.join(",") + ")";
-      objects.push({
-        sql,
-        name,
-        missing: `to_regprocedure(${quote(name)}) IS NULL`,
-      });
+      const name = match[2] + "(" + types.join(",") + ")";
+      const previous = functions.get(name);
+      if (Boolean(previous) !== Boolean(match[1]))
+        throw Error("Unexpected installer function definition: " + name);
       const body = sql.match(
         /\bAS\s+(\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$)([^]*?)\1/,
       );
       if (!body) throw Error("Unsupported function body in installer");
-      checks.push(
-        `EXISTS (SELECT 1 FROM pg_catalog.pg_proc WHERE oid=to_regprocedure(${quote(name)}) AND prosrc=${quote(body[2])} AND prosecdef=${/SECURITY DEFINER/.test(sql)})`,
-      );
+      const check = `EXISTS (SELECT 1 FROM pg_catalog.pg_proc WHERE oid=to_regprocedure(${quote(name)}) AND prosrc=${quote(body[2])} AND prosecdef=${/SECURITY DEFINER/.test(sql.slice(0, body.index))})`;
+      if (previous) {
+        // Use the final installer definition when the function is missing.
+        previous.object.sql = sql.replace(/^CREATE OR REPLACE /, "CREATE ");
+        checks[previous.check] = check;
+      } else {
+        const object = { sql, name, missing: `to_regprocedure(${quote(name)}) IS NULL` };
+        functions.set(name, { object, check: checks.length });
+        objects.push(object);
+        checks.push(check);
+      }
     } else if (
       (match = sql.match(
         new RegExp(`^CREATE (?:UNIQUE )?INDEX (${identifier}) ON ${qualified}`),
@@ -207,15 +218,37 @@ export function schemaPlan(installer: string) {
     } else if (
       (match = sql.match(
         new RegExp(
-          `^ALTER TABLE (?:ONLY )?${qualified}\\s+ADD CONSTRAINT (${identifier}) `,
+          `^(ALTER TABLE (?:ONLY )?${qualified})\\s+(ADD (?:COLUMN|CONSTRAINT)\\s+[^]*)$`,
         ),
       ))
     ) {
-      objects.push({
-        sql,
-        name: match[1] + ":" + match[2],
-        missing: `NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid=to_regclass(${quote(match[1])}) AND conname=${quote(match[2])})`,
-      });
+      const [, alter, table, actions] = match;
+      for (const action of statements(actions, ",")) {
+        const column = action.match(
+          new RegExp(`^ADD COLUMN (${identifier})\\s+(.+?)(?=\\s+(?:NOT NULL|DEFAULT|CHECK|REFERENCES|UNIQUE|PRIMARY KEY)\\b|$)`),
+        );
+        const constraint = action.match(new RegExp(`^ADD CONSTRAINT (${identifier})\\s`));
+        if (column) {
+          const [, name, type] = column;
+          const catalog = columnCatalog(table, name);
+          const required = /^\s+NOT NULL\b/.test(action.slice(column[0].length));
+          objects.push({
+            sql: alter + " " + action,
+            name: table + "." + name,
+            missing: `NOT EXISTS (${catalog})`,
+          });
+          checks.push(
+            `EXISTS (${catalog} AND atttypid=to_regtype(${quote(type)}) AND attnotnull=${required})`,
+          );
+        } else if (constraint) {
+          const name = constraint[1];
+          objects.push({
+            sql: alter + " " + action,
+            name: table + ":" + name,
+            missing: `NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid=to_regclass(${quote(table)}) AND conname=${quote(name)})`,
+          });
+        } else throw Error("Unsupported installer table alteration: " + action.slice(0, 65));
+      }
     } else if (
       (match = sql.match(
         new RegExp(
@@ -236,7 +269,7 @@ export function schemaPlan(installer: string) {
       permissions.push(sql);
     } else if (
       /^INSERT INTO public\.(event_languages|event_settings) /.test(sql) ||
-      /^INSERT INTO app_private\.backup_origin\(singleton\) VALUES\(true\)$/.test(sql)
+      /^INSERT INTO app_private\.(backup_origin|shortcut_runtime|guest_visit_scope)\(singleton\) VALUES\(true\)$/.test(sql)
     ) {
       seeds.push(sql + " ON CONFLICT DO NOTHING");
     } else throw Error("Unsupported installer statement: " + sql.slice(0, 65));

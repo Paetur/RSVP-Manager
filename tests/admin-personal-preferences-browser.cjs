@@ -2,8 +2,8 @@ const { openBox } = require("./helpers/local-edit-ui.cjs");
 // Real controls with a synthetic account service. No production Auth/data writes.
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
-const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
-const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
+const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
+const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal-preferences");
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const browser = await chromium.launch();
@@ -36,6 +36,7 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
     page.on("pageerror", (e) => errors.push(e.message));
     await page.addInitScript(
       ({ account, storage }) => {
+        if (window !== window.top) return;
         window.__testAccount = account;
         if (storage)
           for (const [key, value] of Object.entries(storage))
@@ -55,16 +56,8 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
       }
       return { data: { user: profiles[account] } };
     });
-    await page.route("**/supabase.min.js", (r) =>
-      r.fulfill({
-        contentType: "text/javascript",
-        body:
-          mock +
-          "\n" +
-          extra +
-          `\nclient.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>window.profileRequest(values.data);`,
-      }),
-    );
+    await routeSyntheticSdk(page, mock + "\n" + extra +
+      `\nclient.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>window.profileRequest(values.data);`);
     await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
     await page.waitForFunction(
       () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
@@ -87,6 +80,8 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
     assert.equal(await page.locator("#timeFormat").inputValue(), "24");
     assert.equal(await page.locator("#interfaceLanguage").inputValue(), "en");
     assert(await save.isDisabled());
+    for (const id of ["interfaceLanguage", "themePreference", "timeFormat", "buttonHover"])
+      assert.equal(await page.locator("#" + id).isVisible(), false, "duplicate select hidden: " + id);
     assert.deepEqual(
       await page.evaluate(() => {
         localStorage.setItem("rsvp-time-format", "12");
@@ -98,10 +93,10 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
       window.__accessPermissions.sections.settings = "view";
       await window.RSVP_ADMIN_ACCESS.refresh();
     });
-    // Edits remain a local draft until Save; Cancel discards all three choices.
-    await page.locator("#themePreference").selectOption("light");
-    await page.locator("#timeFormat").selectOption("12");
-    await page.locator("#interfaceLanguage").selectOption("de");
+    // Edits remain a local draft until Save; Cancel discards all four choices.
+    await page.locator('[data-preference-choices="appearance"] [data-preference-choice="light"]').click();
+    await page.locator('[data-preference-choices="time"] [data-preference-choice="12"]').click();
+    await page.locator('[data-preference-choices="language"] [data-preference-choice="de"]').click();
     assert(await save.isEnabled());
     assert.equal(writes.length, 0);
     assert.equal(
@@ -122,9 +117,11 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
     assert(await save.isDisabled());
     assert.equal(writes.length, 0);
     await openBox(page, "personal-preferences");
+    assert.equal(await page.locator("#buttonHover").inputValue(), "toolbar");
     // One explicit Save batches only the changed fields and blocks duplicate work.
-    await page.locator("#themePreference").selectOption("light");
-    await page.locator("#timeFormat").selectOption("12");
+    await page.locator('[data-preference-choices="appearance"] [data-preference-choice="light"]').click();
+    await page.locator('[data-preference-choices="time"] [data-preference-choice="12"]').click();
+    await page.locator('[data-preference-choices="hover"] [data-preference-choice="create"]').click();
     let release;
     delay = new Promise((r) => (release = r));
     await save.click();
@@ -142,7 +139,9 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
     assert.deepEqual(writes[0], {
       rsvp_interface_appearance: "light",
       rsvp_interface_time_format: "12",
+      rsvp_interface_button_hover: "create",
     });
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.buttonHover), "create");
     assert.equal(profiles.a.user_metadata.unrelated, "preserved");
     assert.equal(profiles.a.user_metadata.rsvp_interface_language, "en");
     assert.equal(
@@ -153,7 +152,7 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
     await openBox(page, "personal-preferences");
     // A failed save retains the draft and the applied value; retry persists it.
     fail = true;
-    await page.locator("#timeFormat").selectOption("24");
+    await page.locator('[data-preference-choices="time"] [data-preference-choice="24"]').click();
     await save.click();
     await page
       .locator("#personalPreferencesStatus[data-state=error]")
@@ -168,7 +167,13 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
     await page
       .locator("#personalPreferencesStatus[data-state=saved]")
       .waitFor({ state: "attached" });
+    await openBox(page, "invites-appearance");
+    await page.locator("#inviteGroupView").uncheck();
+    await page.locator("#saveInvitesAppearance").click();
+    await page.locator("#invitesAppearanceStatus[data-state=saved]").waitFor({ state: "attached" });
+    assert.equal(profiles.a.user_metadata.rsvp_invites_grouped, false);
     const second = await device("a");
+    assert.equal(await second.page.locator("#inviteGroupView").isChecked(), false, "grouping follows the account to another device");
     assert.equal(
       await second.page.locator("#themePreference").inputValue(),
       "light",
@@ -184,6 +189,7 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
       "system",
     );
     assert.equal(await b.page.locator("#timeFormat").inputValue(), "locale");
+    assert.equal(await b.page.locator("#inviteGroupView").isChecked(), true, "another account keeps the default grouping");
     assert.equal(await b.page.locator("#interfaceLanguage").inputValue(), "en");
     profiles.b.user_metadata.rsvp_interface_language = "fo";
     await b.page.evaluate(
@@ -208,7 +214,7 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
     await openBox(page, "personal-preferences");
     // The header shortcut is desktop-only; it preserves other Interface drafts.
     await page.setViewportSize({ width: 1160, height: 900 });
-    await page.locator("#timeFormat").selectOption("12");
+    await page.locator('[data-preference-choices="time"] [data-preference-choice="12"]').click();
     await page.locator("#themeToggle").click();
     await page
       .locator("#personalPreferencesStatus[data-state=saved]")
@@ -229,10 +235,10 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
       i.value = "Unsaved work";
       i.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    await page.locator("#interfaceLanguage").selectOption("de");
+    await page.locator('[data-preference-choices="language"] [data-preference-choice="de"]').click();
     const writesBefore = writes.length;
-    page.once("dialog", (dialog) => dialog.dismiss());
     await save.click();
+    await page.locator(".inline-confirmation").getByRole("button", { name: "Stay here", exact: true }).click();
     assert.equal(writes.length, writesBefore);
     assert.equal(await page.locator("#interfaceLanguage").inputValue(), "de");
     assert.equal(
@@ -290,6 +296,7 @@ const { server, mock, extra } = createFoodHarness("admin-personal-preferences");
   } finally {
     await browser.close();
     await new Promise((r) => server.close(r));
+    cleanup();
   }
 })().catch((e) => {
   console.error(e);

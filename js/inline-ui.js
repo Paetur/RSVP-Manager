@@ -51,14 +51,16 @@
     });
     return node;
   }
-  function confirm(message, { action = "Confirm", trigger = currentTrigger(), host, onSave } = {}) {
+  function confirm(message, { action = "Confirm", trigger = currentTrigger(), host, onSave,
+    cancelAction = onSave ? "Stay here" : "Cancel", label = T(action) } = {}) {
     const R = window.RSVP;
     return new Promise((resolve) => {
-      const view = panel({ class: "inline-confirmation" }, trigger, host);
-      view.setAttribute("aria-label", T(action));
+      const target = host || trigger?.closest?.(".form-actions") || owner(trigger);
+      const view = panel({ class: "inline-confirmation" }, trigger, target);
+      view.setAttribute("aria-label", label);
       const actions = R.dom("div", { class: "form-actions" }),
         apply = R.dom("button", { type: "button", class: "btn secondary" }, T(action)),
-        cancel = R.dom("button", { type: "button", class: "btn secondary" }, T(onSave ? "Stay here" : "Cancel"));
+        cancel = R.dom("button", { type: "button", class: "btn secondary" }, T(cancelAction));
       apply.dataset.inlineConfirm = "true";
       let settled = false, saving = false;
       const finish = (value) => {
@@ -84,11 +86,16 @@
       apply.addEventListener("click", () => finish(true));
       cancel.addEventListener("click", () => finish(false));
       view.addEventListener("close", () => finish(false));
-      owner(trigger).append(view);
       view.openInline();
       observer.observe(document.body, { childList: true, subtree: true });
       cancel.focus({ preventScroll: true });
+      // The decision must stay visible when its trigger is at the viewport edge.
+      view.scrollIntoView({ block: "nearest", behavior: "instant" });
     });
+  }
+  function confirmIrreversible(trigger) {
+    const message = T("Are you really sure. This can NOT be undone");
+    return confirm(message, { trigger, action: "Yes", cancelAction: "No", label: message });
   }
   async function saveForms(forms) {
     for (let form of forms) {
@@ -156,5 +163,76 @@
     host.prepend(nav);
     select(rows.find(row => row.dataset.languageCode === window.RSVP_I18N?.language)?.dataset.languageCode || rows[0].dataset.languageCode);
   }
-  window.RSVP_INLINE = { panel, confirm, saveForms, suspend, languages };
+  window.RSVP_INLINE = { panel, confirm, confirmIrreversible, saveForms, suspend, languages };
+})();
+
+// Transient record popups live outside rerendered cards. Native dialog provides
+// keyboard containment; each logical record owns at most one open instance.
+(function () {
+  "use strict";
+  const open = new Map();
+  document.addEventListener("rsvp:admin-access-lost", () => { for (const dialog of open.values()) dialog.close(); });
+  window.RSVP_POPUPS = {
+    get: key => open.get(key),
+    reconcile(can) {
+      for (const [key, dialog] of open) {
+        if ((key.startsWith("food-") && dialog.dataset.permissionEdit === "true" && !can("languages", "edit")) || ((key.startsWith("invitation-delivery:") || key.startsWith("template-choice:")) && !can("invites", "edit"))) dialog.close();
+      }
+    },
+    create(key, attrs = {}, trigger = document.activeElement) {
+      const existing = open.get(key);
+      if (existing) { existing.querySelector("input,button,select,textarea")?.focus(); return existing; }
+      const R = window.RSVP, dialog = R.dom("dialog", attrs);
+      dialog.classList.add("record-popup");
+      dialog.dataset.popupKey = key;
+      open.set(key, dialog);
+      const nativeClose = dialog.close.bind(dialog);
+      dialog.close = () => {
+        if (dialog.open) nativeClose();
+        else dialog.dispatchEvent(new Event("close"));
+      };
+      dialog.openInline = () => {
+        if (!dialog.isConnected) document.body.append(dialog);
+        if (!dialog.open) dialog.showModal();
+      };
+      dialog.addEventListener("close", () => {
+        open.delete(key); dialog.remove();
+        if (trigger?.isConnected && !trigger.disabled) trigger.focus({ preventScroll: true });
+      }, { once: true });
+      dialog.addEventListener("cancel", event => {
+        if (dialog.querySelector('[aria-busy="true"]')) { event.preventDefault(); return; }
+        const forms = [...dialog.querySelectorAll("form")];
+        if (forms.some(f => f.dataset.dirty === "true" || window.RSVP_I18N?.isDirty?.(f))) {
+          event.preventDefault();
+          R.inlineConfirm(window.RSVP_I18N.t("Discard unsaved changes?"), { trigger: dialog.querySelector("button"), host: dialog, action: "Discard changes" }).then(yes => { if (yes) dialog.close(); });
+        }
+      });
+      return dialog;
+    },
+  };
+})();
+
+(function () {
+  "use strict";
+  function formatDeletes(root = document) {
+    const I = window.RSVP_I18N, R = window.RSVP;
+    if (!I || !R) return;
+    const label = I.t("Delete");
+    for (const button of root.querySelectorAll("button,a.btn")) {
+      if (button.dataset.deleteLabel === label) continue;
+      const text = button.textContent.trim(), title = button.getAttribute("aria-label") || button.title || text;
+      const terms = ["Delete", "Löschen", "Strika", label];
+      if (!terms.some(term => text === term || text.startsWith(term + " ") || title === term || title.startsWith(term + " "))) continue;
+      button.dataset.deleteLabel = label;
+      button.classList.add("delete-action", "danger");
+      if (!button.getAttribute("aria-label")) button.setAttribute("aria-label", title);
+      const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg"); icon.setAttribute("viewBox", "0 0 24 24"); icon.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(icon.namespaceURI, "path"); path.setAttribute("d", "M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 10v7M14 10v7"); icon.append(path);
+      button.replaceChildren(icon, R.dom("span", {}, label));
+    }
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    formatDeletes();
+    new MutationObserver(() => formatDeletes()).observe(document.body, { childList: true, subtree: true });
+  });
 })();

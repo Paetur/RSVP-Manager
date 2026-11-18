@@ -28,6 +28,11 @@ const sessionHouseholdMock = `;const combinedHouseholdRpc=client.rpc;client.rpc=
 
 async function waitForApp(page,...args){await page.waitForFunction(...args);await page.waitForFunction(()=>!document.querySelector('form[aria-busy="true"]'));}
 async function openSection(scope,label){if(label==='Household details')return scope.locator('.household-inline-editor').first().evaluate(el=>el.open=true);const summary=scope.locator('summary').filter({hasText:new RegExp('^(?:[+＋]\\s*)?'+label+'$')});if(!await summary.evaluate(el=>el.parentElement.open))await summary.click();}
+async function editHousehold(row){
+ const form=row.locator(':scope > .household-expanded > .household-inline-editor .household-details-form');
+ if(!await form.isVisible())await row.locator(':scope > summary').getByRole('button',{name:/^Edit household:/}).click();
+ await form.waitFor();
+}
 async function run(){
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const url='http://127.0.0.1:'+server.address().port+'/admin/';
@@ -42,8 +47,8 @@ async function run(){
    await page.goto(url,{waitUntil:'load'});
    await page.locator('#adminApp:not(.hidden)').waitFor({timeout:12000});
    await page.locator('#householdRows .hierarchy-section').first().waitFor({state:'attached'});
-   assert.equal(await page.locator('.admin-main-tabs [data-tab]').count(),6,'six main work tabs');
-   assert.deepEqual(await page.locator('.admin-main-tabs [data-tab]').evaluateAll(nodes=>nodes.map(n=>n.textContent.trim())),['Overview','Invites','Venues','Households','Food','Other']);
+   assert.equal(await page.locator('.admin-main-tabs [data-tab]').count(),7,'seven main work tabs');
+   assert.deepEqual(await page.locator('.admin-main-tabs [data-tab]').evaluateAll(nodes=>nodes.map(n=>n.textContent.trim())),['Overview','Events','Invites','Venues','Households','Food','Other']);
    assert.deepEqual(await page.locator('.admin-top-actions>button').evaluateAll(nodes=>nodes.map(n=>n.id)),
      ['refreshButton','themeToggle','logout'],'topbar action icon order');
    assert.equal(await page.locator('#guestPreviewButton').getAttribute('target'),'_blank','website link opens a new tab');
@@ -84,11 +89,10 @@ async function run(){
    assert.equal(await page.locator('html').getAttribute('data-theme'),'dark','dark mode enabled');
    assert.equal(await page.locator('#themeToggle').count(),1,'appearance control is available');
    await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="checklist"]').click();assert.equal(await page.locator('#themePreference').inputValue(),'system');
-   await openBox(page,'personal-preferences');await page.locator('#themePreference').selectOption('light');await page.locator('#savePersonalPreferences').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
-   await openBox(page,'personal-preferences');await page.locator('#themePreference').selectOption('dark');await page.locator('#savePersonalPreferences').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
-   await openBox(page,'personal-preferences');await page.locator('#themePreference').selectOption('system');await page.locator('#savePersonalPreferences').click();await page.locator('#mainSectionToggle').click();
-   await page.locator('#settingsToggle').click();
-   await page.locator('[data-settings-tab="event"]').click();
+   await openBox(page,'personal-preferences');await page.locator('[data-preference-choices="appearance"] [data-preference-choice="light"]').click();await page.locator('#savePersonalPreferences').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
+   await openBox(page,'personal-preferences');await page.locator('[data-preference-choices="appearance"] [data-preference-choice="dark"]').click();await page.locator('#savePersonalPreferences').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+   await openBox(page,'personal-preferences');await page.locator('[data-preference-choices="appearance"] [data-preference-choice="system"]').click();await page.locator('#savePersonalPreferences').click();await page.locator('#mainSectionToggle').click();
+   await page.locator('[data-tab="events"]').click();
    await page.screenshot({path:path.join(previewDir,'admin-settings-dark.png'),fullPage:true});
    assert.equal(await page.locator('[data-reading-for=event-settings]').isVisible(),true,'event settings summary visible in dark mode');
    await page.locator('#mainSectionToggle').click();
@@ -162,7 +166,7 @@ async function run(){
    await newGuest.getByRole('button',{name:'Save',exact:true}).click();
    await waitForApp(page,()=>window.__fixtures.guests.some(g=>g.first_name==='New guest'));
    await page.locator('#expandHouseholds').click();
-   await openSection(created,'Household details');await created.getByRole('button',{name:'Add Contact',exact:true}).click();
+   await editHousehold(created);await created.getByRole('button',{name:'Add Contact',exact:true}).click();
    const picker=created.locator('.household-primary-picker');
    const contact=picker.locator('form');
    await openSection(picker,'New contact');
@@ -179,6 +183,7 @@ async function run(){
    await page.locator('#expandHouseholds').click();
    await openSection(created,'Household details');
    assert.equal(await picker.isVisible(),false,'contact editors stay closed until requested');
+   await editHousehold(created);
    await created.getByRole('button',{name:'Edit primary contact',exact:true}).click();
    await openSection(picker,'New contact');
    const contactEdit=contact;
@@ -194,6 +199,7 @@ async function run(){
    await page.setViewportSize({width:1250,height:950});await page.locator('#expandHouseholds').click();await openSection(created,'Household details');
    const contactSection=created.locator(':scope > .household-expanded > .household-inline-editor');
    await contactSection.screenshot({path:path.join(root,'artifacts','contacts-card-preview.png')});
+   await editHousehold(created);
    await created.getByRole('button',{name:'Edit primary contact',exact:true}).click();
    await openSection(picker,'New contact');
    const fieldHeights=await contactEdit.locator('input:not([type=checkbox]),select').evaluateAll(nodes=>nodes.filter(n=>n.getBoundingClientRect().height>0).map(n=>Math.round(n.getBoundingClientRect().height)));assert.ok(fieldHeights.every(h=>h===44),'contact fields have consistent heights');
@@ -227,17 +233,18 @@ async function run(){
    await created.getByLabel('Destination household').selectOption('33333333-3333-4333-8333-333333333333');
    await created.locator('.guest-move-panel').getByRole('button',{name:'Move guest',exact:true}).click();
    await waitForApp(page,()=>window.__fixtures.guests.find(g=>g.first_name==='New guest').household_id==='33333333-3333-4333-8333-333333333333');
+   await editHousehold(created);
    await created.getByRole('button',{name:'Archive household',exact:true}).click();
    await waitForApp(page,id=>!document.querySelector(`[data-tree-key="household:${id}"]`),createdId);
    await page.locator('#showArchived').check();
    await page.locator('#expandHouseholds').click();
    assert.equal(await created.getByRole('button',{name:'Copy private invitation link'}).count(),0);
-   await openSection(created,'Household details');assert.equal(await created.getByRole('button',{name:'Delete archived household',exact:true}).isVisible(),true);
+   await editHousehold(created);assert.equal(await created.getByRole('button',{name:'Delete archived household',exact:true}).isVisible(),true);
    await created.getByRole('button',{name:'Restore household',exact:true}).click();
    await waitForApp(page,id=>!window.__fixtures.households.find(h=>h.id===id).archived_at,createdId);
    // Server errors retain the edited form and its values.
    await page.locator('#expandHouseholds').click();
-   await openSection(created,'Household details');
+   await editHousehold(created);
    await profile.getByLabel('Landline',{exact:true}).fill('Unsaved phone');
    await page.evaluate(()=>window.__failNext=true);
    await profile.getByRole('button',{name:'Save',exact:true}).click();
@@ -290,13 +297,12 @@ async function run(){
    await selectWorkTab(page,'invites');
    assert.equal(new URL(page.url()).hash,'#invites');
    await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
-   assert.equal(await page.locator('#householdRows button[title*=Copy]').count(),0,'copy controls only in Manage Invites');
+   assert.equal(await page.locator('#householdRows button[title*=Copy]').count(),0,'household editing does not expose the private link');
    await page.evaluate(()=>{navigator.clipboard.writeText=async text=>{window.__copied=text;};});
-   await page.locator('#inviteRows').getByRole('button',{name:/^Copy invitation link/}).first().click();
-   assert.ok((await page.evaluate(()=>window.__copied)).includes('?='));
    const compactInviteRow=page.locator('[data-invite-household="22222222-2222-4222-8222-222222222222"]');
-   assert.deepEqual(await compactInviteRow.locator(':scope > summary button').allTextContents(),['Create','Copy link']);
-   assert.equal(await compactInviteRow.locator('.invite-text-action').first().evaluate(button=>getComputedStyle(button).textDecorationLine),'underline');
+   const inviteActions=compactInviteRow.locator(':scope > summary .invite-row-actions');
+   assert.deepEqual(await inviteActions.getByRole('button').allTextContents(),['+']);
+   assert.equal(await inviteActions.getByRole('button',{name:'Create',exact:true}).count(),1);
    await page.setViewportSize({width:390,height:844});
    assert.ok(await page.locator('.invite-compact-list').evaluate(list=>list.scrollWidth<=list.clientWidth+1),'Invites rows wrap without horizontal scrolling');
    await page.setViewportSize({width:1250,height:950});
@@ -308,11 +314,12 @@ async function run(){
    await inviteHeading.focus();await page.keyboard.press('Enter');
    const inlineDetails=compactInviteRow.locator('.invite-household-content');
    await inlineDetails.locator(':scope > details > summary').first().waitFor();
-   assert.deepEqual(await inlineDetails.locator(':scope > details > summary').allTextContents(),['Invitation delivery','RSVP Open']);
+   assert.deepEqual(await inlineDetails.locator(':scope > details > summary').allTextContents(),['RSVP Open'],'delivery stays hidden until a draft exists');
    assert.ok(await page.locator('#inviteRows [data-invite-household]').count()>1,'opening a household preserves the invitation list');
    assert.equal(await inlineDetails.locator('details[id^="invite-sessions-"]').count(),0,'session choices moved into Household details');
    await selectWorkTab(page,'households');
    await page.locator('#householdRows details').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
+   await editHousehold(page.locator('[data-tree-key="household:22222222-2222-4222-8222-222222222222"]'));
    const sessionHouseholdForm=page.locator('#household-form-22222222-2222-4222-8222-222222222222');
    await sessionHouseholdForm.getByRole('checkbox',{name:'Faroe celebration',exact:true}).check();
    await sessionHouseholdForm.getByRole('checkbox',{name:'German celebration',exact:true}).uncheck();
@@ -378,7 +385,7 @@ async function run(){
    await rsvp.getByLabel('Allow responses until (Europe/Berlin)',{exact:true}).fill('2027-02-19T18:00');await rsvp.getByLabel('Reason for late response').fill('Allow travel arrangements to be confirmed.');await rsvp.getByRole('button',{name:'Allow late response',exact:true}).click();
    await waitForApp(page,id=>!!window.__fixtures.households.find(h=>h.id===id).late_submission_until,childId);
    await selectWorkTab(page,'households');
-   await page.locator('#expandHouseholds').click();await openSection(childNode,'Household details');
+   await page.locator('#expandHouseholds').click();await editHousehold(childNode);
    const details=childNode.locator(':scope > .household-expanded > .household-inline-editor');
    await details.getByLabel('Allow food',{exact:true}).check();
    await details.getByRole('button',{name:'Save',exact:true}).click();
@@ -388,11 +395,19 @@ async function run(){
    await selectWorkTab(page,'invites');await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
    await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
    await compactInviteRow.evaluate(row=>row.open=true);
-   await openSection(compactInviteRow,'Invitation delivery');
-   const delivery=compactInviteRow.locator('details[id^="invite-delivery-"]');await compactInviteRow.locator(':scope > summary').getByRole('button',{name:'Create',exact:true}).click();await delivery.locator('.delivery-customize').evaluate(n=>n.open=true);
-   await delivery.getByLabel('Delivery channel').selectOption('manual');await delivery.getByLabel('Message text').fill('You are invited to celebrate with us. Here is your private invitation link.');assert.equal(await delivery.getByLabel('Delivery status').inputValue(),'draft');await delivery.getByRole('button',{name:'Save draft'}).click();await waitForApp(page,()=>window.__fixtures.invitation_send_queue.length===1);
+   await inviteActions.getByRole('button',{name:'Create',exact:true}).click();
+   await waitForApp(page,()=>window.__fixtures.invitation_send_queue.length===1);
+   assert.equal(await page.evaluate(()=>window.__fixtures.invitation_send_queue[0].status),'draft');
+   const delivery=compactInviteRow.locator('details[id^="invite-delivery-"]');
    await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
-   const record=delivery.locator('[data-delivery-id]');await record.evaluate(el=>el.open=true);await openSection(record,'Edit delivery');await record.locator('.delivery-customize').evaluate(n=>n.open=true);await record.getByLabel('Delivery status').selectOption('ready');await record.getByRole('button',{name:'Save'}).click();await waitForApp(page,()=>window.__fixtures.invitation_send_queue[0].status==='ready');
+   const record=delivery.locator('[data-delivery-id]');await record.waitFor();
+   await record.getByRole('button',{name:'Copy message',exact:true}).click();
+   assert.ok((await page.evaluate(()=>window.__copied)).includes('?='));
+   await openSection(record,'Edit delivery');
+   await openSection(record,'Customize this delivery');
+   await record.getByLabel('Delivery channel').selectOption('manual');
+   await record.getByLabel('Message text').fill('You are invited to celebrate with us. Here is your private invitation link.');
+   await record.getByLabel('Delivery status').selectOption('ready');await record.getByRole('button',{name:'Save'}).click();await waitForApp(page,()=>window.__fixtures.invitation_send_queue[0].status==='ready');
    await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));await record.evaluate(el=>el.open=true);
    await record.getByLabel('Sent note',{exact:true}).fill('Handed over the invitation in person.');await record.getByLabel('I sent this message to the displayed recipient').check();await record.getByRole('button',{name:'Record as sent'}).click();await waitForApp(page,()=>window.__fixtures.invitation_send_queue[0].status==='sent');await record.getByRole('button',{name:'Record as sent'}).waitFor({state:'detached'});
    await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));await record.evaluate(el=>el.open=true);
@@ -414,7 +429,7 @@ async function run(){
    await page.setViewportSize({width:390,height:844});await page.locator('#logCategory').selectOption('invitations');await waitForApp(page,()=>!document.querySelector('#logApply').disabled);const logDims=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth}));assert.ok(logDims.scroll<=logDims.client+3,'log filters and entries fit mobile');
    await page.setViewportSize({width:390,height:1100});await page.screenshot({path:path.join(root,'artifacts','settings-logs-mobile.png')});
 
-   await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="checklist"]').click();await openBox(page,'personal-preferences');await page.locator('#themePreference').selectOption('system');await page.locator('#savePersonalPreferences').click();
+   await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="checklist"]').click();await openBox(page,'personal-preferences');await page.locator('[data-preference-choices="appearance"] [data-preference-choice="system"]').click();await page.locator('#savePersonalPreferences').click();
    await page.goto(url.replace('/admin/','/'),{waitUntil:'load'});
    assert.equal(await page.locator('footer').isVisible(),true);assert.equal(await page.locator('#unpublishedMessage').count(),0);
    assert.equal(await page.locator('#languageSwitcher').isVisible(),false);assert.equal(await page.locator('#adminLink').isVisible(),true);

@@ -15,10 +15,10 @@
     const pictures = () => getStore().settings?.invitation_picture_album || [];
     const revision = () =>
       getStore().settings?.invitation_album_revision || null;
-    function choose(selected, onChoose) {
+    function choose(selected, onChoose, trigger, host) {
       if (!can("settings")) return;
-      const previousFocus = document.activeElement;
-      const dialog = R.inlinePanel({ class: "invitation-album-dialog" }, previousFocus),
+      const previousFocus = trigger || document.activeElement;
+      const dialog = R.inlinePanel({ class: "invitation-album-dialog" }, previousFocus, host),
         grid = R.dom("div", { class: "invitation-album-grid" });
       dialog.setAttribute("aria-label", T("Choose from album"));
       dialog.append(R.dom("h2", {}, T("Choose from album")), grid);
@@ -60,10 +60,12 @@
       dialog.append(none, close);
       dialog.addEventListener("close", () => {
         dialog.remove();
-        if (previousFocus?.isConnected) previousFocus.focus();
+        if (previousFocus?.isConnected && previousFocus.getClientRects().length) previousFocus.focus({ preventScroll: true });
       });
-      document.body.append(dialog);
       dialog.openInline();
+      dialog.scrollIntoView({ block: "nearest", behavior: "instant" });
+      close.focus({ preventScroll: true });
+      return dialog;
     }
     function editor(form, initial) {
       const host = R.dom("div", { class: "span-2 invitation-picture-editor" }),
@@ -76,24 +78,30 @@
         );
       value.value = JSON.stringify(initial || null);
       value.dataset.invitationPicture = "true";
+      let picker = null;
+      button.setAttribute("aria-expanded", "false");
       const current = () => JSON.parse(value.value);
       const render = () => {
         display.replaceChildren();
         window.RSVP_INVITATION_IMAGE.preview(display, current(), { R, T });
       };
       value.addEventListener("change", render);
-      button.addEventListener("click", () =>
-        choose(current(), (picture) => {
-          if (form.getAttribute("aria-busy") === "true") return;
+      button.addEventListener("click", () => {
+        if (!can("settings", "edit") || host.closest("form")?.getAttribute("aria-busy") === "true") return;
+        if (picker?.isConnected) { picker.close(); return; }
+        picker = choose(current(), (picture) => {
+          if (host.closest("form")?.getAttribute("aria-busy") === "true") return;
           value.value = JSON.stringify(picture);
           value.dispatchEvent(new Event("input", { bubbles: true }));
           render();
-        }),
-      );
+        }, button, host);
+        button.setAttribute("aria-expanded", String(!!picker));
+        picker?.addEventListener("close", () => { picker = null; button.setAttribute("aria-expanded", "false"); });
+      });
       host.append(value, display, button);
       form.append(host);
       render();
-      return { get: current, read: async () => current() };
+      return { get: current, read: async () => current(), close: () => picker?.close() };
     }
     function render(host) {
       if (!can("settings")) return;
@@ -109,7 +117,7 @@
         R.dom(
           "p",
           { class: "micro" },
-          T("Shared across template languages and channels."),
+          T("Shared across invitation templates and services."),
         ),
         grid,
       );
@@ -169,7 +177,7 @@
           ),
           picture = window.RSVP_INVITATION_IMAGE.editor(form, null, { R, T });
         const expected = revision();
-        card.append(
+        card.insertBefore(
           saveForm(form, T("Add picture"), async () => {
             const image = await picture.read();
             if (!image) throw Error(T("Choose JPEG"));
@@ -179,7 +187,7 @@
               p_image: image,
               p_expected: expected,
             });
-          }),
+          }), grid,
         );
       }
       host.append(card);

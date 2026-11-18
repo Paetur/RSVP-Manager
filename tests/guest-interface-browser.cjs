@@ -1,8 +1,9 @@
 // Synthetic Settings/name-preference acceptance; no installation API writes.
 const {chromium}=require('playwright'),assert=require('node:assert/strict');
 const {createFoodHarness}=require('./helpers/food-browser-harness.cjs');
+const {openBox}=require('./helpers/local-edit-ui.cjs');
 const {server,mock,extra}=createFoodHarness('guest-interface');
-const seed=`fixtures.households.forEach(h=>h.last_name='Family');fixtures.event_settings[0].guest_title_visibility={en:true,de:false,fo:true};fixtures.event_settings[0].show_repeated_surname=true;window.__nameCalls=[];const priorNameRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_save_guest_name_preferences'){window.__nameCalls.push(args);if(window.__nameFail){window.__nameFail=false;return {error:{message:'Synthetic name save failure'}};}Object.assign(fixtures.event_settings[0],{guest_title_visibility:args.p_titles,show_repeated_surname:args.p_show_repeated_surname});return {data:null};}return priorNameRpc(name,args);};`;
+const seed=`fixtures.households.forEach(h=>h.last_name='Family');fixtures.event_settings[0].guest_title_visibility={en:true,de:false,fo:true};fixtures.event_settings[0].show_repeated_surname=true;window.__nameCalls=[];const priorNameRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_save_guest_interface'){window.__nameCalls.push(args);if(window.__nameFail){window.__nameFail=false;return {error:{message:'Synthetic name save failure'}};}const e=fixtures.event_settings[0];e.guest_interface_modes||={};e.guest_interface_modes[args.p_mode]={...e.guest_interface_modes[args.p_mode],...args.p_values};return {data:null};}return priorNameRpc(name,args);};`;
 (async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const browser=await chromium.launch();try{
 for(const width of [390,1160]){const page=await browser.newPage({viewport:{width,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
 await page.addInitScript(()=>localStorage.setItem('rsvp-interface-language','en'));
@@ -15,13 +16,30 @@ const firstHousehold = await page.evaluate(() => fixtures.households.find(h => h
 assert.equal(await page.locator('#inviteRows .invite-compact-name').first().innerText(), firstHousehold.household_name + ' Family');
 await page.locator('#inviteSearch').fill('Family');assert.ok(await page.locator('#inviteRows [data-invite-household]').count()>0);await page.locator('#inviteSearch').fill('');
 await page.locator('#settingsToggle').click();
-await page.getByRole('tab',{name:'Interface',exact:true}).click();assert.equal(await page.locator('[data-settings-card="personal-preferences"]').isVisible(),true);assert.equal(await page.locator('#launchChecklist').isVisible(),true);
-await page.getByRole('tab',{name:'Guests Interface',exact:true}).click();assert.equal(await page.locator('[data-settings-card="personal-preferences"]').isVisible(),false);const names=page.locator('#guestNamesHost');assert.equal(await names.isVisible(),true);assert.equal(await names.locator('select').count(),0);
-await names.getByRole('button',{name:'Edit · Guest titles',exact:true}).click();
+await page.getByRole('tab',{name:'Application',exact:true}).click();
+assert.equal(await page.locator('#launchChecklist').isVisible(),true);
+await page.getByRole('tab',{name:'Interface',exact:true}).click();
+assert.equal(await page.locator('[data-settings-card="personal-preferences"]').isVisible(),true);
+await page.getByRole('tab',{name:'Invitations',exact:true}).click();
+assert.equal(await page.locator('[data-settings-card="personal-preferences"]').isVisible(),false);
+const appearance=page.locator('#guestAppearanceHost');
+const names=appearance.locator('[data-settings-card="guest-customization:wide"]');
+const phone=appearance.locator('[data-settings-card="guest-customization:phone"]');
+assert.equal(await names.isVisible(),true);
+assert.equal(await phone.isVisible(),false);
+await openBox(page,'guest-customization:wide');
+assert.equal(await names.getByRole('combobox',{name:'Guest name placement',exact:true}).isVisible(),true);
 const repeated=names.getByRole('checkbox',{name:'Show repeated surname beside each guest',exact:true});assert.equal(await repeated.isChecked(),true);await repeated.uncheck();
-const german=names.getByRole('checkbox',{name:'de',exact:true});assert.equal(await german.isChecked(),false);await german.check();
-await page.evaluate(()=>window.__nameFail=true);await names.getByRole('button',{name:'Save',exact:true}).click();await page.waitForFunction(()=>window.__nameCalls.length===1);assert.equal(await repeated.isChecked(),false);await names.getByRole('button',{name:'Save',exact:true}).click();await page.waitForFunction(()=>window.__nameCalls.length===2);await page.waitForFunction(()=>!document.querySelector('#guestNamesHost form')?.hasAttribute('aria-busy'));
-assert.equal(await page.evaluate(()=>window.__nameCalls[1].p_show_repeated_surname),false);assert.equal(await page.evaluate(()=>window.__nameCalls[1].p_titles.de),true);
+const german=names.getByRole('checkbox',{name:'Wide · de',exact:true});assert.equal(await german.isChecked(),false);await german.check();
+await page.evaluate(()=>window.__nameFail=true);await names.getByRole('button',{name:'Save',exact:true}).click();await page.waitForFunction(()=>window.__nameCalls.length===1);assert.equal(await repeated.isChecked(),false);await names.getByRole('button',{name:'Save',exact:true}).click();await page.waitForFunction(()=>window.__nameCalls.length===2);await page.waitForFunction(()=>!document.querySelector('[data-settings-card="guest-customization:wide"] form')?.hasAttribute('aria-busy'));
+assert.equal(await page.evaluate(()=>window.__nameCalls[1].p_mode),'wide');
+assert.equal(await page.evaluate(()=>window.__nameCalls[1].p_values.show_repeated_surname),false);
+assert.equal(await page.evaluate(()=>window.__nameCalls[1].p_values.guest_title_visibility.de),true);
+await appearance.locator('[data-appearance-mode="phone"]').click();
+await openBox(page,'guest-customization:phone');
+assert.equal(await phone.getByRole('checkbox',{name:'Phone · de',exact:true}).isChecked(),false);
+assert.equal(await phone.getByRole('checkbox',{name:'Show repeated surname beside each guest',exact:true}).isChecked(),true);
+await phone.getByRole('button',{name:'Cancel',exact:true}).click();
 await page.locator('#mainSectionToggle').click();await page.locator('[data-tab="households"]').click();assert.ok(await page.getByLabel('Last name',{exact:true}).count()>0);assert.equal(await page.locator('#household-form-' + firstHousehold.id).getByLabel('Name',{exact:true}).inputValue(),firstHousehold.household_name);
 await page.locator('#contentLanguagesToggle').click();await page.locator('[data-translation-tab="guests"]').click();assert.equal(await page.locator('[data-translation-record="guest-titles"]').count(),0);
 assert.deepEqual(errors,[]);await page.close();}

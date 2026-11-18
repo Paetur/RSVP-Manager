@@ -3,8 +3,8 @@ const { chromium } = require("playwright");
 const assert = require("node:assert/strict"),
   fs = require("node:fs");
 const { selectWorkTab } = require("./helpers/language-ui.cjs");
-const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
-const { server, mock, extra } = createFoodHarness("invitation-picture");
+const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
+const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-picture");
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const browser = await chromium.launch();
@@ -50,6 +50,7 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.addInitScript(() => {
+        if (window.top !== window) return;
         localStorage.setItem("rsvp-interface-language", "en");
         window.__pictureShares = [];
         Object.defineProperty(navigator, "canShare", {
@@ -84,7 +85,7 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
         fixtures.event_settings[0].invitation_picture_album=[];
         fixtures.event_settings[0].invitation_album_revision='synthetic';
         window.__pictureHousehold=fixtures.households.find(h=>!h.archived_at).id;
-        window.__pictureTemplates=[{language_code:'en',channel:'whatsapp',subject:'',body:'Hello {invitation_link}'}];
+        window.__pictureTemplates=[{id:'99999999-1111-4111-8111-111111111111',name:'WhatsApp',channels:['whatsapp'],versions:{en:{subject:'',body:'Hello {invitation_link}'}}}];
         const pictureRpc=client.rpc;
         client.rpc=async(name,args)=>{
           if(name==='admin_load_data'){const result=await pictureRpc(name,args);result.data.invitationTemplates=window.__pictureTemplates;return result;}
@@ -92,21 +93,16 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
           if(name==='admin_save_invitation_template'){
             window.__pictureSaves=(window.__pictureSaves||[]);window.__pictureSaves.push(args);
             if(window.__pictureFail){window.__pictureFail=false;return {error:{message:'Synthetic picture save failure'}};}
-            const template={language_code:args.p_language,channel:args.p_channel,subject:args.p_subject,body:args.p_body,message_image:args.p_image};
-            window.__pictureTemplates=window.__pictureTemplates.filter(t=>t.language_code!==args.p_language||t.channel!==args.p_channel).concat(template);
+            const template={id:args.p_id,...args.p_values};
+            window.__pictureTemplates=window.__pictureTemplates.filter(t=>t.id!==args.p_id).concat(template);
             return {data:null};
           }
           return pictureRpc(name,args);
         };
       `;
+      await routeSyntheticSdk(page, mock + "\n" + extra + "\n" + seed);
       await page.route("**/version.json", (route) =>
         route.fulfill({ json: { version: "0.9.0-alpha.5" } }),
-      );
-      await page.route("**/supabase.min.js", (route) =>
-        route.fulfill({
-          contentType: "text/javascript",
-          body: mock + "\n" + extra + "\n" + seed,
-        }),
       );
       const base =
         process.env.RSVP_INSTALLED_SITE ||
@@ -153,7 +149,7 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
       const open = () => section.locator("[data-local-edit]").click();
       const album = page.locator(".invitation-album");
       const upload = () => album.locator('input[type="file"]');
-      const value = () => section.locator("[data-invitation-picture]");
+      const value = () => section.locator("[data-invitation-picture]").first();
       await album.locator("[data-local-edit]").click();
       await album
         .getByLabel("Picture name", { exact: true })
@@ -273,7 +269,7 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
         await page.evaluate(() =>
           window.__pictureSaves
             .at(-1)
-            .p_image.image.startsWith("data:image/jpeg;base64,"),
+            .p_values.versions.en.message_image.image.startsWith("data:image/jpeg;base64,"),
         ),
       );
       assert.equal(await section.locator("form").isVisible(), false);
@@ -407,32 +403,16 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
       const householdRow = page.locator(
         `[data-invite-household="${household}"]`,
       );
-      await householdRow.locator(":scope > summary").click();
-      const delivery = page.locator(`#invite-delivery-${household}`);
-      await delivery.evaluate((node) => {
-        node.open = true;
-      });
-      await delivery.locator("details").evaluateAll((nodes) =>
-        nodes.forEach((node) => {
-          node.open = true;
-        }),
-      );
-      await householdRow.locator(":scope > summary").getByRole("button", {name:"Create",exact:true}).click();
-      const draft = delivery.locator("form").first();
-      await draft
-        .getByLabel("Delivery channel", { exact: true })
-        .selectOption("whatsapp");
-      assert.notEqual(
-        await draft.locator("[data-invitation-picture]").inputValue(),
-        "null",
-        "new drafts inherit the selected template picture",
-      );
-      await draft
-        .getByRole("button", { name: "Save draft", exact: true })
-        .click();
-      await page.waitForFunction(() =>
-        window.__calls.some((c) => c.name === "admin_save_delivery"),
-      );
+      await householdRow.locator(".invite-create").click();
+      const templateChoice = page.getByRole("dialog", { name: "Choose template", exact: true });
+      await templateChoice.waitFor();
+      assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "opening template choice does not save or send a delivery");
+      await templateChoice.getByRole("button", { name: "WhatsApp", exact: true }).click();
+      await page.waitForFunction(() => window.__calls.some(c => c.name === "admin_save_delivery"));
+      const inlineRecord = householdRow.locator("[data-delivery-id]").first();
+      await inlineRecord.waitFor();
+      assert.equal(await page.getByRole("dialog", { name: "Invitation delivery", exact: true }).count(), 0, "created delivery review stays inline");
+      assert.equal(await inlineRecord.locator(":scope > .invitation-picture").isVisible(), true);
       const savedDraft = await page.evaluate(
         () =>
           window.__calls.find((c) => c.name === "admin_save_delivery").args
@@ -442,6 +422,16 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
         savedDraft.message_image.image.startsWith("data:image/jpeg;base64,"),
       );
       assert.equal(savedDraft.status, "draft");
+      const editDelivery = inlineRecord.locator(":scope > details.edit-only").first();
+      await editDelivery.locator(":scope > summary").click();
+      const deliveryForm = editDelivery.locator("form.delivery-review-form");
+      await deliveryForm.locator("details.delivery-customize > summary").click();
+      await deliveryForm.getByLabel("Message subject", { exact: true }).fill("Picture draft");
+      await deliveryForm.getByRole("button", { name: "Save", exact: true }).click();
+      await page.waitForFunction(() => window.__calls.filter(c => c.name === "admin_save_delivery").length === 2);
+      const editedDraft = await page.evaluate(() => window.__calls.filter(c => c.name === "admin_save_delivery").at(-1).args);
+      assert.ok(editedDraft.p_id, "inline editor saves the existing draft");
+      assert.equal(editedDraft.p_values.message_image.image, savedDraft.message_image.image, "explicit inline Save retains its independent picture snapshot");
       assert.equal(
         await page.evaluate(() => fixtures.event_settings[0].is_published),
         false,
@@ -595,6 +585,7 @@ const { server, mock, extra } = createFoodHarness("invitation-picture");
   } finally {
     await browser.close();
     await new Promise((r) => server.close(r));
+    cleanup();
   }
 })().catch((error) => {
   console.error(error);

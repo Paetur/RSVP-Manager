@@ -1,13 +1,21 @@
 (function () {
   "use strict";
-  let draft = null;
-  function render(ctx) {
+  const drafts = new Map();
+  let generation = 0;
+  function render(ctx, preserveDraft = false) {
     const { R } = ctx,
       N = window.RSVP_NOTIFICATIONS;
     const T = (text) => window.RSVP_I18N.t(text);
-    const host = R.byId("notificationSettingsHost");
+    const host = ctx.host || R.byId("notificationSettingsHost");
+    const mode = ctx.mode || window.RSVP_GUEST_INTERFACE.selected;
+    let draft = drafts.get(mode);
     if (!host) return;
+    const previous = host.notificationController;
+    if (ctx.can("settings") && preserveDraft && previous?.preserve()) {
+      Object.assign(previous.context, ctx); previous.update(); return;
+    }
     host.replaceChildren();
+    delete host.notificationController;
     if (!ctx.can("settings")) return;
     const original = ctx.getStore().settings?.notification_preferences || null;
     const initial = {
@@ -22,15 +30,18 @@
         showTimestamp: original?.guest?.showTimestamp === true,
       },
     };
-    const revision = JSON.stringify(original);
+    const revision = JSON.stringify([mode, original]);
     if (!draft || draft.revision !== revision)
       draft = { revision, value: structuredClone(initial) };
+    drafts.set(mode, draft);
     const working = draft.value;
-    let busy = false;
+    const ticket = generation;
+    let busy = false, committed = false;
     const form = R.dom("form", { class: "notification-settings" });
-    form.dataset.formKey = "notification-preferences";
+    form.dataset.formKey = "notification-preferences:" + mode;
+    form.dataset.headerEditor = "true";
     const heading = R.dom("div", { class: "settings-card-heading" });
-    heading.append(R.dom("h3", {}, T("Status messages")));
+    heading.append(R.dom("h3", {}, T(mode === "phone" ? "Phone" : "Wide")));
     host.append(heading);
     form.append(
       R.dom(
@@ -60,7 +71,7 @@
         const item = R.dom("label", { class: "radio-pill" });
         const input = R.dom("input", {
           type: "radio",
-          name: "notifications-" + scope,
+          name: "notifications-" + mode + "-" + scope,
           value: key,
         });
         input.checked = working[scope].preset === key;
@@ -143,8 +154,10 @@
       if (busy) return;
       window.RSVP_LOCAL_EDITORS?.cancel(form);
       window.RSVP_I18N.markClean(form);
-      draft = null;
+      drafts.delete(mode);
       render(ctx);
+      ctx.refreshEditors?.();
+      host.querySelector("form")?.localEditor?.button.focus({ preventScroll: true });
     });
     actions.append(save, cancel);
     form.append(cards, actions, status);
@@ -166,21 +179,24 @@
         );
       save.disabled = disabled || !dirty();
       form.dataset.dirty = String(dirty());
+      ctx.onUpdate?.();
     }
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (save.disabled) return;
+      if (save.disabled || ticket !== generation) return;
       busy = true;
       status.textContent = T("Saving…");
       update();
       try {
         const { error } = await R.adminRpc(
-          "admin_save_notification_preferences",
-          { p_preferences: structuredClone(working), p_expected: original },
+          "admin_save_guest_interface",
+          { p_mode: mode, p_values: { notification_preferences: structuredClone(working) }, p_expected: { notification_preferences: original } },
         );
         if (error) throw error;
+        if (ticket !== generation) return;
+        committed = true;
         window.RSVP_I18N.markClean(form);
-        draft = null;
+        drafts.delete(mode);
         window.RSVP_LOCAL_EDITORS?.saved(
           form,
           T("Status message preferences saved."),
@@ -188,21 +204,42 @@
         await ctx.reload();
         // Inline acknowledgement remains visible even when the saved filter hides successes.
         const result = R.byId("notificationSettingsHost").querySelector(
-          ".local-editor-feedback",
+          '[data-settings-card="notification-preferences:' + mode + '"] .local-editor-feedback',
         );
         if (result) result.textContent = T("Status message preferences saved.");
       } catch (error) {
+        if (ticket !== generation) return;
         status.textContent = R.safeError(error);
       } finally {
         busy = false;
         update();
       }
     });
+    form.renderReadSummary = summary => {
+      const list = R.dom("dl", { class: "notification-read-summary" });
+      const typeLabels = { info: "Information", success: "Success", warning: "Warnings", error: "Errors" };
+      for (const [scope, title] of [["admin", "Admin"], ["guest", "Guest"]]) {
+        const value = working[scope], item = R.dom("div"), details = R.dom("dd");
+        const label = value.preset === "custom" ? T("Custom") + ": " + value.types.map(type => T(typeLabels[type])).join(", ")
+          : T(value.preset === "errors" ? "Errors only" : "All messages");
+        details.append(R.dom("strong", {}, label), R.dom("span", { class: "micro" },
+          T("Hide messages after 5 seconds") + ": " + T(value.autoDismiss ? "Enabled" : "Disabled") + " · " +
+          T("Show timestamps") + ": " + T(value.showTimestamp ? "Enabled" : "Disabled")));
+        item.append(R.dom("dt", {}, T(title)), details); list.append(item);
+      }
+      summary.append(list);
+    };
     form.cleanSaveUpdate = update;
+    host.notificationController = {
+      context: ctx, update,
+      preserve: () => ticket === generation && !committed && (busy || dirty() || !!status.textContent ||
+        form.localEditor?.box.classList.contains("local-editor-open")),
+    };
     update();
   }
   window.RSVP_ADMIN_NOTIFICATIONS = {
     render,
+    clear() { generation++; drafts.clear(); },
     hasUnsaved: () =>
       !!document.querySelector(
         '#notificationSettingsHost form[data-dirty="true"]',

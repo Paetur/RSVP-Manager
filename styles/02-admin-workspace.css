@@ -1085,10 +1085,17 @@ html[data-theme="dark"] .topbar .admin-icon-btn .theme-moon {
   gap: 2px;
 }
 .topbar .admin-version {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
   color: var(--muted);
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   line-height: 1.2;
   white-space: nowrap;
+}
+.topbar .admin-version[hidden] {
+  display: none;
 }
 .topbar .admin-identity {
   max-width: 155px;
@@ -1242,6 +1249,21 @@ html[data-theme="dark"] .topbar .admin-icon-btn .theme-moon {
   }
   .topbar .admin-identity-block {
     display: none;
+  }
+  .topbar .admin-version {
+    display: none;
+  }
+}
+@media (max-width: 380px) {
+  .topbar:has(.admin-topbar-actions) .admin-topbar-actions {
+    width: auto;
+    max-width: none;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .topbar .admin-version {
+    width: 100%;
+    min-height: 24px;
   }
 }
 

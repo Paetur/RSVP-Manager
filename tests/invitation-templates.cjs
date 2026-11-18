@@ -38,7 +38,15 @@ const api = context.window.RSVP_ADMIN_INVITATION_TEMPLATES.create({
     byId: () => null,
     invitationURL: (code) => "https://example.invalid/?=" + code,
   },
-  getStore: () => store,
+  getStore: () => {
+    // Keep the table of language test cases compact, then build current named groups.
+    const groups = new Map();
+    for (const row of store.invitationTemplates) {
+      if (!groups.has(row.channel)) groups.set(row.channel, { id: row.channel, name: row.channel, channels: [row.channel], versions: {} });
+      if (!Object.keys(groups.get(row.channel).versions).length) groups.get(row.channel).versions[row.language_code] = row;
+    }
+    return { ...store, invitationTemplates: [...groups.values()] };
+  },
   languages: () => enabled.map((code) => [code, code]),
 });
 const household = {
@@ -48,8 +56,8 @@ const household = {
 };
 assert.equal(
   api.draft(household, "email").body,
-  "FO Example household: {invitation_link}",
-  "disabled household language uses enabled fallback without revealing unpublished link",
+  "DE Example household: {invitation_link}",
+  "named content is selected explicitly, independently of household language, without revealing an unpublished link",
 );
 enabled.push("de");
 assert.equal(api.draft(household, "email").subject, "DE Example & event");
@@ -90,6 +98,9 @@ assert.equal(
 store.invitationTemplates.push({language_code: "en", channel: "whatsapp", body: "{invitation_link}", message_image: {image: "synthetic-picture"}});
 assert.equal(api.draft(household, "whatsapp").image.image, "synthetic-picture");
 assert.equal(api.draft(household, "sms").image, null, "pictures never spill across channels");
+store.invitationTemplates.push({language_code:"en",channel:"sms",subject:"Unused subject",body:"Long {invitation_link}",short_body:"Short {invitation_link}",options:["shortMessage"]});
+assert.equal(api.draft(household,"sms").body,"Short https://example.invalid/?=ABCDEFGH");
+assert.equal(api.draft(household,"sms").subject,"");
 store.settings.is_published = false;
 assert.equal(api.draft(household, "whatsapp").body, "{invitation_link}");
 store.settings.rsvp_deadline = "2027-03-27T23:30:00Z";
@@ -100,5 +111,5 @@ store.settings.rsvp_deadline = null;
 assert.match(api.draft(household,"manual").body,/\{rsvp_deadline:\+5\}/,"a missing date remains visibly unresolved in a draft");
 assert.throws(()=>context.window.RSVP_INVITATION_TEXT.validate("{rsvp_deadline:+367}"),/unknown placeholder/);
 console.log(
-  "PASS invitation templates: enabled-language/channel fallback, placeholders, no unpublished link, missing-code/template fallback and replaced-store reads.",
+  "PASS invitation templates: named content/channel selection, placeholders, no unpublished link, missing-code/template fallback and replaced-store reads.",
 );

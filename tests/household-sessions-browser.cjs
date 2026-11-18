@@ -50,6 +50,9 @@ const sessionHouseholdRpc=client.rpc;client.rpc=async(name,args)=>{
       await page
         .locator("#householdRows details")
         .evaluateAll((nodes) => nodes.forEach((n) => (n.open = true)));
+      const edit = page.locator('[data-tree-key="household:' + id + '"] > summary')
+        .getByRole("button", { name: /^Edit household:/ });
+      await edit.click();
       const form = page.locator("#household-form-" + id),
         checks = form.locator(".household-session-choices input");
       assert.ok((await checks.count()) > 0);
@@ -106,6 +109,7 @@ const sessionHouseholdRpc=client.rpc;client.rpc=async(name,args)=>{
       await page
         .locator("#householdRows details")
         .evaluateAll((nodes) => nodes.forEach((n) => (n.open = true)));
+      await edit.click();
       assert.equal(
         await form
           .locator(".household-session-choices input:not(:disabled)")

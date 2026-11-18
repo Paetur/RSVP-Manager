@@ -12,6 +12,8 @@
         "Interface",
         "personal",
       ],
+      ["#invitesAppearanceForm", "invites-appearance", "Invites appearance", "personal"],
+      ["#shortcutExperimentalForm", "experimental-shortcuts", "Apple Shortcuts (experimental)", "settings"],
       ["#guestNamesHost form", "guest-names", "Guest titles", "settings"],
       ["#eventFeaturesHost form", "event-features", "Features", "settings"],
       [
@@ -22,13 +24,13 @@
       ],
       [
         "#guestAppearanceHost form",
-        "guest-customization",
-        "Guest invitation",
+        null,
+        "Invitation appearance",
         "settings",
       ],
       [
         "#notificationSettingsHost form",
-        "notification-preferences",
+        null,
         "Status messages",
         "settings",
       ],
@@ -50,6 +52,10 @@
       policy[3] === "personal" || can(policy[3], "edit");
     function readSummary(form, summary) {
       summary.replaceChildren();
+      if (form.renderReadSummary) {
+        form.renderReadSummary(summary);
+        return;
+      }
       if (form.dataset.translationCard) {
         window.RSVP_ADMIN_TRANSLATION_CARDS.summary(form, summary, { R });
         return;
@@ -69,7 +75,7 @@
             input.type,
           ) ||
           (input.type === "radio" && !input.checked) ||
-          input.closest(".notification-types.hidden,.customization-crop")
+          input.closest(".notification-types.hidden,.customization-crop,.placeholder-help")
         )
           continue;
         const labelNode = input.closest("label"),
@@ -171,6 +177,7 @@
           class: "micro local-editor-feedback",
           role: "status",
         });
+      if (form.dataset.startOpen === "true") opened.add(key);
       if (!editable(policy)) opened.delete(key);
       box.dataset.editorKey = key;
       const languageRow = form.matches("#languageRows form");
@@ -241,6 +248,10 @@
             event.preventDefault();
             event.stopPropagation();
           });
+        if (languageRow) {
+          const exportAction = form.querySelector('[data-read-only-action="true"]');
+          if (exportAction) header.append(exportAction);
+        }
         header.append(button);
         if (!form.dataset.editorAction) button.classList.add("settings-card-pencil");
       } else box.insertBefore(button, feedback);

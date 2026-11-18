@@ -46,6 +46,8 @@ jobs:
           node node_modules/typescript/bin/tsc --noEmit --target ES2023 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions --skipLibCheck setup-service/*.ts
           node --experimental-strip-types tests/automatic-setup.mjs
           node --experimental-strip-types tests/automatic-setup-http.mjs
+          node --experimental-strip-types tests/local-administrator-setup.mjs
+          node --experimental-strip-types tests/automatic-setup-live-acceptance.mjs
           node tools/build-css.cjs --check
           node tests/css-build.cjs
           node tests/admin-overview.cjs
@@ -64,6 +66,7 @@ jobs:
           node tests/household-sessions-db.cjs
           node tests/notification-preferences-db.cjs
           node tests/translation-registry-db.cjs
+          node tests/template-options-db.cjs
           node tests/canonical-locales-db.cjs
           node tests/security-regressions.cjs
           node tests/admin-invitations.cjs
@@ -84,6 +87,11 @@ jobs:
           node tests/guest-contacts-db.cjs
           node tests/guest-order-db.cjs
           node tests/share-handoff-db.cjs
+      - name: Test current database controls and Shortcuts permissions
+        run: |
+          node tests/queued-settings-db.cjs
+          node tests/database-experiment-db.cjs
+          node tests/household-visits-db.cjs
   guest-feedback-concurrency:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -142,7 +150,9 @@ jobs:
       - name: Test Local and Cloud setup choices and installer download
         run: node tests/setup-browser.cjs
       - name: Test trusted automatic setup companion
-        run: node --experimental-strip-types tests/automatic-setup-browser.mjs
+        run: |
+          node --experimental-strip-types tests/automatic-setup-browser.mjs
+          node --experimental-strip-types tests/local-administrator-setup-browser.mjs
       - name: Test release-matching Studio guide
         run: node tests/studio-guide-browser.cjs
       - name: Validate admin JavaScript
@@ -166,14 +176,19 @@ jobs:
           node tests/languages-backup-browser.cjs
           node tests/backup-encryption-browser.cjs
           node tests/backup-compression-browser.cjs
+          node tests/admin-database-browser.cjs
+          node tests/experimental-interface-browser.cjs
           node tests/invites-order-browser.cjs
       - name: Test local task edits, food expansion and icon pop-ups
         run: |
           node tests/admin-controls-browser.cjs
           node tests/admin-helper-contracts-browser.cjs
           node tests/admin-personal-preferences-browser.cjs
+          node tests/admin-auth-recovery-browser.cjs
           node tests/admin-local-editors-browser.cjs
           node tests/settings-card-layout-browser.cjs
+          node tests/wide-card-layout-browser.cjs
+          node tests/invites-actions-layout-browser.cjs
           node tests/admin-planning-browser.cjs
           node tests/admin-ui-cleanup-browser.cjs
       - name: Test compact food, language categories and task sheet
@@ -188,6 +203,13 @@ jobs:
         run: node tests/admin-permissions-browser.cjs
       - name: Test device delivery handoffs and reminder drafts
         run: node tests/device-delivery.cjs && node tests/device-delivery-browser.cjs && node tests/admin-delivery-views-browser.cjs && node tests/admin-delivery-editor-browser.cjs && node tests/invitation-share-browser.cjs && node tests/invitation-picture-browser.cjs && node tests/guest-titles-placeholders-browser.cjs && node tests/household-sessions-browser.cjs
+      - name: Test draft and template deletion safeguards
+        run: node tests/deletion-actions-browser.cjs
+      - name: Test reviewed settings, templates and placeholders
+        run: |
+          node tests/review-interface-status-browser.cjs
+          node tests/template-review-browser.cjs
+          node tests/application-placeholders-browser.cjs
       - name: Test food interest answers and hidden menu UI
         run: node tests/languages-layout-browser.cjs && node tests/guest-food-wording-browser.cjs && node tests/food-interest-browser.cjs && node tests/food-click-browser.cjs && node tests/food-scroll-browser.cjs && node tests/food-review-browser.cjs && node tests/recipe-dialog-browser.cjs && node tests/private-guest-event-browser.cjs && node tests/guest-order-browser.cjs && node tests/admin-guest-order-browser.cjs && node tests/rsvp-confirmed-list-browser.cjs && node tests/venue-lines-browser.cjs && node tests/guest-background-browser.cjs && node tests/guest-appearance-browser.cjs
       - name: Test Food editing, category dropdowns and translation draft retention

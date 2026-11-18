@@ -5,7 +5,49 @@ const fs = require("node:fs"),
   path = require("node:path"),
   assert = require("node:assert/strict");
 const root = path.resolve(__dirname, "..");
-const sdk = `window.__setupCalls=[];window.supabase={createClient:()=>({rpc:async(name)=>{window.__setupCalls.push(name);if(name==='get_public_event'&&window.__schemaFailure)return {error:{message:'Synthetic schema unavailable'}};return {data:name==='is_admin'?true:null,error:null}},functions:{invoke:async()=>({data:null,error:null})},auth:{signInWithPassword:async()=>({error:null})}})};`;
+const { createDatabase } = require("./helpers/alpha-database.cjs");
+async function checkManualAdministratorSql(sql, email) {
+  const db = await createDatabase();
+  const admin = "11111111-1111-4111-8111-111111111111";
+  const duplicate = "22222222-2222-4222-8222-222222222222";
+  const count = async () => (await db.query("SELECT count(*)::int AS count FROM public.admins")).rows[0].count;
+  const reject = async pattern => {
+    await assert.rejects(db.exec(sql), pattern);
+    await db.exec("ROLLBACK");
+    assert.equal(await count(), 0, "refused manual SQL leaves administrator access empty");
+  };
+  try {
+    await reject(/Create and confirm exactly one matching Auth account/);
+    await db.query("INSERT INTO auth.users VALUES($1,$2,NULL,'unchanged')", [admin, email]);
+    await reject(/Create and confirm exactly one matching Auth account/);
+    await db.query("UPDATE auth.users SET email_confirmed_at=now() WHERE id=$1", [admin]);
+    await db.query("INSERT INTO auth.users VALUES($1,$2,now(),'unchanged')", [duplicate, email]);
+    await reject(/Create and confirm exactly one matching Auth account/);
+    await db.query("DELETE FROM auth.users WHERE id=$1", [duplicate]);
+    await db.exec("INSERT INTO public.households(household_name,planning_group_id,language) VALUES('Existing synthetic household','general','en')");
+    await reject(/event already contains data/);
+    assert.equal((await db.query("SELECT count(*)::int AS count FROM public.households")).rows[0].count, 1);
+    await db.exec("DELETE FROM public.households WHERE household_name='Existing synthetic household'");
+    await db.exec("INSERT INTO app_private.installation_state(installation_id,schema_version,release_version,installer_hash,site_url,initialized_at) SELECT installation_id,'20261114034908','0.9.0-alpha.7',repeat('f',64),'https://setup.example.invalid/',now() FROM app_private.backup_origin WHERE singleton");
+    await reject(/First-time setup is closed/);
+    await db.exec("DELETE FROM app_private.installation_state WHERE id");
+    const auth = (await db.query("SELECT to_jsonb(u) AS account FROM auth.users u WHERE id=$1", [admin])).rows[0].account;
+    await db.exec(sql);
+    assert.equal(await count(), 1);
+    const member = (await db.query("SELECT user_id,access_state,access_permissions FROM public.admins")).rows[0];
+    assert.equal(member.user_id, admin);
+    assert.equal(member.access_state, "active");
+    assert.equal(member.access_permissions.preset, "full");
+    assert.deepEqual((await db.query("SELECT to_jsonb(u) AS account FROM auth.users u WHERE id=$1", [admin])).rows[0].account, auth);
+    await assert.rejects(db.exec(sql), /First-time setup is closed/);
+    await db.exec("ROLLBACK");
+    assert.equal(await count(), 1, "manual first-admin creation is closed after success");
+  } finally {
+    await db.close();
+  }
+}
+
+const sdk = `window.__setupCalls=[];window.supabase={createClient:()=>({rpc:async(name)=>{window.__setupCalls.push(name);if(name==='get_setup_status')return window.__setupProbeFailure?{error:{message:'Synthetic checkpoint failure'}}:{data:{initialized:!!window.__setupLocked,setup_locked:!!window.__setupLocked},error:null};if(name==='get_public_event'&&window.__schemaFailure)return {error:{message:'Synthetic schema unavailable'}};return {data:name==='is_admin'?true:null,error:null}},functions:{invoke:async()=>({data:null,error:null})},auth:{signInWithPassword:async()=>({error:null})}})};`;
 const server = http.createServer((req, res) => {
   let name = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
   if (name.startsWith("/event/")) name = name.slice(6);
@@ -47,7 +89,7 @@ const server = http.createServer((req, res) => {
   try {
     browser = await chromium.launch();
     const origin = "http://127.0.0.1:" + server.address().port;
-    for (const prefix of ["", "/event"])
+    for (const prefix of (process.env.RSVP_SETUP_GUARDS_ONLY ? [] : ["", "/event"]))
       for (const width of [390, 1160])
         for (const language of ["en", "de", "fo"]) {
           const page = await browser.newPage({
@@ -280,6 +322,25 @@ const server = http.createServer((req, res) => {
             await page.locator("#setupKey").fill("sb_publishable_synthetic");
             await page.locator("#connectForm button[type=submit]").click();
             await page.locator('[data-step-panel="3"]:not(.hidden)').waitFor();
+            assert.equal(await page.locator("#adminSetupHelp a").isVisible(), true, "the companion option remains available");
+            if (!await page.locator("#manualAdministratorSetup").evaluate(node => node.open))
+              await page.locator("#manualAdministratorSetup > summary").click();
+            await page.locator("#bootstrapEmail").fill("invalid");
+            await page.locator("#makeBootstrap").click();
+            assert.equal(await page.locator("#bootstrapSql").inputValue(), "");
+            const manualEmail = "owner.o'reilly+$rsvp_first_admin$@example.invalid";
+            await page.locator("#bootstrapEmail").fill(manualEmail);
+            await page.locator("#makeBootstrap").click();
+            await page.waitForFunction(() => document.getElementById("bootstrapSql").value.endsWith("COMMIT;"));
+            const manualSql = await page.locator("#bootstrapSql").inputValue();
+            await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined }));
+            await page.locator("#copyBootstrap").click();
+            assert.equal(await page.locator("#bootstrapSql").inputValue(), manualSql, "unavailable clipboard retains selectable SQL");
+            assert.ok(manualSql.includes("owner.o''reilly+$rsvp_first_admin$@example.invalid"), "apostrophes are escaped without interpolating email into a dollar-quoted block");
+            if (target === "local" && prefix === "" && width === 390 && language === "en")
+              await checkManualAdministratorSql(manualSql, manualEmail);
+            await page.locator("#bootstrapEmail").fill("changed@example.invalid");
+            assert.equal(await page.locator("#bootstrapSql").inputValue(), "", "editing the email discards stale SQL");
             await page
               .locator("#setupAdminEmail")
               .fill("synthetic@example.invalid");
@@ -362,8 +423,60 @@ const server = http.createServer((req, res) => {
           assert.deepEqual(errors, []);
           await page.close();
         }
+    for (const failure of [false,true]) for (const suffix of ["","?manual=1"]) {
+      const page=await browser.newPage({viewport:{width:390,height:900}});
+      await page.addInitScript(sdk + ';window.__setupLocked=true;window.__setupProbeFailure='+JSON.stringify(failure)+';window.RSVP_CONFIG={supabaseUrl:"https://setup.example.invalid",supabaseKey:"sb_publishable_synthetic"};');
+      await page.route("**/supabase.min.js",route=>route.fulfill({contentType:"application/javascript",body:sdk}));
+      await page.goto(origin+"/setup.html"+suffix);
+      await page.locator(failure?"#setupProbeFailure:not(.hidden)":"#setupClosed:not(.hidden)").waitFor();
+      assert.equal(await page.locator(".steps:visible,.wizard-step:visible").count(),0,"closed/error checkpoint hides every setup mutation path");
+      assert.equal(await page.locator("#manualAdministratorSetup").isVisible(),false,"closed/error checkpoint hides manual SQL setup");
+      assert.equal(await page.locator("#bootstrapSql").inputValue(),"","closed/error checkpoint cannot generate administrator SQL");
+      assert.equal(await page.locator("#setupCompanionEntry").isVisible(),false);
+      assert.deepEqual(await page.evaluate(()=>window.__setupCalls.filter(name=>name!=="get_language_configuration")),["get_setup_status"]);
+      if(failure)assert(await page.locator("#setupRetry").isVisible());
+      await page.close();
+    }
+    const installedConfig={supabaseUrl:"https://installed.example.invalid",supabaseKey:"sb_publishable_installed"},
+      otherConfig={supabaseUrl:"https://other.example.invalid",supabaseKey:"sb_publishable_other"};
+    for(const suffix of ["","?manual=1"]) {
+      const page=await browser.newPage({viewport:{width:390,height:900}});
+      const captureSdk=sdk+';window.__setupClientURLs=[];const originalCreate=window.supabase.createClient;window.supabase.createClient=(url,...args)=>{window.__setupClientURLs.push(url);return originalCreate(url,...args);};';
+      await page.addInitScript(captureSdk+';window.__setupLocked=true;window.RSVP_CONFIG='+JSON.stringify(installedConfig)+';');
+      await page.route("**/supabase.min.js",route=>route.fulfill({contentType:"application/javascript",body:captureSdk}));
+      await page.goto(origin+"/setup.html"+suffix+"#connection="+encodeURIComponent(JSON.stringify(otherConfig)));
+      await page.locator("#setupProbeFailure:not(.hidden)").waitFor();
+      assert.equal(new URL(page.url()).hash,"","handoff payload is cleared immediately");
+      assert.deepEqual(await page.evaluate(()=>window.RSVP.config()),installedConfig,"configured installation cannot be overridden by another companion handoff");
+      assert((await page.evaluate(()=>window.__setupClientURLs)).every(url=>url===installedConfig.supabaseUrl),"no client or backend request targets the handoff project");
+      assert(!(await page.evaluate(()=>JSON.stringify({...localStorage}))).includes(otherConfig.supabaseKey));
+      assert.equal(await page.locator(".steps:visible,.wizard-step:visible").count(),0);
+      await page.close();
+    }
+    for(const failure of [false,true]) {
+      const page=await browser.newPage();
+      await page.addInitScript(sdk+';window.__setupLocked=true;window.__setupProbeFailure='+JSON.stringify(failure)+';window.RSVP_CONFIG='+JSON.stringify(installedConfig)+';');
+      await page.route("**/supabase.min.js",route=>route.fulfill({contentType:"application/javascript",body:sdk}));
+      await page.goto(origin+"/setup.html#connection="+encodeURIComponent(JSON.stringify(installedConfig)));
+      await page.locator(failure?"#setupProbeFailure:not(.hidden)":"#setupClosed:not(.hidden)").waitFor();
+      assert.deepEqual(await page.evaluate(()=>window.RSVP.config()),installedConfig,"same-config handoff retains checkpoint and never rewrites connection");
+      assert.equal(new URL(page.url()).hash,"");
+      await page.close();
+    }
+    {
+      const page=await browser.newPage();
+      await page.addInitScript(sdk);
+      await page.route("**/supabase.min.js",route=>route.fulfill({contentType:"application/javascript",body:sdk}));
+      await page.route(origin+"/admin/",route=>route.fulfill({contentType:"text/html",body:'<p id="handoffSignIn">Sign in</p>'}));
+      await page.goto(origin+"/setup.html#connection="+encodeURIComponent(JSON.stringify(otherConfig)));
+      await page.locator("#handoffSignIn").waitFor();
+      const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('rsvp-manager-setup:'+new URL('../',location.href).href)));
+      assert.deepEqual(saved,otherConfig,"unconfigured website accepts public companion configuration for sign-in");
+      assert.equal(new URL(page.url()).hash,"");
+      await page.close();
+    }
     console.log(
-      "PASS setup: explicit Local/Cloud choice, guarded steps, server prerequisites before connection, Pages publishing after verification, correct guides/Studio URL, actual SQL/config download, connection/verification invalidation and errors; root/subdirectory EN/DE/FO at 390/1160px.",
+      "PASS setup: explicit Local/Cloud choice, guarded steps, server prerequisites before connection, Pages publishing after verification, correct guides/Studio URL, actual SQL/config download, optional manual first-admin SQL with verified-account, empty-installation and replay guards, connection/verification invalidation and errors; root/subdirectory EN/DE/FO at 390/1160px.",
     );
   } finally {
     if (browser) await browser.close();

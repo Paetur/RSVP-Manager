@@ -39,12 +39,14 @@ async function run(browserType){
    assert.equal(await page.locator('html').getAttribute('lang'),lang);
    assert.equal(await page.locator('[data-tab="households"]').textContent(),lang==='en'?'Households':catalog.Households[lang]);
    await page.locator('#settingsToggle').click();
-   await page.locator('[data-settings-tab="interface"]').click();await openBox(page,'notification-preferences');
-   const timeLabel=lang==='en'?'Show timestamps':catalog['Show timestamps'][lang],timestampChecks=page.locator('#notificationSettingsHost').getByRole('checkbox',{name:timeLabel,exact:true});
+   await page.locator('[data-settings-tab="interface"]').click();
+   await openBox(page,'notification-preferences:wide');
+   const wideStatus=page.locator('[data-settings-card="notification-preferences:wide"]');
+   const timeLabel=lang==='en'?'Show timestamps':catalog['Show timestamps'][lang],timestampChecks=wideStatus.getByRole('checkbox',{name:timeLabel,exact:true});
    assert.equal(await timestampChecks.count(),2);assert.equal(await timestampChecks.first().isChecked(),true);assert.equal(await timestampChecks.nth(1).isChecked(),false);
-   await page.locator('#notificationSettingsHost').getByRole('button',{name:lang==='en'?'Cancel':catalog.Cancel[lang],exact:true}).click();
+   await wideStatus.getByRole('button',{name:lang==='en'?'Cancel':catalog.Cancel[lang],exact:true}).click();
    await page.locator('[data-settings-tab="backups"]').click();
-   for(const [id,labels] of [['backupExportMode',['Full backup','Partial backup']],['backupRestoreMode',['Full restore','Partial restore']]])for(const label of labels)assert.equal(await page.locator('#'+id).getByRole('checkbox',{name:lang==='en'?label:catalog[label][lang],exact:true}).count(),1);
+   for(const [id,labels] of [['backupExportMode',['Full backup','Partial backup']],['backupRestoreMode',['Full','Partial','Wipe']]])for(const label of labels)assert.equal(await page.locator('#'+id).getByRole('checkbox',{name:lang==='en'?label:catalog[label][lang],exact:true}).count(),1);
    assert.equal(await page.getByRole('checkbox',{name:lang==='en'?'Include activity logs':catalog['Include activity logs'][lang],exact:true}).count(),2);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'backup controls fit at 390px in '+lang);
    await page.locator('[data-settings-tab="languages"]').click();

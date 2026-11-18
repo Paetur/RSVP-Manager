@@ -1,19 +1,32 @@
 (function () {
   "use strict";
-  let draft = null,
-    ctx = null;
+  const drafts = new Map();
+  let generation = 0;
   const I = window.RSVP_I18N,
     T = (s, p) => I.t(s, p),
     D = window.RSVP_GUEST_DESIGN;
-  function render(options) {
-    ctx = options;
-    const { R } = ctx,
-      host = R.byId("guestAppearanceHost");
+  const previewPalette = (theme) => theme === "system"
+    ? matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+    : theme === "light" ? "light" : "dark";
+  function render(options, preserveDraft = false, resetBaseline = null) {
+    const ctx = options, { R } = ctx, host = ctx.host || R.byId("guestAppearanceHost");
+    const mode = ctx.mode || window.RSVP_GUEST_INTERFACE.selected;
+    let draft = drafts.get(mode);
     if (!host) return;
+    const previous = host.customizationController;
+    if (ctx.can("settings") && preserveDraft && previous?.preserve()) {
+      // Rebind only live integration callbacks. The retained controller keeps
+      // its original optimistic baseline, invalid fields and failure feedback.
+      Object.assign(previous.context, options);
+      options.mountPreview?.(previous.preview);
+      previous.update();
+      return;
+    }
     host.replaceChildren();
+    delete host.customizationController;
     if (!ctx.can("settings")) return;
-    const original = ctx.getStore().settings || {},
-      revision = original.guest_customization_revision || null;
+    const original = resetBaseline || ctx.getStore().settings || {},
+      revision = JSON.stringify([mode, original.guest_design, original.guest_background, original.guest_theme_toggle, original.guest_theme_default, original.guest_title_visibility, original.show_repeated_surname, original.guest_name_layout]);
     if (!draft || draft.revision !== revision)
       draft = {
         revision,
@@ -23,26 +36,25 @@
         backgroundMode: "keep",
         toggle: original.guest_theme_toggle !== false,
         theme: original.guest_theme_default || "dark",
-        palette: original.guest_theme_default === "light" ? "light" : "dark",
-        wide: false,
+        palette: previewPalette(original.guest_theme_default),
+        wide: mode === "wide",
+        titles: { ...original.guest_title_visibility },
+        surname: original.show_repeated_surname !== false,
+        nameLayout: original.guest_name_layout,
       };
+    drafts.set(mode, draft);
     const working = draft;
-    let busy = false,
+    const ticket = generation;
+    let busy = false, committed = false,
       uploadVersion = 0;
     const heading = R.dom("div", { class: "settings-card-heading" });
-    heading.append(R.dom("h3", {}, T("Guest invitation")));
-    host.append(
-      heading,
-      R.dom(
-        "p",
-        { class: "muted" },
-        T("Customize the invitation without publishing the event."),
-      ),
-    );
+    heading.append(R.dom("h3", {}, T(mode === "phone" ? "Phone" : "Wide")));
+    host.append(heading);
     const layout = R.dom("div", { class: "customization-layout" }),
       form = R.dom("form", { class: "customization-form" });
-    form.dataset.formKey = "guest-customization";
+    form.dataset.formKey = "guest-customization:" + mode;
     form.dataset.customization = "true";
+    form.dataset.headerEditor = "true";
     const controls = [];
     layout.append(form);
     host.append(layout);
@@ -239,6 +251,16 @@
     }
     colorSection.append(colors);
     range(colorSection, "Box opacity", "opacity", 35, 100);
+    const titlesSection = section("Show titles");
+    const titleChoices = make("div", { class: "guest-name-languages" });
+    for (const [code, label] of ctx.languages()) {
+      const wrap = make("label", { class: "checkbox-label" }), input = make("input", { type: "checkbox" });
+      input.checked = working.titles[code] !== false; input.dataset.requiresLanguageEdit = "true";
+      input.setAttribute("aria-label", T(mode === "phone" ? "Phone" : "Wide") + " · " + label);
+      input.addEventListener("change", () => { working.titles[code] = input.checked; update(); });
+      wrap.append(input, document.createTextNode(label)); titleChoices.append(wrap); controls.push(input);
+    }
+    titlesSection.append(titleChoices);
     const themeSection = section("Guest appearance"),
       themeLabel = make("label", {}, T("Guest default appearance")),
       theme = make("select");
@@ -250,8 +272,22 @@
     ])
       theme.append(make("option", { value: key }, T(label)));
     theme.value = working.theme;
-    themeLabel.append(theme);
-    themeSection.append(themeLabel);
+    theme.hidden = true; themeLabel.hidden = true; themeLabel.append(theme); themeSection.append(themeLabel);
+    const themeChoices = make("fieldset", { class: "guest-default-choices" });
+    themeChoices.append(make("legend", {}, T("Guest default appearance")));
+    const themeChecks = [];
+    for (const [key, text] of [["system", "Default"], ["light", "Light"], ["dark", "Dark"]]) {
+      const label = make("label", { class: "checkbox-label" }), input = make("input", { type: "checkbox", value: key });
+      input.checked = working.theme === key; label.append(input, document.createTextNode(T(text))); themeChoices.append(label); controls.push(input); themeChecks.push(input);
+      input.addEventListener("change", () => { theme.value = key; theme.dispatchEvent(new Event("change", { bubbles: true })); });
+    } themeSection.append(themeChoices);
+    const names = make("div", { class: "guest-name-options" }), repeatedLabel = make("label", { class: "checkbox-label" }), repeated = make("input", { type: "checkbox" });
+    repeated.checked = working.surname; repeatedLabel.append(repeated, document.createTextNode(T("Show repeated surname beside each guest"))); names.append(repeatedLabel);
+    const namePlacement = make("label", {}, T("Guest name placement")), nameLayout = make("select");
+    for (const [key, text] of [["above", "Above and centred"], ["inline", "Left inline"]]) nameLayout.append(make("option", { value: key }, T(text)));
+    nameLayout.setAttribute("aria-label", T("Guest name placement")); nameLayout.value = working.nameLayout; namePlacement.append(nameLayout); names.append(namePlacement); controls.push(repeated, nameLayout);
+    repeated.addEventListener("change", () => { working.surname = repeated.checked; update(); });
+    nameLayout.addEventListener("change", () => { working.nameLayout = nameLayout.value; update(); });
     const toggleLabel = make("label", { class: "checkbox-label" }),
       toggle = make("input", { type: "checkbox" });
     toggle.checked = working.toggle;
@@ -259,16 +295,11 @@
       toggle,
       document.createTextNode(T("Show light/dark toggle on the guest page")),
     );
-    themeSection.append(toggleLabel);
+    themeSection.append(toggleLabel, names);
     controls.push(theme, toggle);
     theme.addEventListener("change", () => {
       working.theme = theme.value;
-      working.palette =
-        theme.value === "system"
-          ? matchMedia("(prefers-color-scheme: dark)").matches
-            ? "dark"
-            : "light"
-          : theme.value;
+      working.palette = previewPalette(theme.value);
       sync();
     });
     toggle.addEventListener("change", () => {
@@ -289,13 +320,14 @@
       });
     widthActions.append(phone, wide);
     previewHeader.append(widthActions);
-    previewHost.append(previewHeader);
-    layout.append(previewHost);
+    if (!ctx.sharedPreview) previewHost.append(previewHeader);
+    if (!ctx.mountPreview) layout.append(previewHost);
     const sample = make("div", { class: "customization-sample" }),
       backdrop = make("div", { class: "customization-sample-backdrop" }),
-      shade = make("div", { class: "customization-sample-shade" });
+      shade = make("div", { class: "customization-sample-shade" }),
+      sampleEventName = make("header"), sampleSessionName = make("h4");
     sample.append(backdrop, shade);
-    sample.append(make("header", {}, original.event_name || T("Your event")));
+    sample.append(sampleEventName);
     const welcome = make("section", { class: "customization-sample-box" });
     welcome.append(
       make("h4", {}, T("Sample household")),
@@ -304,20 +336,19 @@
     sample.append(welcome);
     const session = make("section", { class: "customization-sample-box" });
     session.append(
-      make(
-        "h4",
-        {},
-        ctx.getStore().sessions.find((s) => s.is_active)?.name || T("Sessions"),
-      ),
+      sampleSessionName,
       make("p", {}, T("Please let us know who will attend.")),
     );
     const choices = make("div", { class: "rsvp-inline customization-sample-choices" }),
       person = make("div", { class: "rsvp-person-row" }),
       sampleOptions = make("div", { class: "response-options" });
-    person.append(make("span", { class: "rsvp-person-name" }, T("Guest")), sampleOptions);
+    const sampleName = make("span", { class: "rsvp-person-name" }),
+      sampleGuest = { first_name: T("Guest"), last_name: T("Sample household") },
+      sampleInvitation = { household: { last_name: sampleGuest.last_name }, guests: [sampleGuest] };
+    person.append(sampleName, sampleOptions);
     for (const [index, caption] of ["Attending", "Not attending"].entries()) {
       const label = make("label", { class: "radio-pill" }),
-        radio = make("input", { type: "radio", name: "appearance-preview-attendance", value: String(index) });
+        radio = make("input", { type: "radio", name: "appearance-preview-attendance:" + mode, value: String(index) });
       radio.checked = index === 0;
       label.append(radio, make("span", {}, T(caption)));
       sampleOptions.append(label);
@@ -336,21 +367,29 @@
       ),
     );
     previewHost.append(sample);
+    ctx.mountPreview?.(previewHost);
     const save = make("button", { type: "submit", class: "btn" }, T("Save")),
       cancel = button("Cancel", () => {
         if (busy) return;
         window.RSVP_LOCAL_EDITORS?.cancel(form);
         uploadVersion++;
-        draft = null;
+        drafts.delete(mode);
         render(ctx);
+        ctx.refreshEditors?.();
+        host.querySelector("form")?.localEditor?.button.focus({ preventScroll: true });
       }),
       reset = button("Reset appearance", () => {
         working.design = structuredClone(D.defaults);
         working.designChanged = false;
         working.resetDesign = true;
         working.theme = "dark";
+        working.palette = "dark";
         working.toggle = true;
-        render(ctx);
+        // Reset appearance keeps the rest of this draft and its optimistic
+        // baseline, even when an unrelated refresh found a newer server value.
+        render(ctx, false, original);
+        ctx.refreshEditors?.();
+        host.querySelector(".customization-reset")?.focus({ preventScroll: true });
       });
     const actions = make("div", {
       class: "form-actions customization-actions",
@@ -365,15 +404,27 @@
         working.designChanged ||
         working.resetDesign ||
         working.toggle !== (original.guest_theme_toggle !== false) ||
-        working.theme !== (original.guest_theme_default || "dark")
+        working.theme !== (original.guest_theme_default || "dark") ||
+        JSON.stringify(working.titles) !== JSON.stringify(original.guest_title_visibility || {}) ||
+        working.surname !== (original.show_repeated_surname !== false) || working.nameLayout !== original.guest_name_layout
       );
     }
     function update() {
       if (busy) form.setAttribute("aria-busy", "true");
       else form.removeAttribute("aria-busy");
-      if (!form.isConnected) return;
+      if (!form.isConnected || ticket !== generation) return;
       D.colors(sample, working.design, working.palette);
+      sampleEventName.textContent = ctx.getStore().settings?.event_name || T("Your event");
+      sampleSessionName.textContent = ctx.getStore().sessions.find((s) => s.is_active)?.name || T("Sessions");
       sample.dataset.previewTheme = working.palette;
+      sample.dataset.guestNameLayout = working.nameLayout;
+      sampleName.replaceChildren();
+      if (working.titles[I.language] !== false)
+        sampleName.append(make("span", { class: "guest-courtesy-title" }, T("Son") + " "));
+      sampleName.append(document.createTextNode([
+        sampleGuest.first_name,
+        window.RSVP_GUEST_NAMES.lastName(sampleGuest, sampleInvitation, { show_repeated_surname: working.surname }),
+      ].filter(Boolean).join(" ")));
       sample.style.maxWidth = working.wide ? "100%" : "340px";
       phone.setAttribute("aria-pressed", String(!working.wide));
       wide.setAttribute("aria-pressed", String(working.wide));
@@ -383,7 +434,7 @@
       shade.hidden = !url;
       for (const control of controls)
         control.disabled =
-          busy || !ctx.isEditing() || !ctx.can("settings", "edit");
+          busy || !ctx.isEditing() || !ctx.can("settings", "edit") || (control.dataset.requiresLanguageEdit === "true" && !ctx.can("languages", "edit"));
       for (const input of Object.values(cropInputs))
         input.disabled = input.disabled || !working.background;
       save.disabled =
@@ -394,6 +445,7 @@
       dark.setAttribute("aria-pressed", String(working.palette === "dark"));
       light.setAttribute("aria-pressed", String(working.palette === "light"));
       form.dataset.dirty = String(dirty());
+      ctx.onUpdate?.();
     }
     function sync() {
       meta.replaceChildren();
@@ -442,6 +494,7 @@
       for (const key of Object.keys(colorInputs))
         colorInputs[key].value = working.design[working.palette][key];
       theme.value = working.theme;
+      for (const input of themeChecks) input.checked = input.value === working.theme;
       toggle.checked = working.toggle;
       update();
     }
@@ -453,7 +506,7 @@
       update();
       try {
         const photo = await D.prepareJPEG(file.files[0]);
-        if (version !== uploadVersion || !form.isConnected) return;
+        if (version !== uploadVersion || !form.isConnected || ticket !== generation) return;
         working.background = photo;
         working.backgroundMode = "replace";
         status.textContent = T("Photo prepared. Save to keep it privately.");
@@ -468,27 +521,26 @@
     });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (save.disabled || !form.reportValidity()) return;
+      if (save.disabled || ticket !== generation || !form.reportValidity()) return;
       busy = true;
       status.textContent = T("Saving…");
       update();
       try {
-        const { error } = await R.adminRpc("admin_save_guest_customization", {
-          p_design:
-            working.resetDesign && !working.designChanged
-              ? null
-              : working.designChanged
-                ? working.design
-                : original.guest_design || null,
-          p_background_mode: working.backgroundMode,
-          p_background:
-            working.backgroundMode === "replace" ? working.background : null,
-          p_show_toggle: working.toggle,
-          p_default_theme: working.theme,
-          p_expected_revision: revision,
+        const values = {
+          guest_design: working.resetDesign && !working.designChanged ? null : working.designChanged ? working.design : original.guest_design || null,
+          guest_theme_toggle: working.toggle,
+          guest_theme_default: working.theme,
+          guest_title_visibility: working.titles, show_repeated_surname: working.surname, guest_name_layout: working.nameLayout,
+          ...(working.backgroundMode === "keep" ? {} : { guest_background: working.backgroundMode === "replace" ? working.background : null }),
+        };
+        const { error } = await R.adminRpc("admin_save_guest_interface", {
+          p_mode: mode, p_values: values,
+          p_expected: Object.fromEntries(Object.keys(values).map(key => [key, original[key] ?? null])),
         });
         if (error) throw error;
-        draft = null;
+        if (ticket !== generation) return;
+        committed = true;
+        drafts.delete(mode);
         I.markClean(form);
         window.RSVP_LOCAL_EDITORS?.saved(form);
         await ctx.reload();
@@ -500,11 +552,50 @@
         update();
       }
     });
+    form.renderReadSummary = summary => {
+      const list = make("dl", { class: "appearance-compact-summary" });
+      const row = (label, ...nodes) => {
+        const item = make("div"), value = make("dd");
+        value.append(...nodes); item.append(make("dt", {}, T(label)), value); list.append(item);
+        return value;
+      };
+      const text = value => document.createTextNode(value), separator = () => {
+        const node = make("span", { class: "appearance-summary-separator" }, " · ");
+        node.setAttribute("aria-hidden", "true"); return node;
+      };
+      const photo = row("Photo", text(T(working.background ? "Private JPEG" : "No background photo")));
+      if (working.background) {
+        photo.append(separator(), text(T({ top: "Top", center: "Center", bottom: "Bottom" }[working.design.position])));
+        const details = make("details", { class: "appearance-photo-details" });
+        details.append(make("summary", {}, T("Details")), meta.cloneNode(true)); photo.append(details);
+      }
+      const swatches = make("span", { class: "appearance-summary-swatches" });
+      swatches.setAttribute("aria-hidden", "true");
+      for (const key of ["box", "button", "text"]) {
+        const color = make("i"); color.style.backgroundColor = working.design[working.palette][key]; swatches.append(color);
+      }
+      row("Colours", swatches, text(T(working.designChanged || original.guest_design && !working.resetDesign ? "Custom" : "Default")));
+      const titles = ctx.languages().filter(([code]) => working.titles[code] !== false),
+        titleValue = row("Titles");
+      if (!titles.length) titleValue.append(text(T("Hidden")));
+      for (const [code, label] of titles) titleValue.append(make("span", { class: "appearance-summary-language", title: label }, code.toUpperCase()));
+      row("Names", text(T(working.nameLayout === "above" ? "Above and centred" : "Left inline")), separator(),
+        text(T(working.surname ? "Surname repeated" : "Surname once")));
+      row("Appearance", text(T({ dark: "Dark", light: "Light", system: "Default" }[working.theme])), separator(),
+        text(T(working.toggle ? "Toggle shown" : "Toggle hidden")));
+      summary.append(list);
+    };
     form.cleanSaveUpdate = update;
+    host.customizationController = {
+      context: ctx, preview: previewHost, update,
+      preserve: () => ticket === generation && !committed && (busy || dirty() || !!status.textContent ||
+        !!form.querySelector(":invalid") || form.localEditor?.box.classList.contains("local-editor-open")),
+    };
     sync();
   }
   window.RSVP_CUSTOMIZATION = {
     render,
+    clear() { generation++; drafts.clear(); },
     hasUnsaved: () =>
       !!document.querySelector('#guestAppearanceHost form[data-dirty="true"]'),
   };

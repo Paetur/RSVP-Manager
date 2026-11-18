@@ -12,13 +12,17 @@ Each installation has its own database, Auth users, website configuration and ev
 
 For a dedicated Supabase Cloud project, the [trusted local setup companion](docs/AutomaticSetup.md) performs the seven installation steps, including first administrator, secrets and Edge Functions. Run it temporarily on your computer; privileged credentials never belong in the static website. The manual Local/Cloud route below remains available.
 
+## Upgrade an existing installation
+
+For alpha.7 installations, follow the [alpha.8 upgrade guide](docs/UpgradeAlpha8.md) to update the database and retain the existing configuration.
+
 ## New installation
 
 1. Download and extract a versioned release ZIP. Keep its `version.json`, `release-manifest.json` and `SHA256SUMS` with your installation records. Verify the published ZIP checksum before using it.
 2. Serve the extracted website files, including `setup.html` and `supabase/install.sql`, under the chosen installation directory. Keep local secrets, configuration exports, database backups and `.git` out of the website directory.
 3. Open `setup.html`. **Step 1:** choose New database → Local or Cloud, or Existing database for an installed event.
 4. **Step 2, before Test connection:** for an empty cloud project, create the project with the security options below and run the complete installer once in SQL Editor. Then save `RSVP_SITE_ORIGIN` / `RSVP_SITE_URL`, deploy both release-matching Edge Functions with platform **Verify JWT OFF**, and configure Auth Site URL / allowed administrator redirects. Follow [the complete Studio guide](docs/StudioSetup.html) now. Local installations follow [the local guide](docs/LocalSetup.html). Existing installations verify their server setup without reinstalling SQL. Only then enter the public project URL/key and test the connection. The wizard checks the database and guest-gateway; it does not configure the server for you.
-5. **Step 3:** create/confirm the first Auth user and run the wizard’s generated first-administrator SQL in your own SQL Editor. Verify the administrator login. Existing installations use their existing administrator.
+5. **Step 3** offers the trusted setup companion and Manual setup. For Manual setup, create and confirm the first Auth user, generate the first-administrator SQL, and run it in your own SQL Editor. Verify the administrator login. Existing installations use their existing administrator.
 6. **Step 4:** publish the browser configuration for all visitors. For the selected-release GitHub Pages workflow, set both [Actions variables](#configure-jsconfigjs-with-github-actions) and redeploy the same release. For direct static hosting, upload the downloaded file as `js/config.js`. Browser-only setup is temporary for that browser; it does not configure the deployed website for others.
 7. Sign in, configure the event and test an invitation preview. A new event stays unpublished until you deliberately publish it.
 

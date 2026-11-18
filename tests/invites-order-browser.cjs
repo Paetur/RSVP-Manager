@@ -1,4 +1,4 @@
-const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture, setInvitesGrouping } = require("./helpers/admin-toolbar.cjs");
 const { chromium } = require("playwright"),
   assert = require("node:assert/strict");
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
@@ -103,7 +103,7 @@ for(const h of fixtures.households.filter(h=>h.id!==h1&&!fixtures.guests.some(g=
       await page.locator("#inviteSearch").fill("Child");
       await compare();
       await page.locator("#inviteSearch").fill("");
-      await page.locator("#inviteGroupView").uncheck();
+      await setInvitesGrouping(page, false);
       const flat = await page
         .locator("#inviteRows [data-invite-household]")
         .evaluateAll((rows) => rows.map((r) => r.dataset.inviteHousehold));
@@ -112,7 +112,7 @@ for(const h of fixtures.households.filter(h=>h.id!==h1&&!fixtures.guests.some(g=
         "22222222-2222-4222-8222-222222222222",
         "flat order remains independent of hierarchy",
       );
-      await page.locator("#inviteGroupView").check();
+      await setInvitesGrouping(page, true);
       await compare();
       assert.ok(
         await page.evaluate(

@@ -24,8 +24,27 @@ const { root, out, server, mock, extra, stageExtra } =
     await page.route("**maps.google.com/**", (r) =>
       r.fulfill({ contentType: "text/html", body: "<p>Map fixture</p>" }),
     );
-    const behavior =
-      "\nfixtures.event_settings[0].guest_theme_toggle=true;fixtures.event_settings[0].guest_theme_default='dark';const appearanceRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_save_guest_customization'){fixtures.event_settings[0].guest_theme_toggle=args.p_show_toggle;fixtures.event_settings[0].guest_theme_default=args.p_default_theme;window.__appearanceWrites=(window.__appearanceWrites||0)+1;return {data:null};}const result=await appearanceRpc(name,args);if(name==='get_public_event_v2'){result.data.event.guest_theme_toggle=fixtures.event_settings[0].guest_theme_toggle;result.data.event.guest_theme_default=fixtures.event_settings[0].guest_theme_default;}return result;};";
+    const behavior = `
+fixtures.event_settings[0].guest_theme_toggle = true;
+fixtures.event_settings[0].guest_theme_default = 'dark';
+const appearanceRpc = client.rpc;
+client.rpc = async (name, args) => {
+  const settings = fixtures.event_settings[0];
+  if (name === 'admin_save_guest_interface') {
+    settings.guest_interface_modes ||= {};
+    const mode = args.p_mode;
+    settings.guest_interface_modes[mode] = { ...settings.guest_interface_modes[mode], ...args.p_values };
+    window.__appearanceWrite = args;
+    return { data: null };
+  }
+  const result = await appearanceRpc(name, args);
+  if (name === 'get_public_event_v2') {
+    result.data.event.guest_theme_toggle = settings.guest_theme_toggle;
+    result.data.event.guest_theme_default = settings.guest_theme_default;
+  }
+  return result;
+};
+`;
     await page.route("**/supabase.min.js", (r) =>
       r.fulfill({
         contentType: "text/javascript",
@@ -104,25 +123,32 @@ const { root, out, server, mock, extra, stageExtra } =
     await page.locator("#settingsToggle").click();
     await page.locator("[data-settings-tab=interface]").click();
 
-    await openBox(page,'guest-customization');
-    const form = page.locator("#guestAppearanceHost form");
+    await page.locator('#guestAppearanceHost [data-appearance-mode="phone"]').click();
+    await openBox(page, "guest-customization:phone");
+    const form = page.locator('[data-settings-card="guest-customization:phone"] form');
     await form
-      .getByRole("combobox", { name: "Guest default appearance", exact: true })
-      .selectOption("light");
-    await form.locator("input[type=checkbox]").uncheck();
+      .getByRole("group", { name: "Guest default appearance", exact: true })
+      .getByRole("checkbox", { name: "Light", exact: true })
+      .check();
+    await form
+      .getByRole("checkbox", { name: "Show light/dark toggle on the guest page", exact: true })
+      .uncheck();
     await form.locator("button[type=submit]").click();
-    await page.waitForFunction(() => window.__appearanceWrites === 1);
-    assert.equal(
-      await page.evaluate(
-        () => window.__fixtures.event_settings[0].guest_theme_toggle,
-      ),
-      false,
-    );
-    assert.equal(
-      await page.evaluate(
-        () => window.__fixtures.event_settings[0].guest_theme_default,
-      ),
-      "light",
+    await page.waitForFunction(() => !!window.__appearanceWrite);
+    assert.equal(await page.evaluate(() => window.__appearanceWrite.p_mode), "phone");
+    assert.deepEqual(
+      await page.evaluate(() => {
+        const settings = window.__fixtures.event_settings[0];
+        const phone = settings.guest_interface_modes.phone;
+        return {
+          phoneToggle: phone.guest_theme_toggle,
+          phoneTheme: phone.guest_theme_default,
+          baseToggle: settings.guest_theme_toggle,
+          baseTheme: settings.guest_theme_default,
+          wide: settings.guest_interface_modes.wide,
+        };
+      }),
+      { phoneToggle: false, phoneTheme: "light", baseToggle: true, baseTheme: "dark", wide: undefined },
     );
     assert.equal(
       await page.evaluate(() => document.documentElement.dataset.theme),

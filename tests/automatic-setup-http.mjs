@@ -93,6 +93,33 @@ try {
       .status,
     413,
   );
+  response = await post("connect", f.config);
+  assert.equal(response.status, 200);
+  const password = "Synthetic HTTP setup password 123!";
+  for (const step of ["database", "administrator", "secrets", "functions", "configuration", "verification"]) {
+    response = await post(step, step === "administrator" ? { email: "http-owner@example.invalid", password } : {});
+    assert.equal(response.status, 200, step);
+    exposed = await response.text();
+    for (const value of [f.config.serviceKey, f.config.accessToken, password])
+      assert(!exposed.includes(value), step + " response excludes private values");
+  }
+  const callCount = f.calls.length;
+  for (const step of ["database", "administrator", "secrets", "functions", "configuration", "verification"]) {
+    response = await post(step, { email: "different@example.invalid", password });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).initialized, true);
+  }
+  assert.equal(f.calls.length, callCount, "completed HTTP session works only from safe cached state after credentials are forgotten");
+  assert.equal(f.state.created, 1, "no second first-admin creation after completion");
+  response = await post("connect", f.config);
+  assert.equal(response.status, 200);
+  const reopened = await response.json();
+  assert.equal(reopened.initialized, true);
+  assert.equal(reopened.existingInstallation, true);
+  const finalSession = await fetch(origin + "/setup-api/session", { headers: { Cookie: cookie } });
+  const state = await finalSession.text();
+  for (const value of [f.config.serviceKey, f.config.accessToken, password])
+    assert(!state.includes(value));
   response = await post("disconnect", {});
   assert.equal(response.status, 200);
   response = await post("connect", f.config);
@@ -103,7 +130,7 @@ try {
   );
 
   console.log(
-    "PASS trusted setup HTTP boundary: loopback host, same-origin/CSRF, private-file denial, credential-free replies, reconnect invalidation, session recovery/disconnect and request limits.",
+    "PASS trusted setup HTTP boundary: loopback host, same-origin/CSRF, private-file denial, credential-free replies, reconnect invalidation, complete install/credential forgetting, all-step closed reentry, initialized reconnect, session recovery/disconnect and request limits.",
   );
 } finally {
   await new Promise((resolve) => server.close(resolve));

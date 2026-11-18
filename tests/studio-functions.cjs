@@ -159,6 +159,18 @@ function boot(name, extra = {}) {
     );
   }
   assert.equal(sent, 2);
+  const shortcut = boot("invitation-shortcuts", {
+    fetch: async (url) => new Response(JSON.stringify(url.endsWith("shortcut_gateway_allow_request") ? true : {
+      mode: "dry_run", invitations: [], statuses: [],
+    }), { status: 200 }),
+  });
+  const batchUrl = "https://api.example.invalid/functions/v1/invitation-shortcuts/batches/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  assert.equal((await shortcut(new Request(batchUrl))).status, 401);
+  const batchResponse = await shortcut(new Request(batchUrl, { headers: {
+    authorization: "Bearer " + "synthetic_capability_".padEnd(64, "x"),
+  }}));
+  assert.equal(batchResponse.status, 200);
+  assert.equal((await batchResponse.json()).schema_version, 1);
   console.log(
     "PASS Studio bundles: fresh generation, executable TypeScript, origin/payload checks, missing invitation rejection, administrator login/membership and trusted email redirects.",
   );

@@ -80,6 +80,10 @@ async function fixture({ installed = false } = {}) {
           }
           if (body.read_only && !/^\s*SELECT\b/i.test(body.query))
             throw Error("Expected read-only query");
+          // Management's read-only role cannot execute protected private helpers.
+          const unquoted = body.query.replace(/E?'(?:[^']|'')*'/g, "''");
+          if (body.read_only && /\bapp_private\.permission_preset\s*\(/.test(unquoted))
+            throw Error("permission denied for function permission_preset");
           if (body.parameters?.length)
             return response((await db.query(body.query, body.parameters)).rows);
           const result = await db.exec(body.query);
@@ -127,10 +131,15 @@ async function fixture({ installed = false } = {}) {
         functions.set(slug, item);
         return response(item, 201);
       }
-      if (route.startsWith("/functions/"))
-        return functions.has(route.slice(11))
-          ? response(functions.get(route.slice(11)))
-          : response({}, 404);
+      if (route.startsWith("/functions/")) {
+        if (functions.has(route.slice(11))) {
+          if (state.activationDelays > 0) {
+            state.activationDelays--;
+            return response({ ...functions.get(route.slice(11)), status: "DEPLOYING" });
+          }
+          return response(functions.get(route.slice(11)));
+        } else return response({}, 404);
+      }
       if (route === "/config/auth") {
         if (method === "PATCH") Object.assign(authConfig, body);
         return response(authConfig);
@@ -248,10 +257,21 @@ async function fixture({ installed = false } = {}) {
         throw error;
       }
     }
-    if (path === "/functions/v1/guest-gateway")
+    if (path === "/rest/v1/rpc/get_setup_status") {
+      await db.exec("SET ROLE anon");
+      try {
+        return response((await db.query("SELECT public.get_setup_status() AS value")).rows[0].value);
+      } finally { await db.exec("RESET ROLE"); }
+    }
+    if (path === "/functions/v1/guest-gateway") {
+      if (state.runtimeDelays > 0) {
+        state.runtimeDelays--;
+        return response({ error: "Propagation pending" }, 503);
+      }
       return secrets.get("RSVP_SITE_ORIGIN") === headers.get("origin")
         ? response(null)
         : response({ error: "origin" }, 403);
+    }
     if (path === "/functions/v1/admin-invitations")
       return response(
         { error: "Sign in again before sending an invitation" },

@@ -202,8 +202,19 @@
       const client = getClient();
       if (!client)
         return { data: null, error: new Error(T("Database not configured")) };
+      let headers;
+      if (action === "get_invitation_v2" || action === "acknowledge_household_visit") {
+        // Reuse an existing sign-in so the gateway can suppress administrator
+        // visits to real links. This does not change the guest's sign-in state.
+        try {
+          const session = (await client.auth.getSession()).data?.session;
+          if (session?.access_token)
+            headers = { Authorization: "Bearer " + session.access_token };
+        } catch (_) {}
+      }
       const { data, error } = await client.functions.invoke("guest-gateway", {
         body: { action, args },
+        ...(headers ? { headers } : {}),
       });
       if (error?.context instanceof Response) {
         try {

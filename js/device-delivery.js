@@ -67,7 +67,7 @@
     }
     return payload;
   }
-  function appendShare(host, { R, T, q: initialQ, getDraft, testOnly = false, triggerClass = "invite-text-action", authorize, recordHandoff, show }) {
+  function appendShare(host, { R, T, q: initialQ, getDraft, testOnly = false, triggerClass = "invite-text-action", authorize, recordHandoff, show, canUse = () => true }) {
     const shareLabel = T(testOnly ? "interface.messages.test_invitation_sharing" : "interface.messages.share_invitation");
     const trigger = R.dom(
       "button",
@@ -76,7 +76,7 @@
     );
     host.append(trigger);
     trigger.addEventListener("click", async () => {
-      if (trigger.disabled) return;
+      if (trigger.disabled || !canUse()) return;
       trigger.disabled = true;
       let q = initialQ;
       try {
@@ -208,6 +208,7 @@
         }
       });
       copy.addEventListener("click", async () => {
+        if (!canUse()) return;
         try {
           await navigator.clipboard.writeText(q.message_body || "");
           feedback.textContent = T("interface.messages.message_copied");
@@ -219,7 +220,7 @@
       // Do not await network work before invoking the activation-gated native sheet.
       async function performShare(pictureOnly) {
         const button = pictureOnly ? sharePicture : share;
-        if (busy || button.disabled) return;
+        if (busy || button.disabled || !canUse()) return;
         busy = true;
         share.disabled = sharePicture.disabled = copy.disabled = close.disabled = true;
         try {

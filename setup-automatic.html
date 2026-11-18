@@ -6,11 +6,11 @@
     <meta name="referrer" content="no-referrer" />
     <meta name="color-scheme" content="light dark" />
     <title>Automatic setup</title>
-    <link rel="stylesheet" href="css/app.css?v=20261115-inline-restore" />
-    <script src="js/translations.js?v=20261115-inline-restore" defer></script>
+    <link rel="stylesheet" href="css/app.css?v=20261116-admin-setup" />
+    <script src="js/translations.js?v=20261116-admin-setup" defer></script>
     <script src="js/i18n.js?v=20261115-inline-restore" defer></script>
     <script
-      src="js/setup-automatic.js?v=20261114-setup-automation"
+      src="js/setup-automatic.js?v=20261116-admin-setup"
       defer
     ></script>
   </head>
@@ -25,10 +25,9 @@
       >
       <header class="setup-heading">
         <span class="eyebrow">FIRST-TIME SETUP</span>
-        <h1>Automatic setup</h1>
+        <h1>Make this event yours.</h1>
         <p class="lede">
-          Connect your cloud Supabase project. The temporary local companion
-          handles privileged setup and forgets its credentials when finished.
+          Connect Supabase and create your administrator.
         </p>
       </header>
       <section id="companionUnavailable" class="panel">
@@ -42,8 +41,7 @@ npm ci
 node --experimental-strip-types tools/setup-companion.mjs</pre
         >
         <p>
-          For Local Supabase or manual installation, use the existing setup
-          guide.
+          Choose Cloud or Local after starting the companion.
         </p>
         <a class="quiet-link" href="setup.html">Manual setup</a>
       </section>
@@ -70,6 +68,8 @@ node --experimental-strip-types tools/setup-companion.mjs</pre
             are not saved in browser storage or project files.
           </p>
           <form id="automaticConnect" class="stacked-form" autocomplete="off">
+            <fieldset class="setup-target-choices"><legend>Installation</legend><label><input type="radio" name="target" value="cloud" checked> Supabase Cloud</label><label><input type="radio" name="target" value="local"> Local Supabase</label></fieldset>
+            <p class="micro hidden" id="automaticLocalHelp">Local mode creates the first administrator on an installed empty schema. Complete the local database, Auth and Edge Function installation first.</p>
             <label
               >Project URL<input
                 name="projectUrl"
@@ -96,7 +96,7 @@ node --experimental-strip-types tools/setup-companion.mjs</pre
             /></label>
             <label
               >Project reference ID<input
-                name="projectRef"
+                data-cloud-field name="projectRef"
                 type="text"
                 required
                 minlength="20"
@@ -105,12 +105,13 @@ node --experimental-strip-types tools/setup-companion.mjs</pre
             /></label>
             <label
               >Supabase Management API access token<input
-                name="accessToken"
+                data-cloud-field name="accessToken"
                 type="password"
                 required
                 autocomplete="off"
                 spellcheck="false"
             /></label>
+            <label class="hidden" id="automaticDatabaseConnectionLabel">Local PostgreSQL connection<input name="databaseUrl" type="password" autocomplete="off" spellcheck="false" placeholder="postgresql://postgres:password@127.0.0.1:54322/postgres" disabled></label>
             <label
               >Website base URL<input
                 name="siteUrl"
@@ -140,7 +141,7 @@ node --experimental-strip-types tools/setup-companion.mjs</pre
           </button>
         </section>
         <section class="panel wizard-step hidden" data-auto-panel="2">
-          <h2>Create first administrator</h2>
+          <h2>Create your administrator</h2>
           <p>
             The account is created in Supabase Authentication and confirmed
             directly. An existing account requires its current password.
@@ -154,15 +155,17 @@ node --experimental-strip-types tools/setup-companion.mjs</pre
                 autocomplete="username" /></label
             ><label
               >Password<input
-                name="password"
+                name="password" data-sensitive
                 type="password"
                 required
                 minlength="6"
                 maxlength="1024"
                 autocomplete="new-password" /></label
-            ><button class="btn" type="submit">
-              Create and verify administrator
-            </button>
+            ><label>Confirm password<input name="confirmPassword" type="password" autocomplete="new-password" required minlength="6" maxlength="1024" data-sensitive></label>
+            <label class="checkbox-label"><input id="automaticShowPassword" type="checkbox"> Show password</label>
+            <p class="micro" id="automaticAdministratorValidation" role="status" hidden></p>
+            <div class="automatic-admin-access"><strong>Full administrator</strong><p class="micro">Manage your event, invitations and administrator access.</p></div>
+            <button class="btn" type="submit">Create administrator</button>
           </form>
         </section>
         <section class="panel wizard-step hidden" data-auto-panel="3">

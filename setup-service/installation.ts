@@ -48,6 +48,8 @@ export function installationAssets(root: string): Assets {
     ),
     version = readFileSync(join(root, "VERSION"), "utf8").trim();
   if (
+    !/COMMIT;\s*$/.test(installer) ||
+    (installer.match(/^COMMIT;\s*$/gm) || []).length !== 1 ||
     hash(installer) !== installManifest.installerSha256 ||
     installManifest.applicationVersion !== version ||
     functionManifest.version !== version
@@ -325,6 +327,7 @@ export class Installation {
           "Complete the preceding setup steps first.",
           409,
         );
+      if (step === "administrator" && this.state?.progress.administrator) return this.publicState();
       await this[step](input);
       return this.publicState();
     } finally {
@@ -568,6 +571,7 @@ UPDATE app_private.installation_state SET first_admin_id=${quote(user.id)}::uuid
             .map((url: string) => url.trim())
             .filter(Boolean),
           redirect,
+          new URL("admin/", this.config.siteUrl).href,
         ]),
       ];
     await this.management.request("/config/auth", "PATCH", {
@@ -616,11 +620,12 @@ UPDATE app_private.installation_state SET first_admin_id=${quote(user.id)}::uuid
         "Keep the event unpublished until setup verification is complete.",
         409,
       );
+    // Supabase's read-only role cannot execute the private permission helper.
     const admin = (
       await this.rows(
         "SELECT a.user_id FROM public.admins a JOIN auth.users u ON u.id=a.user_id WHERE a.user_id=$1::uuid AND a.access_state='active' AND a.access_permissions=app_private.permission_preset('full') AND u.email_confirmed_at IS NOT NULL",
         [state.first_admin_id],
-        true,
+        false,
       )
     )[0];
     if (!admin)
@@ -701,6 +706,7 @@ UPDATE app_private.installation_state SET first_admin_id=${quote(user.id)}::uuid
         .includes(
           new URL("admin/?admin-invitation=1", this.config.siteUrl).href,
         ) ||
+      !(auth.uri_allow_list || "").split(",").includes(new URL("admin/", this.config.siteUrl).href) ||
       !(rest.db_schema || "").split(",").includes("public") ||
       (rest.db_schema || "").split(",").includes("app_private")
     )

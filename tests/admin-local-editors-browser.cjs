@@ -32,8 +32,7 @@ const { server, mock, extra, stageExtra, out } =
       await page.locator("#adminApp").getAttribute("data-mode"),
       null,
     );
-    await page.locator("#settingsToggle").click();
-    await page.locator("[data-settings-tab=event]").click();
+    await page.locator("[data-tab=events]").click();
     assert.equal(
       await page.locator("#eventFeaturesHost form").isVisible(),
       false,
@@ -82,6 +81,7 @@ const { server, mock, extra, stageExtra, out } =
       await page.evaluate(() => fixtures.event_settings[0].is_published),
       false,
     );
+    await page.locator("#settingsToggle").click();
     await page.locator("[data-settings-tab=interface]").click();
     fs.mkdirSync(out, { recursive: true });
     await page
@@ -89,8 +89,8 @@ const { server, mock, extra, stageExtra, out } =
       .screenshot({ path: path.join(out, "interface-read-phone.png") });
     for (const key of [
       "personal-preferences",
-      "guest-customization",
-      "notification-preferences",
+      "guest-customization:wide",
+      "notification-preferences:wide",
     ]) {
       await page.locator(key === "personal-preferences" ? "[data-settings-tab=checklist]" : "[data-settings-tab=interface]").click();
       const form = await openBox(page, key);
@@ -110,18 +110,15 @@ const { server, mock, extra, stageExtra, out } =
       );
     }
     await page.locator("[data-settings-tab=templates]").click();
-    const template = page
-      .locator("#invitationTemplatesList [data-local-edit]")
-      .first();
-    assert(await template.isVisible());
-    await template.click();
+    await page.locator("details.template-create > summary").click();
+    await page.locator('[data-form-key="invitation-template:new"]').waitFor();
     assert(
       await page
-        .locator("#invitationTemplatesList .local-editor-open form")
+        .locator("#invitationTemplatesList [data-form-key=\"invitation-template:new\"]")
         .isVisible(),
     );
     await page
-      .locator("#invitationTemplatesList .local-editor-open form")
+      .locator("#invitationTemplatesList [data-form-key=\"invitation-template:new\"]")
       .getByRole("button", { name: "Cancel", exact: true })
       .click();
     await page.evaluate(() => {
@@ -144,15 +141,16 @@ const { server, mock, extra, stageExtra, out } =
         .locator('[data-local-edit="personal-preferences"]')
         .isVisible(),
     );
+    await page.locator("[data-settings-tab=interface]").click();
     assert.equal(
       await page
-        .locator('[data-local-edit="guest-customization"]:visible')
+        .locator('[data-local-edit^="guest-customization:"]:visible')
         .count(),
       0,
     );
     assert.equal(
       await page
-        .locator('[data-local-edit="notification-preferences"]:visible')
+        .locator('[data-local-edit^="notification-preferences:"]:visible')
         .count(),
       0,
     );

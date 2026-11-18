@@ -1,5 +1,14 @@
 # Release notes
 
+## 0.9.0-alpha.8
+
+- **Overview → Manage Invites** prepares missing drafts from named templates and filters households by service and delivery status. Review up to ten selected households before handing their invitations to your device's sharing options.
+- Restore and wipe use Yes/No confirmation. In Wipe restore, a safety backup download validates the selected file and unlocks **Wipe and restore**. A successful restore or wipe with the current administrator returns to Overview. Wipe all opens setup if the administrator is removed.
+- The setup wizard offers first-administrator SQL in step 3. The release also adds administrator password recovery and refines the language editors and compact settings cards.
+- Experimental Apple Shortcuts support is off by default. Physical iPhone and WhatsApp acceptance is pending.
+
+Existing alpha.7 installations follow the [scoped upgrade guide](UpgradeAlpha8.md). The current Full application backup covers 43 tables. Export a fresh Full backup after upgrading.
+
 ## 0.9.0-alpha.6
 
 This alpha refines the administrator header and template-only sharing without publishing an event.

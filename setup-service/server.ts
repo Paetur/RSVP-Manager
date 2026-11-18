@@ -4,15 +4,16 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { Installation, installationAssets, steps } from "./installation.ts";
 import { SetupError } from "./management.ts";
+import { LocalAdministratorInstallation } from "./local-administrator.ts";
 
 type Session = {
   csrf: string;
   touched: number;
-  installation: Installation | null;
+  installation: Installation | LocalAdministratorInstallation | null;
 };
 export function createSetupServer(
   root: string,
-  options: { fetcher?: typeof fetch; sessionMs?: number } = {},
+  options: { fetcher?: typeof fetch; sessionMs?: number; localQuery?: (sql: string, parameters?: unknown[]) => Promise<any[]> } = {},
 ) {
   const assets = installationAssets(root),
     sessions = new Map<string, Session>();
@@ -148,7 +149,9 @@ export function createSetupServer(
             );
           session.installation?.forget();
           session.installation = null;
-          const candidate = new Installation(input, assets, options.fetcher);
+          const candidate = input.target === "local"
+            ? new LocalAdministratorInstallation(input, assets, options.fetcher, options.localQuery)
+            : new Installation(input, assets, options.fetcher);
           try {
             const state = await candidate.connect();
             session.installation?.forget();

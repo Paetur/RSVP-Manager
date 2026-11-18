@@ -886,3 +886,69 @@ html[data-theme="dark"] code {
   }
 }
 
+
+/* Account-selected hover treatment shared by ordinary and icon actions. */
+:root:not([data-button-hover="pencil"]):not([data-button-hover="create"]) :is(button,a.btn):not(.delete-action):hover:not(:disabled) {
+  background: var(--light) !important;
+  border-color: var(--teal) !important;
+  color: var(--action-text) !important;
+  transform: none !important;
+}
+:root[data-button-hover="pencil"] :is(button,a.btn):not(.delete-action):hover:not(:disabled) {
+  background: var(--pencil-hover-background, var(--light)) !important;
+  border-color: var(--pencil-hover-border, #aecabd) !important;
+  color: var(--action-text) !important;
+  transform: none !important;
+}
+:root[data-theme="dark"] { --pencil-hover-background: #345043; --pencil-hover-border: #5d947a; }
+:root[data-button-hover="create"] :is(button,a.btn):not(.delete-action):hover:not(:disabled) {
+  background: var(--teal-dark) !important;
+  border-color: var(--teal) !important;
+  color: var(--paper) !important;
+  transform: translateY(-1px) !important;
+}
+:is(button,a.btn).delete-action {
+  color: #fff !important;
+  background: #a62f3a !important;
+  border-color: #a62f3a !important;
+}
+:is(button,a.btn).delete-action:hover:not(:disabled) {
+  background: #86232d !important;
+  border-color: #86232d !important;
+}
+:is(button,a.btn).delete-action {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+}
+.delete-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+@media (max-width: 700px) { .delete-action svg { display: none; } }
+.record-popup {
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  width: min(760px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 20px;
+}
+.record-popup::backdrop { background: rgb(0 0 0 / 55%); }
+.template-choice-popup { width: min(380px, calc(100vw - 24px)); }
+.template-choice-popup > button { display: block; margin: 10px 0; width: 100%; }
+.destructive-actions { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 12px; }
+
+/* Choices carry their own checkmark; hover samples use the real treatments. */
+.interface-choice-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.interface-choice, .guest-appearance-choice { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--paper); color: var(--ink); font: inherit; }
+.interface-choice::before, .guest-appearance-choice::before { content: ""; width: 14px; flex: 0 0 14px; }
+.interface-choice[aria-pressed="true"]::before, .guest-appearance-choice[aria-pressed="true"]::before { content: "✓"; }
+.interface-choice[aria-pressed="true"], .guest-appearance-choice[aria-pressed="true"] { border-color: var(--teal); background: var(--light); }
+#adminApp button.hover-choice[data-hover-choice="toolbar"]:hover { background: var(--light) !important; border-color: var(--teal) !important; color: var(--action-text) !important; transform: none !important; }
+#adminApp button.hover-choice[data-hover-choice="pencil"]:hover { background: var(--pencil-hover-background,var(--light)) !important; border-color: var(--pencil-hover-border,#aecabd) !important; color: var(--action-text) !important; transform: none !important; }
+#adminApp button.hover-choice[data-hover-choice="create"]:hover { background: var(--teal-dark) !important; border-color: var(--teal) !important; color: var(--paper) !important; transform: translateY(-1px) !important; }

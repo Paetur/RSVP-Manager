@@ -9,7 +9,7 @@ Choose the page that matches what you want to do.
 - [Other](Other.md) — practical jobs and things to bring.
 - [Languages](Languages.md) — your interface language and translated event content.
 - [Administrators](Administrators.md) — invitations, access and sessions.
-- [Backups](Backups.md) — keeping and restoring an event backup.
+- [Database and backups](Backups.md) — keeping/restoring backups and guarded application-data wiping.
 - [Frequently asked questions](FAQ.md).
 
 [Back to the project overview](../README.md)
@@ -18,4 +18,7 @@ Choose the page that matches what you want to do.
 
 - [Automatic cloud setup](AutomaticSetup.md) — trusted local seven-step companion, credentials, retries and public configuration.
 
+- [Upgrade an existing alpha.7 installation to alpha.8](UpgradeAlpha8.md)
 - [Upgrade an existing alpha.6 installation to alpha.7](UpgradeAlpha7.md)
+
+- [Apple Shortcuts (experimental)](ShortcutOrganizer.md) — optional, disabled by default; batch processing, recovery and independent delivery/visit tracking.

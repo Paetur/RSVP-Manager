@@ -54,6 +54,36 @@
     return window.RSVP_I18N.t(dict[k] || k, params, language);
   }
   let guestStatusTimer = null;
+  let pendingVisit = null,
+    visitSending = false,
+    visitRetryTimer = null;
+  const visitSessionId = previewTarget ? null : R.randomId();
+  async function acknowledgeVisibleVisit() {
+    if (previewTarget || !pendingVisit || pendingVisit.attempts >= 3 || visitSending || document.visibilityState !== "visible" || document.prerendering || $("invitationCard").classList.contains("hidden")) return;
+    const visit = pendingVisit;
+    visitSending = true;
+    try {
+      const { error } = await R.guestRpc("acknowledge_household_visit", {
+        p_code: visit.code,
+        p_receipt_id: visit.receipt.id,
+        p_session_id: visit.receipt.sessionId,
+      });
+      if (!error && pendingVisit === visit) pendingVisit = null;
+    } catch (_) { /* Analytics failures never become guest-page errors. */ }
+    finally {
+      visitSending = false;
+      if (pendingVisit === visit && ++visit.attempts < 3)
+        visitRetryTimer = setTimeout(acknowledgeVisibleVisit, 3000);
+    }
+  }
+  function queueRenderedVisit(receipt, inviteCode) {
+    if (previewTarget || !receipt?.id || receipt.sessionId !== visitSessionId) return;
+    pendingVisit = { receipt, code: inviteCode, attempts: 0 };
+    clearTimeout(visitRetryTimer);
+    // Wait for the rendered invitation to reach a frame; visibility/prerender
+    // changes re-check the same receipt without creating another visit.
+    requestAnimationFrame(() => requestAnimationFrame(acknowledgeVisibleVisit));
+  }
   function status(s, type = "info") {
     clearTimeout(guestStatusTimer);
     guestStatusTimer = null;
@@ -163,12 +193,13 @@
     try { const result = P.fill(text, resolved.values, resolved.options); return P.unresolved(result) ? window.RSVP_I18N.t("Details will follow.") : result; } catch (_) { return window.RSVP_I18N.t("Details will follow."); }
   }
   function renderEvent() {
-    const event = eventData?.event;
-    if (!event) return;
+    const event = window.RSVP_GUEST_INTERFACE.effective(eventData?.event, undefined, window.RSVP_I18N.languages);
+    if (!eventData?.event) return;
     window.RSVP_NOTIFICATIONS.configure(
       "guest",
       event.notification_preferences?.guest,
     );
+    document.body.dataset.guestNameLayout = event.guest_name_layout;
     renderGuestBackground(event.guest_background);
     window.RSVP_GUEST_DESIGN?.configure(event.guest_design);
     window.RSVP_THEME?.configureGuest({
@@ -189,6 +220,17 @@
     $("welcomeMessage").textContent =
       wording(window.RSVP_I18N.resolve(content, language) || t("welcome"));
   }
+  matchMedia("(max-width: 700px)").addEventListener("change", () => {
+    if (!eventData?.event) return;
+    renderEvent();
+    for (const node of document.querySelectorAll("[data-guest-name-id]")) {
+      const guest = invitation?.guests?.find(g => g.id === node.dataset.guestNameId);
+      if (guest) {
+        node.replaceChildren(...guestNameNode(guest).childNodes);
+        node.closest("fieldset.rsvp-guest")?.setAttribute("aria-label", guestName(guest));
+      }
+    }
+  });
   function sessionLabel(session) {
     return translated("session:" + session.id + ":name", {}, session.name);
   }
@@ -196,18 +238,19 @@
     return R.orderedGuests(invitation?.guests);
   }
   function guestTitle(guest) {
-    if (eventData?.event?.guest_title_visibility?.[language] === false) return "";
+    if (window.RSVP_GUEST_INTERFACE.effective(eventData?.event, undefined, window.RSVP_I18N.languages).guest_title_visibility?.[language] === false) return "";
     const title = guest?.courtesy_title || "";
     return title === "Son" ? t("interface.messages.son") : title === "Daughter" ? t("interface.messages.daughter") : title;
   }
   function guestLastName(guest) {
-    return window.RSVP_GUEST_NAMES.lastName(guest, invitation, eventData?.event);
+    return window.RSVP_GUEST_NAMES.lastName(guest, invitation, window.RSVP_GUEST_INTERFACE.effective(eventData?.event));
   }
   function guestName(guest) {
     return [guestTitle(guest), guest?.first_name, guestLastName(guest)].filter(Boolean).join(" ") || t("interface.messages.guest");
   }
   function guestNameNode(guest, tag = "span", attrs = {}) {
     const name = R.dom(tag, attrs);
+    name.dataset.guestNameId = guest.id;
     if (guestTitle(guest)) name.append(R.dom("span", { class: "guest-courtesy-title" }, guestTitle(guest) + " "));
     name.append(document.createTextNode([guest?.first_name, guestLastName(guest)].filter(Boolean).join(" ") || t("interface.messages.guest")));
     return name;
@@ -640,6 +683,7 @@
     status("");
     const { data, error } = await R.guestRpc("get_invitation_v2", {
       p_code: inviteCode,
+      ...(visitSessionId ? { p_visit_session_id: visitSessionId } : {}),
     });
     if (error) {
       status(R.safeError(error), "error");
@@ -670,6 +714,7 @@
     )
       language = guestLang;
     await setLanguage(language);
+    queueRenderedVisit(data.visitReceipt, inviteCode);
     await loadFood();
   }
   $("rsvpComment").addEventListener("input", () => {
@@ -1701,9 +1746,12 @@
     const foodRefresh = setInterval(refreshFood, 30000);
     window.addEventListener("focus", refreshFood);
     document.addEventListener("visibilitychange", refreshFood);
+    document.addEventListener("visibilitychange", acknowledgeVisibleVisit);
+    document.addEventListener("prerenderingchange", acknowledgeVisibleVisit);
     window.addEventListener("pagehide", () => clearInterval(foodRefresh), {
       once: true,
     });
+    window.addEventListener("pagehide", () => clearTimeout(visitRetryTimer), { once: true });
     await setLanguage(language);
     const db = R.getClient();
     if (!db) {

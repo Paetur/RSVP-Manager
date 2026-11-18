@@ -64,26 +64,21 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await food.getByRole('button',{name:'Edit food item',exact:true}).click();
  await food.locator('[name="quantity_needed"]').fill('6');
  await languageButton.click();
- const languageDialog=page.getByRole("region",{name:'Language · Sample dish',exact:true});
+ const languageDialog=page.getByRole("dialog",{name:'Language · Sample dish',exact:true});
  await languageDialog.waitFor();
  assert.equal(await languageDialog.getByLabel(/^Type ·/).count(),0);
  assert.equal(await languageDialog.getByLabel(/^Guest note ·/).count(),3);
  assert.equal(await languageDialog.locator('.food-translation-row').count(),3);
- for(const row of await languageDialog.locator('.food-translation-row').all()){await languageDialog.locator('[data-inline-language-code="'+await row.getAttribute('data-language-code')+'"]').click();assert.equal(await row.getByRole('textbox').count(),2);}
- await languageDialog.locator('[data-inline-language-code="fo"]').click();
+ for(const row of await languageDialog.locator('.food-translation-row').all()){assert.equal(await row.getByRole('textbox').count(),2);assert.ok(await row.getByRole('textbox').first().isVisible());}
  await languageDialog.locator('[data-language-code="fo"]').getByRole('textbox').first().fill('Discard this translation');
  await languageDialog.getByRole('button',{name:'Cancel',exact:true}).click();
  await languageDialog.waitFor({state:'detached'});
  assert.equal(await page.evaluate(()=>window.__foodTranslationSaves||0),0,'cancel does not save');
  await page.waitForFunction(()=>document.activeElement?.hasAttribute('data-food-language'));
  await languageButton.click();
- await languageDialog.locator('[data-inline-language-code="fo"]').click();
  assert.notEqual(await languageDialog.locator('[data-language-code="fo"]').getByRole('textbox').first().inputValue(),'Discard this translation');
- await languageDialog.locator('[data-inline-language-code="fo"]').click();
  await languageDialog.locator('[data-language-code="fo"]').getByRole('textbox').first().fill('Føroyskur rættur');
- await languageDialog.locator('[data-inline-language-code="de"]').click();
  await languageDialog.locator('[data-language-code="de"]').getByRole('textbox').nth(1).fill('Bitte gekühlt bringen');
- await languageDialog.locator('[data-inline-language-code="fo"]').click();
  await languageDialog.locator('[data-language-code="fo"]').getByRole('textbox').nth(1).fill('Tak við køldum');
  assert.equal(await page.evaluate(()=>window.__foodTranslationSaves||0),0,'typing does not save');
  await page.setViewportSize({width:390,height:844});
@@ -97,7 +92,6 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await page.evaluate(()=>{window.__failFoodTranslations=true;});
  await languageDialog.getByRole('button',{name:'Save',exact:true}).click();
  await languageDialog.getByRole('alert').filter({hasText:'Simulated translation failure'}).waitFor();
- await languageDialog.locator('[data-inline-language-code="fo"]').click();
  assert.equal(await languageDialog.locator('[data-language-code="fo"]').getByRole('textbox').first().inputValue(),'Føroyskur rættur');
  await languageDialog.getByRole('button',{name:'Save',exact:true}).click();
  await languageDialog.waitFor({state:'detached'});
