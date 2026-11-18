@@ -122,31 +122,20 @@ jobs:
   browser-smoke:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.57.0-noble@sha256:3bed4b1a12f2338642f3d8cba28e291deef3c66bd4a964bbeb3e57bbff511dbd
+      options: --ipc=host
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-      - name: Use HTTPS Ubuntu mirror and bounded package retries
-        run: |
-          sudo python3 - <<'PY'
-          from pathlib import Path
-          sources = [Path('/etc/apt/sources.list')]
-          sources += list(Path('/etc/apt/sources.list.d').glob('*.sources'))
-          sources += list(Path('/etc/apt/sources.list.d').glob('*.list'))
-          for source in sources:
-              if source.is_file():
-                  text = source.read_text()
-                  updated = text.replace('http://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')
-                  if updated != text:
-                      source.write_text(updated)
-          Path('/etc/apt/apt.conf.d/99-rsvp-network').write_text('Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "1";\n')
-          PY
-      - name: Install pinned Playwright and Chromium
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium webkit
+      - name: Install pinned project dependencies
+        run: npm ci
       - name: Test Local and Cloud setup choices and installer download
         run: node tests/setup-browser.cjs
       - name: Test trusted automatic setup companion

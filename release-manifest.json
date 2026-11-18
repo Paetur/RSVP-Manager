@@ -1,8 +1,8 @@
 {
   "version": "0.9.0-alpha.8",
-  "sourceCommit": "f4d03bd17b2b32fb9282bf003311cb9563cb3906",
+  "sourceCommit": "d917821b6b0af2ac8aeaf0998f96fdafa0d38a2d",
   "files": {
-    ".github/workflows/rsvp-security-smoke.yml": "33271a5bd71629a64aac85c2380e2291cd2199df60d5d5f51464833abae04f1a",
+    ".github/workflows/rsvp-security-smoke.yml": "8cf4ebb0cb1199214c382ee91d47b9c01ab1814cb756facb7cf8bb2345b04b74",
     ".gitignore": "c9ffa7554de7b0c901dbd948864ecebf6edd670faa4392809963c48040f25b45",
     "admin/index.html": "9cebc48248435aaa2134add57bddf597e0f4415b5e2061013dc30001033ee6b4",
     "css/app.css": "88b9114a074c3eae8424d4512d3466a274d077198633e4a07df05acad78066eb",
@@ -339,6 +339,6 @@
     "tools/setup-companion.mjs": "83c5463834a5db3716473092d4ee5885c4d9fc1874b6835f224daee7c9cded16",
     "tools/validate-locales.cjs": "86ccdbbf17fba52d4f227a6750fc3772cbe4cb4f03f609bc67d0ef22d56ba512",
     "VERSION": "028549080fbe9aebae77289ebeaf84fb47845046170de9228371446332666457",
-    "version.json": "7753ce105243e866aa5369397a642cde328512971a036b66b53c570444f1a731"
+    "version.json": "ede750e583182876be90af975098990c41d004ed30858934c497347e198a3c34"
   }
 }
