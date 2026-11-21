@@ -34,7 +34,7 @@ Open Households → Household details for session invitations; use Invites for R
 
 Use the eye icon in the administrator toolbar to preview the landing page. In **Invites**, use **Preview** beside a household to see its invitation before publishing. Preview requires a signed-in administrator with view access to Households, Invites and Venues, plus Food when that feature is enabled. Test replies, food selections and added household guests stay in that preview only and disappear when you reload or close the tab. Preview guest additions never change the real guest list.
 
-While the event is unpublished, you can keep planning and previewing invitations. New invitation codes are issued when you publish. Previously issued codes stay reserved. Published Invites rows hide the preview eye and household pencil. Prepare drafts in Action, then use the copy controls or expand a household to review its delivery. Sent remains a separate manual confirmation.
+While the event is unpublished, you can keep planning and previewing invitations. New invitation codes are issued when you publish. Previously issued codes stay reserved. Published Invites rows hide the preview eye and household pencil. Prepare drafts from the Invites toolbar, then use the copy controls or expand a household to review its delivery. Sent remains a separate manual confirmation.
 
 ## Set up invitation templates
 
@@ -50,7 +50,7 @@ Use `{invitation_link}` in the message. You can also use `{household_name}` and 
 
 ## Invites overview
 
-**Main → Invites** contains the event summaries, optional iPhone Shortcuts workspace, Action controls and household list. Households and Guests share one statistics box. The other boxes show RSVP submissions, Food items and invitation status.
+**Main → Invites** shows four overview boxes for Households and Guests, RSVP submissions, Food items and invitation status. The **Sorting** box below the overview contains **Rows**, **Shown fields**, **Group**, **Language** and **Services**. The invitation list sits under Sorting. Its toolbar shows **Generate Drafts**, **Mark ready**, **Make draft**, **Mark Sent** and **Search**, in that order.
 
 ![Invites in Dark mode on iPad, with filters and a grouped household delivery list](images/ipad-invites.png)
 
@@ -58,7 +58,7 @@ Click **All**, **Not sent**, **Needs draft**, **Ready**, **Marked sent**, **Awai
 
 Invites lists active households containing guests. Under **Settings → Interface → Invites appearance**, set **Group by** to **None**, **Relational group** or **Service**. Both grouped layouts put each group in its own outline box. Relational grouping follows Households: configured top-level order, relational-group order, then parents before their descendants with manual sibling ordering. Empty grouping households are omitted while preserving their descendants' place. Service grouping uses Messages, Email, WhatsApp, SMS and None; empty groups are hidden.
 
-Open **Search** beside **Action** to search household or recipient details. **Group**, **Language** and **Services** accept multiple choices. Use **All** to select every choice or **None** to clear them before picking individual values. Messages is the default mobile route when no service was chosen; SMS retains an explicit SMS choice, and None uses templates tagged Manual.
+Open **Search** to the right of **Mark Sent** to search household or recipient details. **Group**, **Language** and **Services** accept multiple choices. Use **All** to select every choice or **None** to clear them before picking individual values. Messages is the default mobile route when no service was chosen; SMS retains an explicit SMS choice, and None uses templates tagged Manual.
 
 **Rows → 1** puts the selected details in separate columns. **Rows → 2** puts them beneath their main household, recipient, invitation or RSVP line. Household, Service and Invitation always stay visible. In Rows 1, **Shown fields** offers Household info, Recipient, Last sent, RSVP, RSVP info and Food. Rows 2 offers the paired RSVP column and Food; its Service/Recipient and Invitation/Last sent pairs stay visible. Household info contains guest count and language. The Service chip shows only the service name; Last sent and RSVP info show dates and response counts when those details exist in the visible list. In the two-row layout, secondary details follow their visible main field.
 
@@ -66,43 +66,27 @@ In **Invites appearance → Default shown fields**, choose separate defaults for
 
 Changes in **Shown fields** and **Rows** apply to the current view. Choosing Rows 2 resets Shown fields to its saved column groups, initially **All**. Each two-row choice shows or hides the whole upper/lower pair. Returning to Rows 1 restores your previous one-row selection, or your saved default fields if you have not changed it. Changes made in Rows 2 do not replace your one-row selection; saving defaults for one layout does not reset temporary choices in the other. Refreshing the data keeps the current view. Reloading the page restores your saved field defaults and starts with Rows 1; changing accounts also resets Rows to 1. These view controls do not change household selections or record sending.
 
-Click the **Service** chip, such as WhatsApp or Email, to copy the current recipient number or email address. The contact name is plain text. Once published, click its rounded **Draft** or **Ready** label to copy the latest saved invitation text and current RSVP link. When that invitation has a picture, the label tries combined picture-and-text copying; the small **Text** button copies only the full message. Combined copy requires supported browser clipboard access. The receiving app chooses what to paste, so check that the caption and link are present; use Text to paste the caption separately when needed. Only the visible chips perform these copy actions. They do not open an app, select a row or record sending. A missing, incomplete or changed invitation must be reviewed before copying. There are no row-level create or share icons. Before publication, the preview eye and household pencil remain available where permitted.
+Click the **Service** chip, such as WhatsApp or Email, to copy the current recipient number or email address. Choose **Review** to open a saved draft in **Current invitation**. Check the details, use **Edit delivery** if needed, then choose **Mark ready**. On a published event, the **Invitation** chip copies a valid Ready invitation and its RSVP link. For invitations with a picture, the chip tries combined picture-and-text copying and falls back to text when the browser cannot copy both. Your messaging app chooses what to paste. If it drops the caption, copy the wording from **Current invitation** separately and check the RSVP link before sending.
 
-Expand a household and open **Invitation delivery** to review its current invitation and **Delivery history**. The current invitation offers draft editing or Ready actions when available. History shows past attempts and sent snapshots for that household. In the **All** view, **Inactive households** opens archived or guestless household histories when any exist. RSVP management stays in the expanded row, and session invitation choices are in Household details. The Food column shows interest during Collect interest and item quantities during Choose food; unanswered/zero appears as a dash. The Food summary's clickable interest counts remain available in both stages when Food is enabled and you have Food View access.
+Expand a household to open **Current invitation** above **RSVP**. **Invitation delivery** opens separately and contains **Delivery history** with that household’s past attempts and sent snapshots. Use **Change to Draft** inside a Ready invitation to return it to review while keeping its saved details. In the **All** view, **Inactive households** opens archived or guestless household histories when any exist. RSVP management stays in the expanded row, and session invitation choices are in Household details. The Food column shows interest during Collect interest and item quantities during Choose food. A dash means unanswered or zero. The Food summary's clickable interest counts remain available in both stages when Food is enabled and you have Food View access.
 
-Drafts can be prepared while unpublished, using `{invitation_link}` as a placeholder without issuing or releasing a code. Marking ready, opening messaging apps and recording sending remain publication gated. After publication, reopen and save the draft to resolve its current link and recipient/code snapshot before marking it ready. Sent and cancelled records remain read-only; a reminder is a separate draft. Use Delete in a saved draft’s reading footer or editor to remove an unsent draft from active delivery lists. Its retired snapshot and audit history remain retained; Ready, Sent and handed-off records cannot be deleted this way. Notes/reasons and sending acknowledgements use the existing delivery history.
+Drafts can be prepared while unpublished, using `{invitation_link}` as a placeholder without issuing or releasing a code. Marking ready, opening messaging apps and recording sending remain publication gated. After publication, use **Review** and **Mark ready** on an existing draft. **Mark ready** resolves the current invitation link and uses the saved delivery details. Sent and cancelled records remain read-only; a reminder is a separate draft. Use Delete in a saved draft’s reading footer or editor to remove an unsent draft from active delivery lists. Its retired snapshot and audit history remain retained; Ready, Sent and handed-off records cannot be deleted this way. Notes/reasons and sending acknowledgements use the existing delivery history.
 
 ## Make and send bulk invites
 
-In **Main → Invites**, choose **Needs draft** in the statistics box, then check the households at the far right of the list. The checkbox in the list header selects all visible eligible households or clears their selection. Hiding a row clears its selection. In **Action**, choose **Generate Drafts**. It creates a draft for each checked household that has no current delivery and exactly one saved template matching its service and language. The result explains which selections had no match or several matches. Successfully prepared households leave **Needs draft**. The remaining households stay visible for review. Use **All** to see the new drafts. Draft preparation is available while unpublished.
+Choose **Needs draft** in the overview and check households at the far right. The list header checkbox selects all visible eligible households. Hiding a row clears its selection.
 
-For the temporary manual WhatsApp workflow:
+1. Choose **Generate Drafts**. Each checked household with no current delivery and exactly one matching service and language template gets a draft. On a published event, a valid new draft becomes **Ready** in the same action when you have sending permission. Unpublished and incomplete drafts stay available for **Review**. The result reports missing or ambiguous template matches.
+2. Open the **Ready** filter. For WhatsApp, copy the number with the **Service** chip, open the intended chat, then use the **Invitation** chip. Check the picture, full caption and RSVP link before pressing Send in WhatsApp.
+3. Back in RSVP Manager, check the Ready households you sent to and choose **Mark Sent**. This records your confirmation. Already recorded deliveries retain their history.
 
-1. Publish the event when you are ready to accept replies.
-2. Check the households in **Invites**, then choose **Action → Generate Drafts**.
-3. Click the household's **Service** chip, paste the number into WhatsApp to open
-   the intended chat, then return to RSVP and click its **Draft** or **Ready**
-   label. Paste into the same chat and check the picture, full caption and current
-   RSVP link. If the caption is missing, return and use **Text**, then paste it
-   into the picture caption. Each copy replaces the clipboard. If picture copying
-   is unavailable, use the existing invitation-sharing controls for the picture.
-4. After sending, select the households using the right-hand checkboxes and
-   press **Mark Sent** in the **Action** outline. The row then shows **Marked sent**. You can review, mark ready or confirm sending for more than ten selected households.
-
-Copying does not change delivery status. **Mark Sent** records your manual
-confirmation and sends no message. It requires publication and sending
-permission. A valid draft is prepared and recorded through the existing
-revision-checked APIs. Preparing a draft also requires invitation-editing
-permission. Incomplete or changed drafts must be reviewed before retrying.
-Already recorded deliveries retain their history and cannot be marked twice.
-
-The existing **Review selected drafts** / **Mark ready** controls and each
-household's **Invitation delivery** section remain available for the other
-sharing workflows.
+Select existing drafts and use **Mark ready** in the toolbar to prepare the eligible selection. Use **Make draft** to return selected Ready invitations to review. For one household, use **Review → Current invitation → Mark ready** or **Change to Draft**. **Edit delivery** lets you correct the message or recipient. If the invitation link changes during preparation, reopen the draft to check the current link and try again.
 
 With Apple Shortcuts enabled, open **Invites → iPhone Shortcuts** in its own box above the invitation list to review Ready WhatsApp invitations and select a batch. Creating a batch requires a published event, a trusted HTTPS website and API, and sending permission. Continue the review and launch steps in that box. Native Runner device acceptance remains pending. Sharing or preparing a batch leaves Sent confirmation to the organizer.
 
-## Send an invitation or reminder
+## Send an invitation or reminder from Households
+
+Open the household’s delivery panel in **Households** for these sharing and confirmation options.
 
 1. Prepare a delivery draft and check the recipient, message and private link.
 2. Save it as ready when it is correct.
@@ -124,7 +108,7 @@ A reminder is a new draft. It does not change the original sending record.
 
 Editing invitations and sending them are separate permissions. Someone may be allowed to prepare drafts without sending, or send a prepared invitation without editing it.
 
-In **Invites**, expand a household to see **RSVP** and **Invitation delivery** in place. Session invitations are in **Households → Household details**, using the household’s Save/Cancel controls. Individual guest exceptions retain Follow household / Invited / Not invited, and RSVP history protects invitation changes. After publication, copying a saved Draft or Ready invitation includes its current private invitation link.
+In **Invites**, expand a household to see **Current invitation**, **RSVP** and **Invitation delivery** in place. Session invitations are in **Households → Household details**, using the household’s Save/Cancel controls. Individual guest exceptions retain Follow household / Invited / Not invited, and RSVP history protects invitation changes. After publication, the **Invitation** chip includes the current private RSVP link for a valid Ready invitation.
 
 ## Guest and household contact details
 

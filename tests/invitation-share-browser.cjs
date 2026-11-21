@@ -43,10 +43,18 @@ const { server, mock, extra } = createFoodHarness("invitation-share");
         });
       });
       const seed = `fixtures.event_settings[0].is_published=true;const h=fixtures.households.find(h=>!h.archived_at&&h.invite_code);window.__shareHousehold=h.id;fixtures.invitation_send_queue=[{id:'share-ready',household_id:h.id,channel:'email',status:'ready',revision:1,created_at:'2026-11-13T10:00:00Z',updated_at:'2026-11-13T10:00:00Z',invitation_code_snapshot:h.invite_code,recipient_snapshot:{contact_name:'Example recipient',contact_value:'example@example.invalid'},message_subject:'Invitation',message_body:'Hello Føroyskt & Deutsch\\nhttps://example.invalid/?'+h.invite_code},{id:'share-stale',household_id:h.id,channel:'email',status:'ready',revision:1,created_at:'2026-11-13T10:00:00Z',updated_at:'2026-11-13T10:00:00Z',invitation_code_snapshot:'RETIRED',recipient_snapshot:{},message_body:'Stale'}];const previousShareRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_record_share_handoff'){window.__logAttempts=(window.__logAttempts||[]);window.__logAttempts.push(args);if(window.__failLog){window.__failLog=false;return {error:{message:'Synthetic logging failure'}};}return {data:null};}if(name==='admin_authorize_device_send'){window.__authCalls=(window.__authCalls||0)+1;return {data:!window.__denyShare};}return previousShareRpc(name,args);};`;
+      const currentFixture = `
+        fixtures.invitation_send_queue.push({
+          ...fixtures.invitation_send_queue.find(q=>q.id==='share-ready'),
+          id:'share-current',
+          created_at:'2026-11-14T10:00:00Z',
+          updated_at:'2026-11-14T10:00:00Z'
+        });
+      `;
       await page.route("**/supabase.min.js", (r) =>
         r.fulfill({
           contentType: "text/javascript",
-          body: mock + "\n" + extra + "\n" + seed,
+          body: mock + "\n" + extra + "\n" + seed + currentFixture,
         }),
       );
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
@@ -73,6 +81,9 @@ const { server, mock, extra } = createFoodHarness("invitation-share");
           exact: true,
         });
       await trigger.waitFor();
+      assert.equal(await ready.locator("xpath=ancestor::section[contains(@class,'household-delivery-history')]").count(), 1);
+      assert.equal(await page.locator("#inviteRows .current-invitation")
+        .getByRole("button", { name: "Share invitation", exact: true }).count(), 0);
       assert.equal(
         await page
           .locator("#inviteRows [data-delivery-id=share-stale]")
@@ -255,7 +266,7 @@ const { server, mock, extra } = createFoodHarness("invitation-share");
         await restricted.route("**/supabase.min.js", (r) =>
           r.fulfill({
             contentType: "text/javascript",
-            body: mock + "\n" + extra + "\n" + seed + "\n" + restriction,
+            body: mock + "\n" + extra + "\n" + seed + currentFixture + "\n" + restriction,
           }),
         );
         await restricted.goto(

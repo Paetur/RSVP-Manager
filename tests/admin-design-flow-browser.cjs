@@ -81,7 +81,7 @@ await require("./helpers/admin-toolbar.cjs").autoConfirmInline(page);
       await page.locator('[data-tab="invites"]').click();
       if (!await household.evaluate(node => node.open)) await household.locator(":scope > summary .invite-compact-name").click();
       const draftRecord = household.locator('[data-delivery-id="design-draft"]');
-      await draftRecord.locator(":scope > summary").click();
+      if (!await draftRecord.evaluate(node => node.open)) await draftRecord.locator(":scope > summary").click();
       const editSummary = draftRecord.getByText("Edit delivery", { exact: true });
       await editSummary.click();
       const form = draftRecord.locator('[data-form-key="delivery:design-draft"]');

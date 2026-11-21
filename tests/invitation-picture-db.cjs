@@ -52,10 +52,30 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     assert.equal(await v("SELECT is_published v FROM public.event_settings"), false);
     await assert.rejects(() => q("SELECT public.admin_record_delivery_sent($1,1,null)", [id]), /published/);
     await db.exec("RESET ROLE; UPDATE public.event_settings SET is_published=true WHERE id=1; SET ROLE authenticated");
-    await q("SELECT public.admin_save_delivery($1,$2,$3,1)", [id, h, { ...values, status: "ready", message_body: "https://example.invalid/?=ABCDEFGH" }]);
-    await q("SELECT public.admin_record_delivery_sent($1,2,null)", [id]);
+    const ready = { ...values, status: "ready", message_body: "https://example.invalid/?=ABCDEFGH" };
+    const draft = { status: "draft", only_if_ready: true };
+    const saveDelivery = "SELECT public.admin_save_delivery($1,$2,$3,$4) v";
+    const row = () => v("SELECT to_jsonb(q) v FROM public.invitation_send_queue q WHERE id=$1", [id]);
+    await q(saveDelivery, [id, h, ready, 1]);
+    const { updated_at: readyAt, ...readyRow } = await row();
+    await assert.rejects(() => q(saveDelivery, [id, h, draft, 1]), /changed/);
+    await assert.rejects(() => q(saveDelivery, [id, h, { ...draft, message_image: null }, 2]), /valid delivery details/);
+    await db.exec("SET ROLE anon");
+    await assert.rejects(() => q(saveDelivery, [id, h, draft, 2]), /permission denied/);
+    await db.exec("SET ROLE authenticated");
+    assert.equal(await v(saveDelivery, [id, h, draft, 2]), id);
+    const { updated_at: draftAt, ...draftRow } = await row();
+    assert.ok(draftAt >= readyAt);
+    assert.deepEqual(draftRow, { ...readyRow, status: "draft", revision: 3 });
+    const audit = await v("SELECT action v FROM public.invitation_delivery_audit WHERE queue_id=$1 ORDER BY (new_value->>'revision')::int DESC LIMIT 1", [id]);
+    assert.equal(audit, "draft");
+    await assert.rejects(() => q(saveDelivery, [id, h, draft, 3]), /changed/);
+    await assert.rejects(() => q("SELECT public.admin_record_delivery_sent($1,3,null)", [id]), /ready/);
+    await q(saveDelivery, [id, h, ready, 3]);
+    await q("SELECT public.admin_record_delivery_sent($1,4,null)", [id]);
     assert.deepEqual(await v("SELECT message_snapshot->'message_image' v FROM public.invitation_deliveries WHERE queue_id=$1", [id]), image);
-    await assert.rejects(() => q("SELECT public.admin_save_delivery($1,$2,$3,3)", [id, h, { ...values, message_image: null }]), /read-only/);
+    await assert.rejects(() => q(saveDelivery, [id, h, draft, 5]), /read-only/);
+    await assert.rejects(() => q(saveDelivery, [id, h, { ...values, message_image: null }, 5]), /read-only/);
     async function draftWithPicture(name, picture) {
       const household = await v("SELECT public.admin_save_household(null,$1) v", [{
         household_name: name, planning_group_id: "general", language: "en",

@@ -21,8 +21,9 @@
     field,
     reload,
     viewInInvites,
+    changeToDraft,
   }) {
-    const pendingDeletes = new Set();
+    const pendingDeletes = new Set(), pendingReady = new Set();
     function canDeleteDraft(q) {
       // Handoff audit stays server-owned; the RPC also rejects any prior handoff.
       return q.id && q.status === "draft" && can("invites", "edit") &&
@@ -34,7 +35,7 @@
       remove.addEventListener("click", async () => {
         const record = remove.closest("[data-delivery-id]"),
           form = remove.closest("form") || record?.querySelector("form.delivery-review-form");
-        if (pendingDeletes.has(q.id) || !canDeleteDraft(q) || form?.getAttribute("aria-busy") === "true") return;
+        if (pendingDeletes.has(q.id) || pendingReady.has(q.id) || !canDeleteDraft(q) || form?.getAttribute("aria-busy") === "true") return;
         pendingDeletes.add(q.id);
         const buttons = record?.querySelectorAll("[data-delete-draft]") || [remove];
         for (const button of buttons) button.disabled = true;
@@ -310,7 +311,122 @@
       return form;
     }
 
-    function deliveryRecord(h, q, { editable, historyOnly }) {
+    function canMarkReady() {
+      return getStore().settings?.is_published === true && can("invites", "edit") && can("sendInvites");
+    }
+
+    function focusAfterReadiness(householdId, action) {
+      const section = R.byId("invite-current-" + householdId);
+      const row = section?.closest("[data-invite-household]");
+      const target = row?.querySelector(action + ":enabled") ||
+        section?.querySelector("[data-delivery-id] > summary") ||
+        document.querySelector('#statsGrid [data-invite-filter][aria-pressed="true"]');
+      if (target?.getClientRects().length) target.focus({ preventScroll: Boolean(row) });
+    }
+
+    function markReadyButton(h, q, record) {
+      const ready = R.dom("button", { type: "button", class: "btn secondary" }, T("Mark ready"));
+      ready.dataset.markDeliveryReady = q.id;
+      ready.addEventListener("click", async () => {
+        if (ready.disabled || !ready.isConnected || pendingReady.has(q.id) || pendingDeletes.has(q.id) || !canMarkReady()) return;
+        const form = record.querySelector("form.delivery-review-form");
+        if (form?.getAttribute("aria-busy") === "true") return;
+        if (form?.saveActions?.querySelector('button[type="submit"]:enabled')) {
+          show(T("interface.messages.unsaved_changes_select_save_to_update_the_database"), "warning");
+          return;
+        }
+        const store = getStore();
+        const household = store.households.find(row => row.id === h.id && !row.archived_at);
+        const current = window.RSVP_ADMIN_OVERVIEW.invitationRecords(store, h.id).find(row => row.status !== "cancelled");
+        const body = household && current?.id === q.id && current.status === "draft" && current.revision === q.revision &&
+          (!current.invitation_code_snapshot || current.invitation_code_snapshot === household.invite_code) &&
+          window.RSVP_INVITATION_TEXT.deliveryMessage(household, current, R);
+        if (!body) {
+          show(T("interface.messages.refresh_and_save_this_delivery_again_before_sending"), "warning");
+          return;
+        }
+
+        pendingReady.add(q.id);
+        ready.disabled = true;
+        form?.setAttribute("aria-busy", "true");
+        form?.cleanSaveUpdate?.();
+        let saved = false;
+        try {
+          const id = await managementRpc("admin_save_delivery", {
+            p_id: current.id,
+            p_household_id: household.id,
+            p_expected_revision: current.revision,
+            p_values: {
+              channel: current.channel,
+              contact_id: current.contact_id || null,
+              message_subject: current.message_subject || "",
+              message_body: body,
+              message_image: current.message_image ?? null,
+              expected_invitation_code: household.invite_code,
+              status: "ready",
+            },
+          });
+          if (id !== current.id) throw Error(T("Changed. Try again."));
+          saved = true;
+          if (await reload()) {
+            show(T("interface.messages.changes_saved"), "success");
+            focusAfterReadiness(h.id, '[data-invite-copy="invitation"]');
+          }
+        } catch (error) {
+          show(R.safeError(error), "error");
+        } finally {
+          pendingReady.delete(q.id);
+          form?.removeAttribute("aria-busy");
+          form?.cleanSaveUpdate?.();
+          if (!saved && ready.isConnected && canMarkReady()) {
+            ready.disabled = false;
+            if (ready.getClientRects().length) ready.focus({ preventScroll: true });
+          }
+        }
+      });
+      return ready;
+    }
+
+    function changeToDraftButton(h, q, record) {
+      const button = R.dom("button", { type: "button", class: "btn secondary" }, T("Change to Draft"));
+      button.dataset.changeToDraft = q.id;
+      button.addEventListener("click", async () => {
+        if (button.disabled || !button.isConnected || !can("invites", "edit")) return;
+        const form = record.querySelector("form.delivery-review-form");
+        if (form?.getAttribute("aria-busy") === "true") return;
+        if (form?.saveActions?.querySelector('button[type="submit"]:enabled')) {
+          show(T("interface.messages.unsaved_changes_select_save_to_update_the_database"), "warning");
+          return;
+        }
+        button.disabled = true;
+        form?.setAttribute("aria-busy", "true");
+        form?.cleanSaveUpdate?.();
+        let saved = false;
+        try {
+          saved = await changeToDraft(h, q);
+          if (!saved) {
+            show(T("Changed. Try again."), "warning");
+            return;
+          }
+          if (await reload()) {
+            show(T("interface.messages.changes_saved"), "success");
+            focusAfterReadiness(h.id, ".invite-review-action");
+          }
+        } catch (error) {
+          show(R.safeError(error), "error");
+        } finally {
+          form?.removeAttribute("aria-busy");
+          form?.cleanSaveUpdate?.();
+          if (!saved && button.isConnected && can("invites", "edit")) {
+            button.disabled = false;
+            if (button.getClientRects().length) button.focus({ preventScroll: true });
+          }
+        }
+      });
+      return button;
+    }
+
+    function deliveryRecord(h, q, { editable, historyOnly, prepareDraft = false, standalone = false }) {
       const store = getStore();
       const d = disclosure(
         ({
@@ -333,7 +449,9 @@
       );
       d.dataset.deliveryId = q.id;
       const recipient = q.recipient_snapshot || {};
-      const message = R.dom("pre", { class: "delivery-message" }, q.message_body);
+      const preparedBody = prepareDraft && store.settings?.is_published &&
+        window.RSVP_INVITATION_TEXT.deliveryMessage(h, q, R);
+      const message = R.dom("pre", { class: "delivery-message" }, preparedBody || q.message_body);
       d.append(
         R.dom(
           "p",
@@ -358,21 +476,25 @@
         if (d.open) showPicture();
         else d.addEventListener("toggle", showPicture);
       }
-      const copy = R.dom(
-        "button",
-        { type: "button", class: "invite-text-action" },
-        T("interface.messages.copy_message"),
-      );
-      copy.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(q.message_body);
-          show(T("interface.messages.message_copied"), "success");
-        } catch (error) {
-          show(R.safeError(error), "error");
-        }
-      });
-      d.append(copy);
+      let copy;
+      if (!standalone && !prepareDraft) {
+        copy = R.dom(
+          "button",
+          { type: "button", class: "invite-text-action" },
+          T("interface.messages.copy_message"),
+        );
+        copy.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(q.message_body);
+            show(T("interface.messages.message_copied"), "success");
+          } catch (error) {
+            show(R.safeError(error), "error");
+          }
+        });
+        d.append(copy);
+      }
       if (
+        !standalone &&
         !historyOnly &&
         store.settings?.is_published &&
         can("sendInvites") &&
@@ -463,6 +585,7 @@
           d.append(R.dom("p", { class: "notice" }, T(error.message)));
         }
       } else if (
+        !standalone &&
         !historyOnly &&
         store.settings?.is_published &&
         can("sendInvites") &&
@@ -541,6 +664,7 @@
         d.append(edit);
       }
       if (
+        !standalone &&
         !historyOnly &&
         store.settings?.is_published &&
         can("sendInvites") &&
@@ -592,14 +716,42 @@
         });
         d.append(form);
       }
-      if (editable && canDeleteDraft(q)) {
-        const actions = R.dom("div", { class: "form-actions delivery-read-actions edit-only" }),
-          lifecycle = R.dom("span", { class: "editor-lifecycle-actions" });
-        lifecycle.append(deleteDraftButton(q)); actions.append(copy, lifecycle); d.append(actions);
+      const removeDraft = editable && canDeleteDraft(q);
+      const markReady = prepareDraft && canMarkReady();
+      const makeDraft = standalone && editable && q.status === "ready" && can("invites", "edit");
+      if (removeDraft || markReady || makeDraft) {
+        const actions = R.dom("div", { class: "form-actions delivery-read-actions edit-only" });
+        if (markReady) actions.append(markReadyButton(h, q, d));
+        if (makeDraft) actions.append(changeToDraftButton(h, q, d));
+        if (!markReady && copy) actions.append(copy);
+        if (removeDraft) {
+          const lifecycle = R.dom("span", { class: "editor-lifecycle-actions" });
+          lifecycle.append(deleteDraftButton(q));
+          actions.append(lifecycle);
+        }
+        d.append(actions);
       }
       return d;
     }
-    function deliverySection(h, { allowCreate = false, historyOnly = false } = {}) {
+    function currentInvitation(h, q, options) {
+      const section = R.dom("section", { class: "current-invitation" });
+      const entry = deliveryRecord(h, q, options);
+      section.append(R.dom("h3", {}, T("Current invitation")), entry);
+      if (options.standalone) {
+        section.id = "invite-current-" + h.id;
+        const heading = section.querySelector("h3");
+        heading.id = section.id + "-heading";
+        section.setAttribute("aria-labelledby", heading.id);
+        entry.open = true;
+      }
+      return section;
+    }
+
+    function currentSection(h, q) {
+      return currentInvitation(h, q, { editable: true, prepareDraft: q.status === "draft", standalone: true });
+    }
+
+    function deliverySection(h, { allowCreate = false, historyOnly = false, separateCurrent = false } = {}) {
       const store = getStore();
       const d = disclosure(
         T("interface.messages.invitation_delivery"),
@@ -633,10 +785,10 @@
       const current = historyOnly ? null : records.find(record => record.status !== "cancelled");
       const recordOptions = { editable: allowCreate && !historyOnly, historyOnly };
       const groups = R.dom("div", { class: "invitation-delivery-sections" });
-      if (current) {
-        const invitation = R.dom("section", { class: "current-invitation" });
-        invitation.append(R.dom("h3", {}, T("Current invitation")), deliveryRecord(h, current, recordOptions));
-        groups.append(invitation);
+      if (current && !separateCurrent) {
+        groups.append(currentInvitation(h, current, {
+          ...recordOptions, prepareDraft: allowCreate && current.status === "draft",
+        }));
       }
       const previous = records.filter(record => record !== current);
       if (previous.length) {
@@ -645,11 +797,11 @@
         previous.forEach(record => history.append(deliveryRecord(h, record, recordOptions)));
         groups.append(history);
       }
-      d.append(groups);
+      if (groups.childElementCount) d.append(groups);
       return d;
     }
 
-    return { editor: deliveryEditor, section: deliverySection };
+    return { editor: deliveryEditor, section: deliverySection, currentSection };
   }
   window.RSVP_ADMIN_DELIVERY_RECORD = Object.freeze({ create });
 })();

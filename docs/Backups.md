@@ -74,7 +74,7 @@ Event settings, private pictures, household invitation codes, replies, food comm
 
 ## Current format and infrastructure recovery
 
-Current exports use application backup **format 2**, schema **20261114034908**, with 43 application tables. Column manifests use a stable field-name order, independent of physical database column order. Beta.2 keeps the beta.1 application backup contract. Restore requires the current schema and exact backup fields. Download a fresh backup when testing a changed schema. Language CSV exports are separate.
+Current exports use application backup **format 2**, schema **20261114034908**, with 43 application tables. Column manifests use a stable field-name order, independent of physical database column order. Beta.3 keeps the beta.2 application backup contract. Restore requires the current schema and exact backup fields. Download a fresh backup when testing a changed schema. Language CSV exports are separate.
 
 Passwords, Auth sessions, personal administrator Interface preferences, secret keys, email-service settings, rate-limit counters and hosting configuration require separate infrastructure recovery. App sign-in references, if included, are historical information rather than active sessions. Raw Auth-service audit records are not application-backup data. Keep the repository/deployment configuration with the installation owner and rehearse restoration.
 

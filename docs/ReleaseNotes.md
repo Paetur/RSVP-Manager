@@ -1,5 +1,14 @@
 # Release notes
 
+## 0.9.0-beta.3
+
+- The Invites toolbar presents **Generate Drafts**, **Mark ready**, **Make draft**, **Mark Sent** and **Search**. **Sorting** keeps the row and filter settings together.
+- On a published event, valid template-matched invitations can become Ready as soon as they are generated. Select existing drafts to mark them ready, or return selected Ready invitations to Draft without changing their saved details.
+- The **Invitation** chip copies a Ready invitation. **Review** opens a draft in **Current invitation**, above **RSVP**. From Current invitation, use **Mark ready** or **Change to Draft**. Open **Invitation delivery** separately for past attempts and sending records.
+- Readiness updates check the latest eligible delivery and its revision. Returning to Draft preserves the saved recipient, wording, picture and RSVP code.
+
+The application tables and backup contract match beta.2. Retained beta.2 installations need a scoped update to the administrator delivery-save routine and canonical translation registry. See the [existing-installation instructions](../INSTALL.md#existing-installations).
+
 ## 0.9.0-beta.2
 
 This beta fixes draft recipient grouping and large invitation-dashboard loads.

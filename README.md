@@ -24,16 +24,16 @@ A fictional event in Dark mode, shown at iPad landscape size.
 - Collect food interest before opening category-based choices; Food Groups reserve every included item together without exceeding capacity.
 - Open shared read-only recipe dialogs with Print and Close, including printable PDFs.
 - Track practical jobs and things to bring in Other.
-- Filter households that need a draft and generate selected drafts from service/language-matched templates. Copy recipients and invitations for manual sending, then mark the selected households Sent.
+- Filter households that need a draft and generate selected drafts from service/language-matched templates. Review drafts and move selected invitations between Draft and Ready. Copy recipients and invitations for manual sending, then mark the selected households Sent.
 - Manage event wording in multiple languages.
 - Give administrators Full, View only or Custom access.
 - Download JSON/gzip backups, optionally protect them with password-based encryption, and rehearse recovery separately.
 
 ## Downloads and installation
 
-Download **[0.9.0-beta.2](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-beta.2)** for the installation ZIP and checksum. [Installation instructions](INSTALL.md) describe the website, Supabase and administrator setup. Each installation starts unconfigured and has its own data.
+Download **[0.9.0-beta.3](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-beta.3)** for the installation ZIP and checksum. [Installation instructions](INSTALL.md) describe the website, Supabase and administrator setup. Each installation starts unconfigured and has its own data.
 
-Use the current installer for a fresh database. Beta.2 retains the beta.1 backup contract. For a retained installation, follow the [existing-installation instructions](INSTALL.md#existing-installations) to update the administrator functions and translation registry.
+Use the current installer for a fresh database. Beta.3 retains the beta.2 backup contract. For a retained installation, follow the [existing-installation instructions](INSTALL.md#existing-installations) to update the administrator delivery-save routine and translation registry.
 
 For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 

@@ -1,7 +1,6 @@
 // Invites selection uses the ordinary snapshots and guarded preparation paths.
 (function () {
   "use strict";
-  const groups = { messages: "Messages", email: "Email", whatsapp: "WhatsApp", sms: "SMS", none: "None" };
   const deliveries = { email: "email", whatsapp: "whatsapp", sms: "sms", messages: "sms", none: "manual" };
 
   function create({ R, T, getStore, getActor, can, managementRpc, reload,
@@ -12,7 +11,7 @@
     const content = () => $("bulkInviteContent");
     const selected = new Set();
     let visibleHouseholds = new Set(), visibleRows = new Map();
-    let actor = null, review = false, busy = false, notice = "", generation = 0, selectionVersion = 0;
+    let actor = null, busy = false, notice = "", generation = 0, selectionVersion = 0;
     const button = (label, action, disabled = false) => {
       const control = R.dom("button", { type: "button", class: "btn secondary", disabled }, T(label));
       control.addEventListener("click", action);
@@ -21,6 +20,7 @@
     const element = (tag, className, text) => R.dom(tag, { class: className }, text);
     const canDraft = () => !!getActor() && can("invites", "edit");
     const canSend = () => !!getActor() && can("invites") && can("sendInvites") && getStore().settings?.is_published === true;
+    const canPrepare = () => canDraft() && canSend();
 
     function resolveGroup(contact, guest, delivery) {
       return window.RSVP_ADMIN_OVERVIEW.invitationService(contact, guest, delivery);
@@ -57,11 +57,11 @@
       selected.clear();
       visibleHouseholds.clear();
       visibleRows.clear();
-      review = false;
       notice = "";
       const panel = host();
       if (panel) panel.hidden = true;
       content()?.replaceChildren();
+      $("bulkInviteStatus")?.replaceChildren();
     }
 
     function sync() {
@@ -83,10 +83,9 @@
         const row = all.get(id);
         if (visibleHouseholds.has(id) && row && eligible(row)) continue;
         selected.delete(id);
-        // A completed item may leave a Draft-only view during an ordinary
+        // A completed item may leave an invitation filter during an ordinary
         // reload. That pruning must not cancel the remaining captured items.
         if (!visibleHouseholds.has(id) && row?.queue?.status !== "sent") hiddenSelection = true;
-        review = false;
       }
       if (hiddenSelection) selectionVersion++;
     }
@@ -134,7 +133,6 @@
           if (input.checked) selected.add(id);
           else selected.delete(id);
         }
-        review = false;
         refreshSelection();
         $("inviteRows")?.querySelector("[data-bulk-select-all]")?.focus({ preventScroll: true });
       });
@@ -171,7 +169,6 @@
         if (input.checked && visibleHouseholds.has(householdId) && fresh && eligible(fresh))
           selected.add(householdId);
         else selected.delete(householdId);
-        review = false;
         refreshSelection();
         $("inviteRows")?.querySelector('[data-bulk-select="' + CSS.escape(householdId) + '"]')?.focus({ preventScroll: true });
       });
@@ -184,9 +181,52 @@
       return window.RSVP_INVITATION_TEXT.deliveryMessage(row.household, row.queue, R);
     }
 
+    const revisioned = queue => Number.isSafeInteger(queue?.revision) && queue.revision > 0;
+
     function sendable(row) {
-      return row.queue?.status === "ready" && row.queue.invitation_code_snapshot === row.household.invite_code &&
+      return row.queue?.status === "ready" && revisioned(row.queue) &&
+        row.queue.invitation_code_snapshot === row.household.invite_code && !!row.queue.recipient_snapshot?.contact_value?.trim() &&
         !!row.queue.message_body && readyMessage(row) === row.queue.message_body;
+    }
+
+    function preparableMessage({ household, queue, group }) {
+      return queue?.status === "draft" && revisioned(queue) &&
+        (!queue.invitation_code_snapshot || queue.invitation_code_snapshot === household.invite_code)
+        ? readyMessage({ household, queue, group }) : null;
+    }
+
+    const draftable = row => row.queue?.status === "ready" && revisioned(row.queue);
+
+    async function saveStatus(household, queue, values) {
+      const saved = await managementRpc("admin_save_delivery", {
+        p_id: queue.id, p_household_id: household.id, p_expected_revision: queue.revision, p_values: values,
+      });
+      if (saved !== queue.id) throw Error(T("Changed. Try again."));
+      return true;
+    }
+
+    function saveAsReady(household, queue, message) {
+      return saveStatus(household, queue, {
+        status: "ready",
+        channel: queue.channel,
+        contact_id: queue.contact_id || null,
+        message_subject: queue.message_subject || "",
+        message_body: message,
+        message_image: queue.message_image ?? null,
+        expected_invitation_code: household.invite_code,
+      });
+    }
+
+    function saveAsDraft({ household, queue }) {
+      return saveStatus(household, queue, { status: "draft", only_if_ready: true });
+    }
+
+    async function changeToDraft(household, record) {
+      if (busy || !canDraft()) return false;
+      const owner = getActor();
+      const [row] = rows(household.id);
+      if (!row || row.queue?.id !== record.id || row.queue?.revision !== record.revision || !draftable(row)) return false;
+      return await saveAsDraft(row) && getActor() === owner && canDraft();
     }
 
     function current(row) {
@@ -195,7 +235,7 @@
         && active.group === row.group ? active : null;
     }
 
-    async function writes(items, save, allowed, summary = count => T("{count} invitations prepared.", { count }),
+    async function writes(items, save, allowed, summary,
       failure = "Bulk preparation stopped. Review the list before trying again.", scope = () => true) {
       if (busy || !allowed()) return;
       const owner = getActor(), start = generation;
@@ -234,8 +274,9 @@
       const selection = [...visibleRows.values()].filter(row => selected.has(row.household.id));
       const missing = missingDrafts(selection);
       if (!missing.length) return;
-      let unmatched = 0, ambiguous = 0, changed = 0;
-      return writes(missing, async row => {
+      const prepareReady = canPrepare();
+      let ready = 0, unmatched = 0, ambiguous = 0, changed = 0, readyError = "";
+      return writes(missing, async (row, continuing) => {
         const { household } = row;
         const service = row.group === "none" ? "manual" : row.group;
         const matches = (getStore().invitationTemplates || []).filter(template =>
@@ -250,50 +291,66 @@
         const draft = invitationDraft(household, channel, {
           templateId: template.id, templateService: service, language: household.language,
         });
-        // The save rechecks the unique match and this template revision under the delivery lock.
+        const values = { channel, contact_id: null, message_subject: draft.subject || "",
+          message_body: draft.body, message_image: draft.image };
+        // Save the matched Draft first so an unavailable Ready transition leaves
+        // a reviewable draft. The server checks the template under its delivery lock.
         const queueId = await managementRpc("admin_save_delivery", {
           p_id: null, p_household_id: household.id, p_expected_revision: null,
-          p_values: { channel, contact_id: null, message_subject: draft.subject || "",
-            message_body: draft.body, message_image: draft.image, status: "draft", only_if_missing: true,
+          p_values: { ...values, status: "draft", only_if_missing: true,
             template_id: template.id, template_revision: template.revision },
         });
         if (!queueId) {
           changed++;
+          return false;
         }
-        return queueId;
+        if (!prepareReady || !continuing() || !canPrepare()) return true;
+        const active = current(row);
+        if (!active || (channel !== "manual" && (active.group === "none" || !active.recipient?.trim()))) return true;
+        const message = readyMessage({ ...active, queue: values });
+        if (!message) return true;
+        try {
+          // A newly created draft starts at revision 1. The server also
+          // compares the expected invitation code against the locked household.
+          await saveAsReady(active.household, { ...values, id: queueId, revision: 1 }, message);
+          ready++;
+        } catch (error) {
+          readyError ||= R.safeError(error);
+        }
+        return true;
       }, canDraft, count => {
+        const drafts = count - ready;
         return [
-          T(count === 1 ? "{count} draft created" : "{count} drafts created", { count }),
+          ready && ready + " " + T("Ready"),
+          (drafts || !ready) && T(drafts === 1 ? "{count} draft created" : "{count} drafts created", { count: drafts }),
           ambiguous && T("{count} with multiple matches", { count: ambiguous }),
           unmatched && T("{count} with no match", { count: unmatched }),
           changed && T("{count} changed during generation", { count: changed }),
+          readyError,
         ].filter(Boolean).join(" · ");
       }, undefined, sameSelection);
     }
 
-    function markReady(items) {
-      const sameSelection = selectedScope();
-      review = false;
-      return writes(items.filter(row => row.queue.status === "draft"), row => {
-        const { queue, household } = row;
-        const message = readyMessage(row);
-        if (!message) return null;
-        return managementRpc("admin_save_delivery", {
-          p_id: queue.id, p_household_id: household.id, p_expected_revision: queue.revision,
-          p_values: { channel: queue.channel, contact_id: queue.contact_id, message_subject: queue.message_subject || "",
-            message_body: message, message_image: queue.message_image, status: "ready" },
-        });
-      }, () => canDraft() && canSend(), undefined, undefined, sameSelection);
-    }
-
-    function draftSendable(row) {
-      return row.queue?.status === "draft" && (!row.queue.invitation_code_snapshot ||
-        row.queue.invitation_code_snapshot === row.household.invite_code) && !!readyMessage(row);
-    }
-
-    function manualSendable(row) {
-      return Number.isSafeInteger(row.queue?.revision) && row.queue.revision > 0 &&
-        (sendable(row) || (canDraft() && draftSendable(row)));
+    async function changeSelectedReadiness(toReady) {
+      syncVisible(getVisibleHouseholdIds?.());
+      const allowed = toReady ? canPrepare : canDraft;
+      const matches = toReady ? preparableMessage : draftable;
+      const items = [...visibleRows.values()].filter(row => selected.has(row.household.id) && matches(row));
+      if (!items.length || busy || !allowed()) return;
+      await writes(items, (row, continuing) => {
+        if (!continuing()) return false;
+        if (!toReady) return draftable(row) && saveAsDraft(row);
+        const message = preparableMessage(row);
+        return message && saveAsReady(row.household, row.queue, message);
+      }, allowed, count => {
+        if (toReady) return T(count === 1 ? "{count} invitation marked ready." : "{count} invitations marked ready.", { count });
+        return T(count === 1 ? "{count} invitation changed to draft." : "{count} invitations changed to draft.", { count });
+      }, undefined, selectedScope());
+      if (document.activeElement !== document.body) return;
+      const fallback = content()?.querySelector(
+        toReady ? "[data-bulk-make-draft]:enabled" : "[data-bulk-mark-ready]:enabled",
+      ) ?? $("inviteOverviewCounts")?.querySelector('[aria-pressed="true"]');
+      if (fallback?.getClientRects().length) fallback.focus({ preventScroll: true });
     }
 
     function markSent(items) {
@@ -303,136 +360,57 @@
         return selectionVersion === version && [...selected].every(id => ids.has(id)) &&
           [...ids].every(id => finished.has(id) || selected.has(id) && visible.has(id));
       };
-      if (!canSend() || !items.length || !sameSelection() || !items.every(manualSendable)) return;
-      review = false;
+      if (!canSend() || !items.length || !sameSelection() || !items.every(sendable)) return;
       return writes(items, async (row, continuing) => {
         const { queue, household } = row;
-        if (!queue || !Number.isSafeInteger(queue.revision) || queue.revision < 1 ||
-            !manualSendable(row)) return false;
-        const send = { p_queue_id: queue.id, p_expected_revision: queue.revision, p_note: "" };
-        if (queue.status === "draft") {
-          const snapshot = {
-            actor_user_id: getActor(), household_id: household.id, channel: queue.channel, service: row.group,
-            invitation_code: household.invite_code, body: readyMessage(row),
-            recipient_value: queue.recipient_snapshot?.contact_value || row.recipient || null,
-            recipient_type: queue.recipient_snapshot?.contact_type || (row.group === "email" ? "email" : "phone"),
-          };
-          const prepared = await managementRpc("admin_save_delivery", {
-            p_id: queue.id, p_household_id: household.id, p_expected_revision: queue.revision,
-            p_values: { channel: queue.channel, contact_id: queue.contact_id, message_subject: queue.message_subject || "",
-              message_body: snapshot.body, message_image: queue.message_image, status: "ready" },
-          });
-          if (prepared !== queue.id || !continuing()) throw Error(T("Changed. Try again."));
-          send.p_expected_revision++;
-          try {
-            await managementRpc("admin_record_delivery_sent", { ...send, p_expected_snapshot: snapshot });
-          } catch (error) {
-            // An older server still requires the full reload guard. Only the
-            // absent overload permits falling back to that write path.
-            if (error?.code !== "PGRST202" || !error.message?.includes(
-              "admin_record_delivery_sent(p_expected_revision, p_expected_snapshot, p_note, p_queue_id)")) throw error;
-            if (!continuing()) throw Error(T("Changed. Try again."));
-            if (!await reload()) throw Error(T("Bulk invites could not be refreshed."));
-            const [fresh] = rows(household.id);
-            if (!continuing() || !fresh || fresh.queue?.id !== queue.id ||
-                fresh.queue.channel !== snapshot.channel || fresh.group !== snapshot.service ||
-                fresh.household.invite_code !== snapshot.invitation_code || !sendable(fresh) ||
-                fresh.queue.message_body !== snapshot.body || fresh.queue.revision !== send.p_expected_revision ||
-                (fresh.queue.recipient_snapshot?.contact_value || fresh.recipient || null) !== snapshot.recipient_value ||
-                (fresh.queue.recipient_snapshot?.contact_type || (fresh.group === "email" ? "email" : "phone")) !== snapshot.recipient_type)
-              throw Error(T("Changed. Try again."));
-            await managementRpc("admin_record_delivery_sent", send);
-          }
-        } else {
-          if (!continuing()) return false;
-          await managementRpc("admin_record_delivery_sent", send);
-        }
+        if (!sendable(row) || !continuing()) return false;
+        await managementRpc("admin_record_delivery_sent", {
+          p_queue_id: queue.id, p_expected_revision: queue.revision, p_note: "",
+        });
         finished.add(household.id);
         return true;
       }, canSend, count => T(count === 1 ? "{count} invitation marked sent." : "{count} invitations marked sent.", { count }),
       "Marking sent stopped. Review the list before trying again.", sameSelection);
     }
 
-    function renderReview(box, selection) {
-      const section = element("section", "bulk-invite-review");
-      section.setAttribute("aria-label", T("Review selected invitations"));
-      section.append(element("h3", "", T("Review selected invitations")));
-      for (const row of selection) {
-        const { queue } = row;
-        const item = element("details", "bulk-invite-review-item");
-        item.open = selection.length === 1;
-        item.append(R.dom("summary", {}, row.name + " · " + T(groups[row.group])));
-        const recipient = queue.recipient_snapshot;
-        item.append(element("p", "small", [recipient?.contact_name, recipient?.contact_value || row.recipient].filter(Boolean).join(" · ")));
-        if (queue.message_subject) item.append(element("p", "small", queue.message_subject));
-        item.append(element("pre", "delivery-message", readyMessage(row)));
-        if (queue.message_image) {
-          const showPicture = () => {
-            if (!item.open) return;
-            item.removeEventListener("toggle", showPicture);
-            window.RSVP_INVITATION_IMAGE.preview(item, queue.message_image, { R, T });
-          };
-          if (item.open) showPicture();
-          else item.addEventListener("toggle", showPicture);
-        }
-        section.append(item);
-      }
-      section.append(button("Mark ready", () => markReady(selection)));
-      section.append(button("Close", () => { review = false; render(); }));
-      box.append(section);
-    }
-
-    function actionFieldset(selection) {
-      const unavailable = busy || !canDraft();
-      const enabled = !busy && canSend() && selection.length > 0 && selection.every(manualSendable);
-      const fieldset = element("fieldset", "bulk-invite-filters bulk-invite-action");
-      const generate = button("Generate Drafts", createDrafts, unavailable || !missingDrafts(selection).length);
-      const actions = element("div", "bulk-invite-actions");
-      actions.append(generate, button("Mark Sent", () => markSent(selection), !enabled));
-      fieldset.append(R.dom("legend", {}, T("Action")), actions);
-      return fieldset;
-    }
-
     function render() {
-      const panel = host(), box = content();
+      const panel = host(), box = content(), statusBox = $("bulkInviteStatus");
       if (!panel || !box) return;
       sync();
       panel.hidden = !actor || !can("invites");
       box.replaceChildren();
+      statusBox?.replaceChildren();
       if (panel.hidden) return;
       syncVisible(getVisibleHouseholdIds?.());
       const selection = [...visibleRows.values()].filter(row => selected.has(row.household.id));
-      const canReviewSelection = !busy && canSend();
-      const sendSelection = canReviewSelection && selection.length > 0 && selection.every(sendable);
-      const readySelection = canReviewSelection && canDraft() && selection.some(row => row.queue?.status === "draft")
-        && selection.every(row => sendable(row) || (row.queue?.status === "draft" && readyMessage(row)));
-      const controls = element("div", "bulk-invite-controls");
-      controls.append(actionFieldset(selection));
-      box.append(controls);
-      if (readySelection) {
-        const actions = element("div", "bulk-invite-actions");
-        actions.append(button("Review selected drafts", () => {
-          review = true;
-          render();
-          box.querySelector(".bulk-invite-review")?.scrollIntoView({ block: "nearest" });
-        }));
-        box.append(actions);
-      }
-      const status = element("div", "bulk-invite-status-row");
+      const actions = element("div", "bulk-invite-actions");
+      const sendEnabled = !busy && canSend() && selection.length > 0 && selection.every(sendable);
+      const markReady = button("Mark ready", () => changeSelectedReadiness(true),
+        busy || !canPrepare() || !selection.some(preparableMessage));
+      markReady.dataset.bulkMarkReady = "";
+      const makeDraft = button("Make draft", () => changeSelectedReadiness(false),
+        busy || !canDraft() || !selection.some(draftable));
+      makeDraft.dataset.bulkMakeDraft = "";
+      actions.append(
+        button("Generate Drafts", createDrafts, busy || !canDraft() || !missingDrafts(selection).length),
+        markReady,
+        makeDraft,
+        button("Mark Sent", () => markSent(selection), !sendEnabled),
+      );
+      box.append(actions);
       if (!getStore().settings?.is_published)
-        status.append(element("p", "micro bulk-invite-hint", T("Publish the event to activate sending.")));
-      else if (selection.length && !sendSelection && !readySelection)
-        status.append(element("p", "micro bulk-invite-hint", T("Review incomplete drafts in Invites and mark them ready.")));
-      if (status.childElementCount) box.append(status);
+        statusBox?.append(element("p", "micro bulk-invite-hint", T("Publish the event to activate sending.")));
+      else if (selection.some(row => row.queue && !sendable(row)))
+        statusBox?.append(element("p", "micro bulk-invite-hint", T("Review incomplete drafts in Invites and mark them ready.")));
       if (notice) {
         const feedback = element("p", "micro bulk-invite-hint", notice);
         feedback.setAttribute("role", "status");
-        box.append(feedback);
+        statusBox?.append(feedback);
       }
-      if (review && readySelection) renderReview(box, selection);
     }
 
-    return { render, clear, syncVisible, selectionControl, selectAllControl, selected: id => selected.has(id) };
+    return { render, clear, syncVisible, selectionControl, selectAllControl, changeToDraft,
+      selected: id => selected.has(id) };
   }
   window.RSVP_ADMIN_BULK_INVITES = Object.freeze({ create });
 })();

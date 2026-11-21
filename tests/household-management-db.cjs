@@ -164,13 +164,24 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
    first_name:'Synthetic', mobile:'+15550101234', preferred_contact_method:'sms',
  }]);
  await q('select public.admin_set_household_primary_guest($1,$2)',[bulkHousehold,bulkGuest]);
- const bulkCode = await scalar('select invite_code value from public.households where id=$1',[bulkHousehold]);
- const bulkMessage = 'https://example.invalid/?=' + bulkCode;
+ const priorBulkCode = await scalar('select invite_code value from public.households where id=$1',[bulkHousehold]);
  const bulkValues = {channel:'sms',status:'draft',message_body:'{invitation_link}'};
  const bulkQueue = await scalar('select public.admin_save_delivery(null,$1,$2,null) value',[bulkHousehold,bulkValues]);
- await q('select public.admin_save_delivery($1,$2,$3,1)',[
-   bulkQueue,bulkHousehold,{...bulkValues,status:'ready',message_body:bulkMessage},
- ]);
+ // Removing and restoring the only active guest rotates the code without changing the draft revision.
+ await q("select public.admin_set_archived('guests',$1,true)",[bulkGuest]);
+ await q("select public.admin_set_archived('guests',$1,false)",[bulkGuest]);
+ await q('select public.admin_set_household_primary_guest($1,$2)',[bulkHousehold,bulkGuest]);
+ const bulkCode = await scalar('select invite_code value from public.households where id=$1',[bulkHousehold]);
+ assert.notEqual(bulkCode,priorBulkCode);checks++;
+ const bulkMessage = 'https://example.invalid/?=' + bulkCode;
+ const prepare = 'select public.admin_save_delivery($1,$2,$3,1)';
+ await reject(prepare,[bulkQueue,bulkHousehold,{...bulkValues,status:'ready',
+   message_body:'https://example.invalid/?='+priorBulkCode,expected_invitation_code:priorBulkCode}],/Invitation has changed/);
+ await reject(prepare,[bulkQueue,bulkHousehold,{...bulkValues,status:'ready',
+   message_body:bulkMessage,expected_invitation_code:null}],/Invitation has changed/);
+ assert.equal(await scalar('select status value from public.invitation_send_queue where id=$1',[bulkQueue]),'draft');checks++;
+ await q(prepare,[bulkQueue,bulkHousehold,{...bulkValues,status:'ready',
+   message_body:bulkMessage,expected_invitation_code:bulkCode}]);
  const reviewed = {
    household_id:bulkHousehold, actor_user_id:'11111111-1111-4111-8111-111111111111',
    channel:'sms', invitation_code:bulkCode, body:bulkMessage, service:'sms',
@@ -191,6 +202,12 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
  await q("UPDATE public.guests SET preferred_contact_method='sms' WHERE id=$1",[bulkGuest]);
  await db.exec('SET ROLE authenticated');
  const newer = await scalar('select public.admin_save_delivery(null,$1,$2,null) value',[bulkHousehold,bulkValues]);
+ await reject('select public.admin_save_delivery($1,$2,$3,2)',[
+   bulkQueue,bulkHousehold,{status:'draft',only_if_ready:true},
+ ],/Delivery changed/);
+ await reject('select public.admin_save_delivery($1,$2,$3,2)',[
+   bulkQueue,bulkHousehold,{...bulkValues,status:'ready',message_body:bulkMessage,expected_invitation_code:bulkCode},
+ ],/Delivery changed/);
  await reject(confirmReviewed,[bulkQueue,2,reviewed],/Delivery changed/);
  await q('select public.admin_save_delivery($1,$2,$3,1)',[
    newer,bulkHousehold,{...bulkValues,status:'cancelled',reason:'Synthetic supersession test'},

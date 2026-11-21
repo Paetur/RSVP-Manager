@@ -13,7 +13,7 @@ async function run(type){
  const browser=await type.launch({headless:true});
  try{
   const page=await browser.newPage({viewport:{width:820,height:1180}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const seed=mock+`\nfixtures.event_settings[0].is_published=true;const h=fixtures.households.find(h=>!h.archived_at&&h.invite_code);window.__deliveryHousehold=h;fixtures.invitation_send_queue=['email','sms','whatsapp'].map((channel,i)=>({id:'device-'+i,household_id:h.id,channel,status:'ready',revision:1,created_at:'2026-11-01T12:00:00Z',updated_at:'2026-11-01T12:00:00Z',invitation_code_snapshot:h.invite_code,recipient_snapshot:{contact_value:channel==='email'?'test@example.invalid':'+298 123456'},message_subject:'Invitation',message_body:'Hey Føroyskt & Deutsch?'}));fixtures.invitation_send_queue.push({...fixtures.invitation_send_queue[0],id:'sent-original',status:'sent'},{...fixtures.invitation_send_queue[0],id:'stale',invitation_code_snapshot:'RETIRED'});`;
+  const seed=mock+`\nfixtures.event_settings[0].is_published=true;const h=fixtures.households.find(h=>!h.archived_at&&h.invite_code);window.__deliveryHousehold=h;fixtures.invitation_send_queue=['email','sms','whatsapp'].map((channel,i)=>({id:'device-'+i,household_id:h.id,channel,status:'ready',revision:1,created_at:'2026-11-01T12:00:00Z',updated_at:'2026-11-01T12:00:00Z',invitation_code_snapshot:h.invite_code,recipient_snapshot:{contact_value:channel==='email'?'test@example.invalid':'+298 123456'},message_subject:'Invitation',message_body:'Hey Føroyskt & Deutsch?'}));fixtures.invitation_send_queue.push({...fixtures.invitation_send_queue[0],id:'sent-original',status:'sent'},{...fixtures.invitation_send_queue[0],id:'stale',invitation_code_snapshot:'RETIRED'},{...fixtures.invitation_send_queue[2],id:'device-current',created_at:'2026-11-02T12:00:00Z',updated_at:'2026-11-02T12:00:00Z'});`;
   const hierarchy=`\nfor(const [id,name,order,service,language,code] of [['tree-a','Zulu first',1,'sms','de','KLMNPQRS'],['tree-b','Alpha second',2,'whatsapp','en','NPQRSTUV']]){const guestId='guest-'+id;fixtures.households.push({...h,id,household_name:name,parent_id:h.id,sort_order:order,primary_guest_id:guestId,language,invite_code:code});fixtures.guests.push({id:guestId,household_id:id,first_name:name,mobile:'+1202555011'+order,preferred_contact_method:service});}fixtures.households.push({...h,id:'template-email',household_name:'Example email household',primary_guest_id:'guest-email',language:'en',invite_code:'QRSTUVWX'});fixtures.guests.push({id:'guest-email',household_id:'template-email',first_name:'Email recipient',email:'test@example.invalid',preferred_contact_method:'email'});`;
   const templates=`
     h.language='en';h.household_name='Example household';fixtures.event_settings[0].default_language='en';fixtures.event_settings[0].fallback_language='de';
@@ -38,24 +38,29 @@ async function run(type){
   const householdId=await page.evaluate(()=>window.__deliveryHousehold.id);
   const household = id => page.locator('[data-invite-household="'+id+'"]');
   const before = await page.evaluate(()=>JSON.stringify(fixtures.invitation_send_queue));
-  const action = page.locator('#bulkInvitesHost').getByRole('group',{name:'Action',exact:true});
+  const action = page.locator('#bulkInvitesHost');
   assert.equal(await page.evaluate(()=>window.__calls.some(c=>c.name==='admin_save_delivery')),false,'opening Invites does not create a delivery');
   await page.locator('[data-invite-filter="needs-draft"]').click();
   await page.locator('[data-bulk-select-all]').check();
   await action.getByRole('button',{name:'Generate Drafts',exact:true}).click();
-  await page.locator('#bulkInvitesHost').getByText('3 drafts created',{exact:true}).waitFor();
+  await page.locator('#bulkInviteStatus').getByText('3 Ready',{exact:true}).waitFor();
   await page.locator('[data-invite-filter="all"]').click();
   const generated = await page.evaluate(()=>window.__calls.filter(c=>c.name==='admin_save_delivery'));
-  assert.equal(generated.length,3,'the three missing service/language matches produce three drafts');
-  assert.ok(generated.every(c=>c.args.p_id===null&&c.args.p_values.status==='draft'&&c.args.p_values.only_if_missing===true&&c.args.p_values.template_revision),'draft preparation carries the selected template revision');
+  const draftWrites=generated.filter(c=>c.args.p_values.status==='draft');
+  const readyWrites=generated.filter(c=>c.args.p_values.status==='ready');
+  assert.equal(generated.length,6,'three matching drafts are created and prepared');
+  assert.equal(draftWrites.length,3);
+  assert.ok(draftWrites.every(c=>c.args.p_id===null&&c.args.p_values.only_if_missing===true&&c.args.p_values.template_revision),'draft creation carries the selected template revision');
+  assert.equal(readyWrites.length,3);
+  assert.ok(readyWrites.every(c=>c.args.p_id&&c.args.p_expected_revision===1&&c.args.p_values.expected_invitation_code),'ready preparation guards the created draft and invitation code');
   assert.equal(await page.evaluate(()=>JSON.stringify(fixtures.invitation_send_queue.filter(q=>q.id.startsWith('device-')||['sent-original','stale'].includes(q.id)))),before,'generation preserves existing delivery snapshots');
-  const email=await page.evaluate(()=>fixtures.invitation_send_queue.find(q=>q.household_id==='template-email'&&q.status==='draft'));
+  const email=await page.evaluate(()=>fixtures.invitation_send_queue.find(q=>q.household_id==='template-email'&&q.status==='ready'));
   assert.equal(email.template_id,'email');
   assert.equal(email.message_subject,'Invitation for Example email household');
   assert.match(email.message_body,/^Hello Example email household\nhttp:/);
-  const sms=await page.evaluate(()=>fixtures.invitation_send_queue.find(q=>q.household_id==='tree-a'&&q.status==='draft'));
+  const sms=await page.evaluate(()=>fixtures.invitation_send_queue.find(q=>q.household_id==='tree-a'&&q.status==='ready'));
   assert.equal(sms.template_id,'template-1');assert.match(sms.message_body,/^SMS message http:/);
-  const whatsapp=await page.evaluate(()=>fixtures.invitation_send_queue.find(q=>q.household_id==='tree-b'&&q.status==='draft'));
+  const whatsapp=await page.evaluate(()=>fixtures.invitation_send_queue.find(q=>q.household_id==='tree-b'&&q.status==='ready'));
   assert.equal(whatsapp.template_id,'template-0');assert.match(whatsapp.message_body,/^WhatsApp message http:/);
   async function openDelivery(id) {
    const row=household(id);
@@ -65,15 +70,23 @@ async function run(type){
    return section;
   }
   const delivery=await openDelivery('template-email');
-  const draft=delivery.locator('[data-form-key="delivery:'+email.id+'"]');
+  const currentEmail=household('template-email').locator('.current-invitation');
+  assert.equal(await delivery.locator('[data-delivery-id="'+email.id+'"]').count(),0);
+  await currentEmail.locator('details').evaluateAll(nodes=>nodes.forEach(node=>node.open=true));
+  const draft=currentEmail.locator('[data-form-key="delivery:'+email.id+'"]');
   const channel=draft.getByLabel('Delivery channel');
   const draftBody=draft.getByLabel('Message text',{exact:true});
   assert.equal(await draftBody.inputValue(), email.message_body);
   await draftBody.fill('Hand-edited text');
   await channel.selectOption('sms');
   assert.equal(await draftBody.inputValue(),'Hand-edited text');
-  await openDelivery(householdId);
-  const record=id=>page.locator('#inviteRows [data-delivery-id="'+id+'"]');
+  const history=await openDelivery(householdId);
+  const current=household(householdId).locator(".current-invitation");
+  assert.equal(await current.locator("[data-delivery-id]").getAttribute("data-delivery-id"), "device-current");
+  assert.equal(await current.locator("a[href]").count(),0,"the standalone invitation has no device compose links");
+  assert.equal(await current.locator(".invitation-send-form").count(),0,"the standalone invitation has no sent confirmation form");
+  assert.equal(await current.getByRole("button",{name:"Change to Draft",exact:true}).isVisible(),true);
+  const record=id=>history.locator('[data-delivery-id="'+id+'"]');
   assert.ok((await record('device-0').getByRole('link',{name:'Open email',exact:true}).getAttribute('href')).startsWith('mailto:'));
   assert.equal(await record('device-1').getByRole('link',{name:'Open Messages',exact:true}).getAttribute('href'),'sms:+298123456');
   assert.ok((await record('device-2').getByRole('link',{name:'Open WhatsApp',exact:true}).getAttribute('href')).startsWith('https://wa.me/298123456?text='));

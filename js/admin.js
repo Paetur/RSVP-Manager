@@ -2305,6 +2305,7 @@
   const {
     editor: deliveryEditor,
     section: deliverySection,
+    currentSection: currentInvitationSection,
   } = window.RSVP_ADMIN_DELIVERY_RECORD.create({
     R,
     T,
@@ -2323,6 +2324,7 @@
     actorName,
     field,
     reload,
+    changeToDraft: (household, record) => bulkInvitesView.changeToDraft(household, record),
     viewInInvites: (householdId) => {
       tab("invites");
       invitesView.openHousehold(householdId);
@@ -2425,6 +2427,7 @@
     setDisclosure,
     rememberDisclosure: (key, open) => expandedGroups.set(key, open),
     deliverySection,
+    currentInvitationSection,
     deliveryEditor,
     invitationTemplateChoices,
     invitationDraft,

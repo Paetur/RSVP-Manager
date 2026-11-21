@@ -25,7 +25,22 @@ fixtures.guests.push({id:'77777777-1111-4777-8111-777777777777',household_id:h3,
 const deliveryHouseholds=fixtures.households.filter(h=>h.invite_code&&!h.archived_at&&fixtures.guests.some(g=>g.household_id===h.id&&!g.archived_at));
 const deliveryRow=(status,h,day,suffix=status)=>({id:'view-'+suffix,household_id:h.id,channel:'manual',status,revision:1,created_at:'2026-11-'+day+'T12:00:00Z',updated_at:'2026-11-'+day+'T12:00:00Z',invitation_code_snapshot:h.invite_code,recipient_snapshot:{contact_name:'Example recipient'},message_subject:'Example',message_body:'Synthetic '+status+' invitation'});
 fixtures.invitation_send_queue=[deliveryRow('sent',deliveryHouseholds[0],12),deliveryRow('failed',deliveryHouseholds[0],13),deliveryRow('ready',deliveryHouseholds[0],14),deliveryRow('cancelled',deliveryHouseholds[0],15),deliveryRow('draft',deliveryHouseholds[1],14),deliveryRow('ready',fixtures.households.find(h=>h.id===archivedId),14,'archived'),deliveryRow('sent',fixtures.households.find(h=>h.id===h1),14,'guestless')];
-fixtures.invitation_deliveries=[{queue_id:'view-sent',confirmed_at:'2026-11-12T12:00:00Z',confirmed_by:h1,delivery_note:'Synthetic delivery note'}];`;
+const readySample=fixtures.invitation_send_queue.find(row=>row.id==='view-ready');
+readySample.channel='whatsapp';
+readySample.recipient_snapshot={contact_name:'Example recipient',contact_type:'phone',contact_value:'+12025550111'};
+fixtures.invitation_deliveries=[{queue_id:'view-sent',confirmed_at:'2026-11-12T12:00:00Z',confirmed_by:h1,delivery_note:'Synthetic delivery note'}];
+const reviewDraft=fixtures.invitation_send_queue.find(row=>row.id==='view-draft');
+reviewDraft.message_body='Synthetic invitation {invitation_link}';
+reviewDraft.invitation_code_snapshot=null;
+window.__readyAttempts=[];
+const priorReadyRpc=client.rpc;
+client.rpc=async(name,args)=>{
+  if(name==='admin_save_delivery'&&args.p_id===reviewDraft.id){
+    window.__readyAttempts.push(args);
+    if(window.__failReady){window.__failReady=false;return {error:{message:'Synthetic preparation failure'}};}
+  }
+  return priorReadyRpc(name,args);
+};`;
     await page.route("**/supabase.min.js", (r) =>
       r.fulfill({
         contentType: "text/javascript",
@@ -46,14 +61,24 @@ fixtures.invitation_deliveries=[{queue_id:'view-sent',confirmed_at:'2026-11-12T1
     assert.equal(await first.locator("[data-delivery-id]").count(), 0, "collapsed household builds no records");
     await first.locator(":scope > summary .invite-compact-name").click();
     const section = first.locator('[id^="invite-delivery-"]');
-    const current = section.locator(".current-invitation");
+    const current = first.locator(".invite-household-content > .current-invitation");
     const history = section.locator(".household-delivery-history");
     await current.waitFor();
+    assert.equal(await current.evaluate(node =>
+      node.nextElementSibling.id.startsWith("invite-rsvp-") &&
+      node.nextElementSibling.nextElementSibling.id.startsWith("invite-delivery-")), true);
+    assert.equal(await section.locator(".current-invitation").count(), 0, "delivery history is independent of the current invitation");
     assert.deepEqual(await recordIds(current), ["view-ready"], "newest cancelled row belongs to history");
     assert.deepEqual(await recordIds(history), ["view-cancelled", "view-failed", "view-sent"]);
     const ready = current.locator('[data-delivery-id="view-ready"]');
-    await ready.locator(":scope > summary").click();
+    if (!await ready.evaluate(node => node.open)) await ready.locator(":scope > summary").click();
     assert.ok(await ready.getByText("Edit delivery", { exact: true }).isVisible());
+    assert.ok(await ready.getByRole("button", { name: "Change to Draft", exact: true }).isVisible());
+    assert.equal(await ready.locator("a[href^='https://wa.me/'], .invitation-send-form").count(), 0);
+    for (const name of ["Copy message", "Share invitation", "Record as sent"])
+      assert.equal(await ready.getByRole("button", { name, exact: true }).count(), 0, name + " belongs outside Current invitation");
+    assert.equal(await ready.getByLabel("Sent note", { exact: true }).count(), 0);
+    if (!await section.evaluate(node => node.open)) await section.locator(":scope > summary").click();
     const sent = history.locator('[data-delivery-id="view-sent"]');
     await sent.locator(":scope > summary").click();
     assert.ok(await sent.getByText("Synthetic sent invitation", { exact: true }).isVisible());
@@ -62,6 +87,70 @@ fixtures.invitation_deliveries=[{queue_id:'view-sent',confirmed_at:'2026-11-12T1
     await second.locator(":scope > summary .invite-compact-name").click();
     await second.locator(".current-invitation").waitFor();
     assert.deepEqual(await recordIds(second), ["view-draft"], "records stay scoped to their own household");
+    const draft = second.locator('[data-delivery-id="view-draft"]');
+    const markReady = draft.locator("[data-mark-delivery-ready]");
+    async function openDraft() {
+      const summary = draft.locator(":scope > summary");
+      await summary.waitFor();
+      if (!await draft.evaluate(node => node.open)) await summary.click();
+    }
+    await openDraft();
+    assert.equal(await draft.getByRole("button", { name: "Copy message", exact: true }).count(), 0);
+    assert.equal(await markReady.evaluate(button =>
+      button.parentElement.previousElementSibling.querySelector("summary").textContent === "Edit delivery"), true);
+    const inviteCode = await page.evaluate(() => deliveryHouseholds[1].invite_code);
+    assert.ok((await draft.locator(".delivery-message").first().innerText()).endsWith("?=" + inviteCode));
+
+    await page.evaluate(() => { window.__accessPermissions.sendInvites = false; });
+    await refreshFixture(page);
+    await page.waitForFunction(() => !document.getElementById("refreshButton").disabled);
+    await openDraft();
+    assert.equal(await markReady.count(), 0, "current preparation requires sending permission");
+    await page.evaluate(() => {
+      window.__accessPermissions.sendInvites = true;
+      reviewDraft.message_body = "An invitation with a stale link https://example.invalid/?=RETIRED";
+    });
+    await refreshFixture(page);
+    await page.waitForFunction(() => !document.getElementById("refreshButton").disabled);
+    await openDraft();
+    await markReady.click();
+    await page.locator("#adminMessage").getByText("Refresh and save this delivery again before sending.").waitFor();
+    assert.equal(await page.evaluate(() => window.__readyAttempts.length), 0, "stale links cannot be marked ready");
+    await page.evaluate(() => { reviewDraft.message_body = "Synthetic invitation {invitation_link}"; window.__failReady = true; });
+    await refreshFixture(page);
+    await page.waitForFunction(() => !document.getElementById("refreshButton").disabled);
+    await openDraft();
+    await markReady.click();
+    await page.locator("#adminMessage").getByText("Synthetic preparation failure").waitFor();
+    assert.equal(await markReady.isEnabled(), true, "failed preparation can be retried");
+    assert.equal(await markReady.evaluate(button => document.activeElement === button), true);
+    assert.equal(await page.evaluate(() => reviewDraft.status), "draft");
+    await markReady.click();
+    await draft.locator(":scope > summary").getByText(/Ready/).waitFor();
+    assert.equal(await markReady.count(), 0);
+    const attempt = await page.evaluate(() => window.__readyAttempts.at(-1));
+    assert.equal(attempt.p_expected_revision, 1);
+    assert.equal(attempt.p_values.expected_invitation_code, inviteCode);
+    assert.equal(attempt.p_values.status, "ready");
+    assert.ok(attempt.p_values.message_body.endsWith("?=" + inviteCode));
+    const readySnapshot = await page.evaluate(() => structuredClone(reviewDraft));
+    const demote = draft.getByRole("button", { name: "Change to Draft", exact: true });
+    if (!await draft.evaluate(node => node.open)) await draft.locator(":scope > summary").click();
+    await demote.click();
+    const review = second.locator(":scope > summary .invite-review-action");
+    await review.waitFor();
+    assert.equal(await review.evaluate(button => document.activeElement === button), true, "demotion returns focus to Review");
+    const draftSnapshot = await page.evaluate(() => structuredClone(reviewDraft));
+    assert.equal(draftSnapshot.status, "draft");
+    assert.equal(draftSnapshot.revision, readySnapshot.revision + 1);
+    assert.equal(draftSnapshot.message_body, readySnapshot.message_body, "demotion keeps the invitation content");
+    assert.deepEqual(draftSnapshot.recipient_snapshot, readySnapshot.recipient_snapshot, "demotion keeps the recipient snapshot");
+    assert.deepEqual(await page.evaluate(() => window.__readyAttempts.at(-1).p_values),
+      { status: "draft", only_if_ready: true });
+    await review.click();
+    await markReady.click();
+    await second.locator(':scope > summary [data-invite-copy="invitation"]').getByText("Invitation", { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.__calls.some(call => call.name === "admin_record_delivery_sent")), false);
 
     await page.evaluate(() => { window.__accessPermissions.sections.households = "none"; });
     await refreshFixture(page);
@@ -97,10 +186,12 @@ fixtures.invitation_deliveries=[{queue_id:'view-sent',confirmed_at:'2026-11-12T1
     assert.deepEqual(await recordIds(current), ["view-refreshed"]);
     assert.equal(await history.count(), 0, "the household history uses the reloaded store");
     assert.equal(await inactive.count(), 0, "empty inactive grouping stays hidden");
+    const secondHistory = second.locator("details[id^=invite-delivery-]");
+    if (!await secondHistory.evaluate(node => node.open)) await secondHistory.locator(":scope > summary").click();
     assert.ok(await second.getByText("No delivery recorded yet.", { exact: true }).isVisible());
     assert.deepEqual(errors, []);
     console.log(
-      "PASS delivery views: household-scoped history, current draft choice, saved records and notes, current edit action, inactive access and replaced-store reload.",
+      "PASS delivery views: standalone current invitation, household history, revision-checked readiness round trip, permissions, stale link and failed retry, inactive access and replaced-store reload.",
     );
   } finally {
     await browser.close();

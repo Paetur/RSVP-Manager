@@ -3,6 +3,7 @@ const { chromium } = require("playwright");
 const assert = require("node:assert/strict"),
   fs = require("node:fs");
 const { selectWorkTab } = require("./helpers/language-ui.cjs");
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
 const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-picture");
 (async () => {
@@ -116,6 +117,17 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
             const template={id:args.p_id,revision:'88888888-1111-4111-8111-111111111111',...args.p_values};
             window.__pictureTemplates=window.__pictureTemplates.filter(t=>t.id!==args.p_id).concat(template);
             return {data:null};
+          }
+          if(name==='admin_save_delivery'&&args.p_household_id===h2){
+            const result=await pictureRpc(name,args);
+            const row=fixtures.invitation_send_queue.find(q=>q.id===result.data);
+            const household=fixtures.households.find(h=>h.id===h2);
+            const guest=fixtures.guests.find(g=>g.id===household.primary_guest_id);
+            if(row?.channel==='whatsapp'){
+              row.recipient_snapshot={contact_name:guest.first_name,contact_value:guest.mobile,contact_type:'whatsapp'};
+              row.invitation_code_snapshot=fixtures.event_settings[0].is_published?household.invite_code:null;
+            }
+            return result;
           }
           return pictureRpc(name,args);
         };
@@ -418,10 +430,10 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
       );
       assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "opening Invites does not save a delivery");
       await householdRow.locator('[data-bulk-select="' + household + '"]').check();
-      const action = page.locator("#bulkInvitesHost").getByRole("group", { name: "Action", exact: true });
+      const action = page.locator("#bulkInvitesHost");
       assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "selecting a household does not create a delivery");
       await action.getByRole("button", { name: "Generate Drafts", exact: true }).click();
-      await page.locator("#bulkInvitesHost").getByText("1 draft created", { exact: true }).waitFor();
+      await page.locator("#bulkInviteStatus").getByText("1 draft created", { exact: true }).waitFor();
       assert.deepEqual(await page.evaluate(() => window.__pictureLoadArgs),
         { p_compact_queue_pictures: true }, "the draft refresh requests compact pictures");
       const creation = await page.evaluate(() => window.__calls.find(c => c.name === "admin_save_delivery").args);
@@ -429,12 +441,11 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
       assert.equal(creation.p_values.only_if_missing, true);
       assert.equal(creation.p_values.template_id, "99999999-1111-4111-8111-111111111111");
       assert.equal(creation.p_values.template_revision, "88888888-1111-4111-8111-111111111111");
-      await householdRow.locator(":scope > summary .invite-compact-name").click();
-      await page.locator("#invite-delivery-" + household).evaluate(node => node.open = true);
-      const inlineRecord = householdRow.locator("[data-delivery-id]").first();
+      const inlineRecord = householdRow.locator(".current-invitation [data-delivery-id]");
       const inlinePicture = inlineRecord.locator(":scope > .invitation-picture");
-      assert.equal(await inlinePicture.count(), 0, "closed record does not load its picture preview");
-      await inlineRecord.locator(":scope > summary").click();
+      assert.equal(await inlinePicture.count(), 0, "collapsed household does not load its picture preview");
+      await householdRow.locator(":scope > summary .invite-compact-name").click();
+      if (!await inlineRecord.evaluate(node => node.open)) await inlineRecord.locator(":scope > summary").click();
       await inlinePicture.waitFor();
       assert.equal(await page.getByRole("dialog", { name: "Invitation delivery", exact: true }).count(), 0, "created delivery review stays inline");
       const savedDraft = await page.evaluate(
@@ -461,7 +472,33 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
         await page.evaluate(() => fixtures.event_settings[0].is_published),
         false,
       );
-      // Exercise the actual share dialog without publishing any fixture event.
+      assert.equal(await inlineRecord.locator("[data-mark-delivery-ready]").count(), 0);
+      // Exercise the published route and clipboard with the fixture's saved draft.
+      const link = await page.evaluate(() => {
+        fixtures.event_settings[0].is_published = true;
+        return window.RSVP.invitationURL(fixtures.households.find(h => h.id === h2).invite_code);
+      });
+      await refreshFixture(page);
+      await page.waitForFunction(() => !document.getElementById("refreshButton").disabled);
+      await householdRow.locator(":scope > summary .invite-review-action").click();
+      assert.equal(await inlineRecord.getByRole("button", { name: "Copy message", exact: true }).count(), 0);
+      await inlineRecord.locator("[data-mark-delivery-ready]").click();
+      const ready = householdRow.locator(':scope > summary [data-invite-copy="invitation"]');
+      await ready.getByText("Invitation", { exact: true }).waitFor();
+      const readySave = await page.evaluate(() => window.__calls.filter(c => c.name === "admin_save_delivery").at(-1).args);
+      assert.equal(readySave.p_expected_revision, 2);
+      assert.equal(readySave.p_values.status, "ready");
+      assert.equal(readySave.p_values.message_body, "Hello " + link);
+      assert.deepEqual(readySave.p_values.message_image, savedDraft.message_image, "Mark ready keeps the whole picture snapshot");
+      const recipientChip = householdRow.locator(':scope > summary [data-invite-copy="recipient"]');
+      assert.equal(await recipientChip.innerText(), "WhatsApp");
+      await recipientChip.click();
+      assert.equal(await page.evaluate(() => window.__pictureCopied), "+12025550111");
+      assert.equal(await householdRow.locator(':scope > summary [data-invite-copy="message"]').count(), 0);
+      await ready.click();
+      await page.waitForFunction(value => window.__pictureCopied === value, "Hello " + link);
+      assert.equal(await page.evaluate(() => window.__pictureCopied), "Hello " + link);
+      // Exercise the actual share dialog with synthetic device and handoff hooks.
       await page.evaluate((picture) => {
         const host = document.createElement("div");
         host.id = "pictureShareFixture";

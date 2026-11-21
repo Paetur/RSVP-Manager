@@ -14,7 +14,7 @@ For a dedicated Supabase Cloud project, the [trusted local setup companion](docs
 
 ## Existing installations
 
-Beta.2 keeps the beta.1 application table layout and backup contract. A retained beta.1 installation needs a scoped update to the administrator load and delivery-recording functions and the canonical translation registry. Use the fresh installer only on an empty application database.
+Beta.3 keeps the beta.2 application table layout and backup contract. A retained beta.2 installation needs a scoped update to the administrator delivery-save routine and the canonical translation registry. Use the fresh installer only on an empty application database.
 
 Verify the installed schema and prepare a reviewed change for that installation. Protect its database, administrator access, private photos and configuration, including the existing publication setting. Rehearse the update and rollback on disposable data, then verify data and access afterward. Keep the website and backend compatible.
 
@@ -75,7 +75,7 @@ CLI alternative, after `gh auth login`:
 ```bash
 gh variable set RSVP_SUPABASE_URL --repo OWNER/WEBSITE --body 'https://YOUR-PROJECT.supabase.co'
 gh variable set RSVP_PUBLISHABLE_KEY --repo OWNER/WEBSITE --body 'sb_publishable_YOUR_PUBLIC_KEY'
-gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-beta.2
+gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-beta.3
 ```
 
 Use the workflow filename and release input name from your copy of the [deployment template](deployment/README.md). For direct static hosting without this Actions workflow, upload the wizard's downloaded file as `js/config.js` in the installation directory instead.

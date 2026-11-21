@@ -40,7 +40,8 @@ const noticeRpc=client.rpc;client.rpc=async(name,args)=>{
    assert.equal(await counts.evaluate(node=>Boolean(node.closest('#statsGrid .stat-card'))),true,'status counts live in their summary card');
    assert.ok((await counts.boundingBox()).y < (await heading.boundingBox()).y,'summary cards sit above the Invites list header');
    assert.equal(await page.locator('#inviteShownFieldsHost').evaluate(node=>node.previousElementSibling?.id==='inviteRowsLayout'),true,'Shown follows Rows before Group');
-   assert.equal(await page.locator('#inviteSearchToggle').evaluate(node=>Boolean(node.closest('.invite-box-heading'))),true,'Search lives above the row/filter controls');
+   assert.equal(await page.locator('#inviteShownFieldsHost').evaluate(node=>Boolean(node.closest('.invite-sorting'))),true,'view controls sit inside Sorting');
+   assert.equal(await page.locator('#inviteSearchToggle').evaluate(node=>Boolean(node.closest('.invite-box-heading'))),true,'Search stays in the Invites header');
    await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab=checklist]').click();
    assert.equal(await page.locator('#invitesAppearanceForm').evaluate(form=>Boolean(form.closest('[data-settings-card=personal-preferences] > .interface-invites-appearance'))),true,'grouping lives inside the Interface box');
    assert.equal(await page.locator('#invitesAppearanceForm').evaluate(form=>!form.parentElement.closest('form')),true,'preference editors are distinct sibling forms');

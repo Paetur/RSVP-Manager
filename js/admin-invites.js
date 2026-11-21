@@ -20,6 +20,7 @@
     setDisclosure,
     rememberDisclosure,
     deliverySection,
+    currentInvitationSection,
     deliveryEditor,
     invitationTemplateChoices,
     invitationDraft,
@@ -92,15 +93,16 @@
         className: "invite-shown-fields",
       }));
     }
-    function openDelivery(h) {
-      const row = [...$("inviteRows").querySelectorAll("[data-invite-household]")].find(n => n.dataset.inviteHousehold === h.id);
-      if (!row) return;
-      for (let parent = row.parentElement; parent; parent = parent.parentElement) if (parent.tagName === "DETAILS") parent.open = true;
-      row.open = true; row.dispatchEvent(new Event("toggle"));
-      const section = document.getElementById("invite-delivery-" + h.id);
-      if (section) { section.open = true; const latest = section.querySelector("[data-delivery-id]"); if (latest) latest.open = true; }
+    function openCurrentDelivery(row, h) {
+      row.open = true;
+      row.dispatchEvent(new Event("toggle"));
       rememberDisclosure("invite-household:" + h.id, true);
-      rememberDisclosure("invite-household:" + h.id + ":delivery", true);
+      const current = row.querySelector(".current-invitation > [data-delivery-id]");
+      if (!current) return;
+      current.open = true;
+      const focus = current.querySelector("[data-mark-delivery-ready]:enabled") || current.querySelector("summary");
+      focus?.focus({ preventScroll: true });
+      focus?.scrollIntoView({ block: "nearest" });
     }
     function filterChoices(id, label, values, openFilter) {
       const host = $(id), keys = new Set(values.map(([key]) => key));
@@ -133,7 +135,7 @@
     function copyValue(model, kind) {
       if (!model) return null;
       if (kind === "recipient") return ["phone", "email"].includes(model.contactType) ? model.contactValue : null;
-      if (!getStore().settings?.is_published || !["draft", "ready"].includes(model.latest?.status) ||
+      if (!getStore().settings?.is_published || model.latest?.status !== "ready" ||
           model.service === "none" && model.latest.channel !== "manual" ||
           model.latest.invitation_code_snapshot && model.latest.invitation_code_snapshot !== model.h.invite_code) return null;
       return window.RSVP_INVITATION_TEXT.deliveryMessage(model.h, model.latest, R);
@@ -147,7 +149,7 @@
     }
     function copyButton(model, kind, className) {
       const picture = kind === "invitation" && model.latest?.message_image;
-      const label = kind === "recipient" ? "Copy" : kind === "message" ? "Copy message" : picture ? "Copy picture and text" : "Copy Invitation";
+      const label = kind === "recipient" ? "Copy" : picture ? "Copy picture and text" : "Copy Invitation";
       const control = R.dom("button", { type: "button", class: className,
         disabled: clipboardBusy || !getActor() || !can("invites") || !copyValue(model, kind) });
       control.dataset.inviteCopy = kind;
@@ -171,13 +173,18 @@
           if (attachment) {
             // Call synchronously in this click: Safari needs user activation.
             // The helper supplies promises for conversion rather than awaiting it.
-            await window.RSVP_INVITATION_IMAGE.writeClipboard(attachment, value, { isCurrent: current });
+            try {
+              await window.RSVP_INVITATION_IMAGE.writeClipboard(attachment, value, { isCurrent: current });
+            } catch (error) {
+              if (!current()) return;
+              await navigator.clipboard.writeText(value);
+              if (current()) show(T("Invitation text copied."), "success");
+              return;
+            }
           } else await navigator.clipboard.writeText(value);
           if (current()) show(T(attachment ? "Picture and text copied. Check the caption after pasting." : "Copied"), "success");
         } catch (error) {
-          if (current()) show(attachment
-            ? T("Picture and text could not be copied. Use Text to copy the invitation message.")
-            : R.safeError(error), "error");
+          if (current()) show(R.safeError(error), "error");
         } finally { setClipboardBusy(false); }
       });
       return control;
@@ -364,20 +371,30 @@
           deliveryLabel = model.latest
             ? {
                 draft: "Draft",
-                ready: "Ready",
+                ready: "Invitation",
                 sent: "Marked sent",
                 failed: "Failed",
                 cancelled: "Cancelled",
               }[model.latest.status] || "Not sent"
             : "Not sent";
-        const invitation = copyButton(model, "invitation", "invite-copy-action invite-copy-invitation");
-        invitation.append(R.dom("span", { class: "invite-copy-pill" }, T(deliveryLabel)));
         const invitationActions = R.dom("span", { class: "invite-copy-options" });
-        invitationActions.append(invitation);
-        if (model.latest?.message_image && ["draft", "ready"].includes(model.latest.status)) {
-          const textOnly = copyButton(model, "message", "invite-copy-action invite-copy-text");
-          textOnly.append(R.dom("span", { class: "invite-copy-pill" }, T("Text")));
-          invitationActions.append(textOnly);
+        if (model.latest?.status === "draft") {
+          const review = R.dom("button", {
+            type: "button",
+            class: "invite-copy-action invite-review-action",
+            "aria-label": T("Review") + " · " + R.householdName(h),
+          });
+          review.append(R.dom("span", { class: "invite-copy-pill" }, T("Review")));
+          review.addEventListener("click", event => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (getActor() && can("invites") && row.isConnected) openCurrentDelivery(row, h);
+          });
+          invitationActions.append(review);
+        } else {
+          const invitation = copyButton(model, "invitation", "invite-copy-action invite-copy-invitation");
+          invitation.append(R.dom("span", { class: "invite-copy-pill" }, T(deliveryLabel)));
+          invitationActions.append(invitation);
         }
         delivery.append(invitationActions);
         const lastSent = R.dom("span", { class: "invite-overview-last-sent" });
@@ -415,9 +432,10 @@
           if (filled) return;
           filled = true;
           if (householdFacts) content.append(householdFacts(h));
+          if (model.latest) content.append(currentInvitationSection(h, model.latest));
           for (const [section, label, build] of [
-            ["delivery", "Invitation delivery", (household) => deliverySection(household, { allowCreate: true })],
             ["rsvp", "RSVP", rsvpSection],
+            ["delivery", "Invitation delivery", (household) => deliverySection(household, { allowCreate: true, separateCurrent: true })],
           ]) {
             const detail = build(h);
             detail.id = "invite-" + section + "-" + h.id;
@@ -433,7 +451,7 @@
                     T(h.rsvp_state === "locked" ? "Locked" : "Open"),
                   ),
                 );
-            setDisclosure(detail, key + ":" + section, section === "delivery");
+            setDisclosure(detail, key + ":" + section);
             content.append(detail);
           }
         }

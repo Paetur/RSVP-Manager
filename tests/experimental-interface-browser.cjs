@@ -216,9 +216,10 @@ client.rpc=async(name,args)=>{
     const household = page.locator('[data-panel="invites"] [data-invite-household="22222222-2222-4222-8222-222222222222"]');
     if (!await household.evaluate(node => node.open)) await household.locator(":scope > summary .invite-compact-name").click();
     const delivery = household.locator('[data-delivery-id="99999999-1111-4111-8111-111111111111"]');
-    await delivery.locator(":scope > summary").click();
-    assert.equal(await delivery.getByRole("button", { name: "Share invitation", exact: true }).isVisible(), true);
-    assert.match(await delivery.getByRole("link", { name: "Open WhatsApp", exact: true }).getAttribute("href"), /^https:\/\/wa\.me\//);
+    if (!await delivery.evaluate(node => node.open)) await delivery.locator(":scope > summary").click();
+    assert.equal(await delivery.getByRole("button", { name: "Share invitation", exact: true }).count(), 0);
+    assert.equal(await delivery.getByRole("link", { name: "Open WhatsApp", exact: true }).count(), 0);
+    assert.equal(await delivery.getByRole("button", { name: "Change to Draft", exact: true }).isVisible(), true);
     await page.locator('[data-tab="events"]').click();
     await invitesTab();
     assert.equal(await selection.isVisible(), true, "switching tabs preserves the opened workspace");
@@ -258,7 +259,7 @@ client.rpc=async(name,args)=>{
     assert.equal(await workspace.evaluate(node => node.hidden), true);
     assert.equal(await page.locator("#shortcutBatchHost").innerText(), "");
     assert.deepEqual(await page.evaluate(() => window.__authWrites), []);
-    checks.push("Invites workspace, per-household sharing, publication, HTTPS, send and settings permission gates");
+    checks.push("Invites workspace, separate current invitation, publication, HTTPS, send and settings permission gates");
     assert.match(await page.locator("#adminMessage").innerText(), /Synthetic reload failure/,
       "known successful write keeps its acknowledgment while a failed refresh remains visible");
     assert.equal(await page.evaluate(() => window.__fixtures.event_settings[0].apple_shortcuts_enabled), false);

@@ -46,13 +46,26 @@ async function geometry(page, count) {
 
 async function toolbarGeometry(page, width) {
  const result=await page.locator('[data-panel=invites]').evaluate(host=>{
-  const heading=host.querySelector('.invite-box-heading'),action=host.querySelector('.bulk-invite-action');
+  const heading=host.querySelector('.invite-box-heading'),action=host.querySelector('#bulkInvitesHost');
+  const sorting=host.querySelector('.invite-sorting'),stats=host.querySelector('#statsGrid');
+  const buttons=[...action.querySelectorAll('.bulk-invite-actions > button')];
   const filters=host.querySelector('.invite-overview-filters'),search=host.querySelector('#inviteSearchToggle');
   const rows=host.querySelector('#inviteRowsLayout'),shown=host.querySelector('#inviteShownFieldsHost'),group=host.querySelector('#inviteGroupFilter');
   const caption=rows.querySelector('[data-rows-caption]')||rows.querySelector('span');
-  const box=node=>node.getBoundingClientRect(),a=box(action),h=box(heading),f=box(filters),s=box(search),r=box(rows),v=box(shown),g=box(group),c=caption?box(caption):null;
-  return {adminContainsRows:document.getElementById('adminApp').contains(host.querySelector('#inviteRows')),adminContainsRowsControl:document.getElementById('adminApp').contains(rows),actionInHeader:heading.contains(action),rightAligned:Math.abs(a.right-h.right)<2,
-   aboveFilters:a.bottom<=f.top+1,searchInHeader:heading.contains(search),searchAboveFilters:s.bottom<=f.top+1,searchBesideAction:s.right<=a.left&&a.left-s.right<14&&s.top<a.bottom&&s.bottom>a.top,captionInside:c&&c.top>=r.top-1&&c.bottom<=r.bottom+1,rowsAligned:Math.abs(r.top-v.top)<2||(innerWidth<380&&v.top>=r.bottom-1),controlBoxes:{rows:{x:r.x,y:r.y,width:r.width,height:r.height},shown:{x:v.x,y:v.y,width:v.width,height:v.height}},
+  const box=node=>node.getBoundingClientRect(),h=box(heading),f=box(filters),s=box(search),r=box(rows),v=box(shown),g=box(group),c=box(caption);
+  const actionBoxes=[...buttons,search].map(box);
+  const buttonsInOrder=actionBoxes.every((current,index)=>!index||
+   current.top>=actionBoxes[index-1].bottom-1||
+   (current.left>=actionBoxes[index-1].right-1&&Math.abs(current.top-actionBoxes[index-1].top)<2));
+  const center=rect=>rect.top+rect.height/2;
+  return {adminContainsRows:document.getElementById('adminApp').contains(host.querySelector('#inviteRows')),adminContainsRowsControl:document.getElementById('adminApp').contains(rows),actionInHeader:heading.contains(action),rightAligned:Math.abs(s.right-h.right)<2,
+   sortingBetween:sorting.contains(filters)&&stats.parentElement===sorting.parentElement&&box(stats).bottom<=box(sorting).top+1&&box(sorting).bottom<=h.top+1&&sorting.nextElementSibling.contains(heading),
+   sortingOutlined:parseFloat(getComputedStyle(sorting).borderTopWidth)>0,
+   actionUnframed:!action.querySelector('fieldset')&&parseFloat(getComputedStyle(action).borderTopWidth)===0,
+   searchInHeader:heading.contains(search),buttonsInOrder,
+   buttonNames:buttons.map(button=>button.textContent),
+   desktopSameLine:actionBoxes.every(current=>Math.abs(center(current)-center(s))<1),
+   captionInside:c.top>=r.top-1&&c.bottom<=r.bottom+1,rowsAligned:Math.abs(r.top-v.top)<2||(innerWidth<380&&v.top>=r.bottom-1),controlBoxes:{rows:{x:r.x,y:r.y,width:r.width,height:r.height},shown:{x:v.x,y:v.y,width:v.width,height:v.height}},
    rowsBeforeShown:r.right<=v.left+1||r.bottom<=v.top+1,startsAtLeft:Math.abs(r.left-f.left)<2,
    desktopOrder:v.right<=g.left+1&&Math.abs(v.top-g.top)<2,compactOrder:g.top>=v.bottom-1,
    domOrder:filters.firstElementChild.contains(rows)&&filters.firstElementChild.contains(shown)&&filters.children[1]===group,
@@ -62,14 +75,17 @@ async function toolbarGeometry(page, width) {
  assert.equal(result.adminContainsRows,true,'Invites rows stay inside the administrator root');
  assert.equal(result.adminContainsRowsControl,true,'Rows control stays inside the administrator root');
  assert.equal(result.actionInHeader,true,'Action belongs to the top Invites header');
- assert.equal(result.rightAligned,true,'Action aligns to the right header edge');
- assert.equal(result.aboveFilters,true,'Action remains above the filter row');
- assert.equal(result.searchInHeader,true,'Search moves into the Invites header');
- assert.equal(result.searchAboveFilters,true,'Search sits above the filter row');
- assert.equal(result.searchBesideAction,true,'Search sits immediately beside Action in the same toolbar row');
+ assert.equal(result.rightAligned,true,'Search aligns to the right header edge');
+ assert.equal(result.sortingBetween,true,'Sorting sits in its own panel below the statistics and directly above Invites');
+ assert.equal(result.sortingOutlined,true,'Sorting has its own outline');
+ assert.equal(result.actionUnframed,true,'the action buttons have no group outline');
+ assert.equal(result.searchInHeader,true,'Search stays in the Invites header');
+ assert.deepEqual(result.buttonNames,['Generate Drafts','Mark ready','Make draft','Mark Sent']);
+ assert.equal(result.buttonsInOrder,true,'action and Search positions follow toolbar order at '+width+'px');
+ if(width>1000)assert.equal(result.desktopSameLine,true,'the desktop toolbar stays on one row');
  assert.equal(result.captionInside,true,'Rows caption sits inside its outline');
  assert.equal(result.rowsAligned,true,'Rows and Shown align, with deliberate stacking on the narrowest phone: '+JSON.stringify(result.controlBoxes));
- assert.equal(result.rowsBeforeShown,true,'Rows replaces the previous Search slot before Shown');
+ assert.equal(result.rowsBeforeShown,true,'Rows precedes Shown in Sorting');
  assert.equal(result.startsAtLeft,true,'Rows starts the filter row');
  assert.equal(result.domOrder,true,'Rows and Shown precede Group in keyboard/DOM order');
  assert.equal(result.rowsTouch,true,'Rows choices retain 44px label targets: '+JSON.stringify(result.rowsBoxes));
@@ -144,19 +160,19 @@ async function rowsGeometry(page) {
 
 async function mergedInvitesGeometry(page) {
  const result=await page.locator('[data-panel=invites]').evaluate(host=>{
-  const action=host.querySelector('.bulk-invite-action');
+  const action=host.querySelector('#bulkInvitesHost');
   const buttons=[...action.querySelectorAll('.bulk-invite-actions > button')].map(n=>n.getBoundingClientRect());
   const heading=host.querySelector('#inviteRows .invite-overview-heading');
   const headerSelect=heading.querySelector('[data-bulk-select-all]').closest('label');
   const headerTarget=headerSelect.getBoundingClientRect();
   const rows=[...host.querySelectorAll('#inviteRows .invite-household > summary')];
   return {cards:host.querySelectorAll('#statsGrid .stat-card').length,rows:rows.length,
-   controls:!action.querySelector('input[type=checkbox]')&&buttons.length===2&&buttons.every(b=>Math.abs(b.top-buttons[0].top)<1),
+   controls:!action.querySelector('input[type=checkbox]')&&buttons.length===4,
    headerSelection:heading.lastElementChild.contains(headerSelect)&&headerTarget.width>=43.5&&headerTarget.height>=43.5,
    independent:rows.every(row=>[...row.querySelectorAll('button')].every(button=>!button.closest('label'))),
    selected:rows.every(row=>row.lastElementChild.classList.contains('invite-overview-select')&&row.querySelectorAll('[data-bulk-select]').length===1),
    touch:rows.every(row=>[...row.querySelectorAll('.bulk-invite-select')].every(control=>{const b=control.getBoundingClientRect();return b.width>=43.5&&b.height>=43.5;})),
-   compactCopies:rows.every(row=>[...row.querySelectorAll('.invite-copy-recipient,.invite-copy-invitation,.invite-copy-text')].every(control=>{
+   compactCopies:rows.every(row=>[...row.querySelectorAll('.invite-copy-recipient,.invite-copy-invitation,.invite-copy-text,.invite-review-action')].every(control=>{
     const b=control.getBoundingClientRect(),pill=control.querySelector('.invite-copy-pill').getBoundingClientRect();
     return b.width>=27.5&&b.height>=27.5&&['left','top','width','height'].every(key=>Math.abs(b[key]-pill[key])<=1);
    })),
@@ -167,7 +183,7 @@ async function mergedInvitesGeometry(page) {
    pageFits:document.documentElement.scrollWidth<=innerWidth+1};
  });
  assert.equal(result.cards,4,'Invites contains the merged statistics and status cards');assert.ok(result.rows>0);
- assert.equal(result.controls,true,'Action contains the two compact buttons without scope checkboxes');
+ assert.equal(result.controls,true,'Action contains the four compact buttons without scope checkboxes');
  assert.equal(result.headerSelection,true,'the rightmost heading keeps the Select all touch target');
  assert.equal(result.independent,true,'copy buttons remain outside selection labels');assert.equal(result.selected,true,'one shared checkbox is the rightmost cell');
  assert.equal(result.touch,true,'selection controls retain 44px targets');
@@ -248,9 +264,21 @@ async function mergedInvitesGeometry(page) {
    await page.evaluate(()=>{
     fixtures.event_settings[0].is_published=true;
     const h=fixtures.households.find(h=>h.id===h2);
-    fixtures.invitation_send_queue=[{id:'action-layout-draft',household_id:h.id,channel:'manual',status:'draft',revision:1,created_at:'2026-11-16T12:00:00Z',updated_at:'2026-11-16T12:00:00Z',invitation_code_snapshot:h.invite_code,recipient_snapshot:{contact_name:'Example'},message_body:'Synthetic invitation'}];
+    fixtures.invitation_send_queue=[{id:'action-layout-draft',household_id:h.id,channel:'manual',status:'draft',revision:1,created_at:'2026-11-16T12:00:00Z',updated_at:'2026-11-16T12:00:00Z',invitation_code_snapshot:h.invite_code,recipient_snapshot:{contact_name:'Example',contact_type:'manual',contact_value:'Example'},message_body:'Synthetic invitation '+window.RSVP.invitationURL(h.invite_code)}];
    });
    await refresh(page);await geometry(page,0);
+   const review=page.locator('#inviteRows .invite-review-action');
+   assert.equal(await review.innerText(),'Review');
+   const draft=review.locator('xpath=ancestor::details[@data-invite-household]');
+   assert.equal(await draft.locator(':scope > summary [data-invite-copy="invitation"], :scope > summary [data-invite-copy="message"]').count(),0);
+   await review.press('Enter');
+   const current=draft.locator('.current-invitation [data-delivery-id="action-layout-draft"]');
+   assert.ok(await current.evaluate(record=>record.open&&record.closest('[data-invite-household]').open));
+   const ready=current.locator('[data-mark-delivery-ready]');
+   assert.equal(await ready.evaluate(node=>node===document.activeElement),true,'Review opens the current draft and focuses Mark ready');
+   assert.equal(await current.getByRole('button',{name:'Copy message',exact:true}).count(),0);
+   assert.equal(await draft.locator(':scope > summary [data-bulk-select]').isChecked(),false,'opening Review does not select the household');
+
    const row=page.locator('#inviteRows .invite-household > summary').first();
    assert.equal(await row.locator('.invite-preview,.invite-edit-household').count(),0,'published presentation retains eye/edit gates');
    assert.equal(await row.locator('.invite-share,.invite-create').count(),0);
@@ -291,7 +319,7 @@ async function mergedInvitesGeometry(page) {
    });
    await refresh(page);
    await page.locator('[data-tab=invites]').click();
-   await page.locator('#bulkInvitesHost .bulk-invite-action > .bulk-invite-actions').waitFor();
+   await page.locator('#bulkInviteContent > .bulk-invite-actions').waitFor();
    await mergedInvitesGeometry(page);
    if(process.env.RSVP_MANUAL_LAYOUT_SCREENSHOT_DIR&&[390,820,1366,1440].includes(width)){
     fs.mkdirSync(process.env.RSVP_MANUAL_LAYOUT_SCREENSHOT_DIR,{recursive:true,mode:0o700});
@@ -325,6 +353,6 @@ async function mergedInvitesGeometry(page) {
    assert.deepEqual(errors,[]);
    await page.close();
   }
-  console.log('PASS Invites Rows1/2 and moved Search: optional columns/inline details, keyboard and state isolation, publication gates, shared Action outline, chip-sized copy targets with independent 44px selection/Rows controls and no overflow at320/390/820/1024/1100/1160/1366/1440.');
+  console.log('PASS Invites Sorting, toolbar and Review: optional columns, current-draft keyboard focus, publication gates, chip-sized copy targets, independent 44px selection/Rows controls and no overflow at 320/390/820/1024/1100/1160/1366/1440.');
  } finally {await browser.close();await new Promise(resolve=>server.close(resolve));cleanup();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

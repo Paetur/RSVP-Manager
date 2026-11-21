@@ -212,7 +212,16 @@
 .invitation-delivery-sections > section { min-width: 0; }
 .invite-inactive-households { margin-block-start: 12px; }
 .invite-inactive-households > details { margin-inline: 12px; }
-#adminApp .invitation-delivery-sections h3 { margin-block: 0 8px; font-size: .88rem; }
+#adminApp :is(.invitation-delivery-sections, .invite-household-content > .current-invitation) h3 {
+  margin-block: 0 8px;
+  font-size: .88rem;
+}
+.invite-household-content > .current-invitation {
+  min-width: 0;
+  border-block-start: 1px solid var(--line);
+  padding-block-start: 8px;
+  margin-block: 6px;
+}
 #adminApp .invitation-send-form .btn {
   justify-self: start;
 }
@@ -558,14 +567,15 @@
 }
 
 
-/* Search and Action share the heading; the expanded search field sits below. */
+/* Search follows the invitation actions and expands below the toolbar. */
 #adminApp .invite-box-heading {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px minmax(0, max-content);
-  grid-template-areas: "title search action" "field field field";
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content) 44px;
+  grid-template-areas: "title action search" "field field field";
+  align-items: center;
   column-gap: 8px;
 }
+#adminApp .invite-heading-toolbar,
 #adminApp .invite-heading-search,
 #adminApp .invite-heading-search > .admin-search-control {
   display: contents;
@@ -821,90 +831,31 @@
 .overview-shortcuts > .shortcut-batches {
   padding-block-end: 10px;
 }
-.bulk-invites {
-  display: grid;
-  gap: 12px;
-  margin-top: 12px;
+.invite-heading-toolbar > .bulk-invites {
+  grid-area: action;
+  justify-self: end;
+  min-width: 0;
+  max-width: 100%;
 }
-.bulk-invites[hidden] {
-  display: none;
-}
+.bulk-invite-content { min-width: 0; }
 .bulk-invite-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  justify-content: flex-end;
   align-items: center;
-}
-.bulk-invite-heading,
-.bulk-invite-hint,
-.bulk-invite-review h3 {
-  margin: 0;
-}
-.bulk-invite-content {
-  display: grid;
-  min-width: 0;
-  gap: 12px;
-}
-.bulk-invite-controls {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  min-width: 0;
   gap: 8px;
-}
-.bulk-invite-filter-bar {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
-  align-items: start;
-  flex: 1 1 100%;
-  min-width: 0;
-  gap: 8px;
-}
-.bulk-invite-controls > fieldset {
-  min-width: 0;
-}
-.bulk-invite-filter-group .filter-choice {
-  border: 0;
-  background: transparent;
-}
-.bulk-invite-filters {
-  flex: 1 1 auto;
-  display: flex;
-  flex-wrap: wrap;
-  align-content: start;
-  gap: 4px 16px;
-  margin: 0;
-  padding: 2px 10px 6px;
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-}
-.bulk-invite-filters legend {
-  padding: 0 5px;
-  font-size: .78rem;
-  font-weight: 700;
-}
-.bulk-invite-filters.bulk-invite-action {
-  display: grid;
-  justify-self: start;
-  width: max-content;
-  max-width: 100%;
-  gap: 4px;
-  padding: 2px 10px 8px;
-  box-sizing: border-box;
-}
-.bulk-invite-action > .bulk-invite-actions {
-  flex-wrap: nowrap;
-}
-.bulk-invite-action .btn {
-  min-width: 0;
-  white-space: normal;
 }
 .bulk-invite-actions .btn {
+  min-width: 0;
   min-height: 44px;
   padding: 7px 11px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .bulk-invite-status-row { min-width: 0; }
+#bulkInviteStatus { margin-block-start: 8px; }
+#bulkInviteStatus:empty { display: none; }
+.bulk-invite-hint { margin: 0; }
 .bulk-invite-list {
   display: grid;
   gap: 8px;
@@ -984,29 +935,6 @@
   max-width: 16ch;
   overflow-wrap: anywhere;
 }
-.bulk-invite-review {
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-}
-.bulk-invite-review-item {
-  padding: 6px 0;
-}
-.bulk-invite-review-item summary {
-  font-weight: 650;
-}
-.bulk-invite-review-item .invitation-picture img {
-  max-height: 135px;
-  object-fit: contain;
-}
-.bulk-invite-review > button + button {
-  margin-inline-start: 6px;
-}
-@media (max-width: 700px) {
-  .bulk-invite-controls {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
 @media (max-width: 600px) {
   #adminApp .bulk-invite-row {
     grid-template-columns: minmax(0, 1fr) auto 44px;
@@ -1038,24 +966,14 @@
 /* One Invites list shares the existing draft/Sent action selection. */
 #adminApp [data-panel="invites"] { display: grid; gap: 16px; }
 #adminApp [data-panel="invites"].hidden { display: none; }
-.invite-box-heading > .bulk-invites {
-  grid-area: action;
-  justify-self: end;
-  min-width: 0;
-  width: max-content;
-  max-width: min(100%, 32rem);
-  margin-block: 0;
-  gap: 6px;
-}
-.invite-box-heading .bulk-invite-action { justify-self: end; }
-.invite-workspace-controls { margin-block: 16px 8px; min-width: 0; }
-.invite-workspace-controls > .invite-overview-filters {
+.invite-sorting { min-width: 0; }
+.invite-sorting > .invite-overview-filters {
   display: flex;
   flex-wrap: wrap;
   align-items: start;
 }
-.invite-workspace-controls .invite-overview-filters > div { flex: 1 1 10rem; }
-.invite-workspace-controls .invite-overview-filters > .invite-header-tools { flex: 1.4 1 18rem; }
+.invite-sorting .invite-overview-filters > div { flex: 1 1 10rem; }
+.invite-sorting .invite-overview-filters > .invite-header-tools { flex: 1.4 1 18rem; }
 .invite-header-tools > #inviteShownFieldsHost { max-width: 16rem; }
 #adminApp .invite-overview-row > .invite-overview-select {
   display: flex;
@@ -1083,12 +1001,16 @@
   }
 }
 @media (max-width: 1000px) {
-  .invite-workspace-controls .invite-overview-filters > .invite-header-tools { flex-basis: 100%; }
+  .invite-sorting .invite-overview-filters > .invite-header-tools { flex-basis: 100%; }
+}
+@media (max-width: 750px) {
+  #adminApp .invite-box-heading {
+    grid-template-areas: "title title title" "action action search" "field field field";
+    row-gap: 8px;
+  }
+  #adminApp .invite-heading-search .admin-search-toggle { align-self: end; }
 }
 @media (max-width: 500px) {
-  #adminApp .invite-box-heading {
-    grid-template-areas: "title title title" ". search action" "field field field";
-  }
-  .invite-workspace-controls .invite-overview-filters > div { flex-basis: 100%; }
+  .invite-sorting .invite-overview-filters > div { flex-basis: 100%; }
   .invite-header-tools > #inviteShownFieldsHost { max-width: none; }
 }
