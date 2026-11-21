@@ -74,6 +74,8 @@ For a fresh unpublished project, HTTP 200 with JSON `null` is the expected priva
 
 Return to the wizard and retry **Test connection**. If a function reports **BOOT_ERROR**, check its code, Secrets and logs. **Invalid JWT** usually means the platform toggle is still on. **Origin not allowed** means the request Origin and configured origin differ; use the website's canonical origin, not its full URL or a redirect hostname.
 
+![The Cloud setup checklist before Test connection, with empty Project URL and public key fields](images/ipad-manual-setup.png)
+
 ## 6. Wizard step 3: the first administrator
 
 In step 3, use the trusted companion or expand **Manual setup**. For manual setup, create and confirm the first Auth user under **Authentication → Users**, enter that account’s email and generate the first-administrator SQL. Run it in your private Supabase SQL Editor, then verify login in the wizard. The SQL checks for an empty, uninitialized application and a single matching confirmed Auth account. Existing installations use their administrator sign-in.

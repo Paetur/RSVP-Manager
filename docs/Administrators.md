@@ -28,6 +28,8 @@ Invitation sending, managing administrator membership, revoking other administra
 
 Use the pencil beside a member to change their name or access. Save requires confirmation. Cancel discards the draft.
 
+![A sample administrator’s View only access with per-section permissions](images/ipad-admin-access.png)
+
 ## Add someone
 
 Enter a display name and email, then choose:

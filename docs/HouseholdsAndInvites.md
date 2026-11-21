@@ -4,6 +4,8 @@
 
 Open Households to browse the nested list. Expand a household to see its guests. Household details keeps its primary-contact name/number/service and conditional Food caption visible collapsed or expanded. Expanded reading shows unlabelled address/landline, group path and invited sessions; use the household pencil to edit those details. Save or Cancel returns to the summary.
 
+![An expanded household showing its group path, invited sessions and individual guest](images/ipad-household-details.png)
+
 The top-level and relational-group headers have order arrows, an add icon and a pencil. Guarded Delete is at the lower right of each group editor, opposite Save/Cancel. Household and individual guest editors use the same footer layout for Archive/Restore/Delete; archived records can be opened for Restore while their data fields stay read-only. A top-level add icon creates a relational group in that section. A relational-group add icon opens Add household with both groups selected. There is no separate Add household section above the list. Top-level editing requires Settings edit access; relational groups and households require Households edit access.
 
 Existing shared relational groups retain their links and are marked Shared group. Renaming or reordering one applies wherever it appears. New relational groups belong to the selected top-level group. Delete requires an empty group, including no archived households; a top-level group must also have no scoped relational groups, and at least one top-level group must remain.
@@ -21,6 +23,8 @@ A venue is a place. A session is an activity at a place and time. Several sessio
 Use Venues to create and order places and sessions. Check each session’s venue and local time carefully. Manage households on a session lets you add or remove household invitations in bulk. Households → Household details provides session checkboxes and a collapsed Individual guest exceptions section. Save applies the household details and changed invitations together.
 
 On wide screens, the Venues and Sessions & scheduling boxes appear side by side. Opening an editor or Add venue/session expands that box across the row; reading views return to columns when editing closes. Narrower screens stack the boxes.
+
+![A venue and its two scheduled sessions shown in side-by-side panels](images/ipad-venues-sessions.png)
 
 ## Replies
 
@@ -40,11 +44,15 @@ To test on your phone while the event remains unpublished, use **Test sharing** 
 
 Expand **Picture album** above **Invitation templates** to manage shared pictures. An optional **Invitation picture** accepts a JPEG under 1.4 MB. The application re-encodes it, removes embedded metadata and limits it to 2400 pixels. It is stored privately with the template and copied into new drafts for services that support pictures. You can replace or remove the picture in a draft. Saving a changed template does not change existing drafts or sent history. Cancel discards your picture edit; a failed save retains it for retry.
 
+![An expanded invitation template with service, language tags, message placeholders and a sample picture](images/ipad-templates.png)
+
 Use `{invitation_link}` in the message. You can also use `{household_name}` and `{event_name}`. New drafts fill these in automatically. For an individual draft, choose a named template or start with the invitation link. For bulk generation, language tags control which templates are eligible.
 
 ## Invites overview
 
 **Main → Invites** contains the event summaries, optional iPhone Shortcuts workspace, Action controls and household list. Households and Guests share one statistics box. The other boxes show RSVP submissions, Food items and invitation status.
+
+![Invites in Dark mode on iPad, with filters and a grouped household delivery list](images/ipad-invites.png)
 
 Click **All**, **Not sent**, **Ready**, **Marked sent**, **Awaiting reply** or **Replied** in the Invites statistics box to filter the list. Counts are households, not individual delivery attempts. **Not sent** includes Ready invitations with no recorded Sent history. Status categories can overlap when a reminder is being prepared. The latest draft/attempt and last recorded sent date remain separate from RSVP status. A reopened RSVP is awaiting a new response even if earlier responses remain in history.
 

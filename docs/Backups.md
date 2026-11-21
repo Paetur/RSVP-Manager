@@ -8,6 +8,8 @@ Under **Settings → Database**, Backups and Validate and restore appear side by
 
 Open **Settings → Database** and choose one mode using the checkmarks.
 
+![The Database page showing Full and Partial backup and restore options](images/ipad-backups.png)
+
 | Operation | Activity logs |
 |---|---|
 | Full backup | Optional |

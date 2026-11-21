@@ -33,6 +33,8 @@ The other top actions refresh the data, change appearance, open the sign-in-prot
 7. Test a complete guest journey and keep a protected backup.
 8. Under Settings → Application, publish only after you have reviewed and approved the event.
 
+![Event settings, event planning and feature cards on iPad](images/ipad-event-settings.png)
+
 Adding a household does not automatically invite it to every session. Making a food item available at a venue does not send an invitation.
 
 On a wide screen, Events cards and the Venues and Sessions & scheduling boxes share columns. Opening an event, venue or session editor expands its box across the row; closing it restores the compact reading layout. Narrower screens stack the boxes. Resizing keeps your unsaved draft.

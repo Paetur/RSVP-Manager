@@ -4,6 +4,18 @@ A private invitation and event-planning app for keeping guests, replies, venues,
 
 Guests use their own invitation link. Organizers sign in to manage the event, with access that can be tailored to each administrator.
 
+## Screenshots
+
+A fictional event in Dark mode, shown at iPad landscape size.
+
+### Invites
+
+![Invites in Dark mode on iPad, with filters and a grouped household delivery list](docs/images/ipad-invites.png)
+
+### Templates
+
+![An expanded invitation template with service, language tags, message placeholders and a sample picture](docs/images/ipad-templates.png)
+
 ## What you can do
 
 - Organize households and individual guests in a nested list.

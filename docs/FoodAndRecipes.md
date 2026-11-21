@@ -28,6 +28,8 @@ Delete removes an unused item after confirmation. Items linked to commitments, c
 
 Use **Add Food Group** to combine at least two existing items, such as chips and nuts. Enter the name in the selected interface language, choose a category and members, and save. Other-language names are preserved.
 
+![Food Groups and Food categories with a sample reception snack group](images/ipad-food-groups.png)
+
 Guests select one box that reserves one unit of **every member** atomically. Each item retains its own capacity, notes and recipe. An item belongs to at most one group. Resolve commitments before changing membership or using **Ungroup items**; ungrouping retains the individual items.
 
 ## Commitments and venue eligibility
@@ -47,6 +49,8 @@ The former Food coordination box and its answer-summary panel have been removed.
 **Recipe ✓** means a recipe exists. **+ Recipe** starts a new recipe when none exists. Existing recipes open read-only with Print/Close and a pencil if you can edit. There is no separate Language text link beside an item: use its editor globe or the Languages page.
 
 Read-only administrator and guest recipes share a dialog with **Print** and **Close**. Print opens your device’s print/PDF options. Closing returns focus to the link without moving the page. View-only accounts cannot edit recipes.
+
+![A read-only rosemary cracker recipe with Print and Close controls](images/ipad-recipe.png)
 
 After opening the recipe’s pencil, its editor provides **Save**, **Cancel** and **Preview**. Preview prints the draft; Save is still needed to retain changes. Viewing/printing never changes commitments.
 

@@ -6,7 +6,11 @@ Open the private invitation link your organizer sent you. You do not need an adm
 
 1. Choose your language if needed and review your household’s sessions.
 2. Answer separately for each invited person and session using the inline choices. Adults appear before children.
+
+   ![A guest invitation with individual attendance choices for the reception and dinner](images/ipad-guest-invitation.png)
 3. Optionally add a household comment, such as dietary requirements or another message for the organizer. Choose **Review RSVP**, check the list and use **Back to edit** if needed.
+
+   ![RSVP review with two session answers, a comment, and Confirm RSVP and Back to edit buttons](images/ipad-rsvp-review.png)
 4. Choose **Confirm RSVP**. Your answers and comment lock and remain visible. The comment is shared only with your own household and authorized administrators.
 
 Before submitting, **Add person** lets you add someone to your own household, including whether they are a child. They inherit its session invitations; review their replies too. If you have already confirmed or the response window has closed, contact the organizer.

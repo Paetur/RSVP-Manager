@@ -16,6 +16,8 @@ The Languages globe groups text into Welcome Message, Venues, Sessions, Food and
 
 Venues, Sessions, Food items, Categories and Units appear as expandable record cards, with their pencils consistently in the top-right of each card. Open a card to read its translations; use its pencil to edit all enabled languages. Save/Cancel are below the fields. Saving one record retains drafts still open in other records. Search/tab changes ask before discarding unsaved translations. Failed saves retain input for retry.
 
+![The Welcome Message editor with English, Faroese and German fields](images/ipad-languages.png)
+
 The magnifying glass at the top-right opens search across record names, source text and saved translations. Close search with × or Escape. Food keeps its category filter. On wider screens language columns sit side by side; on phones they stack.
 
 Use the globe beside the food item name in its editor, or the Languages page. There is no separate Language text link beside an item. Use the box’s pencil to change text; the appropriate translation permission is required.

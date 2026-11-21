@@ -27,6 +27,8 @@ ssh -L 8090:127.0.0.1:8090 USER@VM_HOST
 
 The automatic page on a static website displays these startup instructions; it does not accept privileged credentials there. All automatic-wizard requests go to the local companion. Its scripts/styles are local, with no third-party browser scripts in the credential-entry page.
 
+![The automatic setup startup page showing the trusted companion command in the shared Dark palette](images/ipad-automatic-setup.png)
+
 ## Local first administrator
 
 Choose **Local Supabase** in the companion. Provide its loopback API address, public browser key, privileged Auth key, local PostgreSQL connection and final website base URL. API and database connections must point to the same installation; remote database/API addresses are refused in this mode. Privileged values stay in the local process and are cleared from the form after connecting.
