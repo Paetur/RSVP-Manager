@@ -1,9 +1,22 @@
 # First iPhone check: four actions, no batch sends yet
 
+For the reusable **RSVP Share Invitation** child and its synthetic,
+cancel-without-sending check, use the
+[picture-sharing shortcut procedure](ShortcutsNativeRunner.md#reusable-picture-sharing-shortcut).
+It shares the picture alone and copies the original caption for pasting into
+WhatsApp's photo composer. The direct app-action inspection below is separate.
+
 Use this short check before building the complete native runner on iOS 27.2 /
 WhatsApp 26.45.75. It discovers what WhatsApp actually exposes on this phone.
 No Mac or imported shortcut file is required. The repository's blueprint and
 JavaScript test runners are not installed native shortcuts.
+
+This probe inspects the direct app-action route. The separate
+[supervised picture-and-caption test](ShortcutsNativeRunner.md#supervised-picture-and-caption-live-test)
+uses the system share sheet with manual approved-recipient selection and
+explicit confirmation of the received caption/link and picture. That route
+does not require an app action with a recipient variable. A share-sheet return
+alone never establishes successful sending.
 
 In Shortcuts, tap **+**, rename the new shortcut `RSVP WhatsApp Probe`, then open
 **Add Action → Apps → WhatsApp**. Inspect each available action's icon →

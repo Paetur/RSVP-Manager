@@ -47,7 +47,19 @@ const { server, mock, extra } = createFoodHarness("admin-delivery-views");
       0,
       "history view keeps the original non-editable record contract",
     );
-    await page.locator("#deliveryStatusFilter").selectOption("failed");
+    const filter = page.locator("#deliveryStatusFilter details");
+    async function selectStatuses(selected) {
+      const keys = await filter.locator("button[data-value]").evaluateAll(nodes => nodes.map(node => node.dataset.value));
+      for (const key of keys) {
+        const option = filter.locator('[data-value="' + key + '"]');
+        if ((await option.getAttribute("aria-pressed") === "true") === selected.includes(key)) continue;
+        if (!await filter.evaluate(node => node.open)) await filter.locator("summary").click();
+        await option.click();
+      }
+      if (await filter.evaluate(node => node.open)) await filter.locator("summary").press("Escape");
+    }
+    const selectedStatuses = () => filter.locator('[aria-pressed="true"]').evaluateAll(nodes => nodes.map(node => node.dataset.value));
+    await selectStatuses(["failed"]);
     assert.deepEqual(await ids(), ["view-failed"]);
     await page.evaluate(() => {
       const previous = fixtures.invitation_send_queue.find(
@@ -66,15 +78,15 @@ const { server, mock, extra } = createFoodHarness("admin-delivery-views");
       document.querySelector("#deliveryLog [data-delivery-id=view-refreshed]"),
     );
     assert.deepEqual(await ids(), ["view-refreshed"]);
-    assert.equal(
-      await page.locator("#deliveryStatusFilter").inputValue(),
-      "failed",
+    assert.deepEqual(
+      await selectedStatuses(),
+      ["failed"],
     );
     assert.match(
       await page.locator("#deliveryCounts").innerText(),
       /0 ready.*0 recorded sent.*1 failed/,
     );
-    await page.locator("#deliveryStatusFilter").selectOption("sent");
+    await selectStatuses(["sent"]);
     assert.deepEqual(await ids(), []);
     assert.match(
       await page.locator("#deliveryLog").innerText(),

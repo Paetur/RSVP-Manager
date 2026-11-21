@@ -76,7 +76,6 @@
     (name === "logs" && can("full"));
   const tabAllowed = (name) =>
     name === "settings" ||
-    (name === "overview" && ["households", "invites", "food"].some((s) => can(s))) ||
     (name === "language" && can("languages")) ||
     (name === "events" && can("settings")) ||
     can(name);

@@ -48,7 +48,7 @@ await require("./helpers/admin-toolbar.cjs").autoConfirmInline(page);
         await page.locator("#statsGrid .stat-card").first().locator("dt").evaluateAll(
           labels => labels.map(label => [label.textContent, label.nextElementSibling.textContent]),
         ),
-        [["Top-level groups", "2"], ["Relational groups", "2"]],
+        [["Top-level groups", "2"], ["Relational groups", "2"], ["Adults", "1"], ["Children", "1"]],
       );
       await page.locator("[data-tab=households]").click();
       assert.equal(await page.locator("#newHousehold").count(), 0);

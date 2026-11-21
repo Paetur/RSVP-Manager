@@ -1,5 +1,20 @@
 # Release notes
 
+## 0.9.0-alpha.9
+
+This alpha consolidates invitation preparation and manual sending in **Main → Invites**. Publishing the website or upgrading an installation does not publish its event.
+
+- Invites combines household/guest, RSVP, Food and invitation-status summaries with clickable filters, the optional Shortcuts workspace and the household list. The former Overview tab is removed. The compact **Action** box generates drafts for **All missing** or **Selected** households and manually marks up to ten selected households Sent after the organizer sends their invitations.
+- The **Service** chip copies the current recipient number/email. **Draft** and **Ready** copy the latest valid published invitation and current RSVP link. Pictured invitations try combined picture-and-text clipboard formats, with a separate **Text** fallback. Check the picture, full caption and link after pasting; receiving-app support varies. Copying does not open a messaging app or record sending.
+- **Rows 1 / 2** switches between individual detail columns and paired lines. Household, Service and Invitation stay visible. **Settings → Interface → Invites appearance** saves separate defaults for each layout and grouping by None, Relational group or Service. Search uses compact icons, grouped households have outline boxes, and copy targets follow their visible chips.
+- Templates have multi-choice service, content and language tags, a separate Picture album and per-template editing/test-sharing controls. Bulk generation requires exactly one service/language match, checks the template revision and preserves existing drafts. Messages and SMS are distinct template services. Review language tags on existing templates before generating missing drafts.
+- Local installations with the optional HTTP/SSL companion expose listener/certificate controls and an HTTP-to-HTTPS redirect. Static hosted installations continue to use their host's HTTPS configuration.
+- Experimental Apple Shortcuts remains off by default. Updated authoring/recovery guides retain separate native/browser journals and preserve earlier results. Synthetic dry-run verification does not establish complete native, iPhone/iPad or live WhatsApp acceptance.
+
+Existing alpha.8 installations follow the [scoped alpha.9 upgrade guide](UpgradeAlpha9.md). The upgrade preserves existing event records, template wording/pictures, access and configuration; existing templates appear untagged and require review. Backup format 2/schema `20261114034908` and the 43-table count stay the same, while the template column contract expands. Keep the event unpublished, retain the earlier backup for alpha.8 recovery, and take a fresh alpha.9 Full backup for alpha.9 restore testing after upgrading. Use the fresh installer only for an empty application schema.
+
+Real-device picture/caption/link paste, administrator email delivery, accessibility, the complete published guest journey and final content/privacy acceptance remain separate checks.
+
 ## 0.9.0-alpha.8
 
 - **Overview → Manage Invites** prepares missing drafts from named templates and filters households by service and delivery status. Review up to ten selected households before handing their invitations to your device's sharing options.

@@ -8,17 +8,19 @@ For a first installation, use the [trusted setup companion](AutomaticSetup.md) t
 
 ## Find your way around
 
-The three icons at the top open **Main**, **Languages** and **Settings**. The version number sits at the right of the top menu.
+The three icons at the top open **Main**, **Languages** and **Settings**. On desktop, the release version appears under your name after sign-in.
 
-Main opens Invites. Its tabs are Overview, Events, Invites, Venues, Households, Food and Other; Overview contains event statistics. Your access determines which sections you see. The first Settings tab, Application, holds publication controls. Full administrators also see its launch checklist, with pending checks first and completed checks collapsed. The Publication card shows current access/delivery state; acknowledge the release checks and confirm explicitly before publishing. Personal preferences remain under Settings → Interface.
+Main opens Invites. Its tabs are Invites, Events, Venues, Households, Food and Other. Invites contains event statistics, clickable invitation/Food filters and the Action box for generating drafts and manually marking selected households Sent. When Apple Shortcuts is enabled, its box appears between the statistics and invitation list. [Manage invitation drafts](HouseholdsAndInvites.md#make-and-send-bulk-invites). Your access determines which sections you see. The first Settings tab, Application, holds publication controls. Full administrators also see its launch checklist, with pending checks first and completed checks collapsed. The Publication card shows current access/delivery state; acknowledge the release checks and confirm explicitly before publishing. Personal preferences remain under Settings → Interface.
 
 - Each record or settings box has its own pencil where you have permission.
 - Use a record’s pencil to open its editor. Save keeps your changes; Cancel discards the draft.
 - An unchanged existing record normally has a disabled Save button. A new, prefilled reminder is already a draft you can save.
 
+Use the **Search** icon in Households, Invites, Food or Logs to open that list's search field. Closing it clears the search.
+
 Editing one box does not open the others. Save closes that box after a successful update; Cancel discards its draft. Failed saves keep it open for retry. Someone with View only access cannot edit event records; personal Interface preferences remain available.
 
-The other top actions refresh the data, change appearance, open the sign-in-protected guest preview in another tab and sign out. Personal language, appearance, time-format and hover choices are the checkmarked buttons under Settings → Interface; duplicate dropdowns are not shown. Invites appearance is inside the Interface box and saves grouping for your account across devices with its own pencil and Save/Cancel. Choose your preferences, then use Save to apply them to your administrator account or Cancel to restore your saved choices. They load when you sign in on another device and are separate from event-wide guest settings. Failed saves keep your draft for retry. The top-bar appearance toggle still applies immediately.
+The other top actions refresh the data, change appearance, open the sign-in-protected guest preview in another tab and sign out. Personal language, appearance, time-format and hover choices are the checkmarked buttons under Settings → Interface; duplicate dropdowns are not shown. Invites appearance is inside the Interface box. Its own pencil and Save/Cancel save **Group by → None / Relational group / Service** and separate **Default shown fields** for Rows 1 and Rows 2 across devices. Household, Service and Invitation remain visible. Rows 1 offers individual fields; Rows 2 pairs Service/Recipient, Invitation/Last sent and RSVP/RSVP info, with Food as a separate column. In Invites, **Rows → 1 / 2** switches between those layouts. Rows 2 restores its saved column defaults, initially All; Rows 1 restores your previous one-row selection or saved defaults. Current Shown choices stay with the current view. Choose your preferences, then use Save to apply them to your administrator account or Cancel to restore your saved choices. They load when you sign in on another device and are separate from event-wide guest settings. Failed saves keep your draft for retry. The top-bar appearance toggle still applies immediately.
 
 ## Prepare the event
 
@@ -39,7 +41,7 @@ On a wide screen, Events cards and the Venues and Sessions & scheduling boxes sh
 
 In **Main → Events → Event planning**, review the current preset, shared labels and groups. Use the pencil in the card’s top-right corner to choose a Wedding, Reunion, Conference, or Custom preset. **Use preset suggestions** adds suggested groups and fills blank labels. Review and save the changes. You can also add, rename, translate, and reorder groups directly.
 
-Shared labels appear in the main navigation, section headings, and the Overview statistics. Group names appear in Households, Invites, and session assignment lists. Move households out of a group before removing it. Planning-template backups carry the saved settings into a fresh installation.
+Shared labels appear in the main navigation, section headings, and the Invites statistics. Group names appear in Households, Invites, and session assignment lists. Move households out of a group before removing it. Planning-template backups carry the saved settings into a fresh installation.
 
 ## If you cannot see a section
 

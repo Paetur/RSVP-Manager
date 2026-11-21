@@ -90,6 +90,20 @@
       ).size,
     };
   }
+  function invitationService(contact, guest, delivery) {
+    const preferred = contact ? contact.preferred_method : guest?.preferred_contact_method;
+    if (delivery === "email" || delivery === "whatsapp") return delivery;
+    if (delivery === "sms") return preferred === "sms" ? "sms" : "messages";
+    if (delivery) return "none";
+    if (contact?.contact_type === "email" || (!contact && preferred === "email" && guest?.email)) return "email";
+    if (contact?.contact_type === "phone" || (!contact && guest?.mobile)) {
+      if (preferred === "whatsapp" || preferred === "sms") return preferred;
+      if (!preferred) return "messages";
+    }
+    if (!contact && !preferred && guest?.email) return "email";
+    return "none";
+  }
+
   function invitationOverview(store, h, { primary, guest, contactChannel }) {
     const records = store.queue
         .filter((q) => q.household_id === h.id)
@@ -98,7 +112,7 @@
             (b.created_at || "").localeCompare(a.created_at || "") ||
             (b.updated_at || "").localeCompare(a.updated_at || ""),
         ),
-      latest = records[0];
+      latest = records.find(record => record.status !== "cancelled");
     const sent = records
       .filter((q) => q.status === "sent")
       .map((q) => ({
@@ -116,21 +130,26 @@
       latest?.channel ||
       (primary ? contactChannel : guest?.preferred_contact_method) ||
       "manual";
+    const preferred = primary ? primary.preferred_method : guest?.preferred_contact_method;
+    const phone = primary ? primary.contact_type === "phone" && primary.contact_value : guest?.mobile;
+    const templateService = phone && !preferred && (channel === "sms" || (!latest && channel === "manual"))
+      ? "messages"
+      : channel === "postal" ? "manual" : channel;
     const contactName =
       recipient?.contact_name ||
       primary?.contact_name ||
       [guest?.first_name, guest?.last_name].filter(Boolean).join(" ") ||
       window.RSVP_HOUSEHOLD_NAME(h);
-    const contactValue =
-      recipient?.contact_value ||
-      primary?.contact_value ||
-      {
-        email: guest?.email,
-        sms: guest?.mobile,
-        whatsapp: guest?.mobile,
-        postal: h.postal_address,
-      }[channel] ||
-      "";
+    let service = invitationService(primary, guest, latest?.channel);
+    const contactValue = recipient?.contact_value || primary?.contact_value ||
+      ({ email: guest?.email, messages: guest?.mobile, sms: guest?.mobile, whatsapp: guest?.mobile }[service]) ||
+      guest?.mobile || guest?.email || (channel === "postal" ? h.postal_address : "") || "";
+    const contactType = recipient?.contact_type ||
+      (contactValue && contactValue === primary?.contact_value ? primary.contact_type : null) ||
+      (contactValue && contactValue === guest?.email ? "email" : contactValue && contactValue === guest?.mobile ? "phone" : null) ||
+      (/^[^\s@]+@[^\s@]+$/.test(contactValue) ? "email" : /^\+?[0-9][0-9 ().-]*$/.test(contactValue) ? "phone" : null);
+    const expectedType = service === "email" ? "email" : ["messages", "sms", "whatsapp"].includes(service) ? "phone" : null;
+    if (!contactValue || !expectedType || contactType !== expectedType) service = "none";
     const guests = store.guests.filter(
       (g) => g.household_id === h.id && !g.archived_at,
     );
@@ -168,8 +187,11 @@
       sent: !!last,
       lastSent: last?.delivery?.confirmed_at || last?.q.updated_at,
       channel,
+      templateService,
       contactName,
       contactValue,
+      contactType,
+      service,
       guests: guests.length,
       total,
       answers,
@@ -180,6 +202,7 @@
   window.RSVP_ADMIN_OVERVIEW = {
     eventCounts,
     invitationOverview,
+    invitationService,
     foodInterestStatus,
     foodInterestCounts,
   };

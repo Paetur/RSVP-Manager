@@ -84,8 +84,11 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
       const seed = `
         fixtures.event_settings[0].invitation_picture_album=[];
         fixtures.event_settings[0].invitation_album_revision='synthetic';
-        window.__pictureHousehold=fixtures.households.find(h=>!h.archived_at).id;
-        window.__pictureTemplates=[{id:'99999999-1111-4111-8111-111111111111',name:'WhatsApp',channels:['whatsapp'],versions:{en:{subject:'',body:'Hello {invitation_link}'}}}];
+        window.__pictureHousehold=fixtures.households.find(h=>h.id===h2).id;
+        fixtures.households.find(h=>h.id===h2).language='en';
+        fixtures.households.find(h=>h.id===h2).primary_guest_id=fixtures.guests.find(g=>g.household_id===h2&&!g.is_child).id;
+        Object.assign(fixtures.guests.find(g=>g.household_id===h2&&!g.is_child),{mobile:'+12025550111',preferred_contact_method:'whatsapp'});
+        window.__pictureTemplates=[{id:'99999999-1111-4111-8111-111111111111',name:'WhatsApp',revision:'88888888-1111-4111-8111-111111111111',channels:['whatsapp'],language_tags:['en'],versions:{en:{subject:'',body:'Hello {invitation_link}'}}}];
         const pictureRpc=client.rpc;
         client.rpc=async(name,args)=>{
           if(name==='admin_load_data'){const result=await pictureRpc(name,args);result.data.invitationTemplates=window.__pictureTemplates;return result;}
@@ -93,7 +96,7 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
           if(name==='admin_save_invitation_template'){
             window.__pictureSaves=(window.__pictureSaves||[]);window.__pictureSaves.push(args);
             if(window.__pictureFail){window.__pictureFail=false;return {error:{message:'Synthetic picture save failure'}};}
-            const template={id:args.p_id,...args.p_values};
+            const template={id:args.p_id,revision:'88888888-1111-4111-8111-111111111111',...args.p_values};
             window.__pictureTemplates=window.__pictureTemplates.filter(t=>t.id!==args.p_id).concat(template);
             return {data:null};
           }
@@ -140,16 +143,12 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
       }, width);
       await page.locator("#settingsToggle").click();
       await page.getByRole("tab", { name: "Templates", exact: true }).click();
-      const section = page
-        .locator(".invitation-template")
-        .filter({
-          has: page.getByRole("heading", { name: "WhatsApp", exact: true }),
-        })
-        .filter({ visible: true });
+      const section = page.locator('[data-settings-card="invitation-template:99999999-1111-4111-8111-111111111111"]');
       const open = () => section.locator("[data-local-edit]").click();
       const album = page.locator(".invitation-album");
       const upload = () => album.locator('input[type="file"]');
       const value = () => section.locator("[data-invitation-picture]").first();
+      await album.locator(":scope > summary").click();
       await album.locator("[data-local-edit]").click();
       await album
         .getByLabel("Picture name", { exact: true })
@@ -396,20 +395,26 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
         "Cancel restores saved picture",
       );
       await selectWorkTab(page, "invites");
-      const household = await page
-        .locator("#inviteRows [data-invite-household]")
-        .first()
-        .getAttribute("data-invite-household");
+      const household = await page.evaluate(() => window.__pictureHousehold);
       const householdRow = page.locator(
         `[data-invite-household="${household}"]`,
       );
-      await householdRow.locator(".invite-create").click();
-      const templateChoice = page.getByRole("dialog", { name: "Choose template", exact: true });
-      await templateChoice.waitFor();
-      assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "opening template choice does not save or send a delivery");
-      await templateChoice.getByRole("button", { name: "WhatsApp", exact: true }).click();
-      await page.waitForFunction(() => window.__calls.some(c => c.name === "admin_save_delivery"));
+      assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "opening Invites does not save a delivery");
+      await householdRow.locator('[data-bulk-select="' + household + '"]').check();
+      const action = page.locator("#bulkInvitesHost").getByRole("group", { name: "Action", exact: true });
+      await action.getByRole("checkbox", { name: "Selected", exact: true }).check();
+      assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "selecting the preparation scope does not create a delivery");
+      await action.getByRole("button", { name: "Generate Drafts", exact: true }).click();
+      await page.locator("#bulkInvitesHost").getByText("1 draft created", { exact: true }).waitFor();
+      const creation = await page.evaluate(() => window.__calls.find(c => c.name === "admin_save_delivery").args);
+      assert.equal(creation.p_id, null);
+      assert.equal(creation.p_values.only_if_missing, true);
+      assert.equal(creation.p_values.template_id, "99999999-1111-4111-8111-111111111111");
+      assert.equal(creation.p_values.template_revision, "88888888-1111-4111-8111-111111111111");
+      await householdRow.locator(":scope > summary .invite-compact-name").click();
+      await page.locator("#invite-delivery-" + household).evaluate(node => node.open = true);
       const inlineRecord = householdRow.locator("[data-delivery-id]").first();
+      await inlineRecord.locator(":scope > summary").click();
       await inlineRecord.waitFor();
       assert.equal(await page.getByRole("dialog", { name: "Invitation delivery", exact: true }).count(), 0, "created delivery review stays inline");
       assert.equal(await inlineRecord.locator(":scope > .invitation-picture").isVisible(), true);
@@ -550,7 +555,7 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
         await page.getByRole("tab", { name: "Templates", exact: true }).click();
         await page.waitForFunction(
           () =>
-            document.querySelectorAll("#invitationTemplatesList form")
+            document.querySelectorAll("#invitationAlbum form,#invitationTemplatesList form")
               .length === 0,
         );
         assert.equal(await section.locator("[data-local-edit]").count(), 0);

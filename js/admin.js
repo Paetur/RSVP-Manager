@@ -41,7 +41,7 @@
       otherCategories: [],
     };
   let publicationBusy = false;
-  const mainTabs = ["invites", "overview", "events", "venues", "households", "food", "other"];
+  const mainTabs = ["invites", "events", "venues", "households", "food", "other"];
   let appearanceMode = "wide",
     appearanceOwner = null,
     appearancePreviewOpen = false,
@@ -141,6 +141,8 @@
     if (name === "placeholders") window.RSVP_ADMIN_PLACEHOLDERS.render({ R, T });
   }
   function tab(name, updateUrl = true) {
+    const oldOverview = name === "overview";
+    if (oldOverview) name = "invites";
     if (name === "tasks") name = "other";
     if (![...mainTabs, "language", "settings"].includes(name))
       name = defaultMainTab();
@@ -184,11 +186,11 @@
     );
     if (name === "settings") settingsTab(activeSettingsTab);
     A.apply();
-    if (updateUrl) {
+    if (updateUrl || oldOverview) {
       const hash = "#" + name;
       const next = location.pathname + location.search + hash;
       if (location.pathname + location.search + location.hash !== next)
-        history.pushState({ adminSection: name }, "", next);
+        history[oldOverview ? "replaceState" : "pushState"]({ adminSection: name }, "", next);
     }
   }
   function updateSectionDescription() {
@@ -237,12 +239,12 @@
   function toggleSettings() {
     tab(activeTab === "settings" ? lastMainTab : "settings");
   }
-  function returnToOverviewAfterDatabaseChange(message) {
+  function returnToInvitesAfterDatabaseChange(message) {
     window.RSVP_ADMIN_TOOLS.completeDatabaseChange();
     const url = new URL(location.href);
-    url.hash = "overview";
+    url.hash = "invites";
     history.replaceState({
-      adminSection: "overview",
+      adminSection: "invites",
       databaseChangeNotice: { actor: user?.id, message },
     }, "", url);
     window.scrollTo(0, 0);
@@ -342,7 +344,7 @@
     $("adminEventTitle").textContent =
       store.settings?.event_name || T("interface.messages.event_dashboard");
     statisticsView.render();
-    bulkInvitesView.render();
+    shortcutsView.render();
     const deployed = window.RSVP_CONFIG || {};
     let websiteConfigured = false;
     try {
@@ -382,7 +384,7 @@
     ];
     window.RSVP_ADMIN_APPLICATION.render({ R, T, checks, settings: store.settings, canEdit: can("settings", "edit"), busy: publicationBusy });
     renderHouseholds();
-    renderInvites();
+    invitesView.render();
     renderDeliveryLog();
     renderFood();
     renderAdmins();
@@ -392,6 +394,7 @@
     renderSessions();
     renderContent();
     window.RSVP_ADMIN_TOOLS?.render();
+    transportSecurity?.refresh();
     experimentalView.render();
     databaseView.render();
     compactRead.apply();
@@ -2294,6 +2297,7 @@
     R,
     T,
     getStore: () => store,
+    getDeliveryStatuses: () => invitesView.deliveryStatuses(),
     disclosure,
     adminTime,
     show,
@@ -2393,6 +2397,10 @@
     R,
     T,
     getStore: () => store,
+    getActor: () => user?.id || null,
+    onDeliveryFilterChange: renderDeliveryLog,
+    getSelectionControl: id => bulkInvitesView.selectionControl(id),
+    onVisibleHouseholds: ids => { bulkInvitesView.syncVisible(ids); bulkInvitesView.render(); },
     ordered,
     invitationOverview,
     planningConfiguration,
@@ -2438,18 +2446,23 @@
     confirm: (message, trigger) => window.RSVP_INLINE.confirm(message, { trigger }),
   });
   const bulkInvitesView = window.RSVP_ADMIN_BULK_INVITES.create({
-    R, T, getStore: () => store, getActor: () => user?.id || null, can, managementRpc, reload, show,
+    R, T, getStore: () => store, getActor: () => user?.id || null, can, managementRpc, reload,
     primaryContact: householdPrimaryContact, primaryGuest: householdPrimaryGuest, invitationDraft,
-    shortcuts: shortcutsView,
-    openShortcuts: () => {
-      tab("invites");
-      const workspace = $("shortcutWorkspace");
-      workspace.open = true;
-      workspace.querySelector("summary")?.focus({ preventScroll: true });
-      workspace.scrollIntoView({ block: "nearest" });
-    },
+    getVisibleHouseholdIds: () => invitesView.getVisibleHouseholdIds(),
+    onSelectionChange: () => invitesView.render(),
   });
   const compactRead = window.RSVP_ADMIN_READ_SUMMARIES.create({ R, T, getStore: () => store, adminTime, planningName });
+  const transportSecurity = window.RSVP_TRANSPORT_SECURITY?.create(
+    document.querySelector('[data-transport-security="settings"]'),
+    {
+      T,
+      getActor: () => can("settings") ? user?.id || null : null,
+      canEdit: () => can("settings", "edit"),
+      getToken: async () => (await db?.auth.getSession())?.data?.session?.access_token,
+      saved: form => localEditors.saved(form),
+      cancelled: form => localEditors.cancel(form),
+    },
+  );
   const experimentalView = window.RSVP_ADMIN_EXPERIMENTAL.create({
     R, T, getStore: () => store, getActor: () => user?.id || null, can,
     managementRpc, reload, show,
@@ -2462,22 +2475,17 @@
     can, rpc: managementRpc, adminTime, onMessage: show,
     confirm: window.RSVP_INLINE.confirmIrreversible,
     downloadSafetyBackup: (...args) => window.RSVP_ADMIN_TOOLS.downloadSafetyBackup(...args),
-    reload: () => returnToOverviewAfterDatabaseChange("Application data cleared. The event is unpublished."),
+    reload: () => returnToInvitesAfterDatabaseChange("Application data cleared. The event is unpublished."),
     signOut: async () => {
       window.RSVP_ADMIN_TOOLS.completeDatabaseChange();
       const result = await db.auth.signOut({ scope: "local" });
       if (result.error) throw result.error;
       A.clear(); user = null;
-      shortcutsView.clear(); bulkInvitesView.clear(); experimentalView.clear(); databaseView.clear();
+      shortcutsView.clear(); bulkInvitesView.clear(); transportSecurity?.clear(); experimentalView.clear(); databaseView.clear();
       location.replace(new URL("setup.html", R.siteRoot));
       return true;
     },
   });
-  function renderInvites() {
-    invitesView.render();
-    shortcutsView.render();
-  }
-
   function renderInvitationHierarchy(
     list,
     tree,
@@ -5187,7 +5195,7 @@
     }
     const fragment =
       location.hash.slice(1) === "tasks" ? "other" : location.hash.slice(1);
-    activeTab = [...mainTabs, "language", "settings"].includes(fragment)
+    activeTab = [...mainTabs, "language", "settings", "overview"].includes(fragment)
       ? fragment
       : defaultMainTab();
     tab(activeTab, false);
@@ -5223,6 +5231,7 @@
       user = null;
       shortcutsView.clear();
       bulkInvitesView.clear();
+      transportSecurity?.clear();
       experimentalView.clear();
       databaseView.clear();
       $("adminApp").classList.add("hidden");
@@ -5271,7 +5280,7 @@
       const fragment =
         location.hash.slice(1) === "tasks" ? "other" : location.hash.slice(1);
       tab(
-        [...mainTabs, "language", "settings"].includes(fragment)
+        [...mainTabs, "language", "settings", "overview"].includes(fragment)
           ? fragment
           : defaultMainTab(),
         false,
@@ -5285,7 +5294,8 @@
         user = null;
         shortcutsView.clear();
         bulkInvitesView.clear();
-        experimentalView.clear();
+        transportSecurity?.clear();
+      experimentalView.clear();
         databaseView.clear();
         pendingAdminInvitation = null;
       },
@@ -5347,7 +5357,8 @@
       else {
         shortcutsView.clear();
         bulkInvitesView.clear();
-        experimentalView.clear();
+        transportSecurity?.clear();
+      experimentalView.clear();
         databaseView.clear();
         window.RSVP_ADMIN_PREFERENCES.clear();
         location.reload();
@@ -5399,16 +5410,8 @@
       expandHouseholdTree(false),
     );
     $("householdSearch").addEventListener("input", renderHouseholds);
-    $("inviteSearch").addEventListener("input", renderInvites);
-    for (const id of [
-      "inviteGroupFilter",
-      "inviteLanguageFilter",
-      "inviteChannelFilter",
-      "inviteFoodInterestFilter",
-    ])
-      $(id).addEventListener("change", renderInvites);
-    document.addEventListener("rsvp:invites-appearance", () => { if (store.settings) renderInvites(); });
-    $("deliveryStatusFilter").addEventListener("change", renderDeliveryLog);
+    $("inviteSearch").addEventListener("input", invitesView.render);
+    document.addEventListener("rsvp:invites-appearance", () => { if (store.settings) invitesView.render(); });
     $("showArchived").addEventListener("change", renderHouseholds);
     function setFoodDisclosure(selector, open) {
       if (!open) R.closePopups();
@@ -5429,6 +5432,11 @@
       openFoodTypes($("newFoodType")),
     );
     $("foodSearch").addEventListener("input", renderFood);
+    window.RSVP_ADMIN_SEARCH.enhance({
+      R, T, iconAction,
+      ids: ["householdSearch", "inviteSearch", "foodSearch", "logSearch"],
+      onClear: (id, input) => { if (id === "logSearch") input.form?.requestSubmit(); },
+    });
     $("addCategoryForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const input = $("categoryName"),
@@ -5729,7 +5737,7 @@
       getStore: () => store,
       getActor: () => user?.id || null,
       reload,
-      returnToOverviewAfterDatabaseChange,
+      returnToInvitesAfterDatabaseChange,
       isEditing: () => true,
       show,
       foodMenuCategories,

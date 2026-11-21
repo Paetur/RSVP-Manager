@@ -30,6 +30,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Fetch the immutable previous release baseline for upgrade verification
+        run: git fetch --no-tags origin refs/tags/v0.9.0-alpha.8:refs/tags/v0.9.0-alpha.8
       - name: Test household lifecycle and concurrent operations in disposable PostgreSQL
         env:
           DATABASE_URL: postgres://postgres:test-only@localhost:5432/rsvp_test
@@ -67,6 +69,7 @@ jobs:
           node tests/notification-preferences-db.cjs
           node tests/translation-registry-db.cjs
           node tests/template-options-db.cjs
+          node tests/upgrade-alpha9-db.cjs
           node tests/canonical-locales-db.cjs
           node tests/security-regressions.cjs
           node tests/admin-invitations.cjs
@@ -191,7 +194,7 @@ jobs:
       - name: Test real administrator permissions and revoked-session UI
         run: node tests/admin-permissions-browser.cjs
       - name: Test device delivery handoffs and reminder drafts
-        run: node tests/device-delivery.cjs && node tests/device-delivery-browser.cjs && node tests/admin-delivery-views-browser.cjs && node tests/admin-delivery-editor-browser.cjs && node tests/invitation-share-browser.cjs && node tests/invitation-picture-browser.cjs && node tests/guest-titles-placeholders-browser.cjs && node tests/household-sessions-browser.cjs
+        run: node tests/device-delivery.cjs && node tests/device-delivery-browser.cjs && node tests/admin-delivery-views-browser.cjs && node tests/admin-delivery-editor-browser.cjs && node tests/invitation-share-browser.cjs && node tests/invitation-picture-browser.cjs && node tests/invitation-clipboard-browser.cjs && node tests/guest-titles-placeholders-browser.cjs && node tests/household-sessions-browser.cjs
       - name: Test draft and template deletion safeguards
         run: node tests/deletion-actions-browser.cjs
       - name: Test reviewed settings, templates and placeholders

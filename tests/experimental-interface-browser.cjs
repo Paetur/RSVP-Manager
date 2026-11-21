@@ -10,7 +10,7 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("experimental-i
 const integration = `
 fixtures.event_settings[0].apple_shortcuts_enabled=false;
 fixtures.invitation_send_queue.push({id:'99999999-1111-4111-8111-111111111111',household_id:h2,
- revision:1,status:'ready',channel:'whatsapp',invitation_code_snapshot:'EFGHJKLM',
+ revision:1,status:'ready',channel:'whatsapp',invitation_code_snapshot:fixtures.households.find(row=>row.id===h2).invite_code,
  message_body:'Synthetic invitation https://example.invalid/?invite=EFGHJKLM',
  recipient_snapshot:{contact_name:'Synthetic recipient',contact_value:'+12025550101'}});
 window.__experimentalWrites=[];window.__authWrites=[];window.__wipeCalls=[];window.__wipePreparationCalls=[];
@@ -74,7 +74,9 @@ client.rpc=async(name,args)=>{
     await routeSyntheticSdk(page, mock + "\n" + extra + "\n" + integration);
     await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
     await page.waitForFunction(() => document.querySelectorAll("#statsGrid .stat-card").length === 4);
-    const box = page.locator('[data-editor-key="experimental-shortcuts"]');
+    const card = page.locator('[data-settings-panel="checklist"] > [data-settings-card="experimental-shortcuts"]');
+    const box = card.locator('[data-editor-key="experimental-shortcuts"]');
+    const helper = card.getByText("Shortcuts synthetic test helper", { exact: true });
     const checkbox = page.locator("#shortcutExperimentalEnabled");
     const save = page.locator("#saveShortcutExperimental");
     const cancel = page.locator("#cancelShortcutExperimental");
@@ -88,16 +90,34 @@ client.rpc=async(name,args)=>{
       await page.locator("#mainSectionToggle").click();
       await page.locator('[data-tab="invites"]').click();
     };
+    const workspace = page.locator('[data-panel="invites"] > #shortcutWorkspace');
     const refreshed = async () => {
       const prior = await page.evaluate(() => window.__fetchCount);
       await refreshFixture(page);
       await page.waitForFunction(prior => window.__fetchCount > prior && !document.getElementById("refreshButton").disabled, prior);
     };
     await invitesTab();
-    assert.equal(await page.locator("#shortcutWorkspace").isHidden(), true);
+    assert.equal(await workspace.evaluate(node => node.hidden), true);
     assert.equal(await page.locator("#shortcutBatchHost").isHidden(), true);
     await interfaceTab();
-    assert.match(await box.innerText(), /Apple Shortcuts \(experimental\)/);
+    assert.equal(await card.getByRole("heading", { name: "Apple Shortcuts", exact: true }).isVisible(), true);
+    assert.equal(await helper.isHidden(), true, "standard builds have no synthetic helper link");
+    const helperUrl = "https://127.0.0.1:8443/shortcuts-test.html";
+    await page.evaluate(url => { window.RSVP_CONFIG.shortcutsTestHelperUrl = url; }, helperUrl);
+    await refreshed();
+    assert.equal(await helper.isVisible(), true, "synthetic testing is available while real Shortcuts is disabled");
+    assert.equal(await helper.getAttribute("href"), helperUrl);
+    assert.equal(await helper.getAttribute("rel"), "noopener noreferrer");
+    for (const invalid of [
+      "https://elsewhere.invalid/shortcuts-test.html",
+      "http://127.0.0.1:8443/shortcuts-test.html",
+      helperUrl + "?unexpected=1",
+    ]) {
+      await page.evaluate(url => { window.RSVP_CONFIG.shortcutsTestHelperUrl = url; }, invalid);
+      await refreshed();
+      assert.equal(await helper.isHidden(), true);
+      assert.equal(await helper.getAttribute("href"), null);
+    }
     assert.match(await box.locator(".local-editor-summary").innerText(), /Disabled/);
     assert.equal(await checkbox.isVisible(), false, "initial setting is a read summary with a pencil");
     await openBox(page, "experimental-shortcuts");
@@ -120,7 +140,7 @@ client.rpc=async(name,args)=>{
     assert.equal(await checkbox.isChecked(), true, "failed save preserves the proposed checkbox");
     assert.equal(await save.isEnabled(), true);
     assert.equal(await page.evaluate(() => window.__fixtures.event_settings[0].apple_shortcuts_enabled), false);
-    assert.equal(await page.locator("#shortcutWorkspace").isHidden(), true);
+    assert.equal(await workspace.evaluate(node => node.hidden), true);
     assert.match(await page.locator("#shortcutExperimentalStatus").innerText(), /could not be saved/);
     checks.push("failed application save preserves draft and disabled feature");
     await page.evaluate(() => { window.__malformedExperimental = true; });
@@ -130,7 +150,7 @@ client.rpc=async(name,args)=>{
     assert.equal(await checkbox.isChecked(), true);
     assert.equal(await save.isEnabled(), true);
     assert.equal(await page.evaluate(() => window.__fixtures.event_settings[0].apple_shortcuts_enabled), false);
-    assert.equal(await page.locator("#shortcutWorkspace").isHidden(), true, "malformed acknowledgment cannot enable the feature");
+    assert.equal(await workspace.evaluate(node => node.hidden), true, "malformed acknowledgment cannot enable the feature");
     checks.push("malformed save acknowledgment is rejected");
 
     // A personal form may remain open with a draft while the application setting saves.
@@ -158,11 +178,30 @@ client.rpc=async(name,args)=>{
     checks.push("independent application save, busy controls, Auth isolation and personal draft preservation");
 
     await invitesTab();
-    assert.equal(await page.locator("#shortcutWorkspace").isHidden(), false);
-    await page.locator("#shortcutWorkspace").evaluate(node => { node.open = true; });
+    assert.equal(await page.locator("#shortcutWorkspace").count(), 1);
+    assert.equal(await workspace.isVisible(), true);
+    const invitations = page.locator('[data-panel="invites"] > .panel:has(#bulkInvitesHost)');
+    const desktop = page.viewportSize();
+    for (const viewport of [desktop, { width: 390, height: 844 }]) {
+      await page.setViewportSize(viewport);
+      const [shortcutsBox, invitesBox] = await Promise.all([workspace.boundingBox(), invitations.boundingBox()]);
+      assert.ok(shortcutsBox.y + shortcutsBox.height <= invitesBox.y, "Shortcuts has its own box above the Invites list");
+      assert.ok(Math.abs(shortcutsBox.x - invitesBox.x) <= 1 && Math.abs(shortcutsBox.width - invitesBox.width) <= 1,
+        "Shortcuts and the Invites list have aligned sides");
+    }
+    await page.setViewportSize(desktop);
+    await page.locator('[data-tab="events"]').click();
+    assert.equal(await workspace.isVisible(), false);
+    await invitesTab();
+    await workspace.locator("summary").first().click();
     const selection = page.locator('[data-shortcut-select="99999999-1111-4111-8111-111111111111"]');
     assert.equal(await selection.isDisabled(), true, "opt-in does not bypass publication");
     assert.match(await page.locator("#shortcutBatchHost").innerText(), /publish/i);
+    const serviceFilter = page.locator("#inviteChannelFilter details");
+    await serviceFilter.locator("summary").click();
+    await serviceFilter.getByRole("button", { name: "Email", exact: true }).click();
+    await page.keyboard.press("Escape");
+    assert.equal(await selection.isVisible(), true, "filter changes leave the opened Shortcuts workspace intact");
     await page.evaluate(() => {
       window.__fixtures.event_settings[0].is_published = true;
       window.RSVP_CONFIG.supabaseUrl = "http://127.0.0.1:54321";
@@ -173,6 +212,17 @@ client.rpc=async(name,args)=>{
     await page.evaluate(() => { window.RSVP_CONFIG.supabaseUrl = "https://synthetic.invalid"; });
     await refreshed();
     assert.equal(await selection.isEnabled(), true, "all existing send gates are still evaluated");
+    await page.locator('[data-tab="invites"]').click();
+    const household = page.locator('[data-panel="invites"] [data-invite-household="22222222-2222-4222-8222-222222222222"]');
+    if (!await household.evaluate(node => node.open)) await household.locator(":scope > summary .invite-compact-name").click();
+    const delivery = household.locator('[data-delivery-id="99999999-1111-4111-8111-111111111111"]');
+    await delivery.locator(":scope > summary").click();
+    assert.equal(await delivery.getByRole("button", { name: "Share invitation", exact: true }).isVisible(), true);
+    assert.match(await delivery.getByRole("link", { name: "Open WhatsApp", exact: true }).getAttribute("href"), /^https:\/\/wa\.me\//);
+    await page.locator('[data-tab="events"]').click();
+    await invitesTab();
+    assert.equal(await selection.isVisible(), true, "switching tabs preserves the opened workspace");
+    assert.equal(await selection.isEnabled(), true);
     await page.evaluate(async () => {
       window.__accessPermissions.sendInvites = false;
       await window.RSVP_ADMIN_ACCESS.refresh();
@@ -205,10 +255,10 @@ client.rpc=async(name,args)=>{
     await page.evaluate(() => { window.__failReloadAfterExperimental = true; });
     await save.click();
     await page.locator('#shortcutExperimentalStatus[data-state="saved"]').waitFor({ state: "attached" });
-    assert.equal(await page.locator("#shortcutWorkspace").isHidden(), true);
+    assert.equal(await workspace.evaluate(node => node.hidden), true);
     assert.equal(await page.locator("#shortcutBatchHost").innerText(), "");
     assert.deepEqual(await page.evaluate(() => window.__authWrites), []);
-    checks.push("publication, HTTPS, send permission and settings permission gates; disable removes workspace");
+    checks.push("Invites workspace, per-household sharing, publication, HTTPS, send and settings permission gates");
     assert.match(await page.locator("#adminMessage").innerText(), /Synthetic reload failure/,
       "known successful write keeps its acknowledgment while a failed refresh remains visible");
     assert.equal(await page.evaluate(() => window.__fixtures.event_settings[0].apple_shortcuts_enabled), false);
@@ -228,7 +278,7 @@ client.rpc=async(name,args)=>{
     await page.evaluate(() => { window.__holdExperimental = false; window.__releaseExperimental(); });
     await page.waitForFunction(() => document.getElementById("shortcutExperimentalForm").getAttribute("aria-busy") === "false");
     assert.equal(await checkbox.isChecked(), false, "permission loss discards the staged opt-in");
-    assert.equal(await page.locator("#shortcutWorkspace").isHidden(), true);
+    assert.equal(await workspace.evaluate(node => node.hidden), true);
     await page.evaluate(async () => {
       window.__accessPermissions.preset = "full";
       window.__accessPermissions.sections.settings = "edit";
@@ -398,7 +448,7 @@ client.rpc=async(name,args)=>{
       { p_keep_current_admin: true, p_confirmation: "WIPE", p_safety_token: "99999999-2222-4222-8222-222222222222" },
       { p_keep_current_admin: false, p_confirmation: "WIPE", p_safety_token: "99999999-2222-4222-8222-222222222222" },
     ]);
-    checks.push("declined and failed Wipe all stay in Database, retained admin returns to Overview, no admin opens setup");
+    checks.push("declined and failed Wipe all stay in Database, retained admin returns to Invites, no admin opens setup");
     assert.deepEqual(errors, []);
     assert.deepEqual(requests.filter(value => {
       const url = new URL(value);

@@ -18,6 +18,7 @@ Choose the page that matches what you want to do.
 
 - [Automatic cloud setup](AutomaticSetup.md) — trusted local seven-step companion, credentials, retries and public configuration.
 
+- [Upgrade an existing alpha.8 installation to alpha.9](UpgradeAlpha9.md)
 - [Upgrade an existing alpha.7 installation to alpha.8](UpgradeAlpha8.md)
 - [Upgrade an existing alpha.6 installation to alpha.7](UpgradeAlpha7.md)
 

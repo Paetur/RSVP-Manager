@@ -36,21 +36,42 @@ const handler = backend && serviceKey && publicApi.startsWith("https://")
   : () => new Response(JSON.stringify({ error: "HTTPS batch service is not configured" }), {
       status: 503, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
-// Supabase's hosted TLS gateway forwards HTTP to the isolate and removes
-// /functions/v1. Trust that mapping only inside a hosted deployment, and only
-// when the gateway reports HTTPS. Standalone HTTP stays rejected by the handler.
+// TLS terminates before the isolate. Hosted requests use Supabase's deployment
+// marker; a self-hosted proxy must overwrite this private header with its own
+// server-only token. The token establishes the transport boundary only: the
+// handler still checks the origin, path and organizer/device authorization.
 const hostedDeployment = Boolean(Deno.env.get("DENO_DEPLOYMENT_ID"));
+const proxyToken = Deno.env.get("RSVP_SHORTCUTS_PROXY_TOKEN") || "";
+const proxyConfigured = /^[0-9a-f]{64}$/i.test(proxyToken);
+function trustedProxy(request: Request) {
+  const supplied = request.headers.get("x-rsvp-shortcuts-proxy") || "";
+  if (!proxyConfigured || supplied.length !== 64) return false;
+  let difference = 0;
+  for (let index = 0; index < 64; index++)
+    difference |= supplied.charCodeAt(index) ^ proxyToken.charCodeAt(index);
+  return difference === 0;
+}
 Deno.serve((request: Request) => {
-  if (!hostedDeployment || !publicApi.startsWith("https://")) return handler(request);
+  if (!publicApi.startsWith("https://")) return handler(request);
   const incoming = new URL(request.url);
-  if (incoming.protocol !== "https:" && request.headers.get("x-forwarded-proto") !== "https")
-    return handler(request);
   const external = new URL(publicApi);
   const basePath = external.pathname.replace(/\/$/, "");
   const isolatePrefix = "/" + basePath.split("/").filter(Boolean).at(-1);
+  const forwardedHTTPS = request.headers.get("x-forwarded-proto") === "https";
+  if (hostedDeployment) {
+    if (incoming.protocol !== "https:" && !forwardedHTTPS) return handler(request);
+  } else {
+    const localPath = incoming.pathname === "/invitation-shortcuts" ||
+      incoming.pathname.startsWith("/invitation-shortcuts/") ||
+      (basePath !== "" && (incoming.pathname === basePath || incoming.pathname.startsWith(basePath + "/")));
+    if (incoming.protocol !== "http:" || !forwardedHTTPS || !localPath || !trustedProxy(request))
+      return handler(request);
+  }
   if (incoming.pathname.startsWith(isolatePrefix + "/"))
     incoming.pathname = basePath + incoming.pathname.slice(isolatePrefix.length);
   external.pathname = incoming.pathname;
   external.search = incoming.search;
-  return handler(new Request(external, request));
+  const normalized = new Request(external, request);
+  normalized.headers.delete("x-rsvp-shortcuts-proxy");
+  return handler(normalized);
 });

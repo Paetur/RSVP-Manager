@@ -14,6 +14,15 @@
     verified = false;
   let connectionVersion = 0;
   let databaseLocation = "", setupLocked = false;
+  const transportSecurity = window.RSVP_TRANSPORT_SECURITY?.create(
+    document.querySelector('[data-transport-security="wizard"]'),
+    {
+      T,
+      getActor: () => verified ? "verified" : null,
+      canEdit: () => verified,
+      getToken: async () => (await R.getClient()?.auth.getSession())?.data?.session?.access_token,
+    },
+  );
   function localEndpoints() {
     const host =
       R.siteRoot.protocol === "http:" ? R.siteRoot.hostname : "localhost";
@@ -65,6 +74,7 @@
     $("bootstrapSql").value = "";
     connected = false;
     verified = false;
+    transportSecurity?.clear();
     return ++connectionVersion;
   }
   const stateMessage = (m, t = "info") => R.showStatus("setupStatus", m, t);
@@ -96,7 +106,7 @@
       );
       return;
     }
-    step = Math.max(1, Math.min(4, next));
+    step = Math.max(1, Math.min(5, next));
     document
       .querySelectorAll("[data-step-panel]")
       .forEach((p) =>
@@ -107,6 +117,7 @@
       .forEach((b) =>
         b.classList.toggle("active", Number(b.dataset.step) === step),
       );
+    if (step === 5) transportSecurity?.refresh();
     stateMessage("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }

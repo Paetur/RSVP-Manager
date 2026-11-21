@@ -52,7 +52,7 @@ Choose **Clean database** for the original recovery workflow. It requires an **e
 3. Choose a mode, sections where applicable, and the Full-mode log option. Changing any choice invalidates prior validation/confirmation.
 4. Validate. The server rehearses the restore and rolls it back. Full restore may require matching verified historical actor accounts wherever retained records reference them. Resolve reported problems before proceeding.
 5. Review the result and select **Restore backup**. Choose **Yes** to proceed or **No** to return to the review.
-6. The application returns to **Main → Overview** after a successful restore. Check representative households, replies/comments, food, translations, assignments and any included logs.
+6. The application returns to **Main → Invites** after a successful restore. Check representative households, replies/comments, food, translations, assignments and any included logs.
 
 The restored event stays **unpublished**. Review administrator access separately: included historical administrator references return disabled with View only permissions; source access rights are not automatically granted.
 
@@ -66,7 +66,7 @@ Use this separate destination to return an existing unpublished event to an earl
 2. Select **Replace event data**, open that backup and validate. Review current versus restored record counts and the preserved security boundary.
 3. Download the fresh safety backup offered by the page. It captures the state being replaced and uses your selected compression/encryption options.
 4. Select **Replace event data** and choose **Yes** to proceed or **No** to return to the review. If data changes or the 30-minute confirmation expires, validate again and download a new safety backup.
-5. After replacement, **Main → Overview** opens. Review representative invitations, replies, food, wording and pictures. The event remains unpublished.
+5. After replacement, **Main → Invites** opens. Review representative invitations, replies, food, wording and pictures. The event remains unpublished.
 
 Event settings, private pictures, household invitation codes, replies, food commitments and delivery records return to the backup state. Current Auth accounts/passwords, administrator access/sessions, pending administrator invitations and security/restore audit history remain; a new restore audit is appended. Failed validation or replacement rolls back atomically. This cannot undo messages already sent or changes to Auth, hosting or runtime configuration.
 
@@ -84,7 +84,7 @@ Choose **Restore mode → Wipe** to import a complete Full backup into an existi
 
 1. Open the Full backup and select **Download safety backup**. This validates the file and downloads a fresh safety backup if validation passes. Store it privately.
 2. Review the record counts, then select **Wipe and restore**. Choose **Yes** to proceed or **No** to return to the review. If data or administrator access changes, or the 30-minute receipt expires, select **Download safety backup** again.
-3. Review the imported event from **Main → Overview**. It stays unpublished.
+3. Review the imported event from **Main → Invites**. It stays unpublished.
 
 Wipe replaces application data and cancels imported pending administrator invitations. It keeps the signed-in administrator's access, Auth account and personal preferences, destination website address and runtime/connection configuration. Other administrator accounts are suspended and their application sessions revoked; their Auth accounts/passwords are not deleted. Historical actors are matched by verified email. If no verified destination account matches, the importing administrator is used for the foreign key; original identities and per-record attribution are retained in the new restore audit. The destination installation ID remains unchanged.
 
@@ -98,6 +98,6 @@ Wipe cannot undo messages sent from another app. A database/Auth/runtime backup 
 2. Download the required fresh safety backup. The download uses the selected backup compression and encryption options. Keep the file and any password privately.
 3. Select **Wipe all**, then choose **Yes** to proceed or **No** to return to the review. A changed destination, expired preparation or uncertain response requires a new review; the page does not retry automatically.
 
-This clears event content, private pictures, household links, replies, food commitments, delivery history and application administrator access. With **Retain current administrator** checked, only your current application administrator remains and **Main → Overview** opens. With it unchecked, the application signs you out and opens the first-administrator setup wizard. Supabase Auth accounts and passwords are retained in either case. Connection configuration, the database schema and installation identity remain. Retired invitation codes and session revocations remain protected against reuse.
+This clears event content, private pictures, household links, replies, food commitments, delivery history and application administrator access. With **Retain current administrator** checked, only your current application administrator remains and **Main → Invites** opens. With it unchecked, the application signs you out and opens the first-administrator setup wizard. Supabase Auth accounts and passwords are retained in either case. Connection configuration, the database schema and installation identity remain. Retired invitation codes and session revocations remain protected against reuse.
 
 The empty event is unpublished. All Shortcuts capabilities are revoked and the experimental feature is disabled. An application safety backup does not restore Auth passwords or infrastructure configuration; follow the installation owner's recovery procedure.

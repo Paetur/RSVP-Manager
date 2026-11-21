@@ -168,12 +168,12 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal
       .locator("#personalPreferencesStatus[data-state=saved]")
       .waitFor({ state: "attached" });
     await openBox(page, "invites-appearance");
-    await page.locator("#inviteGroupView").uncheck();
+    await page.locator('#inviteGroupBy input[data-invite-grouping="none"]').check();
     await page.locator("#saveInvitesAppearance").click();
     await page.locator("#invitesAppearanceStatus[data-state=saved]").waitFor({ state: "attached" });
     assert.equal(profiles.a.user_metadata.rsvp_invites_grouped, false);
     const second = await device("a");
-    assert.equal(await second.page.locator("#inviteGroupView").isChecked(), false, "grouping follows the account to another device");
+    assert.equal(await second.page.locator('#inviteGroupBy input[data-invite-grouping="none"]').isChecked(), true, "grouping follows the account to another device");
     assert.equal(
       await second.page.locator("#themePreference").inputValue(),
       "light",
@@ -189,7 +189,7 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal
       "system",
     );
     assert.equal(await b.page.locator("#timeFormat").inputValue(), "locale");
-    assert.equal(await b.page.locator("#inviteGroupView").isChecked(), true, "another account keeps the default grouping");
+    assert.equal(await b.page.locator('#inviteGroupBy input[data-invite-grouping="relational"]').isChecked(), true, "another account keeps the default grouping");
     assert.equal(await b.page.locator("#interfaceLanguage").inputValue(), "en");
     profiles.b.user_metadata.rsvp_interface_language = "fo";
     await b.page.evaluate(

@@ -30,26 +30,16 @@
         }
         const cards = [];
         if (can("households")) {
-          cards.push(
-            card(
-              planningLabel("households"),
-              store.households.filter((h) => !h.archived_at).length,
-              [
-                [
-                  T("interface.messages.top_level_groups"),
-                  planningConfiguration().groups.length,
-                ],
-                [
-                  T("interface.messages.relation_groups"),
-                  store.relationGroups.length,
-                ],
-              ],
-            ),
-            card(planningLabel("guests"), invitedCount, [
-              [T("Adults"), invitedCount - children],
-              [T("Children"), children],
-            ]),
-          );
+          const people = card(planningLabel("households"), store.households.filter(h => !h.archived_at).length, [
+            [T("interface.messages.top_level_groups"), planningConfiguration().groups.length],
+            [T("interface.messages.relation_groups"), store.relationGroups.length],
+          ]);
+          people.classList.add("stat-people");
+          const guests = card(planningLabel("guests"), invitedCount, [[T("Adults"), invitedCount - children], [T("Children"), children]]);
+          const guestSection = R.dom("div", { class: "stat-people-guests" });
+          guestSection.append(...guests.childNodes);
+          people.append(guestSection);
+          cards.push(people);
         }
         if (can("invites"))
           cards.push(
@@ -76,26 +66,20 @@
             [T("Contributing households"), contributingHouseholds],
           ]);
           if (store.settings?.food_enabled !== false) {
-            const counts = window.RSVP_ADMIN_OVERVIEW.foodInterestCounts(store),
-              interest = R.dom("div", { class: "stat-interest" }),
-              values = R.dom("div", { class: "stat-interest-counts" });
-            interest.append(
-              R.dom(
-                "small",
-                {},
-                T("Food interest") + " · " + planningLabel("households"),
-              ),
-            );
-            for (const [key, name] of [
-              ["yes", "Yes"],
-              ["no", "No"],
-              ["unanswered", "Unanswered"],
-            ])
-              values.append(R.dom("span", {}, T(name) + ": " + counts[key]));
-            interest.append(values);
+            const interest = R.dom("div", { class: "stat-interest", id: "inviteFoodInterest" });
+            interest.append(R.dom("small", {}, T("Food interest") + " · " + planningLabel("households")),
+              R.dom("div", { id: "inviteFoodCounts", class: "invite-stat-rows" }));
             food.append(interest);
           }
           cards.push(food);
+        }
+        if (can("invites")) {
+          const status = card(T("Invites"), 0, []);
+          status.classList.add("invite-status-card");
+          status.querySelector(".stat-heading b").id = "inviteStatusTotal";
+          status.querySelector(".stat-counts").remove();
+          status.append(R.dom("div", { id: "inviteOverviewCounts", class: "invite-stat-rows" }));
+          cards.push(status);
         }
         $("statsGrid").replaceChildren(...cards);
         let overviewHint = $("overviewAccessSummary");

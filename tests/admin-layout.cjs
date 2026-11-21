@@ -24,7 +24,7 @@ const server = http.createServer((req,res)=>{
   }catch(e){res.writeHead(500);res.end(String(e));}
 });
 const {mock}=require('./helpers/admin-fixture.cjs');
-const sessionHouseholdMock = `;const combinedHouseholdRpc=client.rpc;client.rpc=async(name,args)=>{if(['admin_save_household','admin_save_household_with_food'].includes(name)&&args.p_values.session_assignments)await combinedHouseholdRpc('admin_save_session_assignments',{p_household_id:args.p_id,p_assignments:args.p_values.session_assignments});return combinedHouseholdRpc(name,args);};`;
+const sessionHouseholdMock = `;const combinedHouseholdRpc=client.rpc;client.rpc=async(name,args)=>{if(['admin_save_household','admin_save_household_with_food'].includes(name)&&args.p_values.session_assignments)await combinedHouseholdRpc('admin_save_session_assignments',{p_household_id:args.p_id,p_assignments:args.p_values.session_assignments});const result=await combinedHouseholdRpc(name,args);if(name==='admin_load_data')result.data.invitationTemplates=[{id:'layout-template',revision:'layout-template-revision',name:'Layout invitation',channels:['messages','email','whatsapp','sms','manual'],language_tags:['en','fo','de'],versions:{en:{language_code:'en',body:'You are invited. {invitation_link}',options:['message']}}}];return result;};`;
 
 async function waitForApp(page,...args){await page.waitForFunction(...args);await page.waitForFunction(()=>!document.querySelector('form[aria-busy="true"]'));}
 async function openSection(scope,label){if(label==='Household details')return scope.locator('.household-inline-editor').first().evaluate(el=>el.open=true);const summary=scope.locator('summary').filter({hasText:new RegExp('^(?:[+＋]\\s*)?'+label+'$')});if(!await summary.evaluate(el=>el.parentElement.open))await summary.click();}
@@ -47,8 +47,8 @@ async function run(){
    await page.goto(url,{waitUntil:'load'});
    await page.locator('#adminApp:not(.hidden)').waitFor({timeout:12000});
    await page.locator('#householdRows .hierarchy-section').first().waitFor({state:'attached'});
-   assert.equal(await page.locator('.admin-main-tabs [data-tab]').count(),7,'seven main work tabs');
-   assert.deepEqual(await page.locator('.admin-main-tabs [data-tab]').evaluateAll(nodes=>nodes.map(n=>n.textContent.trim())),['Overview','Events','Invites','Venues','Households','Food','Other']);
+   assert.equal(await page.locator('.admin-main-tabs [data-tab]').count(),6,'six main work tabs');
+   assert.deepEqual(await page.locator('.admin-main-tabs [data-tab]').evaluateAll(nodes=>nodes.map(n=>n.textContent.trim())),['Invites','Events','Venues','Households','Food','Other']);
    assert.deepEqual(await page.locator('.admin-top-actions>button').evaluateAll(nodes=>nodes.map(n=>n.id)),
      ['refreshButton','themeToggle','logout'],'topbar action icon order');
    assert.equal(await page.locator('#guestPreviewButton').getAttribute('target'),'_blank','website link opens a new tab');
@@ -301,8 +301,10 @@ async function run(){
    await page.evaluate(()=>{navigator.clipboard.writeText=async text=>{window.__copied=text;};});
    const compactInviteRow=page.locator('[data-invite-household="22222222-2222-4222-8222-222222222222"]');
    const inviteActions=compactInviteRow.locator(':scope > summary .invite-row-actions');
-   assert.deepEqual(await inviteActions.getByRole('button').allTextContents(),['+']);
-   assert.equal(await inviteActions.getByRole('button',{name:'Create',exact:true}).count(),1);
+   assert.equal(await inviteActions.count(),0,'published rows do not expose create/share icons');
+   assert.equal(await compactInviteRow.locator('.invite-create,.invite-share').count(),0);
+   assert.equal(await compactInviteRow.locator(':scope > summary .invite-copy-recipient').isVisible(),true,'the Service copy chip stays visible');
+   assert.equal(await compactInviteRow.locator(':scope > summary .invite-copy-invitation').isVisible(),true,'the Invitation copy chip stays visible');
    await page.setViewportSize({width:390,height:844});
    assert.ok(await page.locator('.invite-compact-list').evaluate(list=>list.scrollWidth<=list.clientWidth+1),'Invites rows wrap without horizontal scrolling');
    await page.setViewportSize({width:1250,height:950});
@@ -395,12 +397,17 @@ async function run(){
    await selectWorkTab(page,'invites');await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
    await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
    await compactInviteRow.evaluate(row=>row.open=true);
-   await inviteActions.getByRole('button',{name:'Create',exact:true}).click();
+   const draftAction=page.locator('#bulkInvitesHost').getByRole('group',{name:'Action',exact:true});
+   await draftAction.getByRole('checkbox',{name:'Selected',exact:true}).check();
+   await compactInviteRow.locator('[data-bulk-select]').check();
+   await draftAction.getByRole('button',{name:'Generate Drafts',exact:true}).click();
    await waitForApp(page,()=>window.__fixtures.invitation_send_queue.length===1);
    assert.equal(await page.evaluate(()=>window.__fixtures.invitation_send_queue[0].status),'draft');
    const delivery=compactInviteRow.locator('details[id^="invite-delivery-"]');
    await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
+   if(!await delivery.evaluate(panel=>panel.open))await delivery.locator(':scope > summary').click();
    const record=delivery.locator('[data-delivery-id]');await record.waitFor();
+   if(!await record.evaluate(panel=>panel.open))await record.locator(':scope > summary').click();
    await record.getByRole('button',{name:'Copy message',exact:true}).click();
    assert.ok((await page.evaluate(()=>window.__copied)).includes('?='));
    await openSection(record,'Edit delivery');
@@ -412,7 +419,17 @@ async function run(){
    await record.getByLabel('Sent note',{exact:true}).fill('Handed over the invitation in person.');await record.getByLabel('I sent this message to the displayed recipient').check();await record.getByRole('button',{name:'Record as sent'}).click();await waitForApp(page,()=>window.__fixtures.invitation_send_queue[0].status==='sent');await record.getByRole('button',{name:'Record as sent'}).waitFor({state:'detached'});
    await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));await record.evaluate(el=>el.open=true);
    assert.equal(await record.getByRole('button',{name:'Record as sent'}).count(),0);await delivery.screenshot({path:path.join(root,'artifacts','delivery-tracking-preview.png')});
-   await openSection(page,'Delivery log');await page.locator('#deliveryStatusFilter').selectOption('sent');assert.ok((await page.locator('#deliveryLog').textContent()).includes('Example child'));
+   await openSection(page,'Delivery log');
+   const deliveryFilter=page.locator('#deliveryStatusFilter details');
+   for(const key of await deliveryFilter.locator('button[data-value]').evaluateAll(nodes=>nodes.map(node=>node.dataset.value))){
+     const choice=deliveryFilter.locator('[data-value="'+key+'"]');
+     if((await choice.getAttribute('aria-pressed')==='true')!==(key==='sent')){
+       if(!await deliveryFilter.evaluate(node=>node.open))await deliveryFilter.locator('summary').click();
+       await choice.click();
+     }
+   }
+   await deliveryFilter.locator('summary').press('Escape');
+   assert.ok((await page.locator('#deliveryLog').textContent()).includes('Example child'));
    await page.setViewportSize({width:390,height:844});const controlDims=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth}));assert.ok(controlDims.scroll<=controlDims.client+3,'delivery controls fit mobile');
 
    await page.setViewportSize({width:1250,height:950});await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="logs"]').click();
@@ -420,6 +437,7 @@ async function run(){
    assert.equal(await page.getByText('Change history',{exact:true}).count(),0,'household history moved to Logs');assert.equal(await page.getByText('RSVP history',{exact:true}).count(),0);assert.equal(await page.getByText('Delivery history',{exact:true}).count(),0);
    await page.locator('#logMore').click();await waitForApp(page,()=>document.querySelectorAll('#logRows .log-entry').length===55);assert.equal(await page.locator('#logMore').isVisible(),false);
    await page.locator('#logCategory').selectOption('households');await waitForApp(page,()=>!document.querySelector('#logApply').disabled);assert.equal(await page.locator('#logRows .log-entry').count(),14);
+   if(!await page.locator('#logSearch').isVisible())await page.locator('#logSearchToggle').click();
    await page.locator('#logSearch').fill('Example child');await page.locator('#logFrom').fill('2026-10-31');await page.locator('#logTo').fill('2026-10-31');await page.locator('#logApply').click();await waitForApp(page,()=>!document.querySelector('#logApply').disabled);
    assert.equal(await page.evaluate(()=>window.__lastLogQuery.p_from),'2026-10-30T23:00:00.000Z');assert.equal(await page.evaluate(()=>window.__lastLogQuery.p_to),'2026-10-31T23:00:00.000Z');
    await page.locator('#logAction').selectOption('update');await waitForApp(page,()=>!document.querySelector('#logApply').disabled);await page.locator('#logRows .log-entry summary').first().click();assert.ok((await page.locator('#logRows').innerText()).includes('+298 654321'));

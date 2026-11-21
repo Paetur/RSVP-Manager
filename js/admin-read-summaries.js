@@ -71,7 +71,17 @@
     }
     function grouping(host) {
       host.classList.add("compact-saved-view");
-      rows(host, [["Grouping", T($("inviteGroupView")?.checked ? "Grouped" : "Flat list")]]);
+      const grouping = $("inviteGroupBy")?.querySelector("input:checked")?.value || "relational";
+      const labels = { none: "None", relational: "Relational group", service: "Service" };
+      const shown = [...($("inviteDefaultFields")?.querySelectorAll("[data-invite-default-field]:checked") || [])]
+        .map(input => input.nextElementSibling?.textContent).filter(Boolean);
+      const columns = [...($("inviteDefaultFields")?.querySelectorAll('[data-invite-default-layout="2"] input:checked') || [])]
+        .map(input => [...input.nextElementSibling.children].map(node => node.textContent).join(" / ")).filter(Boolean);
+      rows(host, [
+        ["Group by", T(labels[grouping])],
+        [T("Default shown fields") + " · " + T("Rows") + " 1", shown.join(" · ") || T("None selected")],
+        [T("Default shown fields") + " · " + T("Rows") + " 2", columns.join(" · ")],
+      ]);
     }
     function planning(host) {
       const settings = getStore().settings || {}, config = settings.planning_config || {};

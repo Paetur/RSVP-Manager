@@ -10,9 +10,9 @@ async function refreshFixture(page) {
 }
 async function reopenDatabaseAfterRecovery(page) {
   await page.waitForFunction(() =>
-    location.hash === '#overview' &&
+    location.hash === '#invites' &&
     document.getElementById('mainSectionToggle')?.getAttribute('aria-pressed') === 'true' &&
-    document.querySelector('[data-tab="overview"]')?.getAttribute('aria-selected') === 'true' &&
+    document.querySelector('[data-tab="invites"]')?.getAttribute('aria-selected') === 'true' &&
     document.querySelector('#statsGrid .stat-card'));
   await page.locator('#settingsToggle').click();
   const application = page.locator('[data-settings-tab="application"][aria-selected="true"]');
@@ -48,11 +48,12 @@ async function setInvitesGrouping(page, grouped) {
     await page.locator('#settingsToggle').click();
   await page.locator('[data-settings-tab=checklist]').click();
   await require('./local-edit-ui.cjs').openBox(page, 'invites-appearance');
-  await page.locator('#inviteGroupView').setChecked(grouped);
+  const mode = typeof grouped === 'boolean' ? (grouped ? 'relational' : 'none') : grouped;
+  await page.locator('#inviteGroupBy input[data-invite-grouping="'+mode+'"]').check();
   const save = page.locator('#saveInvitesAppearance');
   if (await save.isEnabled()) {
     await save.click();
-    await page.waitForFunction(expected => window.RSVP_ADMIN_PREFERENCES.invitesGrouped === expected, grouped);
+    await page.waitForFunction(expected => window.RSVP_ADMIN_PREFERENCES.invitesGrouping === expected, mode);
     await page.waitForFunction(() => document.getElementById('invitesAppearanceForm').getAttribute('aria-busy') !== 'true');
   }
   await page.locator('#mainSectionToggle').click();

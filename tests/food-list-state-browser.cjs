@@ -115,6 +115,9 @@ const listRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_delete_f
           "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         );
       }
+      await page.locator("#foodSearchToggle").click();
+      assert.equal(await page.locator("#foodSearch").isVisible(), true);
+      await draftIntact();
       await page.locator("#foodSearch").fill("Chips");
       await draftIntact();
       await page.locator("#foodShowArchived").check();

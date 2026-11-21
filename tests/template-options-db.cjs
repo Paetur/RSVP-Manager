@@ -45,12 +45,56 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     const backup = await value("SELECT public.admin_export_backup() v");
     assert.equal(backup.payload.tables["public.message_templates"][0].short_body, content.short_body);
     assert.equal(backup.payload.tables["public.invitation_send_queue"].length, 1, "backup retains retired snapshot");
+    const loadTemplate = async id => (await load()).invitationTemplates.find(template => template.id === id);
+    const createTemplate = attrs => value("SELECT public.admin_save_invitation_template(NULL,$1) v", [{ ...values, ...attrs }]);
+    const messageTemplateValues = {
+      name: "Tagged Messages template", channels: ["messages"], language_tags: ["en", "fo"],
+      versions: { en: content, fo: content },
+    };
+    const messageTemplateId = await createTemplate(messageTemplateValues);
+    const messages = await loadTemplate(messageTemplateId);
+    assert.deepEqual(named.language_tags, [], "pre-tagging template content language does not imply a tag");
+    assert.deepEqual(messages.language_tags, ["en", "fo"]);
+    for (const tags of ["en", [null], ["xx"], ["en", "en"]]) {
+      await assert.rejects(createTemplate({ ...messageTemplateValues, name: "Invalid tagged template", language_tags: tags }), /language tags/);
+    }
+    const smsTemplateId = await createTemplate({ name: "Tagged SMS template", channels: ["sms"], language_tags: ["en"] });
+    const sms = await loadTemplate(smsTemplateId);
+    const createFamily = async (name, language, method) => {
+      const id = await value("SELECT public.admin_save_household(NULL,$1) v", [{ household_name: name, planning_group_id: "general", language }]);
+      const details = { first_name: "Kim", mobile: "5551234567", preferred_contact_method: "sms" };
+      const guest = await value("SELECT public.admin_save_guest_details(NULL,$1,$2) v", [id, details]);
+      await db.query("SELECT public.admin_set_household_primary_guest($1,$2)", [id, guest]);
+      if (method !== "sms") await db.query("SELECT public.admin_save_guest_details($1,$2,$3)", [guest, id, { ...details, preferred_contact_method: method }]);
+      return id;
+    };
+    const generate = (household, template, channel = "sms") => value("SELECT public.admin_save_delivery(NULL,$1,$2,NULL) v", [household, {
+      channel, status: "draft", only_if_missing: true, template_id: template.id, template_revision: template.revision, message_body: "Matched {invitation_link}",
+    }]);
+    const messagesFamily = await createFamily("Messages family", "en", null);
+    const germanFamily = await createFamily("German family", "de", null);
+    const smsFamily = await createFamily("SMS family", "en", "sms");
+    assert.equal(await generate(messagesFamily, sms), null, "SMS and Messages match distinct templates");
+    assert.equal(await generate(smsFamily, messages), null, "Messages and SMS share delivery channel but stay distinct");
+    assert.equal(await generate(germanFamily, messages), null, "no exact language tag means no draft");
+    assert.equal(await generate(messagesFamily, messages, "email"), null, "stale household channel cannot create a draft");
+    const duplicateId = await createTemplate({ ...messageTemplateValues, name: "Another Messages template" });
+    assert.equal(await generate(messagesFamily, messages), null, "a concurrent matching template prevents generation");
+    await db.query("SELECT public.admin_delete_invitation_template($1,$2)", [duplicateId, await loadTemplate(duplicateId)]);
+    await db.query("SELECT public.admin_save_invitation_template($1,$2,$3)", [messageTemplateId, { ...messageTemplateValues, name: "Updated Messages template" }, messages]);
+    assert.equal(await generate(messagesFamily, messages), null, "a concurrent template edit invalidates the old revision");
+    const updatedMessages = await loadTemplate(messageTemplateId);
+    assert.ok(await generate(messagesFamily, updatedMessages), "two versions of one tagged template count as one match");
+    assert.equal(await generate(messagesFamily, updatedMessages), null, "a second generation preserves the existing draft");
+    assert.ok(await generate(smsFamily, sms), "the untagged legacy template does not make the SMS match ambiguous");
+    assert.equal(await value("SELECT is_published v FROM public.event_settings WHERE id=1"), false, "generating drafts does not publish");
+    await assert.rejects(db.query("SELECT app_private.matches_bulk_draft_template(NULL,'sms',NULL,NULL)"), /permission denied/);
     await db.exec("RESET ROLE; UPDATE public.admins SET access_permissions=app_private.permission_preset('view'); SET ROLE authenticated");
     await assert.rejects(db.query("SELECT public.admin_delete_delivery_draft($1,2)", [draft]), /permission/);
     await assert.rejects(db.query("SELECT public.admin_delete_invitation_template($1,$2)", [id, named]), /permission/);
     await db.exec("SET ROLE anon");
     await assert.rejects(db.query("SELECT public.admin_delete_delivery_draft($1,2)", [draft]), /permission/);
     await assert.rejects(db.query("SELECT public.admin_delete_invitation_template($1,$2)", [id, named]), /permission/);
-    console.log("PASS template options, independent short/full content, validation, backup inclusion, stale/permission guards; template deletion preserves deliveries; draft deletion retains snapshots/audit.");
+    console.log("PASS template options, validation, backup inclusion, guarded deletion, exact service/language matching, stale revisions, and draft preservation.");
   } finally { await db.close(); }
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

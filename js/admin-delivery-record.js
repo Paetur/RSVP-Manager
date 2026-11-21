@@ -6,6 +6,7 @@
     R,
     T,
     getStore,
+    getDeliveryStatuses,
     disclosure,
     adminTime,
     show,
@@ -624,9 +625,9 @@
       const store = getStore();
       const box = $("deliveryLog");
       box.replaceChildren();
-      const filter = $("deliveryStatusFilter").value;
+      const filters = getDeliveryStatuses();
       const records = store.queue
-        .filter((q) => !filter || q.status === filter)
+        .filter((q) => filters.has(q.status))
         .sort((a, b) => b.created_at.localeCompare(a.created_at));
       $("deliveryCounts").textContent = T(
         "interface.messages.ready_ready_sent_recorded_sent_failed_failed",

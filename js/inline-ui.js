@@ -5,7 +5,12 @@
   const panels = new Set();
   let suspended = false;
   let lastTrigger = null;
-  document.addEventListener("click", event => { lastTrigger = event.target.closest?.("button,a,input,select"); }, true);
+  document.addEventListener("click", event => {
+    lastTrigger = event.target.closest?.("button,a,input,select");
+    for (const dropdown of document.querySelectorAll("details.filter-choice[open]")) {
+      if (!dropdown.contains(event.target)) dropdown.open = false;
+    }
+  }, true);
   const currentTrigger = () => document.activeElement && document.activeElement !== document.body ? document.activeElement : lastTrigger;
   function anchorFor(trigger) {
     const chain = [];
@@ -163,7 +168,48 @@
     host.prepend(nav);
     select(rows.find(row => row.dataset.languageCode === window.RSVP_I18N?.language)?.dataset.languageCode || rows[0].dataset.languageCode);
   }
-  window.RSVP_INLINE = { panel, confirm, confirmIrreversible, saveForms, suspend, languages };
+  function multiChoice({ R, T, label, options, selected, onChange, disabled = false, group, className = "" }) {
+    const classes = ["template-choice", "filter-choice", className].filter(Boolean).join(" ");
+    const dropdown = R.dom("details", { class: classes, ...(group ? { name: group } : {}) });
+    const summary = R.dom("summary");
+    const caption = R.dom("span", { class: "filter-choice-label" }, T(label));
+    const selection = R.dom("span", { class: "filter-choice-selection template-choice-values" });
+    const menu = R.dom("div", { class: "template-choice-menu" });
+    const controls = options.map(([key, name]) => {
+      const button = R.dom("button", { type: "button", disabled }, T(name));
+      button.dataset.value = key;
+      button.setAttribute("aria-label", button.textContent);
+      button.addEventListener("click", () => {
+        if (!selected.delete(key)) selected.add(key);
+        update();
+        onChange(key);
+      });
+      menu.append(button);
+      return [key, button];
+    });
+    function update() {
+      const names = [];
+      for (const [key, button] of controls) {
+        const active = selected.has(key);
+        button.setAttribute("aria-pressed", String(active));
+        if (active) names.push(button.textContent);
+      }
+      const preview = names.length === 0 ? [T("None selected")] : names.length === controls.length ? [T("All")] : names;
+      selection.replaceChildren(...preview.map(name => R.dom("span", { class: "template-choice-pill" }, name)));
+    }
+    dropdown.addEventListener("keydown", event => {
+      if (event.key !== "Escape" || !dropdown.open) return;
+      event.preventDefault();
+      event.stopPropagation();
+      dropdown.open = false;
+      summary.focus();
+    });
+    summary.append(caption, selection);
+    dropdown.append(summary, menu);
+    update();
+    return dropdown;
+  }
+  window.RSVP_INLINE = { panel, confirm, confirmIrreversible, saveForms, suspend, languages, multiChoice };
 })();
 
 // Transient record popups live outside rerendered cards. Native dialog provides

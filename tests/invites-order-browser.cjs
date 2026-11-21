@@ -100,6 +100,7 @@ for(const h of fixtures.households.filter(h=>h.id!==h1&&!fixtures.guests.some(g=
         "root-a",
         "child-a",
       ]);
+      await page.locator("#inviteSearchToggle").click();
       await page.locator("#inviteSearch").fill("Child");
       await compare();
       await page.locator("#inviteSearch").fill("");
@@ -114,6 +115,32 @@ for(const h of fixtures.households.filter(h=>h.id!==h1&&!fixtures.guests.some(g=
       );
       await setInvitesGrouping(page, true);
       await compare();
+      const expectedServices=await page.evaluate(()=>{
+        const expected=[];
+        for(const [index,service] of ['messages','email','whatsapp','sms','none'].entries()){
+          const id='service-scope-'+service,guest='service-guest-'+service;
+          fixtures.households.push({id,household_name:'Service scope '+service,primary_guest_id:guest,language:'en',planning_group_id:'group_b',rsvp_state:'open',sort_order:200+index});
+          fixtures.guests.push({id:guest,household_id:id,first_name:'Service',last_name:service,mobile:service==='email'?null:'+1202555010'+index,email:service==='email'?'synthetic@example.invalid':null,preferred_contact_method:service==='messages'?null:service==='none'?'manual':service});
+          expected.push({id,service});
+        }
+        return expected;
+      });
+      await refreshFixture(page);await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
+      await setInvitesGrouping(page,'service');
+      const serviceGroups=await page.locator('#inviteRows .invite-overview-group').evaluateAll(groups=>groups.map(group=>({service:group.dataset.inviteService,title:group.querySelector('h3').textContent,ids:[...group.querySelectorAll('[data-invite-household]')].map(row=>row.dataset.inviteHousehold),outlined:parseFloat(getComputedStyle(group).borderTopWidth)>0&&parseFloat(getComputedStyle(group).borderRadius)>0})));
+      assert.deepEqual(serviceGroups.map(group=>group.service),['messages','email','whatsapp','sms','none'],'service groups follow the stable service order');
+      assert.deepEqual(serviceGroups.map(group=>group.title),['Messages','Email','WhatsApp','SMS','None']);
+      for(const item of expectedServices)assert.ok(serviceGroups.find(group=>group.service===item.service).ids.includes(item.id),'household belongs to its service group: '+item.service);
+      const groupedIds=serviceGroups.flatMap(group=>group.ids);assert.equal(new Set(groupedIds).size,groupedIds.length,'service grouping has no duplicate households');
+      assert.ok(serviceGroups.every(group=>group.outlined),'every service has its own outline box');
+      if(await page.locator('#inviteSearchToggle').getAttribute('aria-expanded')!=='true')await page.locator('#inviteSearchToggle').click();await page.locator('#inviteSearch').fill('Service scope email');
+      assert.equal(await page.locator('#inviteRows .invite-overview-group').count(),1,'search omits empty service boxes');
+      assert.equal(await page.locator('#inviteRows .invite-overview-group').getAttribute('data-invite-service'),'email');
+      await refreshFixture(page);await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
+      assert.equal(await page.evaluate(()=>window.RSVP_ADMIN_PREFERENCES.invitesGrouping),'service','refresh preserves service grouping');
+      await page.locator('#inviteSearch').fill('');
+      await setInvitesGrouping(page,false);assert.equal(await page.locator('#inviteRows .invite-overview-group').count(),0,'None returns to the unboxed flat list');
+      await setInvitesGrouping(page,true);await compare();
       assert.ok(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth + 1,

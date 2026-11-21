@@ -13,7 +13,7 @@ fixtures.event_settings[0].rsvp_deadline='2027-03-27T23:30:00Z';fixtures.event_s
 window.__replyRows=[{template_key:'food-interest-reply',language_code:'en',body:'Please return around {rsvp_deadline:+5}'},{template_key:'food-interest-reply-no-deadline',language_code:'en',body:'Please check later.'}];
 for(const [n,interest] of [['yes',true],['no',false],['unanswered',null]]){const id='report-'+n;fixtures.households.push({id,household_name:'Report '+n,planning_group_id:'group_a',relation_group_id:cat2,parent_id:null,language:'en',food:true,food_interest:interest});fixtures.guests.push({id:'guest-'+n,household_id:id,first_name:'Guest',last_name:n});}
 window.__foodAnswer=JSON.parse(localStorage.getItem('synthetic-food-answer')||'null');
-const wordingRpc=client.rpc;client.rpc=async(name,a)=>{
+window.__wordingRpcCalls=[];const wordingRpc=client.rpc;client.rpc=async(name,a)=>{window.__wordingRpcCalls.push(name);
  if(name==='admin_save_food_explanation'){if(window.__failCopy){window.__failCopy=false;return {error:{message:'Synthetic save failure'}};}fixtures.event_settings[0].food_introduction=a.p_introduction;window.__explanationWrites=(window.__explanationWrites||0)+1;return {data:null};}
  if(name==='admin_save_food_interest_reply'){window.__replyWrites=(window.__replyWrites||0)+1;window.__replyRows=[];for(const [template_key,values] of [['food-interest-reply',a.p_values],['food-interest-reply-no-deadline',a.p_fallback_values]])for(const [language_code,body] of Object.entries(values))if(body.trim())window.__replyRows.push({template_key,language_code,body});return {data:null};}
  const r=await wordingRpc(name,a);if(name==='admin_load_data')r.data.guestFoodReplies=window.__replyRows;
@@ -98,9 +98,16 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
           "Food interest",
         ),
       );
+      const rows = page.locator("#inviteRows [data-invite-household]");
+      const allHouseholdIds = await rows.evaluateAll(nodes => nodes.map(node => node.dataset.inviteHousehold));
+      const beforeFilters = await page.evaluate(() => ({
+        calls: window.__wordingRpcCalls.slice(), fixtures: JSON.stringify(window.__fixtures),
+      }));
       for (const state of ["yes", "no", "unanswered"]) {
-        await page.locator("#inviteFoodInterestFilter").selectOption(state);
-        const rows = page.locator("#inviteRows [data-invite-household]");
+        const filter = page.locator('[data-invite-food-filter="' + state + '"]');
+        await filter.click();
+        assert.equal(await filter.getAttribute("aria-pressed"), "true");
+        assert.equal(await rows.count(), Number(await filter.locator("b").innerText()));
         assert.ok((await rows.count()) > 0);
         assert.ok(
           (await rows.locator("[data-food-interest]").allTextContents())
@@ -114,7 +121,12 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
           ).every((v) => v === state),
         );
       }
-      await page.locator("#inviteFoodInterestFilter").selectOption("all");
+      await page.locator('[data-invite-filter="all"]').click();
+      assert.deepEqual(await rows.evaluateAll(nodes => nodes.map(node => node.dataset.inviteHousehold)), allHouseholdIds, "All restores every household");
+      assert.deepEqual(await page.locator("[data-invite-food-filter]").evaluateAll(nodes => nodes.map(node => node.getAttribute("aria-pressed"))), ["false", "false", "false"]);
+      assert.deepEqual(await page.evaluate(() => ({
+        calls: window.__wordingRpcCalls.slice(), fixtures: JSON.stringify(window.__fixtures),
+      })), beforeFilters, "report filters perform no RPC or application-data write");
       if (previews)
         await page
           .locator("[data-panel=invites]")

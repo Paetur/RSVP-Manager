@@ -41,7 +41,8 @@ async function run(type){const browser=await type.launch({headless:true});try{
  const beforeTheme=await page.locator('html').getAttribute('data-theme');await page.locator('#themeToggle').click();assert.notEqual(await page.locator('html').getAttribute('data-theme'),beforeTheme);await page.locator('#themeToggle').click();
  if(preview&&type.name()==='webkit')await page.screenshot({path:preview+'/header-main.png',fullPage:true});
  if(preview&&type.name()==='webkit')await page.locator('.admin-main-tabs').screenshot({path:preview+'/main-menu.png'});
- assert.deepEqual(await page.locator('.admin-main-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.tab)),['overview','events','invites','venues','households','food','other']);
+ assert.deepEqual(await page.locator('.admin-main-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.tab)),['invites','events','venues','households','food','other']);
+ assert.equal(await page.locator('[data-tab=overview],[data-panel=overview]').count(),0,'Overview remains merged into Invites');
  await selectWorkTab(page,'venues');
  for(const id of ['venueList','sessionsList'])assert.equal(await page.locator('#'+id).evaluate(node=>node.closest('details').open),true);
  assert.equal(await page.locator('#newVenueForm').evaluate(node=>!!(node.closest('details').compareDocumentPosition(document.getElementById('venueList'))&Node.DOCUMENT_POSITION_FOLLOWING)),true);
@@ -75,7 +76,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  if(preview&&type.name()==='webkit')await page.locator('[data-panel="other"]').screenshot({path:preview+'/other-text-and-editor.png'});
  await task.getByRole('button',{name:'Save',exact:true}).click();await task.locator('form').waitFor({state:'hidden'});
  assert.ok((await task.locator('.other-line-summary').textContent()).includes('Bring linen'));
- const gap=await page.locator('.admin-main-tabs').evaluate(nav=>{const events=nav.querySelector('[data-tab=events]').getBoundingClientRect(),invites=nav.querySelector('[data-tab=invites]').getBoundingClientRect();return invites.left-events.right;});assert.ok(gap>=0&&gap<25,'Invites follows Events without an auto margin');
+ const gap=await page.locator('.admin-main-tabs').evaluate(nav=>{const events=nav.querySelector('[data-tab=events]').getBoundingClientRect(),invites=nav.querySelector('[data-tab=invites]').getBoundingClientRect();return events.left-invites.right;});assert.ok(gap>=0&&gap<25,'Events follows Invites without an auto margin');
  const category=page.locator('[data-other-category="other"]'),empty=page.locator('[data-other-category="empty"]');
  const addCategory=page.locator('[data-panel="other"] summary').filter({hasText:'Add category'});
  assert.ok(await addCategory.isVisible());assert.equal(await addCategory.locator('.action-symbol').count(),0);

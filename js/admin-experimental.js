@@ -3,6 +3,7 @@
   "use strict";
   function create({ R, T, getStore, getActor, can, managementRpc, reload, show, onChange, saved, cancelled }) {
     const form = R.byId("shortcutExperimentalForm");
+    const helper = R.byId("shortcutsTestHelper");
     const checkbox = R.byId("shortcutExperimentalEnabled");
     const save = R.byId("saveShortcutExperimental");
     const cancel = R.byId("cancelShortcutExperimental");
@@ -24,10 +25,28 @@
       form.dataset.dirty = String(dirty());
       form.setAttribute("aria-busy", String(busy));
     }
+    function renderHelper(actor) {
+      if (!helper) return;
+      // The synthetic helper has its own backend and is configured only on test installations.
+      let destination;
+      const configured = window.RSVP_CONFIG?.shortcutsTestHelperUrl;
+      if (actor && can("settings") && typeof configured === "string") {
+        try {
+          const url = new URL(configured);
+          if (url.protocol === "https:" && url.hostname === window.location.hostname &&
+              url.pathname === "/shortcuts-test.html" && !url.username && !url.password &&
+              !url.search && !url.hash)
+            destination = url.href;
+        } catch (_) {}
+      }
+      helper.hidden = !destination;
+      if (destination) helper.href = destination;
+      else helper.removeAttribute("href");
+    }
     function clear() {
       generation++;
       owner = null; initialized = false; baseline = draft = false; busy = false;
-      feedback(); controls();
+      feedback(); controls(); renderHelper(null);
     }
     function render() {
       if (!form) return;
@@ -42,9 +61,10 @@
         baseline = draft = current();
         generation++; busy = false; feedback();
       }
+      renderHelper(actor);
       form.renderReadSummary = host => {
         const list = R.dom("dl", { class: "record-read-grid compact-read-grid" });
-        list.append(R.dom("dt", {}, T("Apple Shortcuts (experimental)")), R.dom("dd", {}, T(current() ? "Enabled" : "Disabled")));
+        list.append(R.dom("dt", {}, T("Status")), R.dom("dd", {}, T(current() ? "Enabled" : "Disabled")));
         host.append(list);
       };
       controls();

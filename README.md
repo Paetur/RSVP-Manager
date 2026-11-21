@@ -12,14 +12,16 @@ Guests use their own invitation link. Organizers sign in to manage the event, wi
 - Collect food interest before opening category-based choices; Food Groups reserve every included item together without exceeding capacity.
 - Open shared read-only recipe dialogs with Print and Close, including printable PDFs.
 - Track practical jobs and things to bring in Other.
-- Prepare invitations and reminders for Mail, Messages or WhatsApp on your device. Select up to ten households in Manage Invites for review and handoff.
+- Generate invitation drafts from service/language-matched templates in Invites. Copy recipients and invitations for manual sending, then mark up to ten selected households Sent.
 - Manage event wording in multiple languages.
 - Give administrators Full, View only or Custom access.
 - Download JSON/gzip backups, optionally protect them with password-based encryption, and rehearse recovery separately.
 
 ## Downloads and installation
 
-Use a tagged GitHub Release for an installation package with checksums, or fork this repository to change the source. [Installation instructions](INSTALL.md) describe the separate website, Supabase and administrator setup. Each installation starts unconfigured and has its own data. The current version is **0.9.0-alpha.8**.
+Use a tagged GitHub Release for an installation package with checksums, or fork this repository to change the source. [Installation instructions](INSTALL.md) describe the separate website, Supabase and administrator setup. Each installation starts unconfigured and has its own data. The current version is **0.9.0-alpha.9**.
+
+Existing alpha.8 installations follow the [data-preserving alpha.9 upgrade guide](docs/UpgradeAlpha9.md); keep their event unpublished during the upgrade.
 
 For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 
@@ -52,6 +54,6 @@ These guides are organized as individual pages so they can later form a wiki.
 
 Review your venues, sessions, guest assignments, translations and contact details. Test a complete invitation and reply on the devices you intend to use. Keep the event unpublished until you are ready and have approved publication.
 
-Opening Mail, Messages or WhatsApp does **not** send a message automatically. Review it and send it in that app, then return to record the sending. Administrator invitation emails use a separate email invitation process.
+Use the Service chip to copy the recipient number/email and the Draft or Ready chip to copy a saved invitation. When it includes a picture, check the full caption/link after pasting and use Text as the fallback. Review and send in your messaging app, then return to mark the selected households Sent. Administrator invitation emails use a separate email invitation process.
 
 Private invitation links and downloaded backups should be shared only with the people who need them.

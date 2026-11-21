@@ -32,7 +32,7 @@ client.auth.signOut=async options=>{
  if(window.__signoutFailure){window.__signoutFailure=false;return {error:{message:'Synthetic signout failure'}};}
  authUser=null;recoveryListeners.forEach(fn=>fn('SIGNED_OUT',null));return {error:null};
 };
-client.auth.signInWithPassword=async()=>{authUser=syntheticUser;return {data:{user:authUser},error:null};};
+client.auth.signInWithPassword=async()=>{authUser=window.__nextHeaderUser||syntheticUser;return {data:{user:authUser},error:null};};
 const initialAuthRpc=client.rpc;client.rpc=async(name,args)=>{
  if(name==='get_setup_status'){window.__setupChecks++;return window.__setupError?{error:{message:'Synthetic setup outage'}}:{data:{initialized:window.__setupInitialized!==false,setup_locked:window.__setupLocked===true}};}
  return initialAuthRpc(name,args);
@@ -65,10 +65,42 @@ function recoveryToken(user = sdkUser) {
         Object.assign(window, options);
       }, { mode, options });
       await routeSyntheticSdk(page, mock + "\n" + extra + "\n" + auth);
+      await page.route("**/version.json", route => route.fulfill({ json: { version: "0.9.0-alpha.8" } }));
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/" + query);
       await page.waitForFunction(() => window.__setupChecks > 0);
       return { page, context, errors };
     }
+    const desktop = await device("none", 1160);
+    const version = desktop.page.locator("#adminVersion");
+    const identity = desktop.page.locator("#loggedInAs");
+    await version.filter({ hasText: "v0.9.0-alpha.8" }).waitFor({ state: "attached" });
+    assert.equal(await version.isVisible(), false, "release metadata alone does not show the version");
+    async function signIn(email) {
+      await desktop.page.locator("#loginEmail").fill(email);
+      await desktop.page.locator("#loginPassword").fill("Synthetic admin password!");
+      await desktop.page.locator("#loginForm button[type=submit]").click();
+      await version.waitFor({ state: "visible" });
+      assert.equal(await identity.textContent(), email);
+    }
+    await signIn("organizer@example.invalid");
+    const nameBox = await identity.boundingBox(), versionBox = await version.boundingBox();
+    assert.ok(versionBox.y >= nameBox.y + nameBox.height, "version sits directly below the login name");
+    assert.ok(Math.abs(versionBox.x + versionBox.width - nameBox.x - nameBox.width) < 1, "version aligns with the login name");
+    await desktop.page.setViewportSize({ width: 390, height: 1000 });
+    assert.equal(await version.isVisible(), false, "the compact phone header hides the version");
+    await desktop.page.setViewportSize({ width: 1160, height: 1000 });
+    await desktop.page.evaluate(() => document.dispatchEvent(new Event("rsvp:admin-access-lost")));
+    await version.waitFor({ state: "hidden" });
+    await desktop.page.evaluate(() => {
+      window.__nextHeaderUser = { id: "22222222-2222-4222-8222-222222222222", email: "other@example.invalid" };
+    });
+    await signIn("other@example.invalid");
+    await desktop.page.locator("#logout").click();
+    await desktop.page.locator("#loginPanel").waitFor({ state: "visible" });
+    assert.equal(await version.isVisible(), false, "signing out hides the version");
+    assert.deepEqual(desktop.errors, []);
+    await desktop.context.close();
+
     const examplePassword = "Synthetic new passphrase!";
     for (const width of [390, 1160]) {
       const { page, context, errors } = await device("none", width);
@@ -106,6 +138,7 @@ function recoveryToken(user = sdkUser) {
       const reset = valid.page.locator("#passwordRecoveryForm");
       await reset.waitFor({ state: "visible" });
       assert.equal(await valid.page.locator("#adminApp").isVisible(), false, "recovery never enters the dashboard");
+      assert.equal(await valid.page.locator("#adminVersion").isVisible(), false, "recovery never shows the signed-in version");
       assert.equal(await valid.page.evaluate(() => window.__calls.some(call => call.name === "admin_load_data")), false);
       assert.equal(new URL(valid.page.url()).hash, "", "credentials stripped from URL");
       assert.equal(new URL(valid.page.url()).search, "?auth=recovery", "safe marker holds recovery gate through reload");

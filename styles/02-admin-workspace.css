@@ -1084,6 +1084,9 @@ html[data-theme="dark"] .topbar .admin-icon-btn .theme-moon {
   min-width: 0;
   gap: 2px;
 }
+#adminTopActions.hidden + .admin-identity-block {
+  display: none;
+}
 .topbar .admin-version {
   display: inline-flex;
   align-items: center;
@@ -1250,9 +1253,6 @@ html[data-theme="dark"] .topbar .admin-icon-btn .theme-moon {
   .topbar .admin-identity-block {
     display: none;
   }
-  .topbar .admin-version {
-    display: none;
-  }
 }
 @media (max-width: 380px) {
   .topbar:has(.admin-topbar-actions) .admin-topbar-actions {
@@ -1260,10 +1260,6 @@ html[data-theme="dark"] .topbar .admin-icon-btn .theme-moon {
     max-width: none;
     flex-wrap: nowrap;
     gap: 8px;
-  }
-  .topbar .admin-version {
-    width: 100%;
-    min-height: 24px;
   }
 }
 

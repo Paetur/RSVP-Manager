@@ -280,3 +280,54 @@
 .placeholder-browser .placeholder-reference-row > input { grid-column: 1 / -1; }
 .placeholder-no-results { color: var(--muted); }
 @media (pointer: coarse) { .placeholder-category-tabs button { min-height: 44px; } }
+
+/* Invites owns the consolidated event summary and its read-only filters. */
+#adminApp .stat-people-guests {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+#adminApp .invite-stat-rows {
+  display: grid;
+  gap: 2px;
+}
+#adminApp .stat-card .invite-stat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  margin: 0;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  text-align: start;
+  cursor: pointer;
+}
+#adminApp .stat-card .invite-stat-row span,
+#adminApp .stat-card .invite-stat-row b {
+  color: inherit;
+  font-size: .76rem;
+  line-height: 1.3;
+  letter-spacing: normal;
+}
+#adminApp .stat-card .invite-stat-row b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+#adminApp .stat-card .invite-stat-row.is-selected {
+  border-color: var(--line);
+  background: var(--light);
+  color: var(--action-text);
+}
+#adminApp .stat-card .invite-stat-row:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  #adminApp .stat-card .invite-stat-row { min-height: 44px; }
+}

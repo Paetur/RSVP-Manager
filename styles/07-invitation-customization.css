@@ -281,9 +281,9 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 }
 
 
-.guest-interface-modes, .template-services { display: flex; flex-wrap: wrap; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; }
-.guest-interface-modes label, .template-services label { display: inline-flex; align-items: center; gap: 7px; margin: 0; }
-.guest-interface-modes input, .template-services input { width: auto; }
+.guest-interface-modes { display: flex; flex-wrap: wrap; gap: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; }
+.guest-interface-modes label { display: inline-flex; align-items: center; gap: 7px; margin: 0; }
+.guest-interface-modes input { width: auto; }
 .guest-landing-settings > h2 { margin: 12px 0; }
 [data-guest-name-layout="above"] .rsvp-person-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 [data-guest-name-layout="above"] .rsvp-person-name { text-align: center; }

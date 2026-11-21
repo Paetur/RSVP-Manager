@@ -2408,7 +2408,7 @@
           $("backupFile").value = "";
         }
         if (actor !== ctx.getActor()) return;
-        ctx.returnToOverviewAfterDatabaseChange(replace
+        ctx.returnToInvitesAfterDatabaseChange(replace
           ? "Event data replaced. Current access and configuration are preserved; the event is unpublished."
           : "interface.messages.application_restored_the_event_is_unpublished_review_administrato");
       } catch (error) {

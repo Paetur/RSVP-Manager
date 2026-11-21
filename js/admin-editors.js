@@ -13,7 +13,8 @@
         "personal",
       ],
       ["#invitesAppearanceForm", "invites-appearance", "Invites appearance", "personal"],
-      ["#shortcutExperimentalForm", "experimental-shortcuts", "Apple Shortcuts (experimental)", "settings"],
+      ["#transportProtocols", "transport-security", "HTTP/SSL", "settings"],
+      ["#shortcutExperimentalForm", "experimental-shortcuts", "Apple Shortcuts", "settings"],
       ["#guestNamesHost form", "guest-names", "Guest titles", "settings"],
       ["#eventFeaturesHost form", "event-features", "Features", "settings"],
       [
@@ -35,6 +36,12 @@
         "settings",
       ],
       [
+        "#invitationAlbum form",
+        null,
+        "Picture album",
+        "settings",
+      ],
+      [
         "#invitationTemplatesList form",
         null,
         "Invitation templates",
@@ -48,8 +55,8 @@
       ],
       ["#languageRows form", null, "Languages", "languages"],
     ];
-    const editable = (policy) =>
-      policy[3] === "personal" || can(policy[3], "edit");
+    const editable = (policy, form) =>
+      form.dataset.editorAvailable !== "false" && (policy[3] === "personal" || can(policy[3], "edit"));
     function readSummary(form, summary) {
       summary.replaceChildren();
       if (form.renderReadSummary) {
@@ -143,7 +150,7 @@
     }
     function bind(form, policy) {
       if (form.localEditor) {
-        if (!editable(policy)) opened.delete(form.localEditor.key);
+        if (!editable(policy, form)) opened.delete(form.localEditor.key);
         form.localEditor.card?.classList.toggle(
           "settings-card-editing",
           opened.has(form.localEditor.key),
@@ -153,10 +160,10 @@
           opened.has(form.localEditor.key),
         );
         form.localEditor.button.disabled =
-          form.getAttribute("aria-busy") === "true" || !editable(policy);
+          form.getAttribute("aria-busy") === "true" || !editable(policy, form);
         form.localEditor.button.classList.toggle(
           "permission-hidden",
-          !editable(policy),
+          !editable(policy, form),
         );
         if (
           pendingFocus === form.localEditor.key &&
@@ -178,7 +185,7 @@
           role: "status",
         });
       if (form.dataset.startOpen === "true") opened.add(key);
-      if (!editable(policy)) opened.delete(key);
+      if (!editable(policy, form)) opened.delete(key);
       box.dataset.editorKey = key;
       const languageRow = form.matches("#languageRows form");
       if (languageRow) {
@@ -203,15 +210,16 @@
           ? form.closest("[data-settings-card]")
           : null;
       const header = card?.querySelector(":scope>.settings-card-heading");
+      const disclosureHeader = header?.tagName === "SUMMARY";
       const title =
         (form.dataset.translationCard
           ? card.querySelector("h3").textContent
           : T(policy[2])) +
         (form.dataset.languageCode ? " · " + form.dataset.languageCode : "");
       const button = iconAction("edit", T("Edit") + " · " + title, () => {
-        if (!editable(policy) || form.getAttribute("aria-busy") === "true")
+        if (!editable(policy, form) || form.getAttribute("aria-busy") === "true")
           return;
-        if (form.dataset.translationCard) card.open = true;
+        if (disclosureHeader) card.open = true;
         messages.delete(key);
         feedback.textContent = "";
         opened.add(key);
@@ -229,7 +237,7 @@
         button.setAttribute("aria-label", T(form.dataset.editorAction));
       }
       button.disabled =
-        form.getAttribute("aria-busy") === "true" || !editable(policy);
+        form.getAttribute("aria-busy") === "true" || !editable(policy, form);
       button.dataset.localEdit = key;
       if (!form.dataset.editorAction) button.classList.add("local-editor-pencil");
       const source = form.parentElement.querySelector(
@@ -243,7 +251,7 @@
       form.before(box);
       box.append(summary, feedback, form);
       if (header) {
-        if (form.dataset.translationCard)
+        if (disclosureHeader)
           button.addEventListener("click", (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -260,7 +268,7 @@
       feedback.textContent = messages.get(key) || "";
       box.classList.toggle("local-editor-open", opened.has(key));
       card?.classList.toggle("settings-card-editing", opened.has(key));
-      button.classList.toggle("permission-hidden", !editable(policy));
+      button.classList.toggle("permission-hidden", !editable(policy, form));
       readSummary(form, summary);
       if (pendingFocus === key && button.getClientRects().length) {
         button.focus({ preventScroll: true });
@@ -269,7 +277,7 @@
       form.addEventListener(
         "submit",
         (event) => {
-          if (!opened.has(key) || !editable(policy)) {
+          if (!opened.has(key) || !editable(policy, form)) {
             event.preventDefault();
             event.stopImmediatePropagation();
           }

@@ -141,7 +141,7 @@ const server = http.createServer((req, res) => {
             true,
           );
           assert.equal(
-            await page.locator("[value=local]+strong").textContent(),
+            await page.locator("[name=databaseLocation][value=local]+strong").textContent(),
             { en: "Local", de: "Lokal", fo: "Lokalt" }[language],
           );
           await page.locator("[name=databaseLocation][value=local]").check();

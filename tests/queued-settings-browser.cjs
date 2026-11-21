@@ -63,19 +63,21 @@ const queuedRpc=client.rpc;client.rpc=async(name,args)=>{
     await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
   }
   await page.locator('[data-settings-tab=templates]').click();
-  assert.equal(await page.getByRole('heading',{name:'Shared invitation',exact:true}).count(),1);
+  assert.equal(await page.locator('details.invitation-template > summary[aria-label="Shared invitation"]').count(),1);
   await page.locator('.invitation-template .local-editor-pencil').first().click();
   const independent=page.locator('[data-form-key="invitation-template:99999999-1111-4111-8111-111111111111"]');
   await independent.locator('textarea').first().fill('Retained independent draft: {invitation_link}');
   await page.locator('summary[data-add-template]').click();
   const newForm=page.locator('[data-form-key="invitation-template:new"]');
-  assert.equal(await newForm.locator('.template-language').count(),0);
-  await newForm.locator('.template-options input[value=shortMessage]').check();
+  assert.equal(await newForm.locator('[data-template-choice=languages] summary').innerText(),'None selected');
+  await newForm.locator('[data-template-choice=options] summary').click();
+  await newForm.locator('[data-template-choice=options] button[data-value=shortMessage]').click();
   await newForm.getByRole('textbox',{name:'Short Message',exact:true}).fill('Short: {invitation_link}');
   assert.equal(await newForm.getByRole('textbox',{name:'Short Message',exact:true}).evaluate(n=>n.tagName),'INPUT');
   await newForm.locator('input[type=text]').first().fill('Second invitation');
   await newForm.locator('textarea').first().fill('A second message: {invitation_link}');
-  await newForm.locator('.template-services input[value=manual]').check();
+  await newForm.locator('[data-template-choice=service] summary').click();
+  await newForm.locator('[data-template-choice=service] button[data-value=manual]').click();
   await newForm.getByRole('button',{name:'Save',exact:true}).click();
   await page.waitForFunction(()=>window.__named.length===2);
   await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
@@ -96,7 +98,7 @@ const queuedRpc=client.rpc;client.rpc=async(name,args)=>{
   await page.setViewportSize({width:390,height:900});
   assert.equal(await remove.locator('svg').isVisible(),false);
   await page.locator('.invitation-template [data-discard]').first().click();
-  const second=page.locator('.invitation-template').filter({has:page.getByRole('heading',{name:'Second invitation',exact:true})});
+  const second=page.locator('.invitation-template').filter({has:page.locator('summary[aria-label="Second invitation"]')});
   await second.locator('.local-editor-pencil').click();
   await second.locator('.delete-action').click();
   await page.locator('[data-inline-confirm]').click();
@@ -116,7 +118,18 @@ const queuedRpc=client.rpc;client.rpc=async(name,args)=>{
   await row.locator('.invite-household-content .delivery-message').first().waitFor();
   assert.match(await row.locator('.delivery-message').first().textContent(),/Hello/);
   assert.equal(await page.getByRole('dialog',{name:'Invitation delivery',exact:true}).count(),0);
-  const recipient=page.locator('.invite-shown-fields label').first().locator('input');await recipient.uncheck();
+  const messagesHousehold=await page.evaluate(()=>{
+    fixtures.invitation_send_queue=fixtures.invitation_send_queue.filter(item=>item.household_id!==h2);
+    fixtures.household_contacts.push({id:crypto.randomUUID(),household_id:h2,is_household_primary:true,contact_type:'phone',contact_value:'+15555550101',preferred_method:null});
+    window.__named.push({id:crypto.randomUUID(),name:'Messages invitation',channels:['messages'],language_tags:['en'],versions:{en:{body:'Messages template: {invitation_link}'}}});
+    return h2;
+  });
+  await refreshFixture(page);
+  await page.locator('[data-invite-household="'+messagesHousehold+'"] .invite-create').click();
+  await page.getByRole('button',{name:'Messages invitation',exact:true}).click();
+  await page.waitForFunction(id=>fixtures.invitation_send_queue.some(item=>item.household_id===id&&item.channel==='sms'&&item.message_body.startsWith('Messages template:')),messagesHousehold);
+  const fields=page.locator('.invite-shown-fields');await fields.locator('summary').click();
+  await fields.locator('button[data-value=recipient]').click();
   assert.equal(await page.locator('.invite-overview-recipient').count(),0);
   await page.evaluate(()=>{fixtures.event_settings[0].is_published=true;const h=fixtures.households.find(h=>h.id===h2);fixtures.invitation_send_queue=[{id:'synthetic-draft',household_id:h.id,channel:'manual',status:'draft',revision:1,created_at:'2026-11-15T12:00:00Z',updated_at:'2026-11-15T12:00:00Z',invitation_code_snapshot:h.invite_code,recipient_snapshot:{contact_name:'Example'},message_body:'Hello synthetic guest'}]});
   await refreshFixture(page);

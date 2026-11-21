@@ -6,7 +6,6 @@
   const CAPABILITY = /^[A-Za-z0-9_-]{32,256}$/;
   const PHONE = /^\+[1-9][0-9]{6,14}$/;
   const phrases = {
-    "title": "interface.messages.shortcut_title",
     "help": "interface.messages.shortcut_help",
     "unpublished": "interface.messages.shortcut_unpublished",
     "https": "interface.messages.shortcut_https",
@@ -200,28 +199,6 @@
     function currentSelection(kind) {
       const model = projection(getStore());
       return [...selections[kind]].map(([id, revision]) => model.entries.find(entry => entry.queue.id === id && entry.queue.revision === revision && entry.kind === kind));
-    }
-    function canPreselectNew(items) {
-      if (!gate() || busy || uncertain || actor !== getActor() || !Array.isArray(items) ||
-          items.length < 1 || items.length > 10) return false;
-      const eligible = new Map(projection(getStore()).entries.filter(entry => entry.kind === "new")
-        .map(({ queue }) => [queue.id, queue.revision]));
-      const seen = new Set();
-      for (const item of items) {
-        if (!item || typeof item.id !== "string" || !Number.isInteger(item.revision) ||
-            seen.has(item.id) || eligible.get(item.id) !== item.revision) return false;
-        seen.add(item.id);
-      }
-      return true;
-    }
-    function preselectNew(items) {
-      if (!canPreselectNew(items)) return false;
-      selections.new = new Map(items.map(({ id, revision }) => [id, revision]));
-      reviewed.new = false;
-      retryAcknowledged = false;
-      status = "";
-      render();
-      return true;
     }
     async function operation(work) {
       if (busy) return;
@@ -462,7 +439,7 @@
       }
       host.classList.add("shortcut-batches"); host.replaceChildren();
       host.setAttribute("aria-busy", String(busy));
-      host.append(R.dom("h2", {}, text("title")), R.dom("p", { class: "micro" }, text("help")));
+      host.append(R.dom("p", { class: "micro" }, text("help")));
       if (!getStore().settings?.is_published) host.append(R.dom("p", { class: "notice" }, text("unpublished")));
       if (!secureBase()) host.append(R.dom("p", { class: "notice" }, text("https")));
       if (!permitted()) host.append(R.dom("p", { class: "micro" }, text("permission")));
@@ -479,7 +456,7 @@
       renderHistory(host, model);
       host.append(R.dom("p", { class: "micro" }, text("visit_help")));
     }
-    return { render, clear, householdFacts, canPreselectNew, preselectNew };
+    return { render, clear, householdFacts };
   }
   window.RSVP_ADMIN_SHORTCUTS = Object.freeze({ create, projection });
 })();

@@ -1,6 +1,9 @@
 // Actual administrator controllers, synthetic records and APIs only.
 const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
+const fs = require("node:fs"), path = require("node:path"), os = require("node:os");
+const artifactDir = process.env.RSVP_TEST_ARTIFACTS || fs.mkdtempSync(path.join(os.tmpdir(), "rsvp-languages-layout-"));
+fs.mkdirSync(artifactDir, { recursive: true, mode: 0o700 });
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
 const { openBox } = require("./helpers/local-edit-ui.cjs");
 const { server, mock, extra } = createFoodHarness("languages-layout");
@@ -46,7 +49,7 @@ const layoutRpc=client.rpc;client.rpc=async(name,args)=>{
         }),
       );
       await page.goto(base + "/admin/");
-      await page.locator("[data-tab=overview]").click();
+      await page.locator("[data-tab=invites]").click();
       await page.locator("#statsGrid .stat-card-compact").first().waitFor();
       assert.equal(
         await page.locator("#statsGrid .stat-card-compact").count(),
@@ -55,15 +58,15 @@ const layoutRpc=client.rpc;client.rpc=async(name,args)=>{
       assert.deepEqual(
         await page
           .locator("#statsGrid .stat-card")
-          .nth(1)
-          .locator("dt")
+          .first()
+          .locator(".stat-people-guests dt")
           .allTextContents(),
         ["Adults", "Children"],
       );
       if (width === 1160)
         await page
           .locator("#statsGrid")
-          .screenshot({ path: "/tmp/implemented-compact-statistics.png" });
+          .screenshot({ path: path.join(artifactDir, "statistics-wide.png") });
       await page.locator("#contentLanguagesToggle").click();
       const tab = (name) =>
         page.locator(

@@ -103,24 +103,27 @@
       render();
       return { get: current, read: async () => current(), close: () => picker?.close() };
     }
-    function render(host) {
-      if (!can("settings")) return;
-      const card = R.dom("section", {
-          class: "panel invitation-album",
-        }),
+    function render(card) {
+      card.hidden = !can("settings");
+      if (card.hidden) {
+        card.open = false;
+        card.replaceChildren();
+        return;
+      }
+      const summary = R.dom("summary"),
+        body = R.dom("div", { class: "invitation-album-content" }),
         heading = R.dom("div", { class: "settings-card-heading" }),
         grid = R.dom("div", { class: "invitation-album-grid" });
-      card.dataset.settingsCard = "invitation-album";
-      heading.append(R.dom("h2", {}, T("Picture album")));
-      card.append(
-        heading,
+      body.dataset.settingsCard = "invitation-album";
+      summary.append(R.dom("h2", {}, T("Picture album")));
+      heading.append(
         R.dom(
           "p",
           { class: "micro" },
           T("Shared across invitation templates and services."),
         ),
-        grid,
       );
+      body.append(heading, grid);
       for (const record of pictures()) {
         const tile = R.dom("div", { class: "invitation-album-tile" });
         window.RSVP_INVITATION_IMAGE.preview(tile, record.picture, { R, T });
@@ -177,7 +180,7 @@
           ),
           picture = window.RSVP_INVITATION_IMAGE.editor(form, null, { R, T });
         const expected = revision();
-        card.insertBefore(
+        body.insertBefore(
           saveForm(form, T("Add picture"), async () => {
             const image = await picture.read();
             if (!image) throw Error(T("Choose JPEG"));
@@ -190,7 +193,7 @@
           }), grid,
         );
       }
-      host.append(card);
+      card.replaceChildren(summary, body);
     }
     return { render, editor };
   }

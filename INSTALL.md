@@ -14,7 +14,7 @@ For a dedicated Supabase Cloud project, the [trusted local setup companion](docs
 
 ## Upgrade an existing installation
 
-For alpha.7 installations, follow the [alpha.8 upgrade guide](docs/UpgradeAlpha8.md) to update the database and retain the existing configuration.
+For alpha.8 installations, follow the [alpha.9 upgrade guide](docs/UpgradeAlpha9.md) to update the database and retain event data, pictures, access and configuration. Earlier alpha.7 installations first follow the [alpha.8 upgrade guide](docs/UpgradeAlpha8.md), then the alpha.9 guide. Keep the event unpublished and use the matching release files for each step.
 
 ## New installation
 
@@ -24,11 +24,12 @@ For alpha.7 installations, follow the [alpha.8 upgrade guide](docs/UpgradeAlpha8
 4. **Step 2, before Test connection:** for an empty cloud project, create the project with the security options below and run the complete installer once in SQL Editor. Then save `RSVP_SITE_ORIGIN` / `RSVP_SITE_URL`, deploy both release-matching Edge Functions with platform **Verify JWT OFF**, and configure Auth Site URL / allowed administrator redirects. Follow [the complete Studio guide](docs/StudioSetup.html) now. Local installations follow [the local guide](docs/LocalSetup.html). Existing installations verify their server setup without reinstalling SQL. Only then enter the public project URL/key and test the connection. The wizard checks the database and guest-gateway; it does not configure the server for you.
 5. **Step 3** offers the trusted setup companion and Manual setup. For Manual setup, create and confirm the first Auth user, generate the first-administrator SQL, and run it in your own SQL Editor. Verify the administrator login. Existing installations use their existing administrator.
 6. **Step 4:** publish the browser configuration for all visitors. For the selected-release GitHub Pages workflow, set both [Actions variables](#configure-jsconfigjs-with-github-actions) and redeploy the same release. For direct static hosting, upload the downloaded file as `js/config.js`. Browser-only setup is temporary for that browser; it does not configure the deployed website for others.
-7. Sign in, configure the event and test an invitation preview. A new event stays unpublished until you deliberately publish it.
+7. **Step 5: HTTP/SSL.** Installations with an HTTP/SSL companion can generate a certificate for a public domain under **Cloud** or a local network hostname under **Local**. Devices using a Local certificate must trust its local CA. Choose **None** to keep the current listener settings. Static hosted installations manage HTTPS with their website host.
+8. Sign in, configure the event and test an invitation preview. A new event stays unpublished until you deliberately publish it.
 
 The site origin has no path or trailing slash, such as `https://events.example.org`. The full installation URL includes the path and trailing slash, such as `https://events.example.org/marriage/`. Set Auth Site URL to that full URL and allow its `admin/?admin-invitation=1` redirect. Keep server credentials in Supabase; browser configuration contains only the public URL/key. Configure SMTP for real administrator invitations.
 
-For a local VM, use an explicitly configured local origin and backend; preserve its service configuration separately. Public release defaults deliberately contain no deployment address or backend key.
+On installations with the companion, use **Settings → Interface → HTTP/SSL** after setup to manage certificates and listeners. The redirect option is available when both HTTP and HTTPS are enabled. For a local VM, use an explicitly configured local origin and backend and keep its service configuration separate. Public release defaults deliberately contain no deployment address or backend key.
 
 ## Local or Cloud
 
@@ -91,7 +92,7 @@ The repository's verification workflow uses synthetic fixtures and disposable da
 
 ## Current alpha limits
 
-Administrator password recovery, optional backup encryption and additional food-interest feedback/reporting remain planned. Gzip compression is implemented. Physical-device/native-app and full published-journey acceptance remain separate from automated checks. Publication and an installation's data are always controlled by its owner.
+Administrator password recovery, optional backup encryption and gzip compression are available. Additional food-interest reporting remains planned. Physical-device/native-app and full published-journey acceptance remain separate from automated checks. Publication and an installation's data are always controlled by its owner.
 
 ## Publish to a local webroot
 

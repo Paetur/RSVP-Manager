@@ -14,6 +14,7 @@ await page.route('**/admin/',async route=>{const response=await route.fetch();aw
 await page.goto((process.env.RSVP_TEST_BASE_URL||'http://127.0.0.1:'+server.address().port)+'/admin/');await page.waitForFunction(()=>document.querySelectorAll('#statsGrid .stat-card').length===4);
 const firstHousehold = await page.evaluate(() => fixtures.households.find(h => h.id === document.querySelector('#inviteRows [data-invite-household]').dataset.inviteHousehold));
 assert.equal(await page.locator('#inviteRows .invite-compact-name').first().innerText(), firstHousehold.household_name + ' Family');
+await page.locator('#inviteSearchToggle').click();assert.equal(await page.locator('#inviteSearch').isVisible(),true);
 await page.locator('#inviteSearch').fill('Family');assert.ok(await page.locator('#inviteRows [data-invite-household]').count()>0);await page.locator('#inviteSearch').fill('');
 await page.locator('#settingsToggle').click();
 await page.getByRole('tab',{name:'Application',exact:true}).click();

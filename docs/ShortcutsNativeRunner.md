@@ -8,11 +8,13 @@ The on-device authoring procedure does not require a Mac. The target versions ar
 actual action availability, file persistence and WhatsApp behavior still require
 the device checks below. Live sending starts with a supervised first-item gate;
 the remaining-five branch stays disabled until that first item succeeds.
-Start with the short [four-action phone check](ShortcutsWhatsAppProbe.md) before
+For direct app actions, start with the [four-action phone check](ShortcutsWhatsAppProbe.md) before
 assembling the full live runner. The organizer reports **Send message to
 recipient** and **Send photo**. The photo action opens a contact picker; its
 Image/File-variable support is unknown. Live setup remains incomplete; keep both live gates false at this inspection
-stage.
+stage. The separate [supervised picture-and-caption path](#supervised-picture-and-caption-live-test)
+uses the system share sheet and explicit operator confirmations instead of
+binding a recipient into an app action.
 
 [shortcut-native-blueprint.json](../tools/shortcut-native-blueprint.json) is a
 machine-readable build checklist. It contains display names and protocol rules,
@@ -27,6 +29,10 @@ The isolated test helper also has a web installation panel. It opens reviewed
 **iCloud share links for existing native shortcuts**; it does not generate them
 from this guide or the JSON blueprint. Until those links exist, follow the native
 authoring steps here. See [web installer instructions](ShortcutsTestSite.md#install-the-native-shortcuts-from-the-helper).
+
+For the organizer workspace, open **Main → Invites → iPhone Shortcuts** when the
+feature is enabled. See the [organizer guide](ShortcutOrganizer.md) for normal
+batch review and history; the dedicated test helper below remains separate.
 
 ## Prepare the dedicated test installation and phone
 
@@ -150,24 +156,46 @@ ordinary non-secret text. Apple documents this input mechanism in its
 [iOS 27 URL-scheme guide](https://support.apple.com/en-euro/guide/shortcuts/apd624386f42/10.0/ios/27).
 
 For every HTTP action, keep the URL under the pinned base and set the same
-Authorization header. For POST, expand the action, set **Request Body → JSON**,
-and add the named fields below with the correct text/Boolean/dictionary types.
-For an upload, bind all fields from the saved result; never construct a new
-outcome or event ID during retry. HTTP or parsing errors may stop Shortcuts;
+Authorization header. For claim and organizer POSTs, expand the action, set
+**Request Body → JSON**, and add the named fields below with the correct types.
+For a result upload, use **Request Body → File** with the original saved JSON
+file. Never rebuild it from a Dictionary or construct a new outcome or event ID
+during retry. HTTP or parsing errors may stop Shortcuts;
 previously saved files must remain. Apple documents GET and JSON POST in
 [Request your first API](https://support.apple.com/en-mt/guide/shortcuts/apd58d46713f/ios).
 
 ## File names and content
 
 Use a flat folder; replace `B` with `BatchID` and `A` with the current attempt ID.
-Set file names with **Set Name** before **Save File** when required by the
-editor. Disable **Ask Where to Save**, choose `RSVPNative`, and use the exact
-filename. A save must complete before the next action. Never silently overwrite
-a final result. Acknowledgment files let the uploader skip successful uploads
-without requiring a delete action.
+Use **Set Name** before every **Save File**, including text checkpoints. Set the
+complete filename with its `.json` or `.txt` extension and leave **Don't Include
+File Extension** off. Pass the renamed item to **Save File**. Disable **Ask Where
+to Save**, choose `RSVPNative`, and use the exact filename. Saving unnamed Text
+can produce a `.txt` file even when the later lookup expects `.json`.
+Read the file back by its exact name and verify its contents before the next
+action. Never silently overwrite a final result. Save acknowledgment markers the
+same way and read back the exact `accepted` text. They let the uploader skip
+successful uploads without requiring a delete action.
+
+For JSON checkpoints, compare the **original file bytes** with the serialized
+JSON Text used for the save: **Base64 Encode** both with **Line Breaks → None**
+and require exact, case-sensitive equality of the complete encoded strings.
+Shortcuts may expose a JSON file as a Dictionary; its name and Text projection
+can differ even when the stored bytes are correct. Reopening the exact filename
+and comparing bytes avoids treating that projection as file corruption. If a
+regular expression is used for equality, quote the Base64 value literally and
+anchor both ends; its `+` characters must not become regex operators.
+
+Show a short status or failure reason with **Show Alert** before **Stop and
+Output**, so the result is visible when launched from the shortcut tile or URL.
+Include only a step label and a non-secret explanation, never launch input,
+authorization, recipient numbers or invitation contents. Report when no
+`result-B-A.json` files were found instead of silently finishing. Apple documents
+[Show Alert on Mac](https://support.apple.com/guide/shortcuts-mac/use-the-show-alert-action-apdb9661c761/mac).
 
 For a local JSON checkpoint, use **Dictionary** with Boolean fields typed as
-Boolean, then **Get Text from Input** to serialize it. Before the first live
+Boolean, then **Get Text from Input** to serialize it. Keep that same serialized
+Text as the expected value for the byte comparison. Before the first live
 claim, round-trip a dummy checkpoint through **Get Dictionary from Input** and
 verify all Boolean values remain Booleans. Do not interpolate localized Boolean
 display labels such as Yes/No into JSON text. The fixed processed-result template
@@ -211,7 +239,19 @@ After the common prefix:
    contents to be exactly `accepted`; otherwise stop for review.
    **If** `SavedResult` has a value, then **If** `SavedAck` has no value, continue
    inside those two blocks. Otherwise this item has no upload work.
-4. **Get Dictionary from Input** `SavedResult` → `Result`. Require
+4. **Base64 Encode** the original `SavedResult`, with no line breaks. To prevent
+   native decoding from recognizing JSON as a Dictionary, prepend `UlNWUDog`
+   to that Base64 in memory before decoding. This encodes the six ASCII bytes
+   `RSVP: `; its length is a multiple of three, so the following original bytes
+   stay intact. Get the decoded Text, require exactly one match for `\ARSVP: `,
+   then use **Replace Text** with that anchored, case-sensitive regular
+   expression and an empty replacement. Use the resulting Text directly as
+   `ResultJSON`. Re-encode it and require equality with the original Base64
+   before validating the JSON. The prefix is never saved or uploaded.
+   Stop if native conversion changes bytes. This preserves duplicate-key and
+   primitive-type checks that a Dictionary's rewritten Text could otherwise
+   hide. Validate the complete original JSON text, then use **Get Dictionary
+   from Input** `ResultJSON` → `Result`. Require
    `attempt_id`, `claim_id` and `event_id` each equal `A`, `channel` equal
    `whatsapp`, and `result` one of `processed`, `partial`, `failed`, `unknown`,
    `skipped`. Require exactly six top-level keys: `event_id`, `attempt_id`,
@@ -227,14 +267,12 @@ After the common prefix:
    rather than that file's root manifest schema.
    The runner must already have checked completion of every configured action;
    the uploader never changes the saved completion flags to make a result pass.
-5. **Get Contents of URL**, POST `BatchURL/results`, JSON fields `event_id`,
-   `attempt_id`, `claim_id`, `result`, `channel` and `details`, each bound to its
-   saved value. Send this single object, never a list or a `results` wrapper.
+5. **Get Contents of URL**, POST `BatchURL/results`, **Request Body → File**
+   bound to the original `SavedResult`. Send that file's single JSON object,
+   never a list, a `results` wrapper, multipart data or a rebuilt Dictionary.
    Set `Authorization: Bearer <capability>` and `Content-Type: application/json`.
-   Preserve the validated saved `details` dictionary. If conditional keys require
-   separate editor branches, include `error_stage` and `error_code` only when
-   actually present in that saved dictionary; never substitute empty text or null.
-   Do not construct another outcome or event ID during retry.
+   The saved bytes already contain the validated completion flags and any
+   permitted error keys. Keep them unchanged, including during retries.
 6. The API success status is **HTTP 200**. If the native action exposes an HTTP
    status, require exactly 200. An action error or a non-JSON/malformed result
    stops without writing an acknowledgment. Parse the response as a dictionary
@@ -265,6 +303,178 @@ Do not write an acknowledgment for any error shape, and do not repeat a WhatsApp
 action because a callback or acknowledgment-file write failed. A subsequent run
 posts the unchanged result and accepts `idempotent:true` in the normal success
 guard.
+
+## Supervised picture-and-caption live test
+
+Use this path when the operator has confirmed that WhatsApp accepts an image
+and text together, with the text arriving as the picture caption. Keep the
+reviewed invitation text and unique link unchanged. This path records a
+confirmed caption as the text component and the received picture as the photo
+component; it does not require two separate app sends. The direct-action route
+below has separate requirements.
+
+1. Keep the completed dry-run batch and its files. Use six unused, reviewed
+   `live_test` delivery drafts for the same six synthetic households and the
+   same two approved numbers. Existing unused live-test drafts can be used;
+   new drafts are needed only when that set has already been attempted. Create
+   one live-test batch through normal organizer sign-in in the helper.
+2. Validate the pinned API, live-test mode, six unique attempts and deliveries,
+   reviewed content and the two independently entered approved numbers. Fetch
+   and decode the synthetic JPEG before claiming. Show the intended household,
+   approved recipient number and original caption for review, in memory only.
+3. The first-item Runner permits sharing only while all six attempts remain
+   pending. A repeated invocation after any claim or result stops for upload
+   or recovery. The remaining-five branch stays disabled until the first
+   actual invitation has been accepted. Recovery remains available.
+4. Save/read back the immutable request checkpoint, capture the current time,
+   claim once and validate/save the confirmed claim. Before and after saving
+   **each** text-started and photo-started marker, capture a fresh current time.
+   **Get Time Between Dates**, from claim-request start to that fresh time, in
+   **Seconds**, must return a number at least zero and less than 240. Check
+   again immediately before sharing. Clock rollback or an expired start window
+   stops further app actions. The server claim lease remains five minutes.
+5. Build a **List** containing the decoded Image and the original message Text
+   as two typed items. Pass that List directly to **Share**. Do not combine the
+   image and text into a string, save them in the journal folder, or copy the
+   authorization envelope into the share payload. In the share sheet the
+   operator chooses WhatsApp and the exact displayed approved recipient.
+6. After returning from WhatsApp, explicitly confirm the correct recipient,
+   the complete original caption including its unique link, and the picture.
+   A share-sheet return does not establish any of these facts. Recipient
+   confirmation gates both component confirmations. Immediately save/read back
+   a completed marker for each positively confirmed component; retain earlier
+   markers if a later confirmation or save is interrupted.
+7. Save `processed` only when both components have durable completed markers.
+   Otherwise save `unknown`, retaining any confirmed component flags, because
+   both started markers preceded the combined share. Cancellation, an uncertain
+   recipient or a missing completion marker never authorizes another share.
+   Recovery reads the exact existing markers and saves an outcome without
+   opening WhatsApp or claiming again.
+8. Copy fresh launch input for the same live-test batch and run the existing
+   upload-only shortcut. Verify the accepted acknowledgment and first-item
+   progress, then inspect the received caption/link and picture. Only after
+   that first-item acceptance may the remaining five be enabled; they still
+   require manual recipient selection and confirmations for every item.
+
+### Reusable picture-sharing shortcut
+
+If WhatsApp opens a text composer when given the combined image/Text List,
+the picture handoff has failed. Keep any confirmed text completion and its
+result files. Do not repeat the invitation or use the wholly-unsent retry
+control for an item whose text was sent.
+
+The separate **RSVP Share Invitation** child uses the existing picture-only
+fallback: it copies the original caption verbatim, then passes exactly one
+decoded Image to **Share**. Choose WhatsApp and the intended recipient, then
+paste into the photo's caption field before sending. Copying the caption
+replaces the clipboard. Automatic caption attachment is not assumed.
+
+The child takes a Dictionary containing exactly `schema_version: 1`,
+`image_base64`, `filename`, `caption` and `claim_started_at`. The last field
+is the parent's original claim-request time in ISO 8601 text with an explicit
+timezone (`Z` or a numeric offset), not a new
+time captured after claiming. The child validates its input and decoded image,
+then checks a fresh signed elapsed time of at least zero and less than 240
+seconds before copying and immediately before Share. It receives no batch
+capability, password, administrator token or journal folder. It does not fetch,
+claim, write checkpoints, upload results or decide whether anything was sent.
+Its neutral `share_returned` output only reports return from the Share action.
+The Runner retains recipient/component confirmations, durable journals and
+the separate uploader.
+
+Test the child before connecting it to a live Runner:
+
+1. Apple-sign and import **RSVP Share Invitation** and **RSVP Share Probe**.
+   Keep the existing Runner and Upload Results shortcuts.
+2. Open the probe in the Shortcuts editor. Its **Run Shortcut** action has an
+   intentionally blank target; use the native picker to select **RSVP Share
+   Invitation**. This binds the installed child without guessing its identifier.
+3. Run the probe. It previews only a bundled synthetic JPEG and fixed synthetic
+   caption, then calls the child with a fresh test timestamp. It does not use
+   launch input, a batch or the journal folder.
+4. In Share, choose WhatsApp and inspect the composer. Verify that the picture
+   is attached, then paste and inspect the synthetic caption. **Cancel without
+   sending.** This test establishes the handoff, not live-message acceptance.
+
+The existing first-only Runner still contains its original combined Share;
+importing the child does not alter it. A subsequent Runner integration must
+call the selected child with the reviewed image/caption and original claim
+time, check its neutral return, and retain all existing confirmation/recovery
+guards. Completed components must be preserved in any continuation.
+
+### One pending invitation after an earlier uncertain result
+
+After the separate sharing helper has passed the device check, a supervised
+next-pending Runner can test one untouched invitation while preserving an
+earlier uncertain result. It accepts a six-pending batch, or exactly five
+pending/one unknown with every other state zero. It independently checks the
+status counts and that each pending invitation pair occurs exactly once.
+Unknown items are excluded from selection; their component flags are not
+inferred from status or changed by this procedure.
+
+1. Keep **RSVP Share Invitation**, **RSVP Upload Results** and the journal
+   folder. Rename the earlier Runner, sign/import the next-pending Runner as
+   **RSVP Batch Runner**, and select **RSVP Share Invitation** in its blank
+   native **Run Shortcut** picker.
+2. In the tester, inspect the existing `live_test` batch. Renew its entered
+   authorization through normal administrator sign-in if needed. Keep the same
+   batch; the wholly-unsent retry control does not apply after text was sent.
+3. Copy fresh launch input, run **Run one pending** and review preservation of
+   the uncertain item, then the new invitation's exact caption and approved
+   recipient. Use the same journal folder.
+4. Choose WhatsApp in Share, paste the copied caption into the picture's caption
+   field and send only to the displayed approved recipient. Confirm the actual
+   recipient and the received full caption/link and picture after returning.
+5. Copy fresh launch input for the same batch and upload through the existing
+   uploader. For a starting five-pending/one-unknown batch, one fully confirmed
+   result should leave **one processed, four pending and one unknown**. The
+   earlier unknown remains recorded separately.
+
+This candidate stops after one new result. Remaining invitations and checkpoint
+reconstruction are disabled in this single-invitation test; existing saved
+results can still be uploaded. A failed upload is recovered by uploading the
+unchanged file, without repeating the share. Review the received invitation and
+accepted progress before preparing the remaining invitations or a component-only
+continuation of the earlier item.
+
+### If the Share sheet was closed before sending
+
+The system Share sheet is the handoff: choose WhatsApp there, choose the displayed
+approved recipient, then send. If the operator closed it before selecting
+WhatsApp or sending anything, the claim can expire as `unknown` and the
+first-only Runner will correctly reject another **Run one pending**.
+
+For that explicitly confirmed, wholly unsent case, use the helper's
+**Retry a supervised batch that was never sent** disclosure:
+
+1. Sign in normally, select `live_test`, review all six current messages and
+   check the review confirmation. Enter the old batch UUID.
+2. Confirm that the Share sheet was closed without sending any caption, link
+   or photo, and that the old device files have been retained.
+3. Choose **Retire unsent batch and prepare reviewed retry**. The helper
+   rechecks current revisions, exact source-batch items and latest attempt
+   ownership, and rejects completion, Sent or active-claim evidence.
+4. The existing organizer APIs revoke the old authorization and create a new
+   `live_test` batch with `retry:true`, using the same six reviewed drafts and
+   fresh attempt IDs. Old history and files remain; old pending items are
+   retired rather than reset to pending. No replacement drafts or backend
+   permission changes are needed.
+5. Use the new batch and fresh launch input with the same first-item Runner and
+   uploader. In its Share sheet, select WhatsApp and the displayed recipient,
+   send the picture/caption, then return to the outcome confirmations.
+
+This control requires normal administrator Auth and explicit unsent/review
+confirmations. It does not share, claim or mark any delivery Sent. If retirement
+or creation has an uncertain response, the page clears old launch authorization
+and blocks another management attempt. Reload and inspect current administrator
+history before renewing a reported new batch or considering another reviewed
+retry. Do not use this wholly-unsent path when actual sending is uncertain.
+
+Completion confirmations and uploads may occur after the start window closes.
+An otherwise matching late result can recover its expired claim. Keep all
+checkpoint, result and acknowledgment files, and keep organizer Sent/RSVP
+records separate from device processing. This remains a supervised test,
+pending actual device acceptance of the installed candidate.
 
 ## Build RSVP Batch Runner
 
@@ -324,7 +534,9 @@ For each item in `Manifest.invitations`, add **Repeat with Each** and these acti
    Current Date/deadline checks before and after saving `photo-started`, the
    inspected WhatsApp photo action with `InvitationJPEG`, and
    then `photo-completed`. Never reconstruct message text, invitation links or
-   captions. A photo action does not substitute for the text action.
+   captions. A photo action does not substitute for the text action in this
+   direct-action route. The supervised caption route above confirms both
+   payload components after one combined share.
 10. Require all configured actions to be complete. Check that
     `result-B-A.json` does not already exist. Build and save this exact result
     before any callback network request, using real JSON Booleans:

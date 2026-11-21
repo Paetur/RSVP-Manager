@@ -5,7 +5,7 @@
   const CAPABILITY = /^[A-Za-z0-9_-]{32,256}$/;
   const PHONE = /^\+[1-9][0-9]{6,14}$/;
   const byId = id => document.getElementById(id);
-  const elements = Object.fromEntries(["Api", "Batch", "Capability", "Inspect", "Renew", "Copy", "Clear", "Status", "Progress", "Recipients", "RecipientList", "LaunchRunner", "LaunchUploader", "Limit", "DryRun", "Retry", "BrowserStatus", "Email", "Password", "SignIn", "ForgetAdmin", "ReloadReady", "AuthStatus", "PrepareMode", "Review", "ReviewSummary", "ReviewImage", "ReviewMessages", "Reviewed", "CreateBatch"].map(name => [name, byId("shortcut" + name)]));
+  const elements = Object.fromEntries(["Api", "Batch", "Capability", "Inspect", "Renew", "Copy", "Clear", "Status", "Progress", "Recipients", "RecipientList", "LaunchRunner", "LaunchUploader", "Limit", "DryRun", "Retry", "BrowserStatus", "Email", "Password", "SignIn", "ForgetAdmin", "ReloadReady", "AuthStatus", "PrepareMode", "Review", "ReviewSummary", "ReviewImage", "ReviewMessages", "Reviewed", "CreateBatch", "UnsentConfirmed", "RetireRetry", "RetireStatus"].map(name => [name, byId("shortcut" + name)]));
   const exact = (value, names) => value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).sort().join(",") === names.slice().sort().join(",");
   const isId = value => typeof value === "string" && UUID.test(value);
   const flags = value => exact(value, ["text", "photo"]) && typeof value.text === "boolean" && typeof value.photo === "boolean";
@@ -86,6 +86,9 @@
   window.RSVPShortcutsTestPage = Object.freeze({ createIndexedDBStore, verifyReady });
   let apiBase, backendBase, publicKey, manifest = null, recipients = new Set(), handoffMode = null, copied = false, busy = false, runner = null;
   let userJWT = null, readyData = null, reviewSnapshot = null;
+  // A management request may have succeeded even when its response was lost.
+  // Never repeat it from this page; a reload must recheck current admin history.
+  const retirementAttempts = new Set();
   const store = createIndexedDBStore();
   try {
     const backend = new URL(window.RSVP_CONFIG?.supabaseUrl);
@@ -123,6 +126,8 @@
     elements.PrepareMode.disabled = busy || !readyData;
     elements.Reviewed.disabled = busy || !reviewSnapshot;
     elements.CreateBatch.disabled = busy || !userJWT || !reviewSnapshot || !elements.Reviewed.checked;
+    elements.UnsentConfirmed.disabled = busy || !userJWT || reviewSnapshot?.mode !== "live_test" || !elements.Reviewed.checked;
+    elements.RetireRetry.disabled = busy || !unsentRetryAllowed();
     for (const name of ["LaunchRunner", "LaunchUploader"]) {
       elements[name].setAttribute("aria-disabled", String(busy || !copied));
       elements[name].tabIndex = busy || !copied ? -1 : 0;
@@ -131,7 +136,8 @@
   function changed() {
     copied = false; manifest = null; recipients = new Set(); handoffMode = null; runner = null;
     elements.Progress.textContent = ""; elements.RecipientList.replaceChildren(); elements.Recipients.hidden = true;
-    elements.Status.textContent = ""; elements.BrowserStatus.textContent = ""; controls();
+    elements.Status.textContent = ""; elements.BrowserStatus.textContent = "";
+    elements.UnsentConfirmed.checked = false; elements.RetireStatus.textContent = ""; controls();
   }
   async function operation(work, target = elements.Status, failureMessage) {
     if (busy) return;
@@ -195,8 +201,43 @@
         new Set(data.contacts.map(row => row.id)).size !== 6 || new Set(data.queue.map(row => row.id)).size !== 12 || phones.size !== 2 || [...phones.values()].some(count => count !== 3) || images.size !== 1) throw error();
     return selected;
   }
+  function verifyUnsentRetry(data, reviewed, batchId) {
+    if (!isId(batchId) || reviewed?.mode !== "live_test" ||
+        JSON.stringify(verifyReady(data, "live_test")) !== JSON.stringify(reviewed.selected) ||
+        !Array.isArray(data.shortcutBatches) || !Array.isArray(data.shortcutItems) || !Array.isArray(data.shortcutAttempts)) throw error();
+    const selected = new Map(reviewed.selected.map(row => [row.queue_id.toLowerCase(), row.expected_revision]));
+    const batches = data.shortcutBatches.filter(row => row.id?.toLowerCase() === batchId);
+    if (selected.size !== 6 || batches.length !== 1 || batches[0].mode !== "live_test") throw error();
+    const items = data.shortcutItems.filter(row => row.batch_id?.toLowerCase() === batchId);
+    if (items.length !== 6 || new Set(items.map(row => row.queue_id?.toLowerCase())).size !== 6 ||
+        new Set(items.map(row => row.ordinal)).size !== 6 || items.some(row => !isId(row.queue_id) ||
+          selected.get(row.queue_id.toLowerCase()) !== row.expected_revision || !Number.isInteger(row.ordinal) || row.ordinal < 1 || row.ordinal > 6)) throw error();
+    const history = data.shortcutAttempts.filter(row => isId(row.queue_id) && selected.has(row.queue_id.toLowerCase()));
+    const source = history.filter(row => row.batch_id?.toLowerCase() === batchId);
+    if (source.length !== 6 || new Set(source.map(row => row.queue_id.toLowerCase())).size !== 6 ||
+        new Set(history.map(row => row.id)).size !== history.length || history.some(row => !isId(row.id) || !isId(row.batch_id) ||
+          !Number.isSafeInteger(row.attempt_number) || row.attempt_number < 1 || !["pending", "unknown", "skipped"].includes(row.state) ||
+          row.claim_active !== false || row.text_processed !== false || row.photo_processed !== false || row.completed_at !== null)) throw error();
+    for (const queueId of selected.keys()) {
+      const attempts = history.filter(row => row.queue_id.toLowerCase() === queueId).sort((a, b) => b.attempt_number - a.attempt_number);
+      if (!attempts.length || attempts[0].batch_id.toLowerCase() !== batchId ||
+          attempts.filter(row => row.attempt_number === attempts[0].attempt_number).length !== 1) throw error();
+      const queue = data.queue.find(row => row.id.toLowerCase() === queueId);
+      if (!queue || queue.sent_at != null || queue.verified_sent_at != null || queue.shortcuts_processed_at != null) throw error();
+    }
+    // Revoking an already retired source is safe only while all latest attempts
+    // still belong to it. A successful but unseen retry therefore blocks reuse.
+    return batchId;
+  }
+  function unsentRetryAllowed() {
+    const batchId = elements.Batch.value.trim().toLowerCase();
+    if (!userJWT || !publicKey || !apiBase || !elements.Reviewed.checked || !elements.UnsentConfirmed.checked ||
+        elements.PrepareMode.value !== "live_test" || retirementAttempts.has(batchId)) return false;
+    try { verifyUnsentRetry(readyData, reviewSnapshot, batchId); return true; } catch { return false; }
+  }
   function renderReview() {
     reviewSnapshot = null; elements.Reviewed.checked = false; elements.Review.hidden = true;
+    elements.UnsentConfirmed.checked = false;
     elements.ReviewMessages.replaceChildren(); elements.ReviewImage.removeAttribute("src");
     if (!readyData) return;
     const selected = verifyReady(readyData, elements.PrepareMode.value);
@@ -212,6 +253,7 @@
   }
   function forgetAdmin() {
     userJWT = null; readyData = null; reviewSnapshot = null; elements.Reviewed.checked = false; elements.Review.hidden = true;
+    elements.UnsentConfirmed.checked = false;
     elements.ReviewMessages.replaceChildren(); elements.ReviewImage.removeAttribute("src"); elements.ReviewSummary.textContent = "";
   }
   async function loadReady() {
@@ -269,7 +311,8 @@
   elements.ForgetAdmin.addEventListener("click", () => { forgetAdmin(); elements.Password.value = ""; elements.AuthStatus.textContent = "Administrator authorization cleared from this page's memory."; controls(); });
   elements.ReloadReady.addEventListener("click", () => operation(loadReady, elements.AuthStatus));
   elements.PrepareMode.addEventListener("change", () => { try { renderReview(); } catch { forgetAdmin(); elements.AuthStatus.textContent = "Synthetic fixture verification failed."; } controls(); });
-  elements.Reviewed.addEventListener("change", controls);
+  elements.Reviewed.addEventListener("change", () => { elements.UnsentConfirmed.checked = false; controls(); });
+  elements.UnsentConfirmed.addEventListener("change", controls);
   elements.CreateBatch.addEventListener("click", () => operation(async () => {
     if (!userJWT || !reviewSnapshot || !elements.Reviewed.checked) throw error();
     const reviewed = reviewSnapshot;
@@ -283,6 +326,49 @@
     await inspect();
     elements.AuthStatus.textContent = "Reviewed synthetic batch created with your live administrator session. Authorization remains in memory. Inspect and copy launch input below.";
   }, elements.AuthStatus));
+  elements.RetireRetry.addEventListener("click", () => operation(async () => {
+    const batchId = elements.Batch.value.trim().toLowerCase();
+    let managementStarted = false, retired = false, createdId = null;
+    try {
+      if (!unsentRetryAllowed()) throw error();
+      const reviewed = reviewSnapshot, administrator = userJWT;
+      const headers = { apikey: publicKey, Authorization: "Bearer " + administrator };
+      const stillReviewed = () => {
+        if (userJWT !== administrator || reviewSnapshot !== reviewed || !elements.Reviewed.checked || !elements.UnsentConfirmed.checked ||
+            elements.PrepareMode.value !== "live_test" || elements.Batch.value.trim().toLowerCase() !== batchId) throw error();
+      };
+      const fresh = await postJSON(backendBase + "/rest/v1/rpc/admin_load_data", {}, headers);
+      stillReviewed();
+      if (JSON.stringify(verifyReady(fresh, "live_test")) !== JSON.stringify(reviewed.selected)) {
+        readyData = fresh; renderReview(); throw error();
+      }
+      verifyUnsentRetry(fresh, reviewed, batchId);
+      stillReviewed(); retirementAttempts.add(batchId); managementStarted = true;
+      const revoked = await postJSON(apiBase + "/batches/" + batchId + "/authorization", { action: "revoke" }, headers, 200, 100000);
+      if (revoked.schema_version !== 1 || revoked.batch_id?.toLowerCase() !== batchId || revoked.revoked !== true) throw error();
+      retired = true; elements.Capability.value = ""; copied = false; manifest = null; runner = null;
+      stillReviewed();
+      const created = await postJSON(apiBase + "/batches", { mode: "live_test", retry: true,
+        items: reviewed.selected.map(({ queue_id, expected_revision }) => ({ queue_id, expected_revision })) }, headers, 201, 100000);
+      if (isId(created.batch_id)) createdId = created.batch_id.toLowerCase();
+      if (created.schema_version !== 1 || !createdId || createdId === batchId || !CAPABILITY.test(created.capability || "") || created.mode !== "live_test" || created.count !== 6) throw error();
+      stillReviewed(); changed(); elements.Batch.value = createdId; elements.Capability.value = created.capability;
+      handoffMode = "live_test"; recipients = new Set(reviewed.selected.map(row => row.phone));
+      elements.Reviewed.checked = false; reviewSnapshot = null; elements.Review.hidden = true;
+      elements.ReviewMessages.replaceChildren(); elements.ReviewImage.removeAttribute("src");
+      await inspect();
+      elements.RetireStatus.textContent = "Retired unsent source batch " + batchId + " and prepared reviewed live_test retry " + createdId + ". Old history and device files are retained. Copy fresh launch input for the new batch.";
+    } catch {
+      // A lost revoke response must not leave an old copied launch enabled.
+      if (managementStarted) { elements.Capability.value = ""; changed(); }
+      elements.UnsentConfirmed.checked = false;
+      elements.RetireStatus.textContent = managementStarted
+        ? "Source batch " + batchId + (retired ? " was retired." : " may have been retired.") +
+          (createdId ? " New batch reported: " + createdId + "." : " Retry creation may be incomplete or its response lost.") +
+          " Do not repeat this operation. Reload, sign in and inspect administrator batch history before renewing any new batch or reviewing another retry. Keep all existing device files."
+        : "Operation stopped before retirement. Verify the entered source batch, current six live_test messages, unsent confirmation and administrator history; review changed fixtures again.";
+    }
+  }, elements.RetireStatus));
   byId("shortcutTestForm").addEventListener("submit", event => { event.preventDefault(); operation(inspect); });
   for (const name of ["Batch", "Capability"]) elements[name].addEventListener("input", changed);
   elements.Renew.addEventListener("click", () => operation(async () => {
