@@ -1,8 +1,16 @@
 # Release notes
 
+## 0.9.0-beta.1 candidate
+
+The candidate adds an automated published guest journey on a disposable database. Coverage includes incomplete and mixed replies, companions, lost-response retries, reload, organizer correction and reopening, late responses, competing food claims, and persistent confirmation.
+
+The database schema and application backup contract match alpha.9. An installation with the verified alpha.9 schema needs no database update for this candidate. Use the fresh installer on an empty database and follow the [existing-installation instructions](../INSTALL.md#existing-installations) for a retained installation.
+
+Physical-device and accessibility checks, real administrator email delivery, and organizer content and privacy review remain separate acceptance steps. Apple Shortcuts stays experimental and disabled by default.
+
 ## 0.9.0-alpha.9
 
-This alpha consolidates invitation preparation and manual sending in **Main → Invites**. Publishing the website or upgrading an installation does not publish its event.
+This alpha consolidates invitation preparation and manual sending in **Main → Invites**. Event publication remains a separate administrator action.
 
 - Invites combines household/guest, RSVP, Food and invitation-status summaries with clickable filters, the optional Shortcuts workspace and the household list. The former Overview tab is removed. The compact **Action** box generates drafts for **All missing** or **Selected** households and manually marks up to ten selected households Sent after the organizer sends their invitations.
 - The **Service** chip copies the current recipient number/email. **Draft** and **Ready** copy the latest valid published invitation and current RSVP link. Pictured invitations try combined picture-and-text clipboard formats, with a separate **Text** fallback. Check the picture, full caption and link after pasting; receiving-app support varies. Copying does not open a messaging app or record sending.
@@ -11,7 +19,7 @@ This alpha consolidates invitation preparation and manual sending in **Main → 
 - Local installations with the optional HTTP/SSL companion expose listener/certificate controls and an HTTP-to-HTTPS redirect. Static hosted installations continue to use their host's HTTPS configuration.
 - Experimental Apple Shortcuts remains off by default. Updated authoring/recovery guides retain separate native/browser journals and preserve earlier results. Synthetic dry-run verification does not establish complete native, iPhone/iPad or live WhatsApp acceptance.
 
-Existing alpha.8 installations follow the [scoped alpha.9 upgrade guide](UpgradeAlpha9.md). The upgrade preserves existing event records, template wording/pictures, access and configuration; existing templates appear untagged and require review. Backup format 2/schema `20261114034908` and the 43-table count stay the same, while the template column contract expands. Keep the event unpublished, retain the earlier backup for alpha.8 recovery, and take a fresh alpha.9 Full backup for alpha.9 restore testing after upgrading. Use the fresh installer only for an empty application schema.
+The scoped alpha.9 deployment preserved existing event records, template wording and pictures, administrator access and configuration. It left existing templates untagged for organizer review. The backup envelope remained format 2/schema `20261114034908` with 43 tables, and the template column contract expanded.
 
 Real-device picture/caption/link paste, administrator email delivery, accessibility, the complete published guest journey and final content/privacy acceptance remain separate checks.
 
@@ -22,7 +30,7 @@ Real-device picture/caption/link paste, administrator email delivery, accessibil
 - The setup wizard offers first-administrator SQL in step 3. The release also adds administrator password recovery and refines the language editors and compact settings cards.
 - Experimental Apple Shortcuts support is off by default. Physical iPhone and WhatsApp acceptance is pending.
 
-Existing alpha.7 installations follow the [scoped upgrade guide](UpgradeAlpha8.md). The current Full application backup covers 43 tables. Export a fresh Full backup after upgrading.
+The alpha.8 Full application backup contract covered 43 tables.
 
 ## 0.9.0-alpha.6
 
@@ -34,7 +42,7 @@ This alpha refines the administrator header and template-only sharing without pu
 - Test sharing substitutes example names and the installation's landing-preview link (`#guest-preview=landing`), with subdirectory support. Preview sign-in/permission checks remain; no household code, delivery record or Sent confirmation is created.
 - Synthetic browser fixtures retain real reload/permission checks when a phone shortcut is hidden, and explicitly test the desktop theme shortcut at desktop width.
 
-Only additive private translation-registry entries are needed on an existing alpha.5 backend. No application table or data migration is required. Do not replay the fresh installer on a populated database. The fresh installer, EN/DE/FO catalogs and generated assets remain synchronized.
+The scoped backend change for alpha.5 installations added private translation-registry entries without migrating application tables or data. The fresh installer, EN/DE/FO catalogs and generated assets were synchronized.
 
 Real iPhone/iPad WhatsApp and Messenger picture/caption/link acceptance remains separate from synthetic coverage. Automatic setup remains experimental; password recovery and other launch-acceptance tasks remain open.
 
@@ -49,7 +57,7 @@ This alpha adds optional private invitation pictures and native-share fallbacks 
 - Picture sharing offers Share picture and text, Share picture, and Copy message. The caption retains the invitation link. Apple/receiving-app support varies; the separate actions provide a fallback. A handoff never records Sent automatically.
 - Translation-card record search now belongs to its existing presentation component and receives current content for every search.
 
-The fresh installer and current backup column contract include nullable invitation-picture fields. Do not replay the installer on a populated installation. Existing installations need a scoped, backed-up backend update before using this frontend. The 40-table manifest and format 2/schema 20261114034908 identifiers remain; take a fresh application backup after updating.
+The alpha.5 installer and backup column contract added nullable invitation-picture fields. Existing installations needed a scoped backend update. The 40-table manifest and format 2/schema `20261114034908` identifiers were unchanged.
 
 Synthetic browser/disposable database coverage does not establish real iPhone/iPad WhatsApp or Messenger acceptance. Automatic cloud setup remains experimental; administrator password recovery and the other launch-acceptance tasks remain separate work.
 

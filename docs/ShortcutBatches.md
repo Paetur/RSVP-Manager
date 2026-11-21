@@ -269,28 +269,11 @@ guest-facing errors.
 
 ## Installation and recovery
 
-Fresh installations use the regenerated single alpha baseline/installer, with the experiment disabled. Do not replay that installer over an installed event. The current contract has 43 application backup tables; envelope format 2 and the existing 20 MB limit remain. Earlier 40-table exports are not adapted.
+Fresh installations use the current baseline or its generated installer, with the experiment disabled. Do not replay that installer over an installed event. The current contract has 43 application backup tables; envelope format 2 and the existing 20 MB limit remain. Earlier 40-table exports are not adapted.
 
-For the reviewed 43-table predecessor, `tools/build-queued-upgrade.cjs` creates an offline, scoped transaction for the experimental flag and application-clear controls. Supply the exact previous installer hash and the expected backup-table/column manifest hash. Function-body/source and schema guards reject another predecessor or a replay. The artifact makes three explicit private DDL changes and replaces/adds only reviewed functions/grants. Generation never connects to a database.
+For existing installations, follow the [existing-installation instructions](README.md#existing-installations). Rehearse the scoped change against a disposable copy and retain a protected backup before applying it. Verify data, private images, permissions, unpublished state and the installed contract afterward.
 
-```sh
-node tools/build-queued-upgrade.cjs \
-  --from /protected/previous-install.sql \
-  --to supabase/migrations/20261114034908_alpha_baseline.sql \
-  --expected-from-sha256 PREVIOUS_INSTALLER_SHA256 \
-  --expected-schema-sha256 EXPECTED_BACKUP_MANIFEST_SHA256 \
-  --out /protected/queued-upgrade.sql
-node tests/queued-upgrade.cjs --from /protected/previous-install.sql
-```
-
-The earlier Phase A builder/test is intentionally limited to its explicitly selected historical pre-A and accepted Phase C artifacts. It is not a general migration or compatibility adapter. `tests/shortcuts-upgrade.cjs` requires both `--from` and `--to`; do not substitute today's later baseline into that historical step.
-
-Before applying, retain a protected database/configuration backup, rehearse the
-scoped transaction against a disposable copy, and verify data/private images,
-permissions, unpublished state and installed contract. The artifact contains its
-own transaction; apply once with `psql -X -v ON_ERROR_STOP=1 --file ...`.
-Deploy the changed guest gateway and guest JS together with the schema, and the
-optional Shortcuts function only at an HTTPS-configured test/installation target.
+Deploy the guest gateway and guest JavaScript with compatible backend changes. The optional Shortcuts function requires an HTTPS-configured installation.
 Generated Studio entrypoints are under `supabase/studio/`; the separate
 administrator invitation bundle is unchanged. Automatic setup still deploys its
 existing two required functions; the optional Shortcuts function is separate.

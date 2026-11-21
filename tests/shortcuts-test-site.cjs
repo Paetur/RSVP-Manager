@@ -14,13 +14,14 @@ function fixture(name) {
   const source = path.join(temporary, name);
   for (const file of ["index.html", "setup.html", "setup-automatic.html", "admin/index.html", "INSTALL.md", "supabase/install.sql", "supabase/install-manifest.json"])
     put(source, file, "synthetic public " + file);
-  for (const file of ["js/core.js", "css/app.css", "locales/en/interface.json", "docs/Guide.md", "docs/Guide.html", "docs/Guide.js", "supabase/studio/guest.ts", "supabase/upgrades/current.sql"])
+  for (const file of ["js/core.js", "css/app.css", "locales/en/interface.json", "docs/Guide.md", "docs/Guide.html", "docs/Guide.js", "supabase/studio/guest.ts"])
     put(source, file, "synthetic selected file");
   // Even a contaminated source connection must never become preview configuration.
   put(source, "js/config.js", "sb_secret_" + "never_copy_this_configuration");
   put(source, "js/config.production.js", "sb_secret_" + "never_copy_production_configuration");
   for (const file of ["AGENTS.md", "internal/private.md", ".git/config", "docs/.private.html", "js/runtime.key", "supabase/functions/.env.local", "tests/fixture.js", "tools/private.js"])
     put(source, file, "PRIVATE_MARKER");
+  put(source, "supabase/upgrades/legacy.sql", "retired downloadable SQL");
   put(source, "VERSION", "0.9.0-alpha.7\n");
   put(source, "tools/shortcuts-test-page.html", "<title>Synthetic Shortcuts helper</title>");
   return source;
@@ -79,6 +80,7 @@ function request(protocol, options) {
       assert.equal(fs.existsSync(path.join(site, file)), false, file);
     for (const file of ["index.html", "admin/index.html", "docs/Guide.md", "supabase/install.sql", "supabase/studio/guest.ts"])
       assert.equal(fs.existsSync(path.join(site, file)), true, file);
+    assert.equal(fs.existsSync(path.join(site, "supabase/upgrades")), false);
     assert.equal(fs.readFileSync(path.join(site, "shortcuts-test.html"), "utf8"), "<title>Synthetic Shortcuts helper</title>");
     assert.match(fs.readFileSync(path.join(site, "js/config.js"), "utf8"), /sb_publishable_synthetic/);
     assert.equal(fs.readFileSync(path.join(site, "js/config.production.js"), "utf8").includes("sb_secret"), false);

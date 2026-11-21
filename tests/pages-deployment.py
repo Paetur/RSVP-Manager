@@ -20,7 +20,7 @@ class DeploymentTests(unittest.TestCase):
         self.version = '0.9.0-alpha.2'
 
     def archive(self, change=None, extra=None):
-        files = {name: b'fixture' for name in ['index.html', 'setup.html', 'admin/index.html', 'js/core.js', 'js/config.js', 'css/style.css', 'supabase/install.sql', 'supabase/upgrades/alpha6-to-alpha7.sql', 'supabase/functions/private.ts', 'tests/private.cjs']}
+        files = {name: b'fixture' for name in ['index.html', 'setup.html', 'admin/index.html', 'js/core.js', 'js/config.js', 'css/style.css', 'supabase/install.sql', 'supabase/upgrades/legacy.sql', 'supabase/functions/private.ts', 'tests/private.cjs']}
         manifest = {'version': self.version, 'sourceCommit': 'synthetic', 'files': {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}}
         files['release-manifest.json'] = json.dumps(manifest).encode()
         files['SHA256SUMS'] = b'synthetic checksums; manifest hashes are independently checked'
@@ -43,7 +43,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn('marriage/', (output / 'index.html').read_text())
         self.assertTrue((output / '.nojekyll').is_file())
         self.assertTrue((output / 'marriage/supabase/install.sql').is_file())
-        self.assertTrue((output / 'marriage/supabase/upgrades/alpha6-to-alpha7.sql').is_file())
+        self.assertFalse((output / 'marriage/supabase/upgrades').exists())
         self.assertFalse((output / 'marriage/tests').exists())
         self.assertFalse((output / 'marriage/supabase/functions').exists())
         self.assertIn('"supabaseUrl": ""', (output / 'marriage/js/config.js').read_text())

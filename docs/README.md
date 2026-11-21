@@ -18,8 +18,10 @@ Choose the page that matches what you want to do.
 
 - [Automatic cloud setup](AutomaticSetup.md) — trusted local seven-step companion, credentials, retries and public configuration.
 
-- [Upgrade an existing alpha.8 installation to alpha.9](UpgradeAlpha9.md)
-- [Upgrade an existing alpha.7 installation to alpha.8](UpgradeAlpha8.md)
-- [Upgrade an existing alpha.6 installation to alpha.7](UpgradeAlpha7.md)
+- [Existing installations](#existing-installations) — use scoped updates for current changes and reserve the installer for empty databases.
 
 - [Apple Shortcuts (experimental)](ShortcutOrganizer.md) — optional, disabled by default; batch processing, recovery and independent delivery/visit tracking.
+
+## Existing installations
+
+Use the current baseline or generated installer for an empty application database. The beta.1 candidate uses the alpha.9 schema. For an existing installation, verify its schema and follow the [installation instructions](../INSTALL.md#existing-installations).

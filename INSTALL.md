@@ -12,9 +12,11 @@ Each installation has its own database, Auth users, website configuration and ev
 
 For a dedicated Supabase Cloud project, the [trusted local setup companion](docs/AutomaticSetup.md) performs the seven installation steps, including first administrator, secrets and Edge Functions. Run it temporarily on your computer; privileged credentials never belong in the static website. The manual Local/Cloud route below remains available.
 
-## Upgrade an existing installation
+## Existing installations
 
-For alpha.8 installations, follow the [alpha.9 upgrade guide](docs/UpgradeAlpha9.md) to update the database and retain event data, pictures, access and configuration. Earlier alpha.7 installations first follow the [alpha.8 upgrade guide](docs/UpgradeAlpha8.md), then the alpha.9 guide. Keep the event unpublished and use the matching release files for each step.
+The beta.1 candidate uses the alpha.9 database schema. An installation with the verified alpha.9 schema needs no database update for this candidate. Use the fresh installer only on an empty application database.
+
+For any other installed schema, prepare a separately reviewed, installation-specific update. Keep the event unpublished and protect its database, administrator access, private photos and configuration. Rehearse backend changes and rollback on a disposable copy before applying them. Verify data and access afterward, and keep the website and backend compatible. The candidate includes one current baseline and its generated installer.
 
 ## New installation
 
@@ -49,7 +51,7 @@ Keep `public` in the Data API exposed schemas; do not expose `app_private`. For 
 
 The [browser guide](docs/StudioSetup.html) provides complete, checksum-verified code to copy into Studio. [Plain instructions](docs/StudioSetup.md) and the generated `supabase/studio/*.ts` files are also included. Both functions come from the same canonical modules as CLI deployments.
 
-The installer is a single current alpha baseline with RLS enabled. It runs atomically and refuses an existing application schema. No previous application version, migration chain or compatibility installation is required.
+The installer is a single current application baseline with RLS enabled. It runs atomically and refuses an existing application schema. No previous application version, migration chain or compatibility installation is required.
 
 ## Configure js/config.js with GitHub Actions
 
@@ -73,16 +75,16 @@ CLI alternative, after `gh auth login`:
 ```bash
 gh variable set RSVP_SUPABASE_URL --repo OWNER/WEBSITE --body 'https://YOUR-PROJECT.supabase.co'
 gh variable set RSVP_PUBLISHABLE_KEY --repo OWNER/WEBSITE --body 'sb_publishable_YOUR_PUBLIC_KEY'
-gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-alpha.4
+gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-alpha.9
 ```
 
 Use the workflow filename and release input name from your copy of the [deployment template](deployment/README.md). For direct static hosting without this Actions workflow, upload the wizard's downloaded file as `js/config.js` in the installation directory instead.
 
-## Current alpha database and backup contract
+## Current database and backup contract
 
 `supabase/migrations/` contains one baseline, and `supabase/install.sql` is its generated SQL Editor equivalent. Use either installation route once. Do not apply both to the same database. Regenerate/check the SQL Editor file with `node tools/build-install-sql.cjs` / `--check`.
 
-Alpha has no upgrade path from pre-baseline schemas or old export formats. Test a fresh install against an empty, independent backend. The current application backup envelope is format 2/schema `20261114034908`; compressed `.json.gz` files contain the same envelope. Application restore uses the current contract and requires an empty, unpublished destination. See [Backups](docs/Backups.md). Resetting a test database is a separate destructive operator action.
+Test a fresh install against an empty, independent backend. Restore requires the current backup format and exact schema. The application backup envelope remains format 2/schema `20261114034908`; compressed `.json.gz` files contain the same envelope. Application restore uses the current contract and requires an empty, unpublished destination. See [Backups](docs/Backups.md). Resetting a test database is a separate destructive operator action.
 
 ## Forks and testing
 
@@ -90,9 +92,9 @@ Fork the public repository for your own code changes, or install a selected rele
 
 The repository's verification workflow uses synthetic fixtures and disposable databases. Actual deployment smoke checks are explicit: set `RSVP_SMOKE_SITE_URL`, `RSVP_SMOKE_API_URL` and `RSVP_SMOKE_PUBLISHABLE_KEY` for an unpublished test installation, then run `node tests/rsvp-smoke.cjs`. That check makes test gateway requests and should not be aimed at an event serving real guests.
 
-## Current alpha limits
+## Candidate verification
 
-Administrator password recovery, optional backup encryption and gzip compression are available. Additional food-interest reporting remains planned. Physical-device/native-app and full published-journey acceptance remain separate from automated checks. Publication and an installation's data are always controlled by its owner.
+The published guest journey runs with synthetic data on a disposable database. Check supported physical devices and sharing apps, keyboard and screen-reader navigation, and actual administrator email delivery on your test installation. Publication and an installation’s data are always controlled by its owner.
 
 ## Publish to a local webroot
 

@@ -27,7 +27,7 @@ Keep `public` in the Data API exposed schemas; do not expose `app_private`. For 
 
 For a new empty project, choose **Set up a new database** in the RSVP wizard, then run the complete release's `supabase/install.sql` in the project's **SQL Editor**. Never replay it over a populated installation. The wizard does not run privileged SQL itself.
 
-The installer creates only the current alpha schema, enables RLS, and runs in one transaction. It refuses an existing application schema. No previous-version migrations or retired tables are part of this installation. Keep table-level RLS enabled.
+The installer creates the current application schema, enables RLS, and runs in one transaction. It refuses an existing application schema. No previous-version migrations or retired tables are part of this installation. Keep table-level RLS enabled.
 
 ## 2. Set function secrets before deployment
 

@@ -30,8 +30,6 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Fetch the immutable previous release baseline for upgrade verification
-        run: git fetch --no-tags origin refs/tags/v0.9.0-alpha.8:refs/tags/v0.9.0-alpha.8
       - name: Test household lifecycle and concurrent operations in disposable PostgreSQL
         env:
           DATABASE_URL: postgres://postgres:test-only@localhost:5432/rsvp_test
@@ -69,7 +67,6 @@ jobs:
           node tests/notification-preferences-db.cjs
           node tests/translation-registry-db.cjs
           node tests/template-options-db.cjs
-          node tests/upgrade-alpha9-db.cjs
           node tests/canonical-locales-db.cjs
           node tests/security-regressions.cjs
           node tests/admin-invitations.cjs
@@ -208,6 +205,8 @@ jobs:
         run: node tests/invitation-customization-browser.cjs && node tests/invites-overview-browser.cjs && node tests/food-groups-browser.cjs && node tests/food-list-state-browser.cjs && node tests/notification-preferences-browser.cjs && node tests/food-editing-browser.cjs && node tests/item-controls-browser.cjs && node tests/group-controls-browser.cjs
       - name: Test guest companions, food groups, categories and time preferences
         run: node tests/guest-feedback-browser.cjs && node tests/guest-rsvp-food-browser.cjs
+      - name: Test the published guest journey with a disposable database
+        run: node --experimental-strip-types tests/published-guest-journey-browser.cjs
       - name: Test inline restore, delivery navigation and guest interface
         run: node tests/inline-restore-browser.cjs && node tests/admin-design-flow-browser.cjs && node tests/guest-interface-browser.cjs
       - name: Test compact admin layout with mocked data

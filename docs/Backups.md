@@ -49,7 +49,7 @@ Encryption requires HTTPS or localhost, Web Crypto and Web Workers. See [encrypt
 
 Choose **Clean database** for the original recovery workflow. It requires an **empty, unpublished destination**.
 
-1. Prepare the destination with the current alpha baseline and a verified administrator.
+1. Prepare the destination with the current application baseline and a verified administrator.
 2. Choose the file. Its available sections and log flag determine the choices. Full restore is unavailable for Partial files.
 3. Choose a mode, sections where applicable, and the Full-mode log option. Changing any choice invalidates prior validation/confirmation.
 4. Validate. The server rehearses the restore and rolls it back. Full restore may require matching verified historical actor accounts wherever retained records reference them. Resolve reported problems before proceeding.
@@ -72,9 +72,9 @@ Use this separate destination to return an existing unpublished event to an earl
 
 Event settings, private pictures, household invitation codes, replies, food commitments and delivery records return to the backup state. Current Auth accounts/passwords, administrator access/sessions, pending administrator invitations and security/restore audit history remain; a new restore audit is appended. Failed validation or replacement rolls back atomically. This cannot undo messages already sent or changes to Auth, hosting or runtime configuration.
 
-## Current alpha format and infrastructure recovery
+## Current format and infrastructure recovery
 
-Current exports use application backup **format 2**, schema **20261114034908**, with 43 application tables. Column manifests use a stable field-name order, independent of physical database column order. This alpha accepts the current schema only; download a fresh backup when testing a changed schema. There is no old-backup compatibility adapter. Language CSV exports are separate.
+Current exports use application backup **format 2**, schema **20261114034908**, with 43 application tables. Column manifests use a stable field-name order, independent of physical database column order. The beta.1 candidate uses the alpha.9 backup contract. Restore requires the current schema and exact backup fields. Download a fresh backup when testing a changed schema. Language CSV exports are separate.
 
 Passwords, Auth sessions, personal administrator Interface preferences, secret keys, email-service settings, rate-limit counters and hosting configuration require separate infrastructure recovery. App sign-in references, if included, are historical information rather than active sessions. Raw Auth-service audit records are not application-backup data. Keep the repository/deployment configuration with the installation owner and rehearse restoration.
 
@@ -82,7 +82,7 @@ Passwords, Auth sessions, personal administrator Interface preferences, secret k
 
 ## Wipe and restore application data
 
-Choose **Restore mode → Wipe** to import a complete Full backup into an existing unpublished installation, including one exported by another installation. Both installations must have the same current schema and exact backup fields; older alpha files are not adapted. The file may include or omit logs. Wipe uses the whole file and its log selection; Full and Partial clean recovery remain separate.
+Choose **Restore mode → Wipe** to import a complete Full backup into an existing unpublished installation, including one exported by another installation. Both installations must have the same current schema and exact backup fields. The file may include or omit logs. Wipe uses the whole file and its log selection; Full and Partial clean recovery remain separate.
 
 1. Open the Full backup and select **Download safety backup**. This validates the file and downloads a fresh safety backup if validation passes. Store it privately.
 2. Review the record counts, then select **Wipe and restore**. Choose **Yes** to proceed or **No** to return to the review. If data or administrator access changes, or the 30-minute receipt expires, select **Download safety backup** again.

@@ -12,7 +12,7 @@ For this example set Edge secrets `RSVP_SITE_ORIGIN=https://<owner>.github.io` a
 
 The workflow generates `js/config.js` in the Pages artifact from those variables on every run. Uploading or committing a separate `js/config.js` to this website repository does not configure the generated site. After changing variables, rerun the deployment workflow. For CLI configuration, see [the install guide](../INSTALL.md#configure-jsconfigjs-with-github-actions).
 
-The workflow supports an explicit version change without manual ZIP downloads. It does not create or migrate a backend, restore data or publish an event. Each fresh backend starts unpublished; event publication is a separate administrator action. Website and backend versions must remain compatible when upgrading.
+The workflow supports an explicit version change without manual ZIP downloads. It does not create or migrate a backend, restore data or publish an event. Each fresh backend starts unpublished; event publication is a separate administrator action. For an existing installation, keep website and backend versions compatible. Apply only the scoped backend changes required for the current work. Use the fresh installer only on an empty application database.
 
 Only public website files and the setup SQL download are served. Development tests, Git metadata and server-function source are omitted from the Pages artifact. `deployment-state.json` records the installed version/path and whether browser configuration was supplied.
 

@@ -31,9 +31,9 @@ A fictional event in Dark mode, shown at iPad landscape size.
 
 ## Downloads and installation
 
-Use a tagged GitHub Release for an installation package with checksums, or fork this repository to change the source. [Installation instructions](INSTALL.md) describe the separate website, Supabase and administrator setup. Each installation starts unconfigured and has its own data. The current version is **0.9.0-alpha.9**.
+This source targets the **0.9.0-beta.1** candidate. For a published installation package and checksums, use the [0.9.0-alpha.9 release](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-alpha.9). [Installation instructions](INSTALL.md) describe the website, Supabase and administrator setup. Each installation starts unconfigured and has its own data.
 
-Existing alpha.8 installations follow the [data-preserving alpha.9 upgrade guide](docs/UpgradeAlpha9.md); keep their event unpublished during the upgrade.
+Use the current installer for a fresh database. The candidate uses the alpha.9 schema and backup contract. Follow the [existing-installation instructions](INSTALL.md#existing-installations) to verify your setup.
 
 For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 
