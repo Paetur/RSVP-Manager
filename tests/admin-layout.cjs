@@ -316,7 +316,8 @@ async function run(){
    await inviteHeading.focus();await page.keyboard.press('Enter');
    const inlineDetails=compactInviteRow.locator('.invite-household-content');
    await inlineDetails.locator(':scope > details > summary').first().waitFor();
-   assert.deepEqual(await inlineDetails.locator(':scope > details > summary').allTextContents(),['RSVP Open'],'delivery stays hidden until a draft exists');
+   assert.deepEqual(await inlineDetails.locator(':scope > details > summary').allTextContents(),['Invitation delivery','RSVP Open']);
+   assert.equal(await inlineDetails.getByText('No delivery recorded yet.',{exact:true}).isVisible(),true);
    assert.ok(await page.locator('#inviteRows [data-invite-household]').count()>1,'opening a household preserves the invitation list');
    assert.equal(await inlineDetails.locator('details[id^="invite-sessions-"]').count(),0,'session choices moved into Household details');
    await selectWorkTab(page,'households');
@@ -398,7 +399,6 @@ async function run(){
    await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
    await compactInviteRow.evaluate(row=>row.open=true);
    const draftAction=page.locator('#bulkInvitesHost').getByRole('group',{name:'Action',exact:true});
-   await draftAction.getByRole('checkbox',{name:'Selected',exact:true}).check();
    await compactInviteRow.locator('[data-bulk-select]').check();
    await draftAction.getByRole('button',{name:'Generate Drafts',exact:true}).click();
    await waitForApp(page,()=>window.__fixtures.invitation_send_queue.length===1);
@@ -419,22 +419,16 @@ async function run(){
    await record.getByLabel('Sent note',{exact:true}).fill('Handed over the invitation in person.');await record.getByLabel('I sent this message to the displayed recipient').check();await record.getByRole('button',{name:'Record as sent'}).click();await waitForApp(page,()=>window.__fixtures.invitation_send_queue[0].status==='sent');await record.getByRole('button',{name:'Record as sent'}).waitFor({state:'detached'});
    await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));await record.evaluate(el=>el.open=true);
    assert.equal(await record.getByRole('button',{name:'Record as sent'}).count(),0);await delivery.screenshot({path:path.join(root,'artifacts','delivery-tracking-preview.png')});
-   await openSection(page,'Delivery log');
-   const deliveryFilter=page.locator('#deliveryStatusFilter details');
-   for(const key of await deliveryFilter.locator('button[data-value]').evaluateAll(nodes=>nodes.map(node=>node.dataset.value))){
-     const choice=deliveryFilter.locator('[data-value="'+key+'"]');
-     if((await choice.getAttribute('aria-pressed')==='true')!==(key==='sent')){
-       if(!await deliveryFilter.evaluate(node=>node.open))await deliveryFilter.locator('summary').click();
-       await choice.click();
-     }
-   }
-   await deliveryFilter.locator('summary').press('Escape');
-   assert.ok((await page.locator('#deliveryLog').textContent()).includes('Example child'));
+   assert.equal(await page.locator('#deliveryLog').count(),0,'recorded deliveries stay inside the household');
+   assert.ok((await record.innerText()).includes('Handed over the invitation in person.'));
    await page.setViewportSize({width:390,height:844});const controlDims=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth}));assert.ok(controlDims.scroll<=controlDims.client+3,'delivery controls fit mobile');
 
    await page.setViewportSize({width:1250,height:950});await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="logs"]').click();
    await waitForApp(page,()=>document.querySelectorAll('#logRows .log-entry').length===50);
-   assert.equal(await page.getByText('Change history',{exact:true}).count(),0,'household history moved to Logs');assert.equal(await page.getByText('RSVP history',{exact:true}).count(),0);assert.equal(await page.getByText('Delivery history',{exact:true}).count(),0);
+   const settingsLogs=page.locator('[data-settings-panel="logs"]');
+   assert.equal(await settingsLogs.getByText('Change history',{exact:true}).count(),0);
+   assert.equal(await settingsLogs.getByText('RSVP history',{exact:true}).count(),0);
+   assert.equal(await settingsLogs.getByText('Delivery history',{exact:true}).count(),0,'delivery history belongs to the household view');
    await page.locator('#logMore').click();await waitForApp(page,()=>document.querySelectorAll('#logRows .log-entry').length===55);assert.equal(await page.locator('#logMore').isVisible(),false);
    await page.locator('#logCategory').selectOption('households');await waitForApp(page,()=>!document.querySelector('#logApply').disabled);assert.equal(await page.locator('#logRows .log-entry').count(),14);
    if(!await page.locator('#logSearch').isVisible())await page.locator('#logSearchToggle').click();

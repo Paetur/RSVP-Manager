@@ -1,10 +1,21 @@
 # Release notes
 
-## 0.9.0-beta.1 candidate
+## 0.9.0-beta.2
 
-The candidate adds an automated published guest journey on a disposable database. Coverage includes incomplete and mixed replies, companions, lost-response retries, reload, organizer correction and reopening, late responses, competing food claims, and persistent confirmation.
+This beta fixes draft recipient grouping and large invitation-dashboard loads.
 
-The database schema and application backup contract match alpha.9. An installation with the verified alpha.9 schema needs no database update for this candidate. Use the fresh installer on an empty database and follow the [existing-installation instructions](../INSTALL.md#existing-installations) for a retained installation.
+- Saved WhatsApp, SMS and Messages drafts retain their service and recipient copy controls.
+- **Needs draft** lists households without a current delivery. The header checkbox selects visible eligible households. **Generate Drafts** uses that selection and reports unmatched or ambiguous templates. The Invites menus have **All** and **None**, and Search sits beside Action.
+- **Invitation delivery** combines the current invitation with its household's history. Inactive household histories are available from **All**.
+- Review, prepare and confirm sending for more than ten households in a batch. The server checks the reviewed recipient, message, invitation and revision before recording a prepared draft as Sent. Administrator reload carries a shared invitation picture once.
+
+The application tables and backup contract match beta.1. Retained installations need a scoped update to the administrator routines and translation registry. Follow the [existing-installation instructions](../INSTALL.md#existing-installations). Apple Shortcuts remains experimental and disabled by default.
+
+## 0.9.0-beta.1
+
+Beta.1 adds an automated published guest journey on a disposable database. Coverage includes incomplete and mixed replies, companions, lost-response retries, reload, organizer correction and reopening, late responses, competing food claims, and persistent confirmation.
+
+The database schema and application backup contract match alpha.9. An installation with the verified alpha.9 schema needs no database update for beta.1. Use the fresh installer on an empty database and follow the [existing-installation instructions](../INSTALL.md#existing-installations) for a retained installation.
 
 Physical-device and accessibility checks, real administrator email delivery, and organizer content and privacy review remain separate acceptance steps. Apple Shortcuts stays experimental and disabled by default.
 

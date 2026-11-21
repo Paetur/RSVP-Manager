@@ -8212,6 +8212,12 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
   .invite-overview-heading {
     display: none;
   }
+  .invite-overview-heading:has([data-bulk-select-all]) {
+    display: flex;
+    justify-content: flex-end;
+    padding-block: 0;
+  }
+  .invite-overview-heading > :not(.invite-overview-select) { display: none; }
   #adminApp .invite-overview-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
@@ -8264,9 +8270,16 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
   background: var(--light);
   border-radius: 8px;
 }
-.delivery-log-section {
-  margin-top: 24px;
+.invitation-delivery-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 25rem), 1fr));
+  gap: 12px;
+  margin-block: 12px;
 }
+.invitation-delivery-sections > section { min-width: 0; }
+.invite-inactive-households { margin-block-start: 12px; }
+.invite-inactive-households > details { margin-inline: 12px; }
+#adminApp .invitation-delivery-sections h3 { margin-block: 0 8px; font-size: .88rem; }
 #adminApp .invitation-send-form .btn {
   justify-self: start;
 }
@@ -8582,6 +8595,12 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 }
 .template-choice-menu button:hover { border-color: var(--line); }
 .template-choice-menu button[aria-pressed="true"]::after { content: "✓"; margin-inline-start: 8px; }
+.filter-choice-actions {
+  display: flex;
+  gap: 3px;
+  border-bottom: 1px solid var(--line);
+}
+.filter-choice-actions > button { flex: 1; }
 @media (max-width: 650px) {
   .template-choice-grid { grid-template-columns: minmax(0, 1fr); }
 }
@@ -8606,8 +8625,29 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 }
 
 
-/* Search stays in the heading; Rows and shown columns precede Group. */
-.invite-box-heading { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+/* Search and Action share the heading; the expanded search field sits below. */
+#adminApp .invite-box-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px minmax(0, max-content);
+  grid-template-areas: "title search action" "field field field";
+  align-items: start;
+  column-gap: 8px;
+}
+#adminApp .invite-heading-search,
+#adminApp .invite-heading-search > .admin-search-control {
+  display: contents;
+}
+#adminApp .invite-heading-search .admin-search-toggle {
+  grid-area: search;
+  align-self: center;
+}
+#adminApp .invite-heading-search .admin-search-panel,
+#adminApp .invite-heading-search > label {
+  grid-area: field;
+  justify-self: end;
+  width: min(100%, 27rem);
+  margin-block: 8px 0;
+}
 .invite-header-tools {
   display: flex;
   align-items: flex-start;
@@ -8616,8 +8656,7 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
   min-width: 0;
   max-width: 100%;
 }
-.invite-heading-title { flex: 1 1 auto; min-width: 0; }
-.invite-heading-search { margin-top: 8px; min-width: 0; max-width: 100%; }
+.invite-heading-title { grid-area: title; min-width: 0; }
 .invite-rows-layout {
   display: grid;
   flex: 0 0 104px;
@@ -8645,7 +8684,6 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 }
 .invite-rows-layout input { width: auto; margin: 0; }
 .invite-overview-filters > div { min-width: 0; }
-.invite-delivery-status-filter { width: min(100%, 20rem); margin-block: 12px; }
 #adminApp .invite-copy-action {
   appearance: none;
   display: inline-flex;
@@ -8858,8 +8896,7 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 .bulk-invites[hidden] {
   display: none;
 }
-.bulk-invite-actions,
-.bulk-invite-scopes {
+.bulk-invite-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -8929,15 +8966,6 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 .bulk-invite-action .btn {
   min-width: 0;
   white-space: normal;
-}
-#adminApp label.bulk-invite-filter:has(> input[type="checkbox"]) {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  min-height: 28px;
-  margin: 0;
-  font-size: .8rem;
-  color: var(--ink);
 }
 .bulk-invite-actions .btn {
   min-height: 44px;
@@ -9078,10 +9106,12 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 #adminApp [data-panel="invites"] { display: grid; gap: 16px; }
 #adminApp [data-panel="invites"].hidden { display: none; }
 .invite-box-heading > .bulk-invites {
-  margin-block: 0;
-  margin-inline-start: auto;
+  grid-area: action;
+  justify-self: end;
+  min-width: 0;
   width: max-content;
   max-width: min(100%, 32rem);
+  margin-block: 0;
   gap: 6px;
 }
 .invite-box-heading .bulk-invite-action { justify-self: end; }
@@ -9123,6 +9153,9 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
   .invite-workspace-controls .invite-overview-filters > .invite-header-tools { flex-basis: 100%; }
 }
 @media (max-width: 500px) {
+  #adminApp .invite-box-heading {
+    grid-template-areas: "title title title" ". search action" "field field field";
+  }
   .invite-workspace-controls .invite-overview-filters > div { flex-basis: 100%; }
   .invite-header-tools > #inviteShownFieldsHost { max-width: none; }
 }

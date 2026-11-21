@@ -104,14 +104,17 @@
     return "none";
   }
 
+  function invitationRecords(store, householdId) {
+    return store.queue
+      .filter(record => record.household_id === householdId)
+      .sort((a, b) =>
+        (b.created_at || "").localeCompare(a.created_at || "") ||
+        (b.updated_at || "").localeCompare(a.updated_at || "") ||
+        b.id.localeCompare(a.id),
+      );
+  }
   function invitationOverview(store, h, { primary, guest, contactChannel }) {
-    const records = store.queue
-        .filter((q) => q.household_id === h.id)
-        .sort(
-          (a, b) =>
-            (b.created_at || "").localeCompare(a.created_at || "") ||
-            (b.updated_at || "").localeCompare(a.updated_at || ""),
-        ),
+    const records = invitationRecords(store, h.id),
       latest = records.find(record => record.status !== "cancelled");
     const sent = records
       .filter((q) => q.status === "sent")
@@ -144,7 +147,9 @@
     const contactValue = recipient?.contact_value || primary?.contact_value ||
       ({ email: guest?.email, messages: guest?.mobile, sms: guest?.mobile, whatsapp: guest?.mobile }[service]) ||
       guest?.mobile || guest?.email || (channel === "postal" ? h.postal_address : "") || "";
-    const contactType = recipient?.contact_type ||
+    // Guest-mobile snapshots can store the delivery channel in place of "phone".
+    const snapshotType = recipient?.contact_type;
+    const contactType = (snapshotType === "sms" || snapshotType === "whatsapp" ? "phone" : snapshotType) ||
       (contactValue && contactValue === primary?.contact_value ? primary.contact_type : null) ||
       (contactValue && contactValue === guest?.email ? "email" : contactValue && contactValue === guest?.mobile ? "phone" : null) ||
       (/^[^\s@]+@[^\s@]+$/.test(contactValue) ? "email" : /^\+?[0-9][0-9 ().-]*$/.test(contactValue) ? "phone" : null);
@@ -202,6 +207,7 @@
   window.RSVP_ADMIN_OVERVIEW = {
     eventCounts,
     invitationOverview,
+    invitationRecords,
     invitationService,
     foodInterestStatus,
     foodInterestCounts,

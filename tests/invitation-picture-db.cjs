@@ -56,6 +56,45 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     await q("SELECT public.admin_record_delivery_sent($1,2,null)", [id]);
     assert.deepEqual(await v("SELECT message_snapshot->'message_image' v FROM public.invitation_deliveries WHERE queue_id=$1", [id]), image);
     await assert.rejects(() => q("SELECT public.admin_save_delivery($1,$2,$3,3)", [id, h, { ...values, message_image: null }]), /read-only/);
+    async function draftWithPicture(name, picture) {
+      const household = await v("SELECT public.admin_save_household(null,$1) v", [{
+        household_name: name, planning_group_id: "general", language: "en",
+      }]);
+      await q("SELECT public.admin_create_guest($1,$2)", [household, { first_name: "Example" }]);
+      return v("SELECT public.admin_save_delivery(null,$1,$2,null) v", [
+        household, { ...values, message_image: picture },
+      ]);
+    }
+    const shared = await draftWithPicture("Shared picture", image);
+    const distinct = await draftWithPicture("Distinct picture metadata", { ...image, name: "other.jpg" });
+    const textOnly = await draftWithPicture("Text only", null);
+    const retired = await draftWithPicture("Retired picture", { ...image, name: "retired.jpg" });
+    await q("SELECT public.admin_delete_delivery_draft($1,1)", [retired]);
+    const full = await v("SELECT public.admin_load_data() v");
+    const compact = await v("SELECT public.admin_load_data(true) v");
+    assert.equal(full.queuePictures, undefined);
+    assert.equal(Object.keys(compact.queuePictures).length, 2);
+    assert.equal(compact.queue.length, 4);
+    const pictureKeys = Object.fromEntries(compact.queue.map(row => [row.id, row.message_image_key]));
+    assert.match(pictureKeys[id], /^[0-9a-f]{64}$/);
+    assert.equal(pictureKeys[shared], pictureKeys[id], "the common picture is carried once");
+    assert.notEqual(pictureKeys[distinct], pictureKeys[id]);
+    assert.equal(pictureKeys[textOnly], null);
+    assert.equal(Object.hasOwn(pictureKeys, retired), false);
+    const originalById = new Map(full.queue.map(row => [row.id, row]));
+    for (const { message_image_key: key, ...row } of compact.queue) {
+      const picture = key ? compact.queuePictures[key] : null;
+      assert.deepEqual({ ...row, message_image: picture }, originalById.get(row.id));
+    }
+    assert.deepEqual(full.deliveries[0].message_snapshot.message_image, image);
+    assert.equal(compact.deliveries[0].message_snapshot.message_image, undefined);
+    assert.equal(compact.deliveries[0].message_snapshot.body, full.deliveries[0].message_snapshot.body);
+    await db.exec("RESET ROLE");
+    await q("UPDATE public.admins SET access_permissions=jsonb_set(app_private.permission_preset('custom'),'{sections,invites}','\"none\"')");
+    await db.exec("SET ROLE authenticated");
+    const hidden = await v("SELECT public.admin_load_data(true) v");
+    assert.deepEqual(hidden.queue, []);
+    assert.deepEqual(hidden.queuePictures, {});
     // Settings view cannot write pictures; anonymous callers cannot read them.
     await db.exec("RESET ROLE");
     await q("UPDATE public.admins SET access_permissions=app_private.permission_preset('view')");
@@ -64,6 +103,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     await db.exec("RESET ROLE; SET ROLE anon");
     await assert.rejects(() => q("SELECT message_image FROM public.message_templates"), /permission denied/);
     await assert.rejects(() => save(image), /permission denied/);
+    await assert.rejects(() => q("SELECT public.admin_load_data(true)"), /permission denied/);
     console.log("PASS invitation pictures: private templates, independent draft/sent snapshots, JPEG validation on every write path, link fallback, backup inclusion, publication and permission guards.");
   } finally { await db.close(); }
 })().catch((error) => { console.error(error.message); process.exitCode = 1; });

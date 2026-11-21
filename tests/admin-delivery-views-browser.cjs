@@ -16,7 +16,16 @@ const { server, mock, extra } = createFoodHarness("admin-delivery-views");
     await page.addInitScript(() =>
       localStorage.setItem("rsvp-interface-language", "en"),
     );
-    const seed = `fixtures.event_settings[0].is_published=true;const deliveryH=fixtures.households.find(h=>h.invite_code&&!h.archived_at);fixtures.invitation_send_queue=['ready','failed','sent'].map((status,i)=>({id:'view-'+status,household_id:deliveryH.id,channel:'manual',status,revision:1,created_at:'2026-11-13T1'+(2-i)+':00:00Z',updated_at:'2026-11-13T12:00:00Z',invitation_code_snapshot:deliveryH.invite_code,recipient_snapshot:{contact_name:'Example recipient'},message_subject:'Example',message_body:'Synthetic invitation'}));`;
+    const seed = `
+fixtures.event_settings[0].is_published=true;
+const archivedId='88888888-1111-4888-8111-888888888888';
+fixtures.households.push({id:archivedId,household_name:'Archived example',invite_code:'QRSTUVWX',language:'en',archived_at:'2026-11-15T12:00:00Z'});
+fixtures.guests.push({id:'99999999-1111-4999-8111-999999999999',household_id:archivedId,first_name:'Past',last_name:'Guest',language:'en',rsvp_status:'pending'});
+fixtures.guests.push({id:'77777777-1111-4777-8111-777777777777',household_id:h3,first_name:'Another',last_name:'Guest',language:'en',rsvp_status:'pending'});
+const deliveryHouseholds=fixtures.households.filter(h=>h.invite_code&&!h.archived_at&&fixtures.guests.some(g=>g.household_id===h.id&&!g.archived_at));
+const deliveryRow=(status,h,day,suffix=status)=>({id:'view-'+suffix,household_id:h.id,channel:'manual',status,revision:1,created_at:'2026-11-'+day+'T12:00:00Z',updated_at:'2026-11-'+day+'T12:00:00Z',invitation_code_snapshot:h.invite_code,recipient_snapshot:{contact_name:'Example recipient'},message_subject:'Example',message_body:'Synthetic '+status+' invitation'});
+fixtures.invitation_send_queue=[deliveryRow('sent',deliveryHouseholds[0],12),deliveryRow('failed',deliveryHouseholds[0],13),deliveryRow('ready',deliveryHouseholds[0],14),deliveryRow('cancelled',deliveryHouseholds[0],15),deliveryRow('draft',deliveryHouseholds[1],14),deliveryRow('ready',fixtures.households.find(h=>h.id===archivedId),14,'archived'),deliveryRow('sent',fixtures.households.find(h=>h.id===h1),14,'guestless')];
+fixtures.invitation_deliveries=[{queue_id:'view-sent',confirmed_at:'2026-11-12T12:00:00Z',confirmed_by:h1,delivery_note:'Synthetic delivery note'}];`;
     await page.route("**/supabase.min.js", (r) =>
       r.fulfill({
         contentType: "text/javascript",
@@ -28,73 +37,70 @@ const { server, mock, extra } = createFoodHarness("admin-delivery-views");
       () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
     );
     await page.locator("[data-tab=invites]").click();
-    const section = page.locator(".delivery-log-section");
-    await section.evaluate((n) => (n.open = true));
-    const ids = () =>
-      page
-        .locator("#deliveryLog [data-delivery-id]")
-        .evaluateAll((ns) => ns.map((n) => n.dataset.deliveryId));
-    assert.deepEqual(await ids(), ["view-ready", "view-failed", "view-sent"]);
-    assert.match(
-      await page.locator("#deliveryCounts").innerText(),
-      /1 ready.*1 recorded sent.*1 failed/,
-    );
-    assert.equal(
-      await page
-        .locator("#deliveryLog [data-delivery-id=view-ready]")
-        .getByText("Edit delivery", { exact: true })
-        .count(),
-      0,
-      "history view keeps the original non-editable record contract",
-    );
-    const filter = page.locator("#deliveryStatusFilter details");
-    async function selectStatuses(selected) {
-      const keys = await filter.locator("button[data-value]").evaluateAll(nodes => nodes.map(node => node.dataset.value));
-      for (const key of keys) {
-        const option = filter.locator('[data-value="' + key + '"]');
-        if ((await option.getAttribute("aria-pressed") === "true") === selected.includes(key)) continue;
-        if (!await filter.evaluate(node => node.open)) await filter.locator("summary").click();
-        await option.click();
-      }
-      if (await filter.evaluate(node => node.open)) await filter.locator("summary").press("Escape");
+    const ids = await page.evaluate(() => deliveryHouseholds.map(h => h.id));
+    const first = page.locator('[data-invite-household="' + ids[0] + '"]');
+    const second = page.locator('[data-invite-household="' + ids[1] + '"]');
+    const recordIds = (parent) => parent.locator("[data-delivery-id]")
+      .evaluateAll(nodes => nodes.map(node => node.dataset.deliveryId));
+    assert.equal(await page.locator("#deliveryLog, .delivery-log-section").count(), 0);
+    assert.equal(await first.locator("[data-delivery-id]").count(), 0, "collapsed household builds no records");
+    await first.locator(":scope > summary .invite-compact-name").click();
+    const section = first.locator('[id^="invite-delivery-"]');
+    const current = section.locator(".current-invitation");
+    const history = section.locator(".household-delivery-history");
+    await current.waitFor();
+    assert.deepEqual(await recordIds(current), ["view-ready"], "newest cancelled row belongs to history");
+    assert.deepEqual(await recordIds(history), ["view-cancelled", "view-failed", "view-sent"]);
+    const ready = current.locator('[data-delivery-id="view-ready"]');
+    await ready.locator(":scope > summary").click();
+    assert.ok(await ready.getByText("Edit delivery", { exact: true }).isVisible());
+    const sent = history.locator('[data-delivery-id="view-sent"]');
+    await sent.locator(":scope > summary").click();
+    assert.ok(await sent.getByText("Synthetic sent invitation", { exact: true }).isVisible());
+    assert.match(await sent.innerText(), /Synthetic delivery note/);
+    assert.equal(await sent.getByText("Edit delivery", { exact: true }).count(), 0);
+    await second.locator(":scope > summary .invite-compact-name").click();
+    await second.locator(".current-invitation").waitFor();
+    assert.deepEqual(await recordIds(second), ["view-draft"], "records stay scoped to their own household");
+
+    await page.evaluate(() => { window.__accessPermissions.sections.households = "none"; });
+    await refreshFixture(page);
+    await page.waitForFunction(() => !document.querySelector('[data-tab="households"]').getClientRects().length);
+    const inactive = page.locator(".invite-inactive-households");
+    assert.equal(await inactive.evaluate(node => node.open), false, "inactive household records start collapsed");
+    assert.equal(await page.locator("#inviteStatusTotal").innerText(), "2", "inactive rows do not change active totals");
+    await inactive.locator(":scope > summary").click();
+    const pastHouseholds = inactive.locator("[data-invite-inactive-household]");
+    assert.equal(await pastHouseholds.count(), 2, "Invites-only access retains archived and guestless households");
+    for (const [index, id] of ["view-archived", "view-guestless"].entries()) {
+      const past = pastHouseholds.nth(index);
+      await past.locator(":scope > summary").click();
+      const entry = past.locator('[data-delivery-id="' + id + '"]');
+      await entry.locator(":scope > summary").click();
+      assert.equal(await past.locator("[data-bulk-select], .current-invitation, .invitation-send-form, form.delivery-review-form").count(), 0);
+      assert.ok(await entry.getByRole("button", { name: "Copy message" }).isVisible(), "historical text stays accessible");
     }
-    const selectedStatuses = () => filter.locator('[aria-pressed="true"]').evaluateAll(nodes => nodes.map(node => node.dataset.value));
-    await selectStatuses(["failed"]);
-    assert.deepEqual(await ids(), ["view-failed"]);
+    await page.setViewportSize({ width: 320, height: 800 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "open history fits a narrow screen");
+    await page.locator('[data-invite-filter="needs-draft"]').click();
+    assert.equal(await inactive.count(), 0, "inactive households do not contribute to draft generation");
+    await page.locator('[data-invite-filter="all"]').click();
+
     await page.evaluate(() => {
-      const previous = fixtures.invitation_send_queue.find(
-        (q) => q.status === "failed",
-      );
+      const ready = fixtures.invitation_send_queue.find(q => q.status === "ready");
       fixtures.invitation_send_queue = [
-        {
-          ...previous,
-          id: "view-refreshed",
-          created_at: "2026-11-14T12:00:00Z",
-        },
+        { ...ready, id: "view-refreshed", created_at: "2026-11-16T12:00:00Z" },
       ];
     });
     await refreshFixture(page);
-    await page.waitForFunction(() =>
-      document.querySelector("#deliveryLog [data-delivery-id=view-refreshed]"),
-    );
-    assert.deepEqual(await ids(), ["view-refreshed"]);
-    assert.deepEqual(
-      await selectedStatuses(),
-      ["failed"],
-    );
-    assert.match(
-      await page.locator("#deliveryCounts").innerText(),
-      /0 ready.*0 recorded sent.*1 failed/,
-    );
-    await selectStatuses(["sent"]);
-    assert.deepEqual(await ids(), []);
-    assert.match(
-      await page.locator("#deliveryLog").innerText(),
-      /No deliveries match this status/,
-    );
+    await current.locator('[data-delivery-id="view-refreshed"]').waitFor();
+    assert.deepEqual(await recordIds(current), ["view-refreshed"]);
+    assert.equal(await history.count(), 0, "the household history uses the reloaded store");
+    assert.equal(await inactive.count(), 0, "empty inactive grouping stays hidden");
+    assert.ok(await second.getByText("No delivery recorded yet.", { exact: true }).isVisible());
     assert.deepEqual(errors, []);
     console.log(
-      "PASS delivery views: newest-first history, per-status filtering/counts, read-only record contract, replaced-store reload and retained filter/empty state.",
+      "PASS delivery views: household-scoped history, current draft choice, saved records and notes, current edit action, inactive access and replaced-store reload.",
     );
   } finally {
     await browser.close();

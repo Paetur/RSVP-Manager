@@ -91,7 +91,24 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
         window.__pictureTemplates=[{id:'99999999-1111-4111-8111-111111111111',name:'WhatsApp',revision:'88888888-1111-4111-8111-111111111111',channels:['whatsapp'],language_tags:['en'],versions:{en:{subject:'',body:'Hello {invitation_link}'}}}];
         const pictureRpc=client.rpc;
         client.rpc=async(name,args)=>{
-          if(name==='admin_load_data'){const result=await pictureRpc(name,args);result.data.invitationTemplates=window.__pictureTemplates;return result;}
+          if(name==='admin_load_data'){
+            const result=await pictureRpc(name,args);
+            window.__pictureLoadArgs=args;
+            result.data.invitationTemplates=window.__pictureTemplates;
+            if(args?.p_compact_queue_pictures===true){
+              const queuePictures={};
+              result.data.queue=await Promise.all(result.data.queue.map(async ({message_image,...delivery})=>{
+                if(!message_image)return {...delivery,message_image_key:null};
+                const bytes=new TextEncoder().encode(JSON.stringify(message_image));
+                const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+                const key=Array.from(hash,byte=>byte.toString(16).padStart(2,'0')).join('');
+                queuePictures[key]=message_image;
+                return {...delivery,message_image_key:key};
+              }));
+              result.data.queuePictures=queuePictures;
+            }
+            return result;
+          }
           if(name==='admin_save_invitation_picture'){fixtures.event_settings[0].invitation_picture_album.push({id:'album-one',name:args.p_name,picture:args.p_image});return {data:null};}
           if(name==='admin_save_invitation_template'){
             window.__pictureSaves=(window.__pictureSaves||[]);window.__pictureSaves.push(args);
@@ -402,10 +419,11 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
       assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "opening Invites does not save a delivery");
       await householdRow.locator('[data-bulk-select="' + household + '"]').check();
       const action = page.locator("#bulkInvitesHost").getByRole("group", { name: "Action", exact: true });
-      await action.getByRole("checkbox", { name: "Selected", exact: true }).check();
-      assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "selecting the preparation scope does not create a delivery");
+      assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "selecting a household does not create a delivery");
       await action.getByRole("button", { name: "Generate Drafts", exact: true }).click();
       await page.locator("#bulkInvitesHost").getByText("1 draft created", { exact: true }).waitFor();
+      assert.deepEqual(await page.evaluate(() => window.__pictureLoadArgs),
+        { p_compact_queue_pictures: true }, "the draft refresh requests compact pictures");
       const creation = await page.evaluate(() => window.__calls.find(c => c.name === "admin_save_delivery").args);
       assert.equal(creation.p_id, null);
       assert.equal(creation.p_values.only_if_missing, true);
@@ -414,10 +432,11 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
       await householdRow.locator(":scope > summary .invite-compact-name").click();
       await page.locator("#invite-delivery-" + household).evaluate(node => node.open = true);
       const inlineRecord = householdRow.locator("[data-delivery-id]").first();
+      const inlinePicture = inlineRecord.locator(":scope > .invitation-picture");
+      assert.equal(await inlinePicture.count(), 0, "closed record does not load its picture preview");
       await inlineRecord.locator(":scope > summary").click();
-      await inlineRecord.waitFor();
+      await inlinePicture.waitFor();
       assert.equal(await page.getByRole("dialog", { name: "Invitation delivery", exact: true }).count(), 0, "created delivery review stays inline");
-      assert.equal(await inlineRecord.locator(":scope > .invitation-picture").isVisible(), true);
       const savedDraft = await page.evaluate(
         () =>
           window.__calls.find((c) => c.name === "admin_save_delivery").args
@@ -426,6 +445,7 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
       assert(
         savedDraft.message_image.image.startsWith("data:image/jpeg;base64,"),
       );
+      assert.equal(await inlinePicture.getAttribute("src"), savedDraft.message_image.image, "the compact picture reference restores the saved preview");
       assert.equal(savedDraft.status, "draft");
       const editDelivery = inlineRecord.locator(":scope > details.edit-only").first();
       await editDelivery.locator(":scope > summary").click();

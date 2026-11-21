@@ -14,9 +14,9 @@ For a dedicated Supabase Cloud project, the [trusted local setup companion](docs
 
 ## Existing installations
 
-The beta.1 candidate uses the alpha.9 database schema. An installation with the verified alpha.9 schema needs no database update for this candidate. Use the fresh installer only on an empty application database.
+Beta.2 keeps the beta.1 application table layout and backup contract. A retained beta.1 installation needs a scoped update to the administrator load and delivery-recording functions and the canonical translation registry. Use the fresh installer only on an empty application database.
 
-For any other installed schema, prepare a separately reviewed, installation-specific update. Keep the event unpublished and protect its database, administrator access, private photos and configuration. Rehearse backend changes and rollback on a disposable copy before applying them. Verify data and access afterward, and keep the website and backend compatible. The candidate includes one current baseline and its generated installer.
+Verify the installed schema and prepare a reviewed change for that installation. Protect its database, administrator access, private photos and configuration, including the existing publication setting. Rehearse the update and rollback on disposable data, then verify data and access afterward. Keep the website and backend compatible.
 
 ## New installation
 
@@ -75,7 +75,7 @@ CLI alternative, after `gh auth login`:
 ```bash
 gh variable set RSVP_SUPABASE_URL --repo OWNER/WEBSITE --body 'https://YOUR-PROJECT.supabase.co'
 gh variable set RSVP_PUBLISHABLE_KEY --repo OWNER/WEBSITE --body 'sb_publishable_YOUR_PUBLIC_KEY'
-gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-alpha.9
+gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-beta.2
 ```
 
 Use the workflow filename and release input name from your copy of the [deployment template](deployment/README.md). For direct static hosting without this Actions workflow, upload the wizard's downloaded file as `js/config.js` in the installation directory instead.
@@ -92,7 +92,7 @@ Fork the public repository for your own code changes, or install a selected rele
 
 The repository's verification workflow uses synthetic fixtures and disposable databases. Actual deployment smoke checks are explicit: set `RSVP_SMOKE_SITE_URL`, `RSVP_SMOKE_API_URL` and `RSVP_SMOKE_PUBLISHABLE_KEY` for an unpublished test installation, then run `node tests/rsvp-smoke.cjs`. That check makes test gateway requests and should not be aimed at an event serving real guests.
 
-## Candidate verification
+## Verify your installation
 
 The published guest journey runs with synthetic data on a disposable database. Check supported physical devices and sharing apps, keyboard and screen-reader navigation, and actual administrator email delivery on your test installation. Publication and an installation’s data are always controlled by its owner.
 

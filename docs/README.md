@@ -24,4 +24,4 @@ Choose the page that matches what you want to do.
 
 ## Existing installations
 
-Use the current baseline or generated installer for an empty application database. The beta.1 candidate uses the alpha.9 schema. For an existing installation, verify its schema and follow the [installation instructions](../INSTALL.md#existing-installations).
+Use the current baseline or generated installer for an empty application database. Beta.2 keeps the beta.1 backup contract and updates the administrator functions and translation registry. For an existing installation, follow the [installation instructions](../INSTALL.md#existing-installations).

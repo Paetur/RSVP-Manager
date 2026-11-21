@@ -157,6 +157,51 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
  await q("select public.admin_set_archived('guests',$1,true)",[dg]);
  await reject('select public.admin_record_delivery_sent($1,1,null)',[stale],/Invitation has changed/);
  await q("select public.admin_set_archived('guests',$1,false)",[dg]);
+ // A draft prepared during bulk Mark Sent is confirmed against the reviewed row
+ // under the delivery lock, without fetching another dashboard.
+ const bulkHousehold = await create({household_name:'Synthetic bulk SMS'});
+ const bulkGuest = await scalar('select public.admin_save_guest_details(null,$1,$2) value',[bulkHousehold,{
+   first_name:'Synthetic', mobile:'+15550101234', preferred_contact_method:'sms',
+ }]);
+ await q('select public.admin_set_household_primary_guest($1,$2)',[bulkHousehold,bulkGuest]);
+ const bulkCode = await scalar('select invite_code value from public.households where id=$1',[bulkHousehold]);
+ const bulkMessage = 'https://example.invalid/?=' + bulkCode;
+ const bulkValues = {channel:'sms',status:'draft',message_body:'{invitation_link}'};
+ const bulkQueue = await scalar('select public.admin_save_delivery(null,$1,$2,null) value',[bulkHousehold,bulkValues]);
+ await q('select public.admin_save_delivery($1,$2,$3,1)',[
+   bulkQueue,bulkHousehold,{...bulkValues,status:'ready',message_body:bulkMessage},
+ ]);
+ const reviewed = {
+   household_id:bulkHousehold, actor_user_id:'11111111-1111-4111-8111-111111111111',
+   channel:'sms', invitation_code:bulkCode, body:bulkMessage, service:'sms',
+   recipient_value:'+15550101234', recipient_type:'sms',
+ };
+ const confirmReviewed = 'select public.admin_record_delivery_sent($1,$2,null,$3) value';
+ await reject(confirmReviewed,[bulkQueue,1,reviewed],/Delivery changed/);
+ for (const changes of [
+   {actor_user_id:'22222222-2222-4222-8222-222222222222'}, {household_id:dh},
+   {channel:'whatsapp'}, {invitation_code:'WRONG'}, {body:'Wrong message'},
+   {service:'messages'}, {recipient_value:'+15550105678'}, {recipient_type:'phone'},
+ ]) await reject(confirmReviewed,[bulkQueue,2,{...reviewed,...changes}],/Delivery changed/);
+ await db.exec('RESET ROLE');
+ await q("UPDATE public.guests SET preferred_contact_method=NULL WHERE id=$1",[bulkGuest]);
+ await db.exec('SET ROLE authenticated');
+ await reject(confirmReviewed,[bulkQueue,2,reviewed],/Delivery changed/);
+ await db.exec('RESET ROLE');
+ await q("UPDATE public.guests SET preferred_contact_method='sms' WHERE id=$1",[bulkGuest]);
+ await db.exec('SET ROLE authenticated');
+ const newer = await scalar('select public.admin_save_delivery(null,$1,$2,null) value',[bulkHousehold,bulkValues]);
+ await reject(confirmReviewed,[bulkQueue,2,reviewed],/Delivery changed/);
+ await q('select public.admin_save_delivery($1,$2,$3,1)',[
+   newer,bulkHousehold,{...bulkValues,status:'cancelled',reason:'Synthetic supersession test'},
+ ]);
+ await db.exec('SET ROLE anon');
+ await reject(confirmReviewed,[bulkQueue,2,reviewed],/permission denied/);
+ await db.exec('SET ROLE authenticated');
+ assert.equal(await scalar('select status value from public.invitation_send_queue where id=$1',[bulkQueue]),'ready');checks++;
+ const confirmed = await scalar(confirmReviewed,[bulkQueue,2,reviewed]);
+ assert.ok(confirmed);checks++;
+ assert.equal(await scalar('select public.admin_record_delivery_sent($1,2,null) value',[bulkQueue]),confirmed);checks++;
  // Food access is independent of RSVP and never removes commitments.
  await reject("select public.admin_set_food_access($1,true,false,'')",[dh],/reason required/);
  await reject("select public.admin_set_food_access($1,true,false,'Enable')",[empty],/Add a guest/);

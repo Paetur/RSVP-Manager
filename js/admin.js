@@ -291,11 +291,26 @@
     show(T("interface.messages.loading_event_data"));
     try {
       await A.refresh();
-      const loaded = await R.adminRpc("admin_load_data");
+      let loaded = await R.adminRpc("admin_load_data", { p_compact_queue_pictures: true });
+      if (loaded.error?.code === "PGRST202" &&
+          loaded.error.message?.includes("admin_load_data(p_compact_queue_pictures)"))
+        loaded = await R.adminRpc("admin_load_data");
       if (loaded.error) throw loaded.error;
       if (!loaded.data)
         throw Error(T("Administrator permissions are unavailable."));
-      Object.assign(store, loaded.data);
+      const { queuePictures, ...data } = loaded.data;
+      if (Array.isArray(data.queue))
+        data.queue = data.queue.map(row => {
+          if (!Object.hasOwn(row, "message_image_key")) return row;
+          const { message_image_key: key, ...delivery } = row;
+          if (key == null) return { ...delivery, message_image: null };
+          const picture = typeof key === "string" && queuePictures &&
+            Object.hasOwn(queuePictures, key) && queuePictures[key];
+          if (!picture || typeof picture.image !== "string")
+            throw Error(T("The server returned an unreadable response."));
+          return { ...delivery, message_image: picture };
+        });
+      Object.assign(store, data);
       A.setFeatures(store.settings);
       store.admins = can("administrators")
         ? await managementRpc("admin_list_members")
@@ -385,7 +400,6 @@
     window.RSVP_ADMIN_APPLICATION.render({ R, T, checks, settings: store.settings, canEdit: can("settings", "edit"), busy: publicationBusy });
     renderHouseholds();
     invitesView.render();
-    renderDeliveryLog();
     renderFood();
     renderAdmins();
     renderSettings();
@@ -2290,14 +2304,11 @@
     });
   const {
     editor: deliveryEditor,
-    record: deliveryRecord,
     section: deliverySection,
-    renderLog: renderDeliveryLog,
   } = window.RSVP_ADMIN_DELIVERY_RECORD.create({
     R,
     T,
     getStore: () => store,
-    getDeliveryStatuses: () => invitesView.deliveryStatuses(),
     disclosure,
     adminTime,
     show,
@@ -2398,8 +2409,8 @@
     T,
     getStore: () => store,
     getActor: () => user?.id || null,
-    onDeliveryFilterChange: renderDeliveryLog,
     getSelectionControl: id => bulkInvitesView.selectionControl(id),
+    getSelectAllControl: () => bulkInvitesView.selectAllControl(),
     onVisibleHouseholds: ids => { bulkInvitesView.syncVisible(ids); bulkInvitesView.render(); },
     ordered,
     invitationOverview,

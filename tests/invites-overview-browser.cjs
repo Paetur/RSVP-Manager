@@ -42,21 +42,44 @@ client.rpc=async(name,a)=>{
         if(window.__badReadyAck===item.id){window.__badReadyAck=null;return {data:crypto.randomUUID()};}
       }
     }else{
+      const household=fixtures.households.find(h=>h.id===a.p_household_id);
+      const guest=fixtures.guests.find(g=>g.id===household?.primary_guest_id&&!g.is_child&&!g.archived_at);
+      const channel=a.p_values.channel;
+      const hasPrimaryPhone=fixtures.household_contacts.some(c=>c.household_id===a.p_household_id&&c.is_household_primary&&!c.archived_at&&c.contact_type==='phone');
+      // The production RPC stores the delivery channel as the snapshot type when it falls back to guest mobile.
+      const recipient=!a.p_values.contact_id&&!hasPrimaryPhone&&guest?.mobile&&['sms','whatsapp'].includes(channel)
+        ? {contact_name:[guest.first_name,guest.last_name].filter(Boolean).join(' '),contact_type:channel,contact_value:guest.mobile}
+        : {contact_name:'Synthetic recipient',contact_value:'synthetic@example.invalid'};
       item={id:crypto.randomUUID(),household_id:a.p_household_id,...a.p_values,revision:1,
         created_at:'2026-11-12T12:00:00Z',updated_at:'2026-11-12T12:00:00Z',
-        recipient_snapshot:{contact_name:'Synthetic recipient',contact_value:'synthetic@example.invalid'}};
+        recipient_snapshot:recipient};
       fixtures.invitation_send_queue.push(item);
       window.__createdDraftId=item.id;
     }
     return {data:item.id};
   }
   if(name==='admin_record_delivery_sent'){
-    (window.__sentWrites??=[]).push(a);
+    (window.__sentAttempts??=[]).push(a);
+    const snapshot=a.p_expected_snapshot;
+    if(snapshot&&window.__legacySentRpc)return {error:{code:'PGRST202',message:'Could not find the function public.admin_record_delivery_sent(p_expected_revision, p_expected_snapshot, p_note, p_queue_id) in the schema cache'}};
     if(window.__holdSent===a.p_queue_id){window.__holdSent=null;await new Promise(resolve=>window.__resumeSent=()=>{delete window.__resumeSent;resolve();});}
     const item=fixtures.invitation_send_queue.find(q=>q.id===a.p_queue_id),household=fixtures.households.find(h=>h.id===item?.household_id);
     if(!fixtures.event_settings[0].is_published||!window.__accessPermissions.sendInvites)return {error:{message:'Synthetic send permission denied'}};
     if(window.__failSent===a.p_queue_id){window.__failSent=null;return {error:{message:'Synthetic Sent failure'}};}
     if(!item||!household||household.archived_at||item.invitation_code_snapshot!==household.invite_code||!item.message_body||!item.recipient_snapshot?.contact_value)return {error:{message:'Synthetic stale invitation'}};
+    if(snapshot){
+      const latest=fixtures.invitation_send_queue.filter(q=>q.household_id===household.id&&q.status!=='cancelled')
+        .sort((a,b)=>b.created_at.localeCompare(a.created_at)||b.updated_at.localeCompare(a.updated_at)||b.id.localeCompare(a.id))[0];
+      const guest=fixtures.guests.find(g=>g.id===household.primary_guest_id);
+      const primary=fixtures.household_contacts.find(c=>c.household_id===household.id&&c.is_household_primary&&!c.archived_at);
+      const service=item.channel==='sms'?((primary?primary.preferred_method:guest?.preferred_contact_method)==='sms'?'sms':'messages'):
+        ['email','whatsapp'].includes(item.channel)?item.channel:'none';
+      if(item!==latest||item.status!=='ready'||snapshot.actor_user_id!==h1||snapshot.household_id!==household.id||
+          snapshot.invitation_code!==household.invite_code||snapshot.channel!==item.channel||snapshot.service!==service||
+          snapshot.body!==item.message_body||snapshot.recipient_value!==item.recipient_snapshot.contact_value||
+          snapshot.recipient_type!==item.recipient_snapshot.contact_type)return {error:{message:'Synthetic changed prepared invitation'}};
+    }
+    (window.__sentWrites??=[]).push(a);
     if(item.status==='sent')return {data:item.id};
     if(item.status!=='ready'||item.revision!==a.p_expected_revision)return {error:{message:'Synthetic stale revision'}};
     fixtures.invitation_deliveries.push({queue_id:item.id,confirmed_at:'2026-11-20T12:00:00Z',confirmed_by:h1});
@@ -122,29 +145,29 @@ async function checkBulkDraftGeneration(page) {
   await page.locator("[data-tab=invites]").click();
   const bulk = page.locator("#bulkInvitesHost"), list = page.locator("#inviteRows");
   const status = bulk.locator(".bulk-invite-status-row");
-  const scope = bulk.getByRole("group", { name: "Action", exact: true });
-  const allMissing = scope.getByRole("checkbox", { name: "All missing", exact: true });
-  const selected = scope.getByRole("checkbox", { name: "Selected", exact: true });
-  const generate = scope.getByRole("button", { name: "Generate Drafts", exact: true });
+  const action = bulk.getByRole("group", { name: "Action", exact: true });
+  const generate = action.getByRole("button", { name: "Generate Drafts", exact: true });
+  const clearSelection = async () => {
+    const checked = await list.locator("[data-bulk-select]:checked").evaluateAll(nodes => nodes.map(node => node.dataset.bulkSelect));
+    for (const id of checked) await householdInput(id).uncheck();
+  };
   const householdInput = id => list.locator('[data-bulk-select="' + id + '"]');
-  const householdRow = id => list.locator(".invite-household", { has: householdInput(id) });
+  const householdRow = id => list.locator('[data-invite-household="' + id + '"]');
   assert.equal(await bulk.locator('.bulk-invite-list,.bulk-invite-row').count(),0,'Action uses the shared Invites list');
   assert.equal(await generate.isVisible(),true);
   assert.equal(await bulk.locator(".bulk-invite-count").count(),0,"selection counter is removed");
   assert.equal(await list.locator("[data-bulk-select]:checked").count(),0);
   const publicationHint=status.getByText("Publish the event to activate sending.",{exact:true});
   assert.equal(await publicationHint.isVisible(),true);
-  assert.equal(await allMissing.isChecked(),true);assert.equal(await selected.isChecked(),false);
-  assert.equal(await generate.isDisabled(),true,"viewer cannot generate any missing draft");
+  assert.equal(await action.getByRole("checkbox").count(), 0, "Action uses the shared row selection");
+  await householdInput(ids[0]).check();
+  assert.equal(await generate.isDisabled(), true, "viewer cannot generate the selected missing draft");
 
   await page.evaluate(() => { window.__accessPermissions.sections.invites = "edit"; });
   await refreshFixture(page);
   await page.waitForFunction(() => !document.querySelector("#refreshButton").disabled);
-  assert.equal(await generate.isEnabled(), true);
-  await selected.check();
-  assert.equal(await allMissing.isChecked(), false);
+  await clearSelection();
   assert.equal(await generate.isDisabled(), true, "empty selection cannot generate");
-  assert.equal(await selected.evaluate(node => node === document.activeElement), true);
   await householdInput(ids[0]).check();
   await householdInput("33333333-3333-4333-8333-333333333333").check();
   assert.equal(await list.locator("[data-bulk-select]:checked").count(),2,"shared checkboxes retain the selected scope without a counter");
@@ -154,25 +177,37 @@ async function checkBulkDraftGeneration(page) {
   assert.equal(await page.evaluate(id=>fixtures.invitation_send_queue.find(q=>q.household_id===id)?.template_id,ids[0]),"overview-template");
   assert.equal(await generate.isDisabled(), true, "selected existing drafts and Ready records remain unchanged");
 
-  await selected.uncheck();
-  assert.equal(await generate.isDisabled(), true, "an unchecked scope does not run");
-  await chooseInviteFilter(page,"inviteChannelFilter",["whatsapp"]);
-  assert.equal(await householdRow(ids[4]).count(),0,"Services hides an Email household before global generation");
-  await allMissing.check();await generate.click();
-  await bulk.getByText("1 draft created · 1 with multiple matches · 1 with no match · 1 changed during generation",{exact:true}).waitFor();
+  await clearSelection();
+  const needsDraft = page.locator('[data-invite-filter="needs-draft"]');
+  await needsDraft.click();
+  assert.match(await needsDraft.innerText(), /Needs draft/);
+  assert.equal(await householdRow(ids[0]).count(), 0, "an existing Draft is outside Needs draft");
+  await chooseInviteFilter(page, "inviteChannelFilter", ["messages", "whatsapp", "sms"]);
+  assert.equal(await householdRow(ids[4]).count(), 0, "Services hides an unselected Email household");
+  await list.locator("[data-bulk-select-all]").check();
+  assert.deepEqual(await list.locator("[data-bulk-select]:checked").evaluateAll(nodes => nodes.map(node => node.dataset.bulkSelect).sort()), ids.slice(1, 4).sort());
+  await generate.click();
+  await bulk.getByText("1 draft created · 1 with multiple matches · 1 with no match", { exact: true }).waitFor();
+  assert.equal(await needsDraft.getAttribute("aria-pressed"), "true", "generation keeps Needs draft active");
+  assert.equal(await householdRow(ids[1]).count(), 0, "a generated Draft leaves the missing view");
+  assert.equal(await householdRow(ids[2]).isVisible(), true, "ambiguous match stays in Needs draft");
+  assert.equal(await householdRow(ids[3]).isVisible(), true, "missing template match stays in Needs draft");
   assert.equal(await page.locator('#inviteChannelFilter [data-value="whatsapp"]').getAttribute('aria-pressed'),'true','Services selection survives generation reload');
   const writes = await page.evaluate(() => window.__draftWrites);
-  assert.deepEqual(writes.map(write => write.p_household_id).sort(), [ids[0], ids[1], ids[4]].sort(),
-    "All missing includes hidden households and queues only exact service-language matches");
+  assert.deepEqual(writes.map(write => write.p_household_id).sort(), [ids[0], ids[1]].sort(),
+    "Generation queues only selected visible households with one exact service-language match");
   assert.ok(writes.every(write => write.p_id === null && write.p_expected_revision === null && write.p_values.status === "draft" && write.p_values.only_if_missing === true));
   assert.deepEqual(writes.find(write => write.p_household_id === ids[1]).p_values, {
     channel: "sms", contact_id: null, message_subject: "", message_body: "Short text {invitation_link}",
     message_image: null, status: "draft", only_if_missing: true, template_id: "Messages invitation",
     template_revision: "Messages invitation-revision",
   }, "Messages uses its own template service, selected content options, and SMS transport");
-  await chooseInviteFilter(page,"inviteChannelFilter");
+  await clearSelection();
+  await chooseInviteFilter(page, "inviteChannelFilter");
   await householdInput(ids[4]).check();
-  await selected.check();
+  await generate.click();
+  await bulk.getByText("0 drafts created · 1 changed during generation", { exact: true }).waitFor();
+  assert.equal(await generate.isEnabled(), true, "a changed recipient remains available for a fresh attempt");
   await generate.click();
   await bulk.getByText("1 draft created", { exact: true }).waitFor();
   assert.equal(await page.evaluate(id=>fixtures.invitation_send_queue.find(q=>q.household_id===id)?.template_id,ids[4]),"overview-template");
@@ -181,11 +216,11 @@ async function checkBulkDraftGeneration(page) {
   assert.equal(await page.evaluate(() => fixtures.event_settings[0].is_published), false);
   assert.equal(await page.evaluate(() => fixtures.invitation_send_queue.find(queue => queue.id === "queue-ready").status), "ready");
   assert.equal(await page.evaluate(() => fixtures.invitation_send_queue.find(queue => queue.id === "queue-sent").status), "sent");
-  assert.equal(await scope.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true);
+  assert.equal(await action.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true);
   assert.equal(await status.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true);
 
-  const selectedIds = await list.locator("[data-bulk-select]:checked").evaluateAll(nodes => nodes.map(node => node.dataset.bulkSelect));
-  for (const id of selectedIds) await householdInput(id).uncheck();
+  await clearSelection();
+  await page.locator('[data-invite-filter="all"]').click();
   await page.evaluate(() => { fixtures.event_settings[0].is_published = true; });
   await refreshFixture(page);
   await page.waitForFunction(() => !document.querySelector("#refreshButton").disabled);
@@ -195,6 +230,188 @@ async function checkBulkDraftGeneration(page) {
   assert.equal(await status.count(),0,"an empty status row is omitted when there is no publication or incomplete-draft hint");
 }
 
+
+async function checkMobileDraftSelection(page, published) {
+  const { phones, hidden, sent } = await page.evaluate(published => {
+    const planningGroup = fixtures.event_settings[0].planning_config.groups[0].id;
+    fixtures.event_settings[0].is_published = published;
+    fixtures.households = [];
+    fixtures.guests = [];
+    fixtures.invitation_send_queue = [];
+    fixtures.invitation_deliveries = [];
+    window.__draftWrites = [];
+    window.__sentWrites = [];
+    window.__mobileCopies = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true, value: { writeText: async text => { window.__mobileCopies.push(text); } },
+    });
+    window.__bulkTemplates = [{
+      id: "mobile-template", revision: "mobile-revision", name: "Mobile invitation",
+      channels: ["messages", "sms", "whatsapp"], language_tags: ["en"],
+      versions: { en: { language_code: "en", body: "Mobile invitation {invitation_link}", options: ["message"] } },
+    }];
+    const alphabet = "ABCDEFGHJKLMNP";
+    const add = (service, index) => {
+      const id = crypto.randomUUID(), guest = crypto.randomUUID();
+      const code = published ? "ABCD23" + alphabet[index] + "4" : null;
+      const phone = service === "email" ? null : "+1 202 555 01" + String(index).padStart(2, "0");
+      fixtures.households.push({
+        id, household_name: "Synthetic household " + (index + 1),
+        planning_group_id: planningGroup, primary_guest_id: guest,
+        language: "en", invite_code: code, rsvp_state: "open",
+      });
+      fixtures.guests.push({
+        id: guest, household_id: id, first_name: "Synthetic", last_name: "Primary",
+        mobile: phone, email: service === "email" ? "hidden@example.invalid" : null,
+        preferred_contact_method: service === "messages" ? null : service,
+      });
+      return { id, service, phone, link: code ? window.RSVP.invitationURL(code) : null };
+    };
+    const services = ["messages", "sms", "whatsapp"];
+    const phones = Array.from({ length: published ? 12 : 3 }, (_, index) => add(services[index % services.length], index));
+    const hidden = add("email", phones.length);
+    const sent = add("messages", phones.length + 1);
+    fixtures.invitation_send_queue.push({
+      id: "mobile-already-sent", household_id: sent.id, channel: "sms", status: "sent", revision: 2,
+      created_at: "2026-11-20T12:00:00Z", updated_at: "2026-11-20T12:00:00Z",
+      sent_at: "2026-11-20T12:00:00Z", message_body: "Existing selected invitation",
+      recipient_snapshot: { contact_name: "Synthetic Primary", contact_type: "sms", contact_value: sent.phone },
+    });
+    fixtures.invitation_deliveries.push({
+      queue_id: "mobile-already-sent", confirmed_at: "2026-11-20T12:00:00Z", confirmed_by: h1,
+    });
+    return { phones, hidden, sent };
+  }, published);
+  await refreshFixture(page);
+  await page.waitForFunction(() => !document.querySelector("#refreshButton").disabled);
+  await setInvitesGrouping(page, "service");
+  const allStatus = page.locator('[data-invite-filter="all"]');
+  await allStatus.click();
+  await chooseInviteFilter(page, "inviteChannelFilter", ["messages", "sms", "whatsapp"]);
+  const list = page.locator("#inviteRows");
+  const selectAll = list.getByRole("checkbox", { name: "Select all", exact: true });
+  const row = id => list.locator('[data-invite-household="' + id + '"]');
+  const select = id => row(id).locator("[data-bulk-select]");
+  const checked = () => list.locator("[data-bulk-select]:checked").evaluateAll(nodes => nodes.map(node => node.dataset.bulkSelect).sort());
+  const action = page.locator("#bulkInvitesHost").getByRole("group", { name: "Action", exact: true });
+  const generate = action.getByRole("button", { name: "Generate Drafts", exact: true });
+  const markSent = action.getByRole("button", { name: "Mark Sent", exact: true });
+  const allPhones = phones.map(phone => phone.id).sort();
+  const serviceNames = { messages: "Messages", sms: "SMS", whatsapp: "WhatsApp" };
+  assert.equal(await selectAll.isVisible(), true, "the shared header checkbox is reachable at this width");
+  assert.equal(await row(hidden.id).count(), 0);
+  assert.equal(await row(sent.id).isVisible(), true);
+  assert.equal(await select(sent.id).isDisabled(), true);
+  assert.equal(await generate.isDisabled(), true);
+  await select(phones[0].id).check();
+  assert.equal(await selectAll.evaluate(node => node.indeterminate), true);
+  await selectAll.click();
+  assert.deepEqual(await checked(), allPhones, "all selects only the visible eligible rows");
+  assert.equal(await selectAll.isChecked(), true);
+  await selectAll.click();
+  assert.deepEqual(await checked(), [], "pressing the checked header clears the visible selection");
+  assert.equal(await generate.isDisabled(), true);
+  await selectAll.focus();
+  await page.keyboard.press("Space");
+  assert.deepEqual(await checked(), allPhones);
+  assert.equal(await selectAll.evaluate(node => node === document.activeElement), true);
+
+  await generate.click();
+  await page.locator("#bulkInvitesHost").getByText(phones.length + " drafts created", { exact: true }).waitFor();
+  assert.equal(await allStatus.getAttribute("aria-pressed"), "true");
+  assert.deepEqual(await checked(), allPhones, "saved mobile snapshots keep the selected rows visible");
+  assert.equal(await selectAll.isChecked(), true);
+  const snapshots = await page.evaluate(() => fixtures.invitation_send_queue.filter(queue => queue.status === "draft").map(queue => [
+    queue.household_id, queue.channel, queue.recipient_snapshot.contact_type,
+    queue.recipient_snapshot.contact_value, queue.status,
+  ]));
+  assert.deepEqual(snapshots.sort(), phones.map(phone => {
+    const channel = phone.service === "messages" ? "sms" : phone.service;
+    return [phone.id, channel, channel, phone.phone, "draft"];
+  }).sort(), "only selected mobile rows generate production-shaped recipient snapshots");
+  for (const phone of phones) {
+    const group = list.locator('[data-invite-service="' + phone.service + '"]');
+    assert.equal(await group.locator('[data-invite-household="' + phone.id + '"]').count(), 1, "the row stays in its original Service group");
+    assert.equal(await row(phone.id).locator(".invite-copy-recipient").innerText(), serviceNames[phone.service]);
+    assert.equal(await row(phone.id).locator(".invite-copy-invitation").innerText(), "Draft");
+    assert.equal(await row(phone.id).locator(".invite-copy-invitation").isDisabled(), !published);
+  }
+  const expectedCopies = [];
+  for (const phone of phones.slice(0, 3)) {
+    await row(phone.id).locator(".invite-copy-recipient").click();
+    expectedCopies.push(phone.phone);
+    if (published) {
+      await row(phone.id).locator(".invite-copy-invitation").click();
+      expectedCopies.push("Mobile invitation " + phone.link);
+    }
+  }
+  assert.deepEqual(await page.evaluate(() => window.__mobileCopies), expectedCopies);
+  assert.equal(await generate.isDisabled(), true, "selected saved drafts cannot be generated again");
+
+  const services = page.locator("#inviteChannelFilter details");
+  const changeServices = async key => {
+    if (!await services.evaluate(node => node.open)) await services.locator("summary").click();
+    await services.locator('button[data-multi-select="' + key + '"]').click();
+  };
+  await changeServices("none");
+  assert.equal(await list.locator(".invite-household").count(), 0);
+  assert.deepEqual(await checked(), [], "clearing Services prunes all hidden selections");
+  await changeServices("all");
+  assert.equal(await list.locator(".invite-household").count(), phones.length + 2);
+  assert.deepEqual(await checked(), [], "restoring visibility does not restore discarded selections");
+
+  if (published) {
+    await page.evaluate(() => {
+      const image = { image: document.createElement("canvas").toDataURL("image/jpeg") };
+      for (const q of fixtures.invitation_send_queue.filter(q => q.status === "draft")) q.message_image = image;
+    });
+    await refreshFixture(page);
+    await page.waitForFunction(() => !document.querySelector("#refreshButton").disabled);
+    await chooseInviteFilter(page, "inviteChannelFilter", ["messages", "sms", "whatsapp"]);
+    await selectAll.check();
+    assert.deepEqual(await checked(), allPhones);
+    const bulk = page.locator("#bulkInvitesHost");
+    const review = bulk.getByRole("region", { name: "Review selected invitations", exact: true });
+    await bulk.getByRole("button", { name: "Review selected drafts", exact: true }).click();
+    assert.equal(await review.locator("details").count(), 12);
+    assert.equal(await review.locator("img.invitation-picture").count(), 0, "closed rows defer their pictures");
+    await review.locator("summary").first().click();
+    await review.locator("img.invitation-picture").waitFor();
+    assert.equal(await review.locator("img.invitation-picture").count(), 1);
+    let before = await page.evaluate(() => window.__fetchCount);
+    await review.getByRole("button", { name: "Mark ready", exact: true }).click();
+    await bulk.getByText("12 invitations prepared.", { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.__fetchCount), before + 1);
+    assert.equal(await page.evaluate(() => fixtures.invitation_send_queue.filter(q => q.status === "ready").length), 12);
+    assert.equal(await markSent.isEnabled(), true, "all twelve Ready records can be marked Sent");
+
+    // Restore this synthetic fixture to Draft to exercise the combined Ready/Sent path.
+    await page.evaluate(() => {
+      for (const q of fixtures.invitation_send_queue.filter(q => q.status === "ready")) {
+        q.status = "draft";
+        q.message_body = "Mobile invitation {invitation_link}";
+        q.revision++;
+      }
+    });
+    await refreshFixture(page);
+    await page.waitForFunction(() => !document.querySelector("#refreshButton").disabled);
+    assert.equal(await markSent.isEnabled(), true, "all twelve Draft records can be marked Sent");
+    before = await page.evaluate(() => window.__fetchCount);
+    await markSent.click();
+    await bulk.getByText("12 invitations marked sent.", { exact: true }).waitFor();
+    const result = await page.evaluate(() => ({
+      loads: window.__fetchCount,
+      attempts: window.__sentAttempts,
+      newDeliveries: fixtures.invitation_deliveries.filter(d => d.queue_id !== "mobile-already-sent").length,
+    }));
+    assert.equal(result.loads, before + 1, "the guarded batch reloads the dashboard once");
+    assert.equal(result.newDeliveries, 12);
+    assert.equal(result.attempts.length, 12);
+    assert.ok(result.attempts.every(a => a.p_expected_revision === 4 && a.p_expected_snapshot?.actor_user_id));
+    assert.deepEqual(result.attempts.map(a => a.p_expected_snapshot.household_id).sort(), allPhones);
+    assert.deepEqual(await checked(), []);
+  }
+}
 
 async function checkRowsPresentation(page) {
   const fields=page.locator('#inviteShownFieldsHost .invite-shown-fields');
@@ -538,7 +755,7 @@ async function checkInvitesCopyAndFilters(page) {
   await mobile.click();
   assert.equal(await page.evaluate(()=>window.__invitesCopied.at(-1)),'+1 (202) 555-0134','default Messages uses the actual mobile number');
   await chooseInviteFilter(page,'inviteChannelFilter',[]);assert.equal(await page.locator('#inviteRows .invite-household').count(),0,'no services selected matches no household');
-  for(const id of ['inviteChannelFilter','inviteLanguageFilter','inviteGroupFilter','deliveryStatusFilter'])await chooseInviteFilter(page,id);
+  for(const id of ['inviteChannelFilter','inviteLanguageFilter','inviteGroupFilter'])await chooseInviteFilter(page,id);
   const unanswered=page.locator('[data-invite-food-filter="unanswered"]'),yes=page.locator('[data-invite-food-filter="yes"]');
   await unanswered.click();assert.equal(await unanswered.getAttribute('aria-pressed'),'true');
   assert.equal(await page.locator('[data-invite-household="invites-default-mobile"]').count(),1,'Food Unanswered includes the synthetic unresponded household');
@@ -546,15 +763,8 @@ async function checkInvitesCopyAndFilters(page) {
   await yes.click();assert.equal(await yes.getAttribute('aria-pressed'),'false','repeating the selected Food row restores All');
   assert.equal(await page.locator('[data-invite-household="invites-default-mobile"]').count(),1);
   await unanswered.click();await page.locator('[data-invite-filter="all"]').click();assert.equal(await unanswered.getAttribute('aria-pressed'),'false','status All also clears the Food filter');
-  const deliveryLog=page.locator('#deliveryStatusFilter').locator('xpath=ancestor::details[1]');
-  if(!await deliveryLog.evaluate(node=>node.open))await deliveryLog.locator(':scope > summary').click();
-  await chooseInviteFilter(page,'deliveryStatusFilter',['ready','sent']);
-  const logBefore=await page.locator('#deliveryLog [data-delivery-id]').evaluateAll(nodes=>nodes.map(node=>node.dataset.deliveryId));
   await page.evaluate(id=>window.__invitesTestView.openHousehold(id),prepared.id);
-  assert.deepEqual(await page.evaluate(()=>[...window.__invitesTestView.deliveryStatuses()].sort()),['ready','sent'],'View in Invites preserves the independent delivery-log filter');
-  assert.equal(await page.locator('#deliveryStatusFilter [data-value="draft"]').getAttribute('aria-pressed'),'false');
-  assert.deepEqual(await page.locator('#deliveryLog [data-delivery-id]').evaluateAll(nodes=>nodes.map(node=>node.dataset.deliveryId)),logBefore,'navigation leaves the filtered delivery-log rows unchanged');
-  await chooseInviteFilter(page,'deliveryStatusFilter');
+  assert.equal(await page.locator('#deliveryLog, #deliveryStatusFilter').count(),0,'Delivery history is inside the household');
   await page.evaluate(saved=>{Object.assign(window.__accessPermissions,saved.permissions);fixtures.event_settings=saved.settings;fixtures.households=saved.households;fixtures.guests=saved.guests;fixtures.invitation_send_queue=saved.queue;fixtures.event_languages=saved.languages;delete window.__invitesPermission;delete window.__invitesActorOverride;},saved);
   await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);
 }
@@ -610,7 +820,8 @@ async function checkManualInvitations(page) {
   await chooseInviteFilter(page,'inviteChannelFilter');
   for(const item of ids.slice(0,10))await input(item.id).check();
   assert.equal(await page.locator('#inviteRows [data-bulk-select]:checked').count(),10);
-  assert.equal(await input(ids[10].id).isDisabled(),true,'selection remains limited to ten');
+  await input(ids[10].id).check();
+  assert.equal(await page.locator('#inviteRows [data-bulk-select]:checked').count(),11,'row selection includes more than ten invites');
   await clear(); await select([ids[2]]);
   const beforeInvalid=await page.evaluate(()=>window.__draftWrites.length);
   assert.equal(await mark.isDisabled(),true); await mark.dispatchEvent('click');
@@ -632,7 +843,7 @@ async function checkManualInvitations(page) {
   await select([ids[0],ids[4]]);
   await mark.evaluate(n=>{n.click();n.dispatchEvent(new MouseEvent('click',{bubbles:true}));});
   await message('2 invitations marked sent.');
-  assert.deepEqual(await page.evaluate(()=>window.__sentWrites.slice(1).map(w=>[w.p_queue_id,w.p_expected_revision])),[[ids[0].queue,2],[ids[4].queue,2]],'two Drafts survive intermediate Ready reload/pruning and use captured revision+1');
+  assert.deepEqual(await page.evaluate(()=>window.__sentWrites.slice(1).map(w=>[w.p_queue_id,w.p_expected_revision])),[[ids[0].queue,2],[ids[4].queue,2]],'two Drafts use their captured Ready revision without intermediate reloads');
   assert.equal(await page.evaluate(()=>fixtures.invitation_deliveries.filter(d=>[window.__sentWrites[1].p_queue_id,window.__sentWrites[2].p_queue_id].includes(d.queue_id)).length),2,'repeated click records each selected household once');
   await page.locator('[data-invite-filter=all]').click();
   // A selected Ready record can finish before another selected Draft needs a reload.
@@ -661,6 +872,17 @@ async function checkManualInvitations(page) {
   await page.evaluate(id=>window.__swapReadyRecipient=id,ids[9].queue); await select([ids[9]]);
   const beforeRecipient=await sentCount(); await mark.click(); await message('Marking sent stopped.');
   assert.equal(await sentCount(),beforeRecipient); assert.equal(await page.evaluate(id=>fixtures.invitation_send_queue.find(q=>q.id===id).status,ids[9].queue),'ready');
+  assert.equal(await page.evaluate(()=>window.__sentAttempts.at(-1).p_expected_snapshot.recipient_value),'+298 12 34 56');
+  // A frontend deployed before its scoped overload uses the verified legacy path.
+  await page.evaluate(item=>{
+    const q=fixtures.invitation_send_queue.find(q=>q.id===item.queue);
+    q.status='draft';q.revision++;q.message_body='Legacy draft {invitation_link}';window.__legacySentRpc=true;
+  },ids[9]);await refresh();
+  await select([ids[9]]);const legacyBefore=await page.evaluate(()=>window.__fetchCount);
+  await mark.click();await message('1 invitation marked sent.');
+  assert.equal(await page.evaluate(()=>window.__fetchCount),legacyBefore+2,'only the legacy path needs the per-Draft refresh');
+  assert.deepEqual(await page.evaluate(()=>window.__sentAttempts.slice(-2).map(a=>Boolean(a.p_expected_snapshot))),[true,false]);
+  await page.evaluate(()=>window.__legacySentRpc=false);
   // Selection change after a persisted Ready save stops before the Sent write.
   await page.evaluate(id=>window.__holdReady=id,ids[10].queue); await select([ids[10]]); await mark.click();
   await page.waitForFunction(()=>typeof window.__resumeReady==='function');
@@ -963,11 +1185,16 @@ async function checkManualInvitations(page) {
       assert.deepEqual(await page.locator('.invite-overview-heading > span').allTextContents(),['Household','Recipient','Service','Invitation','Last sent','RSVP','Actions',''],'Food permission removes only the Food column');
       if (width === 320 || width === 1440) await checkBulkDraftGeneration(page);
       if (width === 1440) { await checkInvitesCopyAndFilters(page); await checkManualInvitations(page); }
+      if (width === 320 || width === 1440) {
+        await page.reload();
+        await page.locator("#inviteRows .invite-household").first().waitFor();
+        await checkMobileDraftSelection(page, width === 1440);
+      }
       assert.deepEqual(errors, []);
       await page.close();
     }
     console.log(
-      "PASS Invites overview: responsive filters/drafts, exact clipboard text without selection or RPC, guarded manual Sent with captured revisions, multi-row reloads, partial recovery, recipient/selection/actor races and preserved history.",
+      "PASS Invites overview: visible select-all, filtered mobile drafts, responsive filters, exact clipboard text without selection or RPC, guarded manual Sent with captured revisions, twelve-row checks and scoped refreshes, partial recovery, recipient/selection/actor races and preserved history.",
     );
   } finally {
     await browser.close();

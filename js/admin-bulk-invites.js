@@ -3,8 +3,6 @@
   "use strict";
   const groups = { messages: "Messages", email: "Email", whatsapp: "WhatsApp", sms: "SMS", none: "None" };
   const deliveries = { email: "email", whatsapp: "whatsapp", sms: "sms", messages: "sms", none: "manual" };
-  const draftScopes = { missing: "All missing", selected: "Selected" };
-  const limit = 10;
 
   function create({ R, T, getStore, getActor, can, managementRpc, reload,
     primaryContact, primaryGuest, invitationDraft, getVisibleHouseholdIds,
@@ -13,9 +11,8 @@
     const host = () => $("bulkInvitesHost");
     const content = () => $("bulkInviteContent");
     const selected = new Set();
-    let visibleHouseholds = new Set();
+    let visibleHouseholds = new Set(), visibleRows = new Map();
     let actor = null, review = false, busy = false, notice = "", generation = 0, selectionVersion = 0;
-    let draftScope = "missing";
     const button = (label, action, disabled = false) => {
       const control = R.dom("button", { type: "button", class: "btn secondary", disabled }, T(label));
       control.addEventListener("click", action);
@@ -29,18 +26,20 @@
       return window.RSVP_ADMIN_OVERVIEW.invitationService(contact, guest, delivery);
     }
 
-    function rows() {
+    function rows(householdId) {
       const store = getStore();
       const active = new Set(store.guests.filter(guest => !guest.archived_at).map(guest => guest.household_id));
       const latest = new Map();
       for (const delivery of store.queue) {
-        if (delivery.status === "cancelled") continue;
+        if (delivery.status === "cancelled" || (householdId && delivery.household_id !== householdId)) continue;
         const previous = latest.get(delivery.household_id);
         if (!previous || (delivery.created_at || "") > (previous.created_at || "") ||
-            (delivery.created_at === previous.created_at && (delivery.updated_at || "") > (previous.updated_at || "")))
+            (delivery.created_at === previous.created_at && ((delivery.updated_at || "") > (previous.updated_at || "") ||
+              (delivery.updated_at === previous.updated_at && delivery.id > previous.id))))
           latest.set(delivery.household_id, delivery);
       }
-      return store.households.filter(household => !household.archived_at && active.has(household.id)).map(household => {
+      return store.households.filter(household => (!householdId || household.id === householdId) &&
+        !household.archived_at && active.has(household.id)).map(household => {
         const queue = latest.get(household.id);
         const contact = primaryContact(household), guest = primaryGuest(household);
         let group = resolveGroup(contact, guest, queue?.channel);
@@ -57,7 +56,7 @@
       actor = null;
       selected.clear();
       visibleHouseholds.clear();
-      draftScope = "missing";
+      visibleRows.clear();
       review = false;
       notice = "";
       const panel = host();
@@ -78,6 +77,7 @@
       sync();
       visibleHouseholds = new Set(ids || []);
       const all = new Map(rows().map(row => [row.household.id, row]));
+      visibleRows = new Map([...all].filter(([id]) => visibleHouseholds.has(id)));
       let hiddenSelection = false;
       for (const id of selected) {
         const row = all.get(id);
@@ -105,12 +105,49 @@
       };
     }
 
+    function selectableVisibleIds() {
+      return [...visibleRows.values()].filter(eligible)
+        .map(row => row.household.id);
+    }
+
+    function selectAllControl() {
+      sync();
+      const ids = selectableVisibleIds();
+      const count = ids.filter(id => selected.has(id)).length;
+      const checked = ids.length > 0 && count === ids.length;
+      const mixed = count > 0 && !checked;
+      const label = element("label", "bulk-invite-select");
+      const input = R.dom("input", { type: "checkbox", disabled: busy || !actor || !can("invites") || !ids.length });
+      input.dataset.bulkSelectAll = "";
+      input.setAttribute("aria-label", T("interface.messages.select_all"));
+      input.checked = checked;
+      input.indeterminate = mixed;
+      input.addEventListener("change", () => {
+        selectionVersion++;
+        if (busy || !getActor() || actor !== getActor() || !can("invites")) {
+          input.checked = checked;
+          input.indeterminate = mixed;
+          return;
+        }
+        syncVisible(getVisibleHouseholdIds?.());
+        for (const id of selectableVisibleIds()) {
+          if (input.checked) selected.add(id);
+          else selected.delete(id);
+        }
+        review = false;
+        refreshSelection();
+        $("inviteRows")?.querySelector("[data-bulk-select-all]")?.focus({ preventScroll: true });
+      });
+      label.append(input);
+      return label;
+    }
+
     function selectionControl(householdId) {
       sync();
-      const row = rows().find(item => item.household.id === householdId);
+      const row = visibleRows.get(householdId);
       const label = element("label", "bulk-invite-select");
       const input = R.dom("input", { type: "checkbox", disabled: busy || !actor || !can("invites") ||
-        !visibleHouseholds.has(householdId) || !row || !eligible(row) || (!selected.has(householdId) && selected.size >= limit) });
+        !visibleHouseholds.has(householdId) || !row || !eligible(row) });
       input.dataset.bulkSelect = householdId;
       input.checked = selected.has(householdId);
       input.setAttribute("aria-label", T("Select invitation for {household}", { household: row?.name || "" }));
@@ -129,9 +166,9 @@
           return;
         }
         syncVisible(getVisibleHouseholdIds?.());
-        const fresh = rows().find(item => item.household.id === householdId);
+        const fresh = visibleRows.get(householdId);
         selectionVersion++;
-        if (input.checked && visibleHouseholds.has(householdId) && fresh && eligible(fresh) && selected.size < limit)
+        if (input.checked && visibleHouseholds.has(householdId) && fresh && eligible(fresh))
           selected.add(householdId);
         else selected.delete(householdId);
         review = false;
@@ -153,7 +190,7 @@
     }
 
     function current(row) {
-      const active = rows().find(item => item.household.id === row.household.id);
+      const [active] = rows(row.household.id);
       return active && active.queue?.id === row.queue?.id && active.queue?.revision === row.queue?.revision
         && active.group === row.group ? active : null;
     }
@@ -187,15 +224,18 @@
       }
     }
 
-    function missingDrafts(all) {
-      return draftScope ? all.filter(row => !row.queue &&
-        (draftScope === "missing" || visibleHouseholds.has(row.household.id) && selected.has(row.household.id))) : [];
+    function missingDrafts(selection) {
+      return selection.filter(row => !row.queue);
     }
 
     function createDrafts() {
-      const scope = draftScope, sameSelection = selectedScope();
+      syncVisible(getVisibleHouseholdIds?.());
+      const sameSelection = selectedScope();
+      const selection = [...visibleRows.values()].filter(row => selected.has(row.household.id));
+      const missing = missingDrafts(selection);
+      if (!missing.length) return;
       let unmatched = 0, ambiguous = 0, changed = 0;
-      return writes(missingDrafts(rows()), async row => {
+      return writes(missing, async row => {
         const { household } = row;
         const service = row.group === "none" ? "manual" : row.group;
         const matches = (getStore().invitationTemplates || []).filter(template =>
@@ -228,7 +268,7 @@
           unmatched && T("{count} with no match", { count: unmatched }),
           changed && T("{count} changed during generation", { count: changed }),
         ].filter(Boolean).join(" · ");
-      }, undefined, () => draftScope === scope && (scope !== "selected" || sameSelection()));
+      }, undefined, sameSelection);
     }
 
     function markReady(items) {
@@ -257,11 +297,11 @@
     }
 
     function markSent(items) {
-      const ids = items.map(row => row.household.id), finished = new Set(), version = selectionVersion;
+      const ids = new Set(items.map(row => row.household.id)), finished = new Set(), version = selectionVersion;
       const sameSelection = () => {
         const visible = new Set(getVisibleHouseholdIds?.() || []);
-        return selectionVersion === version && [...selected].every(id => ids.includes(id)) &&
-          ids.every(id => finished.has(id) || selected.has(id) && visible.has(id));
+        return selectionVersion === version && [...selected].every(id => ids.has(id)) &&
+          [...ids].every(id => finished.has(id) || selected.has(id) && visible.has(id));
       };
       if (!canSend() || !items.length || !sameSelection() || !items.every(manualSendable)) return;
       review = false;
@@ -269,32 +309,44 @@
         const { queue, household } = row;
         if (!queue || !Number.isSafeInteger(queue.revision) || queue.revision < 1 ||
             !manualSendable(row)) return false;
-        const revision = queue.revision, code = household.invite_code, message = readyMessage(row);
-        const recipient = queue.recipient_snapshot?.contact_value || row.recipient;
-        const recipientType = queue.recipient_snapshot?.contact_type || (row.group === "email" ? "email" : "phone");
-        let expected = revision;
+        const send = { p_queue_id: queue.id, p_expected_revision: queue.revision, p_note: "" };
         if (queue.status === "draft") {
+          const snapshot = {
+            actor_user_id: getActor(), household_id: household.id, channel: queue.channel, service: row.group,
+            invitation_code: household.invite_code, body: readyMessage(row),
+            recipient_value: queue.recipient_snapshot?.contact_value || row.recipient || null,
+            recipient_type: queue.recipient_snapshot?.contact_type || (row.group === "email" ? "email" : "phone"),
+          };
           const prepared = await managementRpc("admin_save_delivery", {
-            p_id: queue.id, p_household_id: household.id, p_expected_revision: revision,
+            p_id: queue.id, p_household_id: household.id, p_expected_revision: queue.revision,
             p_values: { channel: queue.channel, contact_id: queue.contact_id, message_subject: queue.message_subject || "",
-              message_body: message, message_image: queue.message_image, status: "ready" },
+              message_body: snapshot.body, message_image: queue.message_image, status: "ready" },
           });
-          if (prepared !== queue.id) throw Error(T("Changed. Try again."));
-          expected = revision + 1;
-          // Ready rebuilds its recipient snapshot. Refresh it before recording a
-          // send, while retaining the pre-await revision and displayed recipient.
-          if (!continuing()) throw Error(T("Changed. Try again."));
-          if (!await reload()) throw Error(T("Bulk invites could not be refreshed."));
-          const fresh = rows().find(item => item.household.id === household.id);
-          if (!continuing() || !fresh || fresh.queue?.id !== queue.id || fresh.group !== row.group || fresh.household.invite_code !== code ||
-              readyMessage(fresh) !== message || fresh.queue.revision !== expected ||
-              (fresh.queue.recipient_snapshot?.contact_value || fresh.recipient) !== recipient ||
-              (fresh.queue.recipient_snapshot?.contact_type || (fresh.group === "email" ? "email" : "phone")) !== recipientType) throw Error(T("Changed. Try again."));
+          if (prepared !== queue.id || !continuing()) throw Error(T("Changed. Try again."));
+          send.p_expected_revision++;
+          try {
+            await managementRpc("admin_record_delivery_sent", { ...send, p_expected_snapshot: snapshot });
+          } catch (error) {
+            // An older server still requires the full reload guard. Only the
+            // absent overload permits falling back to that write path.
+            if (error?.code !== "PGRST202" || !error.message?.includes(
+              "admin_record_delivery_sent(p_expected_revision, p_expected_snapshot, p_note, p_queue_id)")) throw error;
+            if (!continuing()) throw Error(T("Changed. Try again."));
+            if (!await reload()) throw Error(T("Bulk invites could not be refreshed."));
+            const [fresh] = rows(household.id);
+            if (!continuing() || !fresh || fresh.queue?.id !== queue.id ||
+                fresh.queue.channel !== snapshot.channel || fresh.group !== snapshot.service ||
+                fresh.household.invite_code !== snapshot.invitation_code || !sendable(fresh) ||
+                fresh.queue.message_body !== snapshot.body || fresh.queue.revision !== send.p_expected_revision ||
+                (fresh.queue.recipient_snapshot?.contact_value || fresh.recipient || null) !== snapshot.recipient_value ||
+                (fresh.queue.recipient_snapshot?.contact_type || (fresh.group === "email" ? "email" : "phone")) !== snapshot.recipient_type)
+              throw Error(T("Changed. Try again."));
+            await managementRpc("admin_record_delivery_sent", send);
+          }
+        } else {
+          if (!continuing()) return false;
+          await managementRpc("admin_record_delivery_sent", send);
         }
-        if (!continuing()) return false;
-        await managementRpc("admin_record_delivery_sent", {
-          p_queue_id: queue.id, p_expected_revision: expected, p_note: "",
-        });
         finished.add(household.id);
         return true;
       }, canSend, count => T(count === 1 ? "{count} invitation marked sent." : "{count} invitations marked sent.", { count }),
@@ -314,7 +366,15 @@
         item.append(element("p", "small", [recipient?.contact_name, recipient?.contact_value || row.recipient].filter(Boolean).join(" · ")));
         if (queue.message_subject) item.append(element("p", "small", queue.message_subject));
         item.append(element("pre", "delivery-message", readyMessage(row)));
-        window.RSVP_INVITATION_IMAGE.preview(item, queue.message_image, { R, T });
+        if (queue.message_image) {
+          const showPicture = () => {
+            if (!item.open) return;
+            item.removeEventListener("toggle", showPicture);
+            window.RSVP_INVITATION_IMAGE.preview(item, queue.message_image, { R, T });
+          };
+          if (item.open) showPicture();
+          else item.addEventListener("toggle", showPicture);
+        }
         section.append(item);
       }
       section.append(button("Mark ready", () => markReady(selection)));
@@ -322,30 +382,14 @@
       box.append(section);
     }
 
-    function actionFieldset(all, selection) {
+    function actionFieldset(selection) {
       const unavailable = busy || !canDraft();
       const enabled = !busy && canSend() && selection.length > 0 && selection.every(manualSendable);
       const fieldset = element("fieldset", "bulk-invite-filters bulk-invite-action");
-      const scopes = element("div", "bulk-invite-scopes");
-      for (const [key, label] of Object.entries(draftScopes)) {
-        const option = element("label", "bulk-invite-filter");
-        const input = R.dom("input", { type: "checkbox", disabled: unavailable });
-        input.dataset.bulkDraftScope = key;
-        input.checked = draftScope === key;
-        input.addEventListener("change", () => {
-          draftScope = input.checked ? key : null;
-          notice = "";
-          render();
-          host()?.querySelector('[data-bulk-draft-scope="' + key + '"]')?.focus({ preventScroll: true });
-        });
-        option.append(input, document.createTextNode(T(label)));
-        scopes.append(option);
-      }
-      const count = missingDrafts(all).length;
-      const generate = button("Generate Drafts", createDrafts, unavailable || !count);
+      const generate = button("Generate Drafts", createDrafts, unavailable || !missingDrafts(selection).length);
       const actions = element("div", "bulk-invite-actions");
       actions.append(generate, button("Mark Sent", () => markSent(selection), !enabled));
-      fieldset.append(R.dom("legend", {}, T("Action")), scopes, actions);
+      fieldset.append(R.dom("legend", {}, T("Action")), actions);
       return fieldset;
     }
 
@@ -357,13 +401,13 @@
       box.replaceChildren();
       if (panel.hidden) return;
       syncVisible(getVisibleHouseholdIds?.());
-      const all = rows(), visible = all.filter(row => visibleHouseholds.has(row.household.id));
-      const selection = visible.filter(row => selected.has(row.household.id));
-      const sendSelection = !busy && canSend() && selection.length > 0 && selection.every(sendable);
-      const readySelection = !busy && canSend() && canDraft() && selection.some(row => row.queue?.status === "draft")
+      const selection = [...visibleRows.values()].filter(row => selected.has(row.household.id));
+      const canReviewSelection = !busy && canSend();
+      const sendSelection = canReviewSelection && selection.length > 0 && selection.every(sendable);
+      const readySelection = canReviewSelection && canDraft() && selection.some(row => row.queue?.status === "draft")
         && selection.every(row => sendable(row) || (row.queue?.status === "draft" && readyMessage(row)));
       const controls = element("div", "bulk-invite-controls");
-      controls.append(actionFieldset(all, selection));
+      controls.append(actionFieldset(selection));
       box.append(controls);
       if (readySelection) {
         const actions = element("div", "bulk-invite-actions");
@@ -388,7 +432,7 @@
       if (review && readySelection) renderReview(box, selection);
     }
 
-    return { render, clear, syncVisible, selectionControl, selected: id => selected.has(id) };
+    return { render, clear, syncVisible, selectionControl, selectAllControl, selected: id => selected.has(id) };
   }
   window.RSVP_ADMIN_BULK_INVITES = Object.freeze({ create });
 })();

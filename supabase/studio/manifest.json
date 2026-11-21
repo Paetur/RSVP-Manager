@@ -1,10 +1,10 @@
 {
   "format": 1,
-  "version": "0.9.0-beta.1",
+  "version": "0.9.0-beta.2",
   "functions": {
     "guest-gateway": {
       "file": "guest-gateway.ts",
-      "sha256": "e869b3e3ad0aac82e2c4d0f0df2915a352197a7a886901052e02b87233ba2804",
+      "sha256": "8778219fc08f0b21816198dd2b6bf197acd543b51df07770f0962a961b3d26d6",
       "verify_jwt": false,
       "sources": {
         "supabase/functions/_shared/site-origin.mjs": "9b3b31903310d20199c36ac79f6f3155e5248fcfd9c3fb8a2ca66cd6d8ea3948",
@@ -14,7 +14,7 @@
     },
     "admin-invitations": {
       "file": "admin-invitations.ts",
-      "sha256": "5876bfdf493060000e6e9820cb73d7b50e4a53c5af04c39dd2f71eb08956ad4a",
+      "sha256": "249c7b7b7d7eab45606eb557587fdfd4adccb64f409a2355de30450523e85770",
       "verify_jwt": false,
       "sources": {
         "supabase/functions/_shared/site-origin.mjs": "9b3b31903310d20199c36ac79f6f3155e5248fcfd9c3fb8a2ca66cd6d8ea3948",
@@ -25,7 +25,7 @@
     },
     "invitation-shortcuts": {
       "file": "invitation-shortcuts.ts",
-      "sha256": "5f4af78eb65f63003d4b49dd598ad9444a7ff6a7dcd904631e0ac32ba04d78ce",
+      "sha256": "88d98f3496be872bc90d366102b0833cc5857592cd5247151477fb404110118b",
       "verify_jwt": false,
       "sources": {
         "supabase/functions/_shared/site-origin.mjs": "9b3b31903310d20199c36ac79f6f3155e5248fcfd9c3fb8a2ca66cd6d8ea3948",

@@ -54,11 +54,11 @@ Use `{invitation_link}` in the message. You can also use `{household_name}` and 
 
 ![Invites in Dark mode on iPad, with filters and a grouped household delivery list](images/ipad-invites.png)
 
-Click **All**, **Not sent**, **Ready**, **Marked sent**, **Awaiting reply** or **Replied** in the Invites statistics box to filter the list. Counts are households, not individual delivery attempts. **Not sent** includes Ready invitations with no recorded Sent history. Status categories can overlap when a reminder is being prepared. The latest draft/attempt and last recorded sent date remain separate from RSVP status. A reopened RSVP is awaiting a new response even if earlier responses remain in history.
+Click **All**, **Not sent**, **Needs draft**, **Ready**, **Marked sent**, **Awaiting reply** or **Replied** in the Invites statistics box to filter the list. Counts are per household. **Needs draft** shows households with no current delivery. **Not sent** also includes prepared invitations with no recorded Sent history. Status categories can overlap when a reminder is being prepared. The latest draft/attempt and last recorded sent date remain separate from RSVP status. A reopened RSVP is awaiting a new response even if earlier responses remain in history.
 
 Invites lists active households containing guests. Under **Settings → Interface → Invites appearance**, set **Group by** to **None**, **Relational group** or **Service**. Both grouped layouts put each group in its own outline box. Relational grouping follows Households: configured top-level order, relational-group order, then parents before their descendants with manual sibling ordering. Empty grouping households are omitted while preserving their descendants' place. Service grouping uses Messages, Email, WhatsApp, SMS and None; empty groups are hidden.
 
-Open the **Search** icon beneath the Invites description to search household or recipient details. **Group**, **Language** and **Services** accept multiple choices. Messages is the default mobile route when no service was chosen; SMS retains an explicit SMS choice, and None uses templates tagged Manual.
+Open **Search** beside **Action** to search household or recipient details. **Group**, **Language** and **Services** accept multiple choices. Use **All** to select every choice or **None** to clear them before picking individual values. Messages is the default mobile route when no service was chosen; SMS retains an explicit SMS choice, and None uses templates tagged Manual.
 
 **Rows → 1** puts the selected details in separate columns. **Rows → 2** puts them beneath their main household, recipient, invitation or RSVP line. Household, Service and Invitation always stay visible. In Rows 1, **Shown fields** offers Household info, Recipient, Last sent, RSVP, RSVP info and Food. Rows 2 offers the paired RSVP column and Food; its Service/Recipient and Invitation/Last sent pairs stay visible. Household info contains guest count and language. The Service chip shows only the service name; Last sent and RSVP info show dates and response counts when those details exist in the visible list. In the two-row layout, secondary details follow their visible main field.
 
@@ -68,18 +68,18 @@ Changes in **Shown fields** and **Rows** apply to the current view. Choosing Row
 
 Click the **Service** chip, such as WhatsApp or Email, to copy the current recipient number or email address. The contact name is plain text. Once published, click its rounded **Draft** or **Ready** label to copy the latest saved invitation text and current RSVP link. When that invitation has a picture, the label tries combined picture-and-text copying; the small **Text** button copies only the full message. Combined copy requires supported browser clipboard access. The receiving app chooses what to paste, so check that the caption and link are present; use Text to paste the caption separately when needed. Only the visible chips perform these copy actions. They do not open an app, select a row or record sending. A missing, incomplete or changed invitation must be reviewed before copying. There are no row-level create or share icons. Before publication, the preview eye and household pencil remain available where permitted.
 
-Expand a household to review **Invitation delivery**, including draft editing, Ready actions and history; empty delivery sections are hidden. RSVP management stays in the expanded row, and session invitation choices are in Household details. The Food column shows interest during Collect interest and item quantities during Choose food; unanswered/zero appears as a dash. The Food summary's clickable interest counts remain available in both stages when Food is enabled and you have Food View access.
+Expand a household and open **Invitation delivery** to review its current invitation and **Delivery history**. The current invitation offers draft editing or Ready actions when available. History shows past attempts and sent snapshots for that household. In the **All** view, **Inactive households** opens archived or guestless household histories when any exist. RSVP management stays in the expanded row, and session invitation choices are in Household details. The Food column shows interest during Collect interest and item quantities during Choose food; unanswered/zero appears as a dash. The Food summary's clickable interest counts remain available in both stages when Food is enabled and you have Food View access.
 
 Drafts can be prepared while unpublished, using `{invitation_link}` as a placeholder without issuing or releasing a code. Marking ready, opening messaging apps and recording sending remain publication gated. After publication, reopen and save the draft to resolve its current link and recipient/code snapshot before marking it ready. Sent and cancelled records remain read-only; a reminder is a separate draft. Use Delete in a saved draft’s reading footer or editor to remove an unsent draft from active delivery lists. Its retired snapshot and audit history remain retained; Ready, Sent and handed-off records cannot be deleted this way. Notes/reasons and sending acknowledgements use the existing delivery history.
 
 ## Make and send bulk invites
 
-In **Main → Invites**, the **Action** box prepares household invitations from saved templates. **All missing** is the default and includes eligible households across the event, including rows hidden by filters. Choose **Selected** to use the checked rows at the far right of the household list. Hiding a row clears its selection. **Generate Drafts** creates a draft when the household has no current delivery and exactly one saved template matches both its service and language. If zero or several templates match, the household is skipped and the result explains why. Review any household that changed during generation before retrying. Existing drafts are preserved. Draft preparation is available while unpublished.
+In **Main → Invites**, choose **Needs draft** in the statistics box, then check the households at the far right of the list. The checkbox in the list header selects all visible eligible households or clears their selection. Hiding a row clears its selection. In **Action**, choose **Generate Drafts**. It creates a draft for each checked household that has no current delivery and exactly one saved template matching its service and language. The result explains which selections had no match or several matches. Successfully prepared households leave **Needs draft**. The remaining households stay visible for review. Use **All** to see the new drafts. Draft preparation is available while unpublished.
 
 For the temporary manual WhatsApp workflow:
 
 1. Publish the event when you are ready to accept replies.
-2. In **Invites → Action**, choose **Generate Drafts**.
+2. Check the households in **Invites**, then choose **Action → Generate Drafts**.
 3. Click the household's **Service** chip, paste the number into WhatsApp to open
    the intended chat, then return to RSVP and click its **Draft** or **Ready**
    label. Paste into the same chat and check the picture, full caption and current
@@ -87,13 +87,12 @@ For the temporary manual WhatsApp workflow:
    into the picture caption. Each copy replaces the clipboard. If picture copying
    is unavailable, use the existing invitation-sharing controls for the picture.
 4. After sending, select the households using the right-hand checkboxes and
-   press **Mark Sent** in the **Action** outline. Select up to
-   ten households at a time. The row then shows **Marked sent**.
+   press **Mark Sent** in the **Action** outline. The row then shows **Marked sent**. You can review, mark ready or confirm sending for more than ten selected households.
 
 Copying does not change delivery status. **Mark Sent** records your manual
 confirmation and sends no message. It requires publication and sending
 permission. A valid draft is prepared and recorded through the existing
-revision-checked APIs; preparing a draft also requires invitation-editing
+revision-checked APIs. Preparing a draft also requires invitation-editing
 permission. Incomplete or changed drafts must be reviewed before retrying.
 Already recorded deliveries retain their history and cannot be marked twice.
 

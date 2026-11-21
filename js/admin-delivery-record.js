@@ -6,7 +6,6 @@
     R,
     T,
     getStore,
-    getDeliveryStatuses,
     disclosure,
     adminTime,
     show,
@@ -23,7 +22,6 @@
     reload,
     viewInInvites,
   }) {
-    const $ = R.byId;
     const pendingDeletes = new Set();
     function canDeleteDraft(q) {
       // Handoff audit stays server-owned; the RPC also rejects any prior handoff.
@@ -312,7 +310,7 @@
       return form;
     }
 
-    function deliveryRecord(h, q, editable = true) {
+    function deliveryRecord(h, q, { editable, historyOnly }) {
       const store = getStore();
       const d = disclosure(
         ({
@@ -335,6 +333,7 @@
       );
       d.dataset.deliveryId = q.id;
       const recipient = q.recipient_snapshot || {};
+      const message = R.dom("pre", { class: "delivery-message" }, q.message_body);
       d.append(
         R.dom(
           "p",
@@ -345,9 +344,20 @@
               .join(" · "),
         ),
         R.dom("p", { class: "micro" }, q.message_subject || ""),
-        R.dom("pre", { class: "delivery-message" }, q.message_body),
+        message,
       );
-      window.RSVP_INVITATION_IMAGE.preview(d, q.message_image, { R, T });
+      if (q.message_image) {
+        // A household can retain several large invitation pictures.
+        const showPicture = () => {
+          if (!d.open) return;
+          d.removeEventListener("toggle", showPicture);
+          const picture = document.createDocumentFragment();
+          window.RSVP_INVITATION_IMAGE.preview(picture, q.message_image, { R, T });
+          message.after(picture);
+        };
+        if (d.open) showPicture();
+        else d.addEventListener("toggle", showPicture);
+      }
       const copy = R.dom(
         "button",
         { type: "button", class: "invite-text-action" },
@@ -363,6 +373,7 @@
       });
       d.append(copy);
       if (
+        !historyOnly &&
         store.settings?.is_published &&
         can("sendInvites") &&
         q.status === "ready" &&
@@ -452,6 +463,7 @@
           d.append(R.dom("p", { class: "notice" }, T(error.message)));
         }
       } else if (
+        !historyOnly &&
         store.settings?.is_published &&
         can("sendInvites") &&
         q.status === "ready"
@@ -529,6 +541,7 @@
         d.append(edit);
       }
       if (
+        !historyOnly &&
         store.settings?.is_published &&
         can("sendInvites") &&
         q.status === "ready"
@@ -586,15 +599,13 @@
       }
       return d;
     }
-    function deliverySection(h, { allowCreate = false } = {}) {
+    function deliverySection(h, { allowCreate = false, historyOnly = false } = {}) {
       const store = getStore();
       const d = disclosure(
         T("interface.messages.invitation_delivery"),
         "feature-section",
       );
-      const records = store.queue
-        .filter((q) => q.household_id === h.id)
-        .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const records = window.RSVP_ADMIN_OVERVIEW.invitationRecords(store, h.id);
       d.append(
         R.dom(
           "p",
@@ -609,7 +620,7 @@
             : T("interface.messages.no_delivery_recorded_yet"),
         ),
       );
-      if (!allowCreate && can("invites")) {
+      if (!allowCreate && !historyOnly && can("invites")) {
         const link = R.dom("a", { class: "btn secondary" }, T("View in Invites"));
         link.href = "#invites";
         link.addEventListener("click", (event) => {
@@ -618,51 +629,27 @@
         });
         d.append(link);
       }
-      records.forEach((q) => d.append(deliveryRecord(h, q, allowCreate)));
+      if (!records.length) return d;
+      const current = historyOnly ? null : records.find(record => record.status !== "cancelled");
+      const recordOptions = { editable: allowCreate && !historyOnly, historyOnly };
+      const groups = R.dom("div", { class: "invitation-delivery-sections" });
+      if (current) {
+        const invitation = R.dom("section", { class: "current-invitation" });
+        invitation.append(R.dom("h3", {}, T("Current invitation")), deliveryRecord(h, current, recordOptions));
+        groups.append(invitation);
+      }
+      const previous = records.filter(record => record !== current);
+      if (previous.length) {
+        const history = R.dom("section", { class: "household-delivery-history" });
+        history.append(R.dom("h3", {}, T("Delivery history")));
+        previous.forEach(record => history.append(deliveryRecord(h, record, recordOptions)));
+        groups.append(history);
+      }
+      d.append(groups);
       return d;
     }
-    function renderDeliveryLog() {
-      const store = getStore();
-      const box = $("deliveryLog");
-      box.replaceChildren();
-      const filters = getDeliveryStatuses();
-      const records = store.queue
-        .filter((q) => filters.has(q.status))
-        .sort((a, b) => b.created_at.localeCompare(a.created_at));
-      $("deliveryCounts").textContent = T(
-        "interface.messages.ready_ready_sent_recorded_sent_failed_failed",
-        {
-          ready: store.queue.filter((q) => q.status === "ready").length,
-          sent: store.queue.filter((q) => q.status === "sent").length,
-          failed: store.queue.filter((q) => q.status === "failed").length,
-        },
-      );
-      for (const q of records) {
-        const h = store.households.find((h) => h.id === q.household_id);
-        if (!h) continue;
-        const wrapper = disclosure(
-          R.householdName(h) +
-            (h.archived_at ? T("interface.messages.archived_2") : ""),
-        );
-        wrapper.append(deliveryRecord(h, q, false));
-        box.append(wrapper);
-      }
-      if (!records.length)
-        box.append(
-          R.dom(
-            "p",
-            { class: "micro" },
-            T("interface.messages.no_deliveries_match_this_status"),
-          ),
-        );
-    }
 
-    return {
-      editor: deliveryEditor,
-      record: deliveryRecord,
-      section: deliverySection,
-      renderLog: renderDeliveryLog,
-    };
+    return { editor: deliveryEditor, section: deliverySection };
   }
   window.RSVP_ADMIN_DELIVERY_RECORD = Object.freeze({ create });
 })();

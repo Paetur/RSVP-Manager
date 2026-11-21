@@ -29,15 +29,14 @@
     householdFacts,
     adminTime,
     show,
-    onDeliveryFilterChange,
     getSelectionControl = () => null,
+    getSelectAllControl = () => null,
     onVisibleHouseholds = () => {},
   }) {
     const $ = R.byId;
     let inviteOverviewFilter = "all", inviteInterestFilter = "all", visibleHouseholdIds = [];
     const filterStates = new Map();
     const serviceLabels = { messages: "Messages", email: "Email", whatsapp: "WhatsApp", sms: "SMS", none: "None" };
-    const deliveryStates = ["draft", "ready", "sent", "failed", "cancelled"];
     const visibleFields = window.RSVP_ADMIN_PREFERENCES.invitesFields;
     const columnGroups = window.RSVP_ADMIN_PREFERENCES.invitesColumnGroups;
     const requiredFields = window.RSVP_ADMIN_PREFERENCES.invitesRequiredFields;
@@ -89,6 +88,7 @@
         options: (rowLayout === 1 ? visibleFields : columnGroups).filter(([key]) => !requiredFields.includes(key)),
         selected: shown,
         onChange: render,
+        allOrNone: true,
         className: "invite-shown-fields",
       }));
     }
@@ -115,11 +115,11 @@
         state.keys = keys;
       }
       const dropdown = window.RSVP_INLINE.multiChoice({
-        R, T, label, options: values, selected: state.selected, group: "invite-overview-filters",
-        onChange(key) {
+        R, T, label, options: values, selected: state.selected, group: "invite-overview-filters", allOrNone: true,
+        onChange(key, action) {
           render();
-          if (id === "deliveryStatusFilter") onDeliveryFilterChange();
-          $(id).querySelector('[data-value="' + CSS.escape(key) + '"]')?.focus({ preventScroll: true });
+          const control = action ? '[data-multi-select="' + action + '"]' : '[data-value="' + CSS.escape(key) + '"]';
+          $(id).querySelector(control)?.focus({ preventScroll: true });
         },
       });
       dropdown.open = openFilter === id;
@@ -207,6 +207,7 @@
       const filters = [
         ["all", "All", () => true],
         ["not-sent", "Not sent", (r) => !r.sent],
+        ["needs-draft", "Needs draft", (r) => !r.latest],
         ["ready", "Ready", (r) => r.ready],
         ["sent", "Marked sent", (r) => r.sent],
         ["awaiting", "Awaiting reply", (r) => r.sent && !r.replied],
@@ -232,10 +233,11 @@
           inviteOverviewFilter = key;
           if (key === "all") inviteInterestFilter = "all";
           render();
+          countHost.querySelector('[data-invite-filter="' + key + '"]')?.focus({ preventScroll: true });
         });
         countHost.append(button);
       }
-      const openFilter = ["inviteGroupFilter", "inviteLanguageFilter", "inviteChannelFilter", "deliveryStatusFilter"]
+      const openFilter = ["inviteGroupFilter", "inviteLanguageFilter", "inviteChannelFilter"]
         .find(id => $(id).querySelector("details[open]"));
       const groups = filterChoices("inviteGroupFilter", "Group", [
         ...planningConfiguration().groups.map(g => ["top:" + g.id, groupLabel(g.id)]),
@@ -249,8 +251,6 @@
       }
       const selectedLanguages = filterChoices("inviteLanguageFilter", "Language", languageChoices, openFilter);
       const services = filterChoices("inviteChannelFilter", "Services", Object.entries(serviceLabels), openFilter);
-      filterChoices("deliveryStatusFilter", "Filter delivery status", deliveryStates.map(key => [key,
-        ({ draft: "Draft", ready: "Ready", sent: "Recorded sent", failed: "Failed", cancelled: "Cancelled" })[key]]), openFilter);
       const canInterestFilter = can("food") && store.settings?.food_enabled !== false;
       const showFoodInterest = canInterestFilter && store.settings?.food_stage === "interest";
       const showFoodItems = can("food") && store.settings?.food_enabled !== false && store.settings?.food_stage === "selection";
@@ -278,23 +278,19 @@
           }
         }
       }
-      const test =
-          filters.find(([key]) => key === inviteOverviewFilter)?.[2] ||
-          (() => true),
-        visible = all.filter(
-          (r) =>
-            test(r) &&
-            (!search ||
-              [R.householdName(r.h), r.contactName, r.contactValue]
-                .join(" ")
-                .toLowerCase()
-                .includes(search)) &&
-            (groups.size === filterStates.get("inviteGroupFilter").keys.size || groups.has("top:" + r.h.planning_group_id) || groups.has("relation:" + r.h.relation_group_id)) &&
-            selectedLanguages.has(r.h.language || store.settings?.default_language || "en") &&
-            services.has(r.service) &&
-            (!canInterestFilter || inviteInterestFilter === "all" ||
-              window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, r.h) === inviteInterestFilter),
-        );
+      const matchesFilters = (r) =>
+        (!search ||
+          [R.householdName(r.h), r.contactName, r.contactValue]
+            .join(" ")
+            .toLowerCase()
+            .includes(search)) &&
+        (groups.size === filterStates.get("inviteGroupFilter").keys.size || groups.has("top:" + r.h.planning_group_id) || groups.has("relation:" + r.h.relation_group_id)) &&
+        selectedLanguages.has(r.h.language || store.settings?.default_language || "en") &&
+        services.has(r.service) &&
+        (!canInterestFilter || inviteInterestFilter === "all" ||
+          window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, r.h) === inviteInterestFilter);
+      const test = filters.find(([key]) => key === inviteOverviewFilter)?.[2] || (() => true);
+      const visible = all.filter(model => test(model) && matchesFilters(model));
       visibleHouseholdIds = visible.map(model => model.h.id);
       onVisibleHouseholds(visibleHouseholdIds.slice());
       $("inviteResultCount").hidden = true;
@@ -320,7 +316,8 @@
         const cell = R.dom("span", {}, col.label ? T(col.label) : "");
         if (col.key === "selection") {
           cell.className = "invite-overview-select";
-          cell.setAttribute("aria-label", T("Selected"));
+          const selectAll = getSelectAllControl();
+          if (selectAll) cell.append(selectAll);
         }
         heading.append(cell);
       }
@@ -422,7 +419,6 @@
             ["delivery", "Invitation delivery", (household) => deliverySection(household, { allowCreate: true })],
             ["rsvp", "RSVP", rsvpSection],
           ]) {
-            if (section === "delivery" && !store.queue.some(q => q.household_id === h.id)) continue;
             const detail = build(h);
             detail.id = "invite-" + section + "-" + h.id;
             detail.querySelector("summary").textContent = T(label);
@@ -465,7 +461,7 @@
         }
         const selection = R.dom("span", { class: "invite-overview-select" });
         const select = getSelectionControl(h.id);
-        // The shared control owns eligibility, max-ten and native checkbox
+        // The shared control owns eligibility and native checkbox
         // activation; its label isolates clicks/keys from this summary.
         if (select) selection.append(select);
         const cells = { identity, householdInfo, recipient, serviceInfo, delivery, lastSent, reply, replyInfo, food: foodInterest, actions, selection };
@@ -550,28 +546,68 @@
           list.append(section);
         }
       } else for (const model of visible) drawRow(model, list);
-      if (!visible.length)
+      let inactiveShown = false;
+      if (can("invites") && inviteOverviewFilter === "all" && inviteInterestFilter === "all") {
+        const activeIds = new Set(all.map(model => model.h.id));
+        const historyIds = new Set(store.queue.map(record => record.household_id));
+        const inactive = ordered(store.households.filter(h => !activeIds.has(h.id) && historyIds.has(h.id)), "household_name")
+          .map(invitationOverview).filter(matchesFilters);
+        if (inactive.length) {
+          box.append(inactiveHouseholds(inactive, Boolean(search)));
+          inactiveShown = true;
+        }
+      }
+      if (!visible.length && !inactiveShown)
         list.append(
           R.dom(
             "p",
             { class: "muted" },
-            T("No households match these filters."),
+            T(inviteOverviewFilter === "needs-draft" && all.every(model => model.latest)
+              ? "No households need a draft."
+              : "No households match these filters."),
           ),
         );
 
+    }
+
+    function inactiveHouseholds(models, searching) {
+      const group = R.dom("details", { class: "admin-management invite-inactive-households" });
+      group.append(R.dom("summary", {}, T("Inactive households") + " · " + models.length));
+      setDisclosure(group, "invite-inactive-households", searching);
+      for (const { h } of models) {
+        const row = R.dom("details", { class: "admin-management" });
+        row.dataset.inviteInactiveHousehold = h.id;
+        const label = R.householdName(h) + (h.archived_at ? T("interface.messages.archived_2") : "");
+        row.append(R.dom("summary", {}, label));
+        const key = "invite-inactive-household:" + h.id;
+        function fill() {
+          if (!row.open || row.childElementCount > 1) return;
+          const details = deliverySection(h, { historyOnly: true });
+          details.id = "invite-delivery-" + h.id;
+          setDisclosure(details, key + ":delivery", true);
+          row.append(details);
+        }
+        setDisclosure(row, key);
+        row.addEventListener("toggle", fill);
+        fill();
+        group.append(row);
+      }
+      return group;
     }
 
     function openHousehold(householdId) {
       inviteOverviewFilter = "all";
       inviteInterestFilter = "all";
       $("inviteSearch").value = "";
-      for (const [id, state] of filterStates)
-        if (id !== "deliveryStatusFilter") state.selected = new Set(state.keys);
+      for (const state of filterStates.values()) state.selected = new Set(state.keys);
       rememberDisclosure("invite-household:" + householdId, true);
       render();
-      const row = [...$("inviteRows").querySelectorAll("[data-invite-household]")]
-        .find((element) => element.dataset.inviteHousehold === householdId);
+      const rows = $("inviteRows");
+      const escapedId = CSS.escape(householdId);
+      const row = rows.querySelector('[data-invite-household="' + escapedId + '"]') ||
+        rows.querySelector('[data-invite-inactive-household="' + escapedId + '"]');
       if (!row) { window.RSVP_ADMIN_SEARCH.enhance({ R, T, iconAction }).open("inviteSearch"); return; }
+      if (row.dataset.inviteInactiveHousehold) row.parentElement.open = true;
       row.open = true;
       row.dispatchEvent(new Event("toggle"));
       const delivery = row.querySelector("#invite-delivery-" + householdId);
@@ -579,8 +615,7 @@
       row.scrollIntoView({ block: "nearest" });
       row.querySelector("summary")?.focus();
     }
-    return { render, openHousehold, getVisibleHouseholdIds: () => visibleHouseholdIds.slice(),
-      deliveryStatuses: () => filterStates.get("deliveryStatusFilter")?.selected || new Set(deliveryStates) };
+    return { render, openHousehold, getVisibleHouseholdIds: () => visibleHouseholdIds.slice() };
   }
   window.RSVP_ADMIN_INVITES = { create };
 })();

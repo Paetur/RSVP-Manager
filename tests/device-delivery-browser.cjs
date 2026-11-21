@@ -40,8 +40,11 @@ async function run(type){
   const before = await page.evaluate(()=>JSON.stringify(fixtures.invitation_send_queue));
   const action = page.locator('#bulkInvitesHost').getByRole('group',{name:'Action',exact:true});
   assert.equal(await page.evaluate(()=>window.__calls.some(c=>c.name==='admin_save_delivery')),false,'opening Invites does not create a delivery');
+  await page.locator('[data-invite-filter="needs-draft"]').click();
+  await page.locator('[data-bulk-select-all]').check();
   await action.getByRole('button',{name:'Generate Drafts',exact:true}).click();
   await page.locator('#bulkInvitesHost').getByText('3 drafts created',{exact:true}).waitFor();
+  await page.locator('[data-invite-filter="all"]').click();
   const generated = await page.evaluate(()=>window.__calls.filter(c=>c.name==='admin_save_delivery'));
   assert.equal(generated.length,3,'the three missing service/language matches produce three drafts');
   assert.ok(generated.every(c=>c.args.p_id===null&&c.args.p_values.status==='draft'&&c.args.p_values.only_if_missing===true&&c.args.p_values.template_revision),'draft preparation carries the selected template revision');
