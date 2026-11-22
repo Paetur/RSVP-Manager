@@ -363,7 +363,7 @@
             p_values: {
               channel: current.channel,
               contact_id: current.contact_id || null,
-              message_subject: current.message_subject || "",
+              message_subject: window.RSVP_INVITATION_TEXT.deliverySubject(household, current, R),
               message_body: body,
               message_image: current.message_image ?? null,
               expected_invitation_code: household.invite_code,
@@ -465,6 +465,9 @@
       const recipient = q.recipient_snapshot || {};
       const preparedBody = prepareDraft && store.settings?.is_published &&
         window.RSVP_INVITATION_TEXT.deliveryMessage(h, q, R);
+      const subject = preparedBody
+        ? window.RSVP_INVITATION_TEXT.deliverySubject(h, q, R)
+        : q.message_subject || "";
       const message = R.dom("pre", { class: "delivery-message" }, preparedBody || q.message_body);
       d.append(
         R.dom(
@@ -475,7 +478,7 @@
               .filter(Boolean)
               .join(" · "),
         ),
-        R.dom("p", { class: "micro" }, q.message_subject || ""),
+        R.dom("p", { class: "micro" }, subject),
         message,
       );
       if (q.message_image) {

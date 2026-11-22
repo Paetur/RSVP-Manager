@@ -35,7 +35,7 @@ return priorPlanningRpc(name,args);};`;
     );
     await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
     await page.waitForFunction(
-      () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+      () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
     );
     await page.locator("[data-tab=events]").click();
 

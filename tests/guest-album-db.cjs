@@ -34,6 +34,27 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
       /changed/,
     );
     await require("./helpers/named-template.cjs").saveTemplate(db, { language: "de", body: "Reply {rsvp_deadline:+5}: {invitation_link}", image: picture });
+    await db.exec("RESET ROLE");
+    const sharedPicture = await value(
+      "SELECT message_image->>'picture_ref' v FROM public.message_templates WHERE language_code='de' AND template_key LIKE 'invitation:%'",
+    );
+    assert.match(sharedPicture, /^[0-9a-f]{64}$/);
+    // The scoped existing-installation update uses the same album compaction.
+    await q("UPDATE public.event_settings SET invitation_picture_album=app_private.compact_invitation_album(invitation_picture_album) WHERE id=1");
+    const storedAlbum = await value("SELECT invitation_picture_album v FROM public.event_settings WHERE id=1");
+    assert.deepEqual(storedAlbum[0].picture, { picture_ref: sharedPicture, name: picture.name, crop: picture.crop });
+    assert.equal(await value("SELECT count(*)::int v FROM app_private.invitation_snapshots WHERE kind='picture'"), 1);
+    await db.exec("SET ROLE authenticated");
+    current = await settings();
+    assert.deepEqual(current.invitation_picture_album, withPicture.invitation_picture_album);
+    await assert.rejects(
+      () => q("SELECT public.admin_save_invitation_picture($1,'Forged',$2,$3)", [
+        id, storedAlbum[0].picture, current.invitation_album_revision,
+      ]),
+      /Invalid album picture/,
+    );
+    await q("SELECT public.admin_save_invitation_picture($1,'Sample',$2,$3)", [id, picture, current.invitation_album_revision]);
+    assert.deepEqual((await settings()).invitation_picture_album, withPicture.invitation_picture_album);
     for (const token of [
       "{unknown}",
       "{rsvp_deadline:+367}",
@@ -89,7 +110,22 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
         .invitation_picture_album,
       withPicture.invitation_picture_album,
     );
+    const forgedPayload = structuredClone(backup.payload);
+    forgedPayload.tables["public.event_settings"][0].invitation_picture_album[0].picture = storedAlbum[0].picture;
+    await db.exec("RESET ROLE");
+    const forgedBackup = await value("SELECT app_private.seal_backup($1) v", [forgedPayload]);
+    await db.exec("SET ROLE authenticated");
+    await assert.rejects(
+      () => value("SELECT public.admin_preview_backup($1) v", [forgedBackup]),
+      /Backup invitation picture album requires inline images/,
+    );
+    const withoutAlbum = await value("SELECT public.admin_export_backup('template',ARRAY['venues'],false) v");
+    assert.deepEqual(withoutAlbum.payload.tables["public.event_settings"][0].invitation_picture_album, []);
+    const partial = await value("SELECT public.admin_export_backup('template',ARRAY['venues','picture_album'],false) v");
+    assert.deepEqual(partial.payload.tables["app_private.invitation_snapshots"], []);
+    assert.deepEqual(partial.payload.tables["public.event_settings"][0].invitation_picture_album,withPicture.invitation_picture_album);
     const destination = await createDatabase();
+    let albumOnlyBackup;
     try {
       await signIn(destination);
       const preview = (
@@ -111,12 +147,32 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
         withPicture.invitation_picture_album,
       );
       assert.equal(restored.settings.guest_title_visibility.de, false);
+      await destination.exec("RESET ROLE");
+      const stored = (await destination.query("SELECT invitation_picture_album v FROM public.event_settings WHERE id=1")).rows[0].v;
+      assert.deepEqual(stored, storedAlbum);
+      await destination.exec("SET ROLE authenticated");
+      const template = restored.invitationTemplates[0];
+      await destination.query("SELECT public.admin_delete_invitation_template($1,$2)", [template.id, template]);
+      albumOnlyBackup = (await destination.query("SELECT public.admin_export_backup() v")).rows[0].v;
+      assert.deepEqual(albumOnlyBackup.payload.tables["app_private.invitation_snapshots"], []);
+      assert.deepEqual(albumOnlyBackup.payload.tables["public.event_settings"][0].invitation_picture_album, withPicture.invitation_picture_album);
     } finally {
       await destination.close();
     }
+    const albumDestination = await createDatabase();
+    try {
+      await signIn(albumDestination);
+      await albumDestination.query("SELECT public.admin_restore_backup($1,$2)", [
+        albumOnlyBackup, "RESTORE " + albumOnlyBackup.payload.tables["public.event_settings"][0].event_name,
+      ]);
+      const restored = (await albumDestination.query("SELECT public.admin_load_data() v")).rows[0].v;
+      assert.deepEqual(restored.settings.invitation_picture_album, withPicture.invitation_picture_album);
+    } finally {
+      await albumDestination.close();
+    }
     await q(
       "SELECT public.admin_save_invitation_picture($1,'Sample',null,$2)",
-      [id, withPicture.invitation_album_revision],
+      [id, (await settings()).invitation_album_revision],
     );
     assert.equal((await settings()).invitation_picture_album.length, 0);
     assert.deepEqual(
@@ -151,7 +207,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     );
     assert.equal(await value("SELECT public.get_public_event_v2() v"), null);
     console.log(
-      "PASS album/title preferences: JPEG persistence, stale-write guards, strict deadline tokens, private guest projection, backup round-trip, independent snapshots and View/anonymous denials.",
+      "PASS album/title preferences: shared JPEG storage and private projections, inline format 3 backup and restore, stale-write guards, independent snapshots and View/anonymous denials.",
     );
   } finally {
     await db.close();

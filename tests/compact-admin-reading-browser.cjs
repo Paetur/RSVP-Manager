@@ -43,7 +43,7 @@ async function paired(list) {
       await routeSyntheticSdk(page, mock + "\n" + extra + "\n" + seed);
       await page.route("**/version.json", route => route.fulfill({ contentType: "application/json", body: '{"version":"0.9.0-alpha.7"}' }));
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
-      await page.waitForFunction(() => document.querySelectorAll("#statsGrid .stat-card").length === 4);
+      await page.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
       await page.locator("#adminVersion").filter({ hasText: "v0.9.0-alpha.7" }).waitFor({ state: "attached" });
       assert.equal(await page.locator("#adminVersion").isVisible(), width > 700, "version appears only at desktop widths");
       await page.locator('[data-tab="events"]').click();

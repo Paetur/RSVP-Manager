@@ -47,56 +47,57 @@ async function geometry(page, count) {
 async function toolbarGeometry(page, width) {
  const result=await page.locator('[data-panel=invites]').evaluate(host=>{
   const heading=host.querySelector('.invite-box-heading'),action=host.querySelector('#bulkInvitesHost');
-  const sorting=host.querySelector('.invite-sorting'),stats=host.querySelector('#statsGrid');
+  const stats=host.querySelector('#statsGrid'),overview=host.querySelector('#overviewPanel');
   const buttons=[...action.querySelectorAll('.bulk-invite-actions > button')];
-  const filters=host.querySelector('.invite-overview-filters'),search=host.querySelector('#inviteSearchToggle');
-  const controls=[...filters.children];
+  const shown=host.querySelector('#inviteShownFieldsHost'),search=host.querySelector('#inviteSearchToggle');
   const box=node=>node.getBoundingClientRect(),h=box(heading),s=box(search);
+  const title=box(heading.querySelector('.invite-heading-title')),field=box(shown);
   const actionBoxes=[...buttons,search].map(box);
   const buttonsInOrder=actionBoxes.every((current,index)=>!index||
    current.top>=actionBoxes[index-1].bottom-1||
    (current.left>=actionBoxes[index-1].right-1&&Math.abs(current.top-actionBoxes[index-1].top)<2));
   const center=rect=>rect.top+rect.height/2;
   return {adminContainsRows:document.getElementById('adminApp').contains(host.querySelector('#inviteRows')),actionInHeader:heading.contains(action),rightAligned:Math.abs(s.right-h.right)<2,
-   sortingBetween:sorting.contains(filters)&&stats.parentElement===sorting.parentElement&&box(stats).bottom<=box(sorting).top+1&&box(sorting).bottom<=h.top+1&&sorting.nextElementSibling.contains(heading),
-   sortingOutlined:parseFloat(getComputedStyle(sorting).borderTopWidth)>0,
+   statsBeforeInvites:box(overview).bottom<=h.top+1&&overview.contains(stats)&&!host.querySelector('.invite-sorting'),
+   shownInHeader:heading.contains(shown)&&!shown.querySelector(':scope > fieldset'),
+   desktopShown:field.left>=title.right-1&&field.right<=actionBoxes[0].left+1,
+   phoneShown:field.top>=title.bottom-1&&field.bottom<=actionBoxes[0].top+1,
    actionUnframed:!action.querySelector('fieldset')&&parseFloat(getComputedStyle(action).borderTopWidth)===0,
    searchInHeader:heading.contains(search),buttonsInOrder,
    buttonNames:buttons.map(button=>button.textContent),
    desktopSameLine:actionBoxes.every(current=>Math.abs(center(current)-center(s))<1),
-   filterOrder:controls.map(node=>node.id),
-   groupTreesInOverview:stats.contains(host.querySelector('#inviteGroupTrees')),
-   rowsOutsideSorting:!filters.querySelector('fieldset')};
+   overviewControls:['#inviteGroupTrees','#inviteSessionTree','#inviteLanguageFilter','#inviteChannelFilter']
+    .every(selector=>stats.contains(host.querySelector(selector)))};
  });
  assert.equal(result.adminContainsRows,true,'Invites rows stay inside the administrator root');
  assert.equal(result.actionInHeader,true,'Action belongs to the top Invites header');
  assert.equal(result.rightAligned,true,'Search aligns to the right header edge');
- assert.equal(result.sortingBetween,true,'Sorting sits in its own panel below the statistics and directly above Invites');
- assert.equal(result.sortingOutlined,true,'Sorting has its own outline');
+ assert.equal(result.statsBeforeInvites,true,'the boxed Overview is above the Invites toolbar');
+ assert.equal(result.shownInHeader,true,'Shown fields is in the Invites header');
+ assert.equal(width>750?result.desktopShown:result.phoneShown,true,'Shown fields fits between the title and actions at '+width+'px');
  assert.equal(result.actionUnframed,true,'the action buttons have no group outline');
  assert.equal(result.searchInHeader,true,'Search stays in the Invites header');
  assert.deepEqual(result.buttonNames,['Make draft(s)','Make invitation(s)','Mark sent']);
  assert.equal(result.buttonsInOrder,true,'action and Search positions follow toolbar order at '+width+'px');
  if(width>1000)assert.equal(result.desktopSameLine,true,'the desktop toolbar stays on one row');
- assert.deepEqual(result.filterOrder,['inviteShownFieldsHost','inviteLanguageFilter','inviteChannelFilter']);
- assert.equal(result.groupTreesInOverview,true,'group trees are part of the overview');
- assert.equal(result.rowsOutsideSorting,true,'Rows lives in Invites appearance');
- const sorting=page.locator('.invite-sorting');
- const sortingGeometry=()=>sorting.evaluate(node=>{
+ assert.equal(result.overviewControls,true,'groups, sessions, languages and services are part of the Overview');
+ const heading=page.locator('.invite-box-heading');
+ const headerGeometry=()=>heading.evaluate(node=>{
   const box=node.getBoundingClientRect();
-  const header=node.nextElementSibling.querySelector('.invite-box-heading').getBoundingClientRect();
-  return { height:box.height, gap:header.top-box.bottom };
+  const rows=document.querySelector('#inviteRows').getBoundingClientRect();
+  return { height:box.height, gap:rows.top-box.bottom };
  });
- for(const id of ['inviteShownFieldsHost','inviteLanguageFilter','inviteChannelFilter']){
-  const menu=page.locator('#'+id+' details');
-  const before=await sortingGeometry();
-  await menu.locator('summary').press('Enter');
-  assert.equal(await menu.locator('.template-choice-menu').evaluate(node=>getComputedStyle(node).position),'absolute');
-  assert.deepEqual(await sortingGeometry(),before,'the open menu overlays the page without changing the layout');
-  assert.ok(await menu.locator('.template-choice-menu').evaluate(node=>{const b=node.getBoundingClientRect();return b.left>=0&&b.right<=innerWidth+1;}),'overlay fits the page width');
-  await page.keyboard.press('Escape');
-  assert.equal(await menu.evaluate(node=>node.open),false);
- }
+ const menu=page.locator('#inviteShownFieldsHost details'),overlay=menu.locator('.template-choice-menu');
+ const before=await headerGeometry();
+ await menu.locator('summary').press('Enter');
+ assert.equal(await overlay.evaluate(node=>getComputedStyle(node).position),'absolute');
+ assert.deepEqual(await headerGeometry(),before,'the open menu overlays the page without changing the layout');
+ assert.ok(await overlay.evaluate(node=>{const b=node.getBoundingClientRect();return b.left>=0&&b.right<=innerWidth+1;}),'overlay fits the page width');
+ if(width>=750)await overlay.hover();
+ await page.keyboard.press('Escape');
+ assert.equal(await menu.evaluate(node=>node.open),false);
+ assert.equal(await overlay.evaluate(node=>getComputedStyle(node).display),'none','closing removes the overlay from painting and hit testing');
+ assert.equal(await menu.locator('summary').evaluate(node=>node===document.activeElement),true);
  await page.locator('#inviteSearchToggle').click();
  assert.equal(await page.locator('#inviteSearch').evaluate(node=>node===document.activeElement),true);
  assert.equal(await page.locator('#inviteSearch').evaluate(node=>{const b=node.getBoundingClientRect();return b.left>=0&&b.right<=innerWidth+1&&b.width>0;}),true,'expanded Search input fits the viewport');
@@ -162,6 +163,24 @@ async function rowsGeometry(page) {
  assert.ok(await page.locator('#inviteRows .invite-household > summary > .invite-overview-household-info').count()>0,'one row restores enabled info columns');
  assert.equal(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta,#inviteRows .invite-overview-recipient small').count(),0);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'one-row presentation remains within the viewport');
+ const oneRow=fields.getByRole('radio',{name:'1 Row',exact:true}),twoRows=fields.getByRole('radio',{name:'2 Row',exact:true});
+ const savedRows=()=>page.evaluate(()=>[window.RSVP_ADMIN_PREFERENCES.invitesNarrowRows,window.RSVP_ADMIN_PREFERENCES.invitesWideRows]);
+ const saved=await savedRows(),quickBefore=await state();
+ await fields.locator('summary').click();
+ assert.equal(await fields.getByRole('button',{name:/^(All|None)$/}).count(),0,'row controls replace the All and None actions');
+ assert.equal(await oneRow.isChecked(),true);
+ await twoRows.click();
+ assert.equal(await rows.getAttribute('data-rows'),'2','the dropdown changes layout immediately');
+ assert.equal(await twoRows.isChecked(),true);
+ assert.equal(await twoRows.evaluate(node=>document.activeElement===node),true,'the active choice keeps focus after rebuilding fields');
+ assert.deepEqual(await state(),{...quickBefore,shown:optionalColumns},'the quick choice preserves selection and application state');
+ await twoRows.press('ArrowLeft');
+ assert.equal(await rows.getAttribute('data-rows'),'1','arrow keys switch the radio group and list together');
+ assert.equal(await oneRow.isChecked(),true);
+ assert.deepEqual(await state(),quickBefore,'returning with the quick choice restores one-row fields');
+ assert.deepEqual(await savedRows(),saved,'the quick choice does not write either layout preference');
+ await oneRow.press('Escape');
+ assert.equal(await fields.locator('summary').evaluate(node=>document.activeElement===node),true);
 }
 
 async function mergedInvitesGeometry(page) {
@@ -188,7 +207,7 @@ async function mergedInvitesGeometry(page) {
    outlines:[...host.querySelectorAll('#inviteRows .invite-overview-group')].every(group=>{const style=getComputedStyle(group);return parseFloat(style.borderTopWidth)>0&&parseFloat(style.borderRadius)>0;}),
    pageFits:document.documentElement.scrollWidth<=innerWidth+1};
  });
- assert.equal(result.cards,4,'Invites contains the merged statistics and status cards');assert.ok(result.rows>0);
+ assert.equal(result.cards,6,'the Overview has six cards with household and guest counts combined');assert.ok(result.rows>0);
  assert.equal(result.controls,true,'Action contains three compact buttons without scope checkboxes');
  assert.equal(result.headerSelection,true,'the rightmost heading keeps the Select all touch target');
  assert.equal(result.independent,true,'copy buttons remain outside selection labels');assert.equal(result.selected,true,'one shared checkbox is the rightmost cell');
@@ -209,9 +228,13 @@ async function mergedInvitesGeometry(page) {
    await page.addInitScript(()=>{if(window===window.top)localStorage.setItem('rsvp-interface-language','en');});
    await routeSyntheticSdk(page,mock+'\n'+extra+'\n'+seed);
    await page.goto('http://127.0.0.1:'+server.address().port+'/admin/');
-   await page.waitForFunction(()=>document.querySelectorAll('#statsGrid .stat-card').length===4);
+   await page.waitForFunction(()=>document.querySelector('#inviteOverviewCounts .invite-stat-row'));
    assert.equal(await page.locator('#inviteRows').getAttribute('data-rows'),width>=1024?'2':'1','screen-size defaults choose the row presentation');
    if(width===1024){
+    const fields=page.locator('#inviteShownFieldsHost .invite-shown-fields');
+    await fields.locator('summary').click();
+    await fields.getByRole('radio',{name:'1 Row',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('#inviteRows').dataset.rows==='1');
     await page.setViewportSize({width:1023,height:1050});
     await page.waitForFunction(()=>document.querySelector('#inviteRows').dataset.rows==='1');
     await page.setViewportSize({width:1024,height:1050});
@@ -250,6 +273,7 @@ async function mergedInvitesGeometry(page) {
    }
    for(const key of ['recipient','lastSent','reply','replyInfo','food'])await toggleField(key,false);
    assert.equal(await selection.innerText(),'None selected');
+   assert.deepEqual(await page.locator('#inviteRows .invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Service','Invitation','Actions']);
    assert.equal(await page.locator('#inviteRows .invite-overview-heading > span').count(),5,'required Household, Service, Invitation, Actions and selection remain');
    for(const key of ['recipient','lastSent','reply','replyInfo','food'])await toggleField(key,true);
    assert.doesNotMatch(await selection.innerText(),/Household info/);
@@ -261,15 +285,9 @@ async function mergedInvitesGeometry(page) {
    assert.ok(detailCells.service,'service details are represented independently');
    assert.ok(detailCells.order.findIndex(value=>value.split(' ').includes('invite-overview-household-info'))>detailCells.order.findIndex(value=>value.split(' ').includes('invite-overview-identity')));
    await geometry(page,2);
-   if (!await fields.evaluate(node=>node.open)) await summary.click();
-   await fields.locator('button[data-multi-select="none"]').click();
-   assert.equal(await selection.innerText(),'None selected');
-   assert.deepEqual(await page.locator('#inviteRows .invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Service','Invitation','Actions']);
-   await fields.locator('button[data-multi-select="all"]').click();
-   assert.equal(await selection.innerText(),'All');
    await rowsGeometry(page);
    await toggleField('householdInfo',false);
-   await page.locator('#inviteSortingHeading').click();
+   await page.locator('.invite-heading-title h2').click();
    assert.equal(await fields.evaluate(node=>node.open),false);
    await page.evaluate(()=>{fixtures.event_settings[0].food_stage='selection';});
    await refresh(page);await geometry(page,2);
@@ -318,8 +336,8 @@ async function mergedInvitesGeometry(page) {
      await page.screenshot({path:path.join(process.env.RSVP_INVITE_PREVIEW_DIR,'invites-full-'+width+'-'+theme+'.png'),fullPage:true});
      await page.locator('[data-panel=invites]').screenshot({path:path.join(process.env.RSVP_INVITE_PREVIEW_DIR,'invites-'+width+'-'+theme+'.png')});
      if(width===820&&theme==='light'){
-      await page.locator('#inviteChannelFilter details summary').click();
-      await page.locator('[data-panel=invites]').screenshot({path:path.join(process.env.RSVP_INVITE_PREVIEW_DIR,'invites-services-open-820.png')});
+      await page.locator('#inviteShownFieldsHost summary').click();
+      await page.locator('[data-panel=invites]').screenshot({path:path.join(process.env.RSVP_INVITE_PREVIEW_DIR,'invites-shown-open-820.png')});
       await page.keyboard.press('Escape');
      }
     }
@@ -367,6 +385,6 @@ async function mergedInvitesGeometry(page) {
    assert.deepEqual(errors,[]);
    await page.close();
   }
-  console.log('PASS Invites Sorting, toolbar and Review: optional columns, current-draft keyboard focus, publication gates, chip-sized copy targets, independent 44px selection/Rows controls and no overflow at 320/390/820/1024/1100/1160/1366/1440.');
+  console.log('PASS Invites Overview, toolbar and Review: responsive Shown fields and overlay dismissal, Overview cards, current-draft keyboard focus, publication gates, chip-sized copy targets, independent 44px selection/Rows controls and no overflow at 320/390/820/1024/1100/1160/1366/1440.');
  } finally {await browser.close();await new Promise(resolve=>server.close(resolve));cleanup();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

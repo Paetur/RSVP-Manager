@@ -2,7 +2,7 @@
 
 Apple Shortcuts is **disabled by default**. An administrator with Settings edit permission can open **Settings → Interface**, use the pencil on **Apple Shortcuts**, select **Enable Apple Shortcuts** and choose **Save**. Event publication, sending permissions and HTTPS are configured separately. **Cancel** keeps the current setting.
 
-When enabled, open **Main → Invites** and expand **iPhone Shortcuts** between the statistics boxes and invitation list. The optional panel
+When enabled, open **Home → Main** and expand **iPhone Shortcuts** between the statistics boxes and invitation list. The optional panel
 uses the existing reviewed WhatsApp delivery drafts, messages, invitation links
 and JPEG snapshots. Email, SMS, ordinary WhatsApp and Manual delivery still use
 their existing controls.

@@ -1,4 +1,4 @@
-const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture, selectOverviewTab } = require("./helpers/admin-toolbar.cjs");
 // Real delivery UI and synthetic records; never contacts a populated database.
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -31,6 +31,7 @@ readySample.recipient_snapshot={contact_name:'Example recipient',contact_type:'p
 fixtures.invitation_deliveries=[{queue_id:'view-sent',confirmed_at:'2026-11-12T12:00:00Z',confirmed_by:h1,delivery_note:'Synthetic delivery note'}];
 const reviewDraft=fixtures.invitation_send_queue.find(row=>row.id==='view-draft');
 reviewDraft.message_body='Synthetic invitation {invitation_link}';
+reviewDraft.message_subject='RSVP {invitation_link}';
 reviewDraft.invitation_code_snapshot=null;
 window.__readyAttempts=[];
 const priorReadyRpc=client.rpc;
@@ -49,7 +50,7 @@ client.rpc=async(name,args)=>{
     );
     await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
     await page.waitForFunction(
-      () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+      () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
     );
     await page.locator("[data-tab=invites]").click();
     const ids = await page.evaluate(() => deliveryHouseholds.map(h => h.id));
@@ -104,6 +105,7 @@ client.rpc=async(name,args)=>{
       button.parentElement.previousElementSibling.querySelector("summary").textContent === "Edit delivery"), true);
     const inviteCode = await page.evaluate(() => deliveryHouseholds[1].invite_code);
     assert.ok((await draft.locator(".delivery-message").first().innerText()).endsWith("?=" + inviteCode));
+    assert.match(await draft.locator(":scope > .micro").first().innerText(), new RegExp("^RSVP .*\\?=" + inviteCode + "$"));
 
     await page.evaluate(() => { window.__accessPermissions.sendInvites = false; });
     await refreshFixture(page);
@@ -140,6 +142,7 @@ client.rpc=async(name,args)=>{
     assert.equal(attempt.p_values.expected_invitation_code, inviteCode);
     assert.equal(attempt.p_values.status, "ready");
     assert.ok(attempt.p_values.message_body.endsWith("?=" + inviteCode));
+    assert.equal(attempt.p_values.message_subject, attempt.p_values.message_body.replace("Synthetic invitation ", "RSVP "));
     const readySnapshot = await page.evaluate(() => structuredClone(reviewDraft));
     const demote = draft.getByRole("button", { name: "Change to Draft", exact: true });
     await demote.click();
@@ -161,6 +164,7 @@ client.rpc=async(name,args)=>{
     await page.evaluate(() => { window.__accessPermissions.sections.households = "none"; });
     await refreshFixture(page);
     await page.waitForFunction(() => !document.querySelector('[data-tab="households"]').getClientRects().length);
+    await selectOverviewTab(page, "invitation");
     const inactive = page.locator(".invite-inactive-households");
     assert.equal(await inactive.evaluate(node => node.open), false, "inactive household records start collapsed");
     assert.equal(await page.locator("#inviteStatusTotal").innerText(), "2", "inactive rows do not change active totals");

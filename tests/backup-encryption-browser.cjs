@@ -3,6 +3,7 @@ const assert = require("node:assert/strict"),
   fs = require("node:fs"),
   { chromium } = require("playwright");
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
+const { selectDatabaseTab } = require("./helpers/admin-toolbar.cjs");
 const { server, mock, extra } = createFoodHarness("backup-encryption");
 const behavior = `const encryptedFixture={format:'rsvp-application-backup',version:3,checksum:'synthetic',payload:{selection:{mode:'backup',sections:['venues','households','food','other','wording'],include_logs:true},tables:{'public.event_settings':[{event_name:'Synthetic recovery'}]}}};window.__backupRequests=[];const encryptionRpc=client.rpc;client.rpc=async(name,args)=>{if(['admin_export_backup','admin_preview_backup','admin_restore_backup'].includes(name)){window.__backupRequests.push({name,args});if(name==='admin_export_backup')return {data:encryptedFixture};if(name==='admin_preview_backup')return {data:{event_name:'Synthetic recovery',can_restore:true,counts:{'public.households':1}}};return {data:{restored:true,is_published:false}};}return encryptionRpc(name,args);};`;
 (async () => {
@@ -62,6 +63,7 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
       const password = "Only for this synthetic backup 🔐";
       let encryptedBytes;
       for (const compressed of [false, true]) {
+        await selectDatabaseTab(page, "backup");
         await page.locator("#backupExportCompressed").setChecked(compressed);
         await page.locator("#backupEncryptionPassword").fill(password);
         await page.locator("#backupEncryptionConfirm").fill(password);
@@ -94,13 +96,14 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
               (request) => request.name !== "admin_export_backup",
             ).length,
         );
+        await selectDatabaseTab(page, "restore");
         await upload(bytes);
         let dialog = page.getByRole("region", {
           name: "Encrypted backup",
           exact: true,
         });
         await dialog.waitFor();
-        assert.equal(await page.locator("#previewBackup").isDisabled(), true);
+        assert.equal(await page.locator("#restoreBackupAction").isDisabled(), true);
         await dialog
           .getByLabel("Backup password", { exact: true })
           .fill("wrong");
@@ -129,7 +132,7 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
         await dialog
           .getByRole("button", { name: "Cancel", exact: true })
           .click();
-        assert.equal(await page.locator("#previewBackup").isDisabled(), true);
+        assert.equal(await page.locator("#restoreBackupAction").isDisabled(), true);
         await page.locator("#retryEncryptedBackup").click();
         dialog = page.getByRole("region", {
           name: "Encrypted backup",
@@ -141,11 +144,10 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
         await dialog
           .getByRole("button", { name: "Open encrypted backup", exact: true })
           .click();
-        await page.locator("#previewBackup:enabled").waitFor();
-        await page.locator("#previewBackup").click();
-        const restore = page.locator("#restoreBackupButton");
-        await page.locator("#restoreBackupButton:enabled").waitFor();
-        await restore.click();
+        const restore = page.locator("#restoreBackupAction");
+        const validate = restore.and(page.getByRole("button", { name: "Validate backup", exact: true }));
+        await validate.click();
+        await restore.and(page.getByRole("button", { name: "Restore backup", exact: true })).click();
         const decision = page.locator(".inline-confirmation");
         await decision.getByText("Are you really sure. This can NOT be undone", { exact: true }).waitFor();
         await decision.getByRole("button", { name: "No", exact: true }).click();
@@ -184,18 +186,20 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
           );
         }
       }
+      await selectDatabaseTab(page, "backup");
       await page.locator("#backupExportEncrypted").uncheck();
       await page.locator("#backupExportCompressed").uncheck();
       const plainEvent = page.waitForEvent("download");
       await page.locator("#exportBackup").click();
       const plain = await plainEvent;
       assert(!plain.suggestedFilename().includes("encrypted"));
+      await selectDatabaseTab(page, "restore");
       await page.locator("#backupFile").setInputFiles({
         name: "plain.json",
         mimeType: "application/json",
         buffer: fs.readFileSync(await plain.path()),
       });
-      await page.locator("#previewBackup:enabled").waitFor();
+      await page.locator("#restoreBackupAction:enabled").waitFor();
       assert.equal(await page.locator(".backup-password-dialog").count(), 0);
       await page.evaluate(() => {
         const text = Blob.prototype.text;
@@ -224,7 +228,7 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
           mimeType: "application/json",
           buffer: fs.readFileSync(await plain.path()),
         });
-      await page.locator("#previewBackup:enabled").waitFor();
+      await page.locator("#restoreBackupAction:enabled").waitFor();
       await page.evaluate(() => window.__releaseOldFile());
       await page.waitForTimeout(100);
       assert.equal(
@@ -232,7 +236,7 @@ const behavior = `const encryptedFixture={format:'rsvp-application-backup',versi
         0,
         "stale file never opens a password dialog for the new selection",
       );
-      assert.equal(await page.locator("#previewBackup").isEnabled(), true);
+      assert.equal(await page.locator("#restoreBackupAction").isEnabled(), true);
       assert(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth + 1,

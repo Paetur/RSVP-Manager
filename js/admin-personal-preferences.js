@@ -10,7 +10,13 @@
     twoRowColumns: "rsvp_invites_two_row_columns",
     narrowRows: "rsvp_invites_narrow_rows",
     wideRows: "rsvp_invites_wide_rows",
+    overviewLayout: "rsvp_overview_layout",
   };
+  const overviewGroups = [
+    ["information", "Information", ["households", "food", "rsvp"]],
+    ["invitation", "Invitation", ["invites", "services", "language"]],
+  ];
+  const overviewCardTabs = new Map(overviewGroups.flatMap(([tab, , ids]) => ids.map(id => [id, tab])));
   const invitesFields = Object.freeze([
     ["householdInfo", "Household info"],
     ["recipient", "Recipient"],
@@ -48,19 +54,25 @@
     draft = null,
     busy = false,
     generation = 0,
-    timePreference = "locale";
+    timePreference = "locale",
+    overviewCards = new Map(),
+    draggedOverviewId = null;
   const T = (...args) => window.RSVP_I18N.t(...args);
   const element = (id) => document.getElementById(id);
   const form = () => element("personalPreferencesForm");
   const invitesForm = () => element("invitesAppearanceForm");
+  const overviewForm = () => element("overviewAppearanceForm");
   const personalKinds = ["language", "appearance", "time", "hover"];
   const inviteWidths = [
     ["narrowRows", "Narrow screens (below 1024 px)", 1],
     ["wideRows", "Wide screens (1024 px and wider)", 2],
   ];
   const invitesKinds = ["grouped", "shownFields", "twoRowColumns", "narrowRows", "wideRows"];
-  const kindsFor = node => node === invitesForm() ? invitesKinds : personalKinds;
+  const overviewKinds = ["overviewLayout"];
+  const kindsFor = node => node === overviewForm() ? overviewKinds : node === invitesForm() ? invitesKinds : personalKinds;
+  const formFor = kind => kind === "overviewLayout" ? overviewForm() : invitesKinds.includes(kind) ? invitesForm() : form();
   function valid(kind, value) {
+    if (kind === "overviewLayout") return Array.isArray(value);
     if (kind === "shownFields") return Array.isArray(value) && new Set(value).size === value.length && value.every(key => inviteFieldKeys.has(key));
     if (kind === "twoRowColumns") return Array.isArray(value) && new Set(value).size === value.length && value.every(key => inviteColumnKeys.has(key));
     if (kind === "grouped") return typeof value === "boolean" || value === "service";
@@ -79,8 +91,24 @@
     const selected = new Set([...(valid("shownFields", value) ? value : defaultInvitesShownFields), ...invitesRequiredFields]);
     return invitesFields.filter(([key]) => selected.has(key)).map(([key]) => key);
   }
+  function normalizeOverviewLayout(value) {
+    const saved = Array.isArray(value) ? value : [];
+    const cards = new Map();
+    const hasHouseholds = saved.some(item => item?.id === "households" && typeof item.shown === "boolean");
+    for (const item of saved) {
+      // Preserve the existing Households choice when both old cards were saved.
+      const id = !hasHouseholds && item?.id === "guests" ? "households" : item?.id;
+      if (overviewCardTabs.has(id) && typeof item.shown === "boolean" && !cards.has(id))
+        cards.set(id, item.shown);
+    }
+    for (const id of overviewCardTabs.keys()) if (!cards.has(id)) cards.set(id, true);
+    return overviewGroups.flatMap(([tab]) => [...cards]
+      .filter(([id]) => overviewCardTabs.get(id) === tab)
+      .map(([id, shown]) => ({ id, shown })));
+  }
   function copyValue(kind, value) {
     if (kind === "shownFields") return normalizeShownFields(value);
+    if (kind === "overviewLayout") return normalizeOverviewLayout(value);
     if (kind === "twoRowColumns") {
       const selected = new Set([...(valid(kind, value) ? value : defaultInvitesTwoRowColumns), ...invitesRequiredFields]);
       return invitesColumnGroups.filter(([key]) => selected.has(key)).map(([key]) => key);
@@ -91,6 +119,8 @@
     return Object.fromEntries(Object.entries(values).map(([kind, value]) => [kind, copyValue(kind, value)]));
   }
   function sameValue(kind, a, b) {
+    if (kind === "overviewLayout")
+      return a.every(({ id, shown }, index) => id === b[index].id && shown === b[index].shown);
     return ["shownFields", "twoRowColumns"].includes(kind)
       ? a.length === b.length && a.every((value, index) => value === b[index])
       : a === b;
@@ -114,6 +144,7 @@
                 twoRowColumns: defaultInvitesTwoRowColumns.slice(),
                 narrowRows: 1,
                 wideRows: 2,
+                overviewLayout: normalizeOverviewLayout(),
               }[kind],
         ];
       }),
@@ -132,7 +163,7 @@
     return Object.keys(changes(kinds)).length > 0;
   }
   function status(text = "", state = "", target = form()) {
-    const node = element(target === invitesForm() ? "invitesAppearanceStatus" : "personalPreferencesStatus");
+    const node = target?.querySelector(".form-feedback[role=status]");
     if (!node) return;
     node.textContent = text;
     node.dataset.state = state;
@@ -145,6 +176,7 @@
       "logout",
       "cancelPersonalPreferences",
       "cancelInvitesAppearance",
+      "cancelOverviewAppearance",
     ]) {
       const node = element(id);
       if (node) node.disabled = busy || !account;
@@ -153,7 +185,14 @@
     if (save) save.disabled = busy || !account || !hasUnsaved(personalKinds);
     const groupingSave = element("saveInvitesAppearance");
     if (groupingSave) groupingSave.disabled = busy || !account || !hasUnsaved(invitesKinds);
-    for (const node of [form(), invitesForm()]) node?.setAttribute("aria-busy", String(busy));
+    const overviewSave = element("saveOverviewAppearance"), reset = element("resetOverviewAppearance");
+    if (overviewSave) overviewSave.disabled = busy || !account || !hasUnsaved(overviewKinds);
+    if (reset) reset.disabled = busy || !account || !draft || sameValue("overviewLayout", draft.overviewLayout, normalizeOverviewLayout());
+    for (const node of [form(), invitesForm(), overviewForm()]) node?.setAttribute("aria-busy", String(busy));
+    for (const button of overviewForm()?.querySelectorAll("#overviewCardOrder button,#overviewCardOrder input") || [])
+      button.disabled = busy || !account || button.hasAttribute("data-overview-edge");
+    for (const grip of overviewForm()?.querySelectorAll("[data-overview-grip]") || [])
+      grip.draggable = !busy && !!account && grip.closest("ol").children.length > 1;
     for (const button of form()?.querySelectorAll("[data-preference-choice]") || []) button.disabled = busy || !account;
     for (const host of [element("inviteGroupBy"), element("inviteRowsPreference"), element("inviteDefaultFields")])
       for (const input of host?.querySelectorAll("input") || []) input.disabled = busy || !account || input.hasAttribute("data-invite-fixed-field") || input.hasAttribute("data-invite-fixed-column");
@@ -167,8 +206,148 @@
     syncInviteGrouping();
     syncInviteRows();
     syncInviteDefaultFields();
+    renderOverviewLayout();
     updateControls();
     syncChoices();
+  }
+  function canMoveOverviewCard(id, target) {
+    return !busy && !!account && id !== target && overviewCards.has(id) && overviewCards.has(target) &&
+      overviewCards.get(id).tab === overviewCards.get(target).tab;
+  }
+  function moveOverviewCard(id, target, after) {
+    if (!draft || !canMoveOverviewCard(id, target)) return;
+    const layout = draft.overviewLayout;
+    const tab = overviewCards.get(id).tab;
+    const inGroup = card => overviewCards.get(card.id)?.tab === tab;
+    const eligible = layout.filter(inGroup);
+    const [moved] = eligible.splice(eligible.findIndex(card => card.id === id), 1);
+    eligible.splice(eligible.findIndex(card => card.id === target) + Number(after), 0, moved);
+    // Keep preferences for temporarily unavailable cards in their original slots.
+    let next = 0;
+    stage("overviewLayout", layout.map(card => inGroup(card) ? eligible[next++] : card));
+  }
+  function clearOverviewDropHint(host) {
+    host.querySelector("[data-overview-drop]")?.removeAttribute("data-overview-drop");
+  }
+  function renderOverviewGroup(host, tab, name, layout) {
+    const R = window.RSVP;
+    const eligible = layout.filter(card => overviewCards.get(card.id)?.tab === tab);
+    if (!eligible.length) return null;
+    const group = R.dom("li", { class: "overview-card-setting-group" });
+    group.dataset.overviewSettingTab = tab;
+    const heading = R.dom("h4", { id: "overviewCardGroup-" + tab }, T(name));
+    const list = R.dom("ol", { class: "overview-card-settings" });
+    list.setAttribute("aria-labelledby", heading.id);
+    for (const [index, { id, shown }] of eligible.entries()) {
+      const { label } = overviewCards.get(id);
+      const row = R.dom("li", { class: "overview-card-setting" });
+      row.dataset.overviewSetting = id;
+      const grip = R.dom("span", { class: "overview-card-grip", title: T("Drag to reorder") }, "⠿");
+      grip.dataset.overviewGrip = "";
+      grip.setAttribute("aria-hidden", "true");
+      grip.draggable = !busy && !!account && eligible.length > 1;
+      grip.addEventListener("dragstart", event => {
+        draggedOverviewId = id;
+        event.dataTransfer.setData("text/plain", id);
+        event.dataTransfer.effectAllowed = "move";
+      });
+      grip.addEventListener("dragend", () => {
+        draggedOverviewId = null;
+        clearOverviewDropHint(host);
+      });
+      const afterPointer = event => {
+        const box = row.getBoundingClientRect();
+        return event.clientY >= box.top + box.height / 2;
+      };
+      row.addEventListener("dragover", event => {
+        clearOverviewDropHint(host);
+        if (!canMoveOverviewCard(draggedOverviewId, id)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        row.dataset.overviewDrop = afterPointer(event) ? "after" : "before";
+      });
+      row.addEventListener("dragleave", event => {
+        if (!(event.relatedTarget instanceof Node) || !row.contains(event.relatedTarget))
+          row.removeAttribute("data-overview-drop");
+      });
+      row.addEventListener("drop", event => {
+        if (!draggedOverviewId) return;
+        event.preventDefault();
+        const source = draggedOverviewId;
+        draggedOverviewId = null;
+        clearOverviewDropHint(host);
+        moveOverviewCard(source, id, afterPointer(event));
+      });
+      const choice = R.dom("label", { class: "checkbox-label" });
+      const input = R.dom("input", { type: "checkbox" });
+      input.checked = shown;
+      input.disabled = busy || !account;
+      input.addEventListener("change", () => stage("overviewLayout", layout.map(card =>
+        card.id === id ? { id, shown: input.checked } : card)));
+      choice.append(input, R.dom("span", {}, label));
+      const buttons = R.dom("div", { class: "overview-card-moves" });
+      for (const [direction, offset, glyph, caption] of [["up", -1, "↑", "Move up"], ["down", 1, "↓", "Move down"]]) {
+        const target = eligible[index + offset];
+        const text = T(caption) + " · " + label;
+        const button = R.dom("button", { type: "button", class: "btn secondary", title: text }, glyph);
+        button.setAttribute("aria-label", text);
+        button.dataset.overviewMove = direction;
+        if (target) button.addEventListener("click", () => moveOverviewCard(id, target.id, offset > 0));
+        else button.dataset.overviewEdge = "";
+        button.disabled = busy || !account || !target;
+        buttons.append(button);
+      }
+      row.append(grip, choice, buttons);
+      list.append(row);
+    }
+    group.append(heading, list);
+    return group;
+  }
+  function renderOverviewLayout() {
+    const host = element("overviewCardOrder");
+    if (!host) return;
+    host.closest("[data-settings-card]").hidden = !overviewCards.size;
+    const active = document.activeElement, activeRow = active?.closest("[data-overview-setting]");
+    const activeId = host.contains(activeRow) ? activeRow.dataset.overviewSetting : null;
+    const activeMove = active?.dataset.overviewMove;
+    const layout = draft?.overviewLayout || normalizeOverviewLayout();
+    draggedOverviewId = null;
+    host.replaceChildren(...overviewGroups.map(([tab, name]) => renderOverviewGroup(host, tab, name, layout)).filter(Boolean));
+    const replacement = activeId && host.querySelector('[data-overview-setting="' + activeId + '"]');
+    if (replacement) {
+      const sameControl = activeMove && replacement.querySelector('[data-overview-move="' + activeMove + '"]:enabled');
+      (sameControl || (activeMove && replacement.querySelector("[data-overview-move]:enabled")) ||
+        replacement.querySelector("input:enabled"))?.focus({ preventScroll: true });
+    }
+  }
+  function renderOverviewSummary(host) {
+    const R = window.RSVP, layout = baseline?.overviewLayout || normalizeOverviewLayout();
+    const groups = [];
+    for (const [tab, name] of overviewGroups) {
+      const list = R.dom("dl", { class: "record-read-grid compact-read-grid" });
+      for (const { id, shown } of layout) {
+        const card = overviewCards.get(id);
+        if (card?.tab === tab) list.append(R.dom("dt", {}, card.label), R.dom("dd", {}, T(shown ? "Shown" : "Hidden")));
+      }
+      if (!list.childElementCount) continue;
+      const group = R.dom("div", { class: "overview-card-setting-group" });
+      group.append(R.dom("h4", {}, T(name)), list);
+      groups.push(group);
+    }
+    host.replaceChildren(...groups);
+  }
+  function setOverviewCards(cards) {
+    const available = new Map(cards.filter(({ id, tab }) => overviewCardTabs.has(id) && overviewCardTabs.get(id) === tab)
+      .map(({ id, label, tab }) => [id, { label, tab }]));
+    if (available.size === overviewCards.size && [...available].every(([id, { label, tab }]) => {
+      const prior = overviewCards.get(id);
+      return prior?.label === label && prior?.tab === tab;
+    })) return;
+    overviewCards = available;
+    renderOverviewLayout();
+    updateControls();
+    const editor = overviewForm()?.localEditor;
+    if (editor) renderOverviewSummary(editor.summary);
   }
   function syncInviteGrouping() {
     const host = element("inviteGroupBy");
@@ -233,8 +412,8 @@
     }
     const oneRowHost = host.querySelector('[data-invite-default-layout="1"]');
     const twoRowHost = host.querySelector('[data-invite-default-layout="2"]');
-    for (const [key, label] of invitesFields) {
-      const fixed = invitesRequiredFields.includes(key);
+    for (const [key, label] of [["household", "Household"], ...invitesFields]) {
+      const fixed = key === "household" || invitesRequiredFields.includes(key);
       let input = oneRowHost.querySelector('[data-invite-default-field="' + key + '"]');
       if (!input) {
         const option = window.RSVP.dom("label", { class: "checkbox-label" });
@@ -250,7 +429,7 @@
         oneRowHost.append(option);
       }
       input.nextElementSibling.textContent = T(label);
-      input.checked = (draft?.shownFields || defaultInvitesShownFields).includes(key);
+      input.checked = fixed || (draft?.shownFields || defaultInvitesShownFields).includes(key);
       input.disabled = fixed;
     }
     const groupOptions = [["household", "Household", ["householdInfo"]], ...invitesColumnGroups];
@@ -318,7 +497,12 @@
     if (busy || !account || !Object.hasOwn(fields, kind) || !valid(kind, value))
       return false;
     draft[kind] = copyValue(kind, value);
-    status("", "", invitesKinds.includes(kind) ? invitesForm() : form());
+    const target = formFor(kind);
+    status("", "", target);
+    if (kind === "overviewLayout" && target) {
+      if (hasUnsaved(overviewKinds)) target.dispatchEvent(new Event("input", { bubbles: true }));
+      else window.RSVP_I18N.markClean(target);
+    }
     renderDraft();
     return true;
   }
@@ -326,7 +510,7 @@
     if (busy || !account || !Object.keys(patch).length) return false;
     const ticket = generation,
       id = account.id,
-      target = invitesKinds.some(kind => Object.hasOwn(patch, kind)) ? invitesForm() : form();
+      target = formFor(Object.keys(patch)[0]);
     busy = true;
     updateControls();
     status(T("Saving…"), "saving", target);
@@ -354,6 +538,7 @@
       if (Object.hasOwn(patch, "time"))
         document.dispatchEvent(new Event("rsvp:time-format"));
       if (invitesKinds.some(kind => Object.hasOwn(patch, kind))) document.dispatchEvent(new Event("rsvp:invites-appearance"));
+      if (Object.hasOwn(patch, "overviewLayout")) document.dispatchEvent(new Event("rsvp:overview-appearance"));
       if (!hasUnsaved(kindsFor(target))) window.RSVP_I18N.markClean(target);
       status(T("Saved"), "saved", target);
       return true;
@@ -404,6 +589,8 @@
     get invitesTwoRowColumns() { return (baseline?.twoRowColumns || defaultInvitesTwoRowColumns).slice(); },
     get invitesNarrowRows() { return baseline?.narrowRows ?? 1; },
     get invitesWideRows() { return baseline?.wideRows ?? 2; },
+    get overviewLayout() { return normalizeOverviewLayout(baseline?.overviewLayout); },
+    setOverviewCards,
     hasUnsaved,
     stage,
     cancel: () => cancel(),
@@ -417,17 +604,21 @@
       await apply(baseline, ticket);
       if (ticket === generation) {
         busy = false;
-        status(); status("", "", invitesForm());
+        status(); status("", "", invitesForm()); status("", "", overviewForm());
+        window.RSVP_I18N.markClean(overviewForm());
         renderDraft();
       }
     },
     clear() {
       generation++;
       account = baseline = draft = null;
+      overviewCards = new Map();
+      draggedOverviewId = null;
       busy = false;
       timePreference = "locale";
       document.documentElement.dataset.buttonHover = "toolbar";
-      status(); status("", "", invitesForm());
+      status(); status("", "", invitesForm()); status("", "", overviewForm());
+      window.RSVP_I18N.markClean(overviewForm());
       renderDraft();
       try {
         for (const key of [
@@ -464,6 +655,13 @@
     element("cancelPersonalPreferences")?.addEventListener("click", () => cancel());
     invitesForm()?.addEventListener("submit", event => { event.preventDefault(); submit(invitesForm()); });
     element("cancelInvitesAppearance")?.addEventListener("click", () => cancel(invitesForm()));
+    if (overviewForm()) overviewForm().renderReadSummary = renderOverviewSummary;
+    overviewForm()?.addEventListener("submit", event => { event.preventDefault(); submit(overviewForm()); });
+    element("cancelOverviewAppearance")?.addEventListener("click", () => cancel(overviewForm()));
+    element("resetOverviewAppearance")?.addEventListener("click", () => {
+      if (stage("overviewLayout", normalizeOverviewLayout()))
+        (overviewForm().querySelector("#saveOverviewAppearance:enabled") || element("cancelOverviewAppearance"))?.focus();
+    });
     syncInviteGrouping();
     syncInviteRows();
     syncInviteDefaultFields();

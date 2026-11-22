@@ -22,7 +22,7 @@ const queuedRpc=client.rpc;client.rpc=async(name,args)=>{
 };`;
   await routeSyntheticSdk(page,mock+'\n'+extra+'\n'+seed);
   await page.goto('http://127.0.0.1:'+server.address().port+'/admin/');
-  await page.waitForFunction(()=>document.querySelectorAll('#statsGrid .stat-card').length===4);
+  await page.waitForFunction(()=>document.querySelector('#inviteOverviewCounts .invite-stat-row'));
   assert.deepEqual(errors,[]);
   assert.equal(await page.locator('[data-panel=invites]').isVisible(),true,'Invites remains the default work tab');
   assert.deepEqual(await page.locator('.admin-main-tabs [data-tab]').evaluateAll(ns=>ns.slice(0,3).map(n=>n.dataset.tab)),['overview','events','invites']);
@@ -85,11 +85,13 @@ const queuedRpc=client.rpc;client.rpc=async(name,args)=>{
   assert.equal(await independent.locator('button[type=submit]').isEnabled(),true);
   await independent.locator('[data-discard]').click();
   await page.locator('[data-settings-tab=backups]').click();
-  for (const choice of ['wipe','backup','template']) {
-    await page.locator('#backupRestoreMode input[value='+choice+']').check();
-    assert.equal(await page.locator('#backupRestoreMode input:checked').count(),1);
-    assert.equal(await page.locator('#backupRestoreDestination').isVisible(),choice!=='wipe');
+  const destinations=page.locator('#backupRestoreDestination');
+  for (const choice of ['clean','replace','restart','wipe']) {
+    await destinations.locator('input[value='+choice+']').check();
+    assert.equal(await destinations.locator('input:checked').count(),1);
+    assert.equal(await destinations.locator('input:checked').inputValue(),choice);
   }
+  assert.equal(await page.locator('#backupRestoreMode').count(),0);
   await page.locator('[data-settings-tab=templates]').click();
   await page.locator('.invitation-template .local-editor-pencil').first().click();
   const remove=page.locator('.invitation-template .delete-action').first();

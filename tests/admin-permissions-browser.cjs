@@ -7,9 +7,45 @@ const extra=`fixtures.event_settings[0].default_language='en';fixtures.event_set
 const view=JSON.parse(JSON.stringify(window.__accessPermissions));view.preset='view';for(const key of Object.keys(view.sections))view.sections[key]='view';for(const key of ['sendInvites','exportBackup','restoreBackup','revokeSessions'])view[key]=false;
 window.__members=[{user_id:h1,name:'Alex Example',email:'alex@example.invalid',access_state:'active',access_permissions:JSON.parse(JSON.stringify(window.__accessPermissions))},{user_id:h2,name:'Robin Example',email:'robin@example.invalid',access_state:'active',access_permissions:view}];
 const originalAccessRpc=client.rpc;client.rpc=async(name,args)=>{if(window.__revoked&&['admin_get_access','admin_load_data'].includes(name))return {error:{code:'PT401',message:'Administrator session revoked. Sign in again.'}};if(name==='admin_list_members')return {data:window.__members};if(name==='admin_update_member'){window.__accessSaves=(window.__accessSaves||0)+1;const m=window.__members.find(m=>m.user_id===args.p_user_id);m.name=args.p_name;m.access_permissions=args.p_permissions||m.access_permissions;return {data:null};}if(name==='admin_list_sessions')return {data:[{id:s1,user_id:h1,name:'Alex Example',current:true,user_agent:'Mozilla/5.0 (iPad; CPU OS 18_1 like Mac OS X) AppleWebKit/605.1.15 Version/18.1 Mobile/15E148 Safari/604.1',created_at:'2026-11-08T09:00:00Z',refreshed_at:'2026-11-08T13:00:00Z'},{id:'unknown-session',user_id:h1,name:'Alex Example',current:false,user_agent:'Unknown',created_at:'2026-11-08T08:00:00Z',last_activity:'2026-11-08T08:00:00Z'}]};const r=await originalAccessRpc(name,args);if(name==='admin_load_data'&&window.__accessPermissions.preset!=='full'){const d=r.data,p=window.__accessPermissions.sections;if(p.households==='none'){d.guests=[];d.households=[];}if(p.food==='none'){d.food=[];d.claims=[];}if(p.other==='none')d.tasks=[];if(p.invites==='none'){d.queue=[];d.responses=[];d.submissions=[];d.defaults=[];}return {data:d};}return r;};`;
+const eventLoadGate = `
+const readyRpc=client.rpc;
+let firstEventRequest=true;
+client.rpc=async(name,args)=>{
+  if(name==='admin_load_data' && (firstEventRequest || window.__holdEventRefresh)) {
+    firstEventRequest=false;
+    window.__holdEventRefresh=false;
+    const loaded=await new Promise(resolve=>{window.__finishEventLoad=resolve;});
+    delete window.__finishEventLoad;
+    if(!loaded) return {error:{message:'Synthetic event data unavailable'}};
+  }
+  return readyRpc(name,args);
+};`;
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await (process.env.RSVP_TEST_BROWSER==='chromium'?chromium:webkit).launch();try{const page=await browser.newPage({viewport:{width:1100,height:1050},hasTouch:true}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
 await require("./helpers/admin-toolbar.cjs").autoConfirmInline(page);
-await page.addInitScript(()=>localStorage.setItem('rsvp-interface-language','en'));await page.route('**/supabase.min.js',r=>r.fulfill({contentType:'text/javascript',body:mock+'\n'+extra}));await page.goto('http://127.0.0.1:'+server.address().port+'/admin/');await page.waitForFunction(()=>document.querySelectorAll('#statsGrid .stat-card').length===4);
+await page.addInitScript(()=>localStorage.setItem('rsvp-interface-language','en'));
+await page.route('**/supabase.min.js',r=>r.fulfill({contentType:'text/javascript',body:mock+'\n'+extra+'\n'+eventLoadGate}));
+await page.goto('http://127.0.0.1:'+server.address().port+'/admin/');
+await page.waitForFunction(()=>typeof window.__finishEventLoad==='function');
+assert.equal(await page.locator('#adminApp').isVisible(),false,'event boxes wait for the first successful load');
+assert.equal(await page.locator('.admin-section-menu').isVisible(),false,'admin navigation waits for event data');
+assert.equal(await page.locator('#guestPreviewButton').isVisible(),false);
+assert.equal(await page.locator('#logout').isVisible(),true,'sign-out stays available while loading');
+await page.locator('#adminMessage').getByText('Loading event data…',{exact:false}).waitFor();
+await page.evaluate(()=>window.__finishEventLoad(false));
+await page.locator('#adminMessage').getByText('Synthetic event data unavailable',{exact:false}).waitFor();
+assert.equal(await page.locator('#adminApp').isVisible(),false,'a failed load leaves the workspace hidden');
+assert.equal(await page.locator('.admin-section-menu').isVisible(),false);
+await page.locator('#refreshButton').click();
+await page.locator('#adminApp').waitFor({state:'visible'});
+await page.waitForFunction(()=>document.querySelector('#inviteOverviewCounts .invite-stat-row'));
+assert.equal(await page.locator('.admin-section-menu').isVisible(),true,'successful retry reveals navigation');
+await page.evaluate(()=>window.__holdEventRefresh=true);
+await page.locator('#refreshButton').click();
+await page.waitForFunction(()=>typeof window.__finishEventLoad==='function');
+assert.equal(await page.locator('#adminApp').isVisible(),true,'routine refresh retains the loaded workspace');
+assert.equal(await page.locator('.admin-section-menu').isVisible(),true);
+await page.evaluate(()=>window.__finishEventLoad(true));
+await page.locator('#adminMessage').getByText('Event data refreshed.',{exact:false}).waitFor();
 await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab=administrators]').click();await page.getByRole('button',{name:'Edit access · Robin Example',exact:true}).click();let editor=page.locator('[data-access-form]');assert.equal(await editor.locator('.permission-manage-members small').innerText(),'Manage members');assert.equal(await editor.getByRole('button',{name:'Save',exact:true}).isDisabled(),true);await editor.getByRole('radio',{name:'Food · Edit',exact:true}).check();assert.equal(await page.evaluate(()=>window.__accessSaves||0),0);editor=page.locator('[data-access-form]');assert.equal(await editor.getByRole('button',{name:'Save',exact:true}).isEnabled(),true);await page.evaluate(()=>document.documentElement.dataset.theme='dark');await editor.screenshot({path:path.join(out,'real-access-editor.png')});await editor.getByRole('button',{name:'Save',exact:true}).click();await page.waitForFunction(()=>window.__accessSaves===1);await page.waitForFunction(()=>!document.querySelector('[data-access-form]'));
 const sessionRows=page.locator('#adminSessions .admin-member');
 await sessionRows.first().waitFor();
@@ -22,8 +58,24 @@ assert.equal(await page.getByRole('button',{name:'Suspend access',exact:true}).l
 await page.evaluate(()=>{window.__accessPermissions.preset='custom';for(const k of Object.keys(window.__accessPermissions.sections))window.__accessPermissions.sections[k]='none';window.__accessPermissions.sections.food='view';window.__accessPermissions.sections.other='edit';for(const k of ['sendInvites','exportBackup','restoreBackup','revokeSessions'])window.__accessPermissions[k]=false;});await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);await page.locator('#mainSectionToggle').click();assert.equal(await page.locator('[data-tab=households]').isVisible(),false);assert.equal(await page.locator('#contentLanguagesToggle').isVisible(),false);assert.equal(await page.locator('[data-tab=overview]').count(),0);assert.equal(await page.locator('[data-tab=invites]').isVisible(),false,'Food access does not grant Invites access');assert.equal(await page.locator('[data-tab=food]').getAttribute('aria-selected'),'true','the first allowed work tab opens');await page.locator('[data-tab=food]').focus();await page.keyboard.press('ArrowRight');assert.equal(await page.locator('[data-tab=other]').getAttribute('aria-selected'),'true','keyboard skips permission-hidden work tabs');assert.equal(await page.locator('[data-tab=other]').evaluate(n=>n===document.activeElement),true);await page.locator('[data-tab=food]').click();assert.equal(await page.locator('#adminFoodList .edit-only:visible').count(),0);assert.equal(await page.locator('#statsGrid .stat-card').count(),1);assert.equal(await page.locator('#statsGrid').isVisible(),false,'merged Invites statistics stay behind Invites permission');
 await page.evaluate(()=>window.__accessPermissions.sections.food='none');await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);assert.equal(await page.locator('[data-panel=food]').isVisible(),false);assert.equal(await page.locator('[data-panel=other]').isVisible(),true,'permission loss falls back to an allowed work tab');
 await page.locator('#settingsToggle').click();assert.equal(await page.locator('[data-settings-tab=checklist]').isVisible(),true);assert.equal(await page.locator('[data-settings-tab=application]').isVisible(),false);assert.equal(await page.locator('[data-tab=events]').isVisible(),false);assert.equal(await page.locator('[data-settings-tab=administrators]').isVisible(),false);assert.equal(await page.locator('[data-settings-panel=checklist] #adminSessionsPanel').isVisible(),true);assert.equal(await page.locator('[data-settings-tab=backups]').isVisible(),false);
+for(const power of ['exportBackup','restoreBackup']) {
+  await page.evaluate(power=>{
+    window.__accessPermissions.exportBackup=power==='exportBackup';
+    window.__accessPermissions.restoreBackup=power==='restoreBackup';
+  },power);
+  await refreshFixture(page);
+  await page.locator('[data-settings-tab=backups]').click();
+  const activeTab=power==='exportBackup'?'backup':'restore';
+  const tabs=page.locator('#databaseTabs').getByRole('tab');
+  assert.equal(await tabs.count(),1,'the other Database tab and Wipe require their own permissions');
+  assert.equal(await tabs.first().getAttribute('data-database-tab'),activeTab);
+  assert.equal(await tabs.first().getAttribute('aria-selected'),'true');
+  await tabs.first().press('ArrowRight');
+  assert.equal(await tabs.first().getAttribute('aria-selected'),'true','keyboard cycles only through permitted tabs');
+}
+await page.evaluate(()=>window.__accessPermissions.restoreBackup=false);
 // Settings access grants Events and Application independently from other work sections.
 await page.evaluate(()=>window.__accessPermissions.sections.settings='view');await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);await page.locator('#mainSectionToggle').click();await page.locator('[data-tab=events]').click();assert.equal(await page.locator('[data-panel=events]').isVisible(),true);assert.equal(await page.locator('[data-panel=events]').getAttribute('data-permission-edit'),'false');assert.equal(await page.locator('[data-panel=events] .settings-card-pencil:visible').count(),0);await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab=application]').click();assert.equal(await page.locator('[data-settings-panel=application]').isVisible(),true);assert.equal(await page.locator('[data-settings-panel=application] .publication-card').isVisible(),true);assert.equal(await page.locator('[data-settings-panel=application] .publication-actions').isVisible(),false);assert.equal(await page.locator('#launchChecklist').isVisible(),false,'launch checklist remains Full-administrator only');
 await page.evaluate(()=>window.__accessPermissions.sections.settings='edit');await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);await page.locator('#mainSectionToggle').click();await page.locator('[data-tab=events]').click();assert.equal(await page.locator('[data-panel=events]').getAttribute('data-permission-edit'),'true');assert.equal(await page.locator('[data-panel=events] .settings-card-pencil:visible').count(),3);await page.locator('#settingsToggle').click();assert.equal(await page.locator('[data-settings-panel=application] .publication-actions').isVisible(),true,'publication retains Settings edit permission');
 await page.evaluate(()=>{window.__accessPermissions.sections.settings='none';window.__accessPermissions.sections.other='none';});await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);await page.locator('#mainSectionToggle').click();assert.equal(await page.locator('#settingsPage').isVisible(),true,'no allowed main tab falls back to personal settings');assert.equal(await page.locator('[data-settings-panel=checklist]').isVisible(),true);
-await page.setViewportSize({width:820,height:1180});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:path.join(out,'limited-access-ipad.png'),fullPage:true});await page.evaluate(()=>window.__revoked=true);await refreshFixture(page);await page.locator('#loginPanel:not(.hidden)').waitFor();assert.equal(await page.locator('#adminApp').isVisible(),false);assert.deepEqual(errors,[]);console.log('PASS real access UI: unchanged/draft/confirmed save, independent section visibility, view-only editing controls, own sessions without administrator access, iPad layout and revoked-session login.');}finally{await browser.close();await new Promise(r=>server.close(r));}})().catch(e=>{console.error(e);process.exitCode=1;server.close();});
+await page.setViewportSize({width:820,height:1180});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:path.join(out,'limited-access-ipad.png'),fullPage:true});await page.evaluate(()=>window.__revoked=true);await refreshFixture(page);await page.locator('#loginPanel:not(.hidden)').waitFor();assert.equal(await page.locator('#adminApp').isVisible(),false);assert.deepEqual(errors,[]);console.log('PASS real access UI: event load gate and retry, unchanged/draft/confirmed save, independent section and Database tab visibility, view-only editing controls, own sessions without administrator access, iPad layout and revoked-session login.');}finally{await browser.close();await new Promise(r=>server.close(r));}})().catch(e=>{console.error(e);process.exitCode=1;server.close();});

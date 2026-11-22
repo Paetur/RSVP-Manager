@@ -528,10 +528,44 @@
 .household-inline-editor > .household-compact-reading { margin-top: 0; }
 .form-actions .form-feedback { flex-basis: 100%; }
 
-/* Grouping is a separate preference editor inside the personal Interface box. */
-.interface-invites-appearance {
+/* Keep the appearance editors separate within the personal Interface box. */
+.interface-invites-appearance,
+.interface-overview-appearance {
   position: relative;
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
+.overview-card-settings {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.overview-card-setting-group + .overview-card-setting-group { margin-top: 10px; }
+.overview-card-setting-group > h4 { margin: 0 0 4px; color: var(--muted); font-size: .85rem; }
+.overview-card-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-block: 2px solid transparent;
+}
+.overview-card-setting[data-overview-drop="before"] { border-block-start-color: var(--action-text); }
+.overview-card-setting[data-overview-drop="after"] { border-block-end-color: var(--action-text); }
+.overview-card-grip {
+  color: var(--muted);
+  flex: 0 0 24px;
+  text-align: center;
+  user-select: none;
+  visibility: hidden;
+}
+.overview-card-grip[draggable="true"] { cursor: grab; visibility: visible; }
+.overview-card-setting > label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.overview-card-moves { display: flex; gap: 4px; }
+.overview-card-moves > .btn { min-height: 44px; width: 44px; padding: 0; }

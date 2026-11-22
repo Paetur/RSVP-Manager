@@ -14,7 +14,8 @@ const oldRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_save_venu
  const base='http://127.0.0.1:'+server.address().port;
  await page.route('**maps.google.com/**',r=>r.fulfill({contentType:'text/html',body:'Map fixture'}));
  await page.goto(base+'/admin/');await page.locator('#adminApp:not(.hidden)').waitFor();await page.evaluate(()=>document.documentElement.dataset.theme='dark');
- assert.equal(await page.locator('.section-current .section-icon-label').innerText(),'Main');
+ assert.equal(await page.locator('.section-current .section-icon-label').innerText(),'Home');
+ assert.equal(await page.locator('[data-tab=invites]').innerText(),'Main');
  await page.locator('[data-tab=venues]').click();const venue=page.locator('#venueList>details').first();await venue.locator(':scope>summary').click();
  assert.equal(await venue.locator('input:visible,textarea:visible,select:visible').count(),0);assert.match(await venue.locator('.form-reading').innerText(),/Parking behind the hall/);
  await page.screenshot({path:path.join(out,'venues-view.png'),fullPage:true});

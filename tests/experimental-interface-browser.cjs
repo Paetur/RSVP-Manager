@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
 const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
 const { openBox } = require("./helpers/local-edit-ui.cjs");
-const { refreshFixture, reopenDatabaseAfterRecovery } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture, reopenDatabaseAfterRecovery, selectDatabaseTab, selectOverviewTab } = require("./helpers/admin-toolbar.cjs");
 const { server, mock, extra, cleanup } = createPublicFoodHarness("experimental-interface");
 
 const integration = `
@@ -73,7 +73,7 @@ client.rpc=async(name,args)=>{
     await page.addInitScript(() => localStorage.setItem("rsvp-interface-language", "en"));
     await routeSyntheticSdk(page, mock + "\n" + extra + "\n" + integration);
     await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
-    await page.waitForFunction(() => document.querySelectorAll("#statsGrid .stat-card").length === 4);
+    await page.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
     const card = page.locator('[data-settings-panel="checklist"] > [data-settings-card="experimental-shortcuts"]');
     const box = card.locator('[data-editor-key="experimental-shortcuts"]');
     const helper = card.getByText("Shortcuts synthetic test helper", { exact: true });
@@ -197,11 +197,11 @@ client.rpc=async(name,args)=>{
     const selection = page.locator('[data-shortcut-select="99999999-1111-4111-8111-111111111111"]');
     assert.equal(await selection.isDisabled(), true, "opt-in does not bypass publication");
     assert.match(await page.locator("#shortcutBatchHost").innerText(), /publish/i);
-    const serviceFilter = page.locator("#inviteChannelFilter details");
-    await serviceFilter.locator("summary").click();
-    await serviceFilter.getByRole("button", { name: "Email", exact: true }).click();
-    await page.keyboard.press("Escape");
+    await selectOverviewTab(page, "invitation");
+    const serviceFilter = page.locator("#inviteChannelFilter");
+    await serviceFilter.locator('[data-value="email"]').click();
     assert.equal(await selection.isVisible(), true, "filter changes leave the opened Shortcuts workspace intact");
+    await serviceFilter.locator('[data-value="email"]').click();
     await page.evaluate(() => {
       window.__fixtures.event_settings[0].is_published = true;
       window.RSVP_CONFIG.supabaseUrl = "http://127.0.0.1:54321";
@@ -296,6 +296,7 @@ client.rpc=async(name,args)=>{
 
     await page.locator('[data-settings-tab="backups"]').click();
     assert.match(await page.locator('[data-settings-tab="backups"]').innerText(), /Database/);
+    await selectDatabaseTab(page, "wipe");
     const retain = page.locator("#databaseKeepAdmin");
     assert.equal(await retain.isChecked(), true, "actual R.dom rendering visibly retains the current admin by default");
     assert.equal(await page.locator("#databaseWipeStatus").getAttribute("role"), "status");
@@ -308,6 +309,7 @@ client.rpc=async(name,args)=>{
     assert.deepEqual(await page.evaluate(() => window.__wipePreparationCalls), [
       { name: "admin_preview_wipe_all", args: { p_keep_current_admin: false } },
     ]);
+    await selectDatabaseTab(page, "backup");
     await page.evaluate(() => {
       window.__backupBridge = { calls: [], downloads: [], current: true, hold: false, fail: false };
       const h = window.__backupBridge;
@@ -366,6 +368,8 @@ client.rpc=async(name,args)=>{
     // The real R.dom helper supports only selected properties: test the visibly rendered
     // retention choice and receipt through remounts, using the actual rendered controls.
     await options(true, false);
+    await selectDatabaseTab(page, "wipe");
+    assert.equal(await retain.isChecked(), false, "switching tabs preserves the reviewed retention choice");
     await page.evaluate(() => { window.__backupBridge.fail = false; });
     await page.locator("#databasePrepareWipe").click();
     await page.locator("#databaseWipeAll").waitFor();
@@ -430,7 +434,7 @@ client.rpc=async(name,args)=>{
     await prepareWipe();
     await page.locator("#databaseWipeAll").click();
     await confirm.getByRole("button", { name: "Yes", exact: true }).click();
-    await reopenDatabaseAfterRecovery(page);
+    await reopenDatabaseAfterRecovery(page, "wipe");
     assert.equal(await page.evaluate(() => sessionStorage.getItem("syntheticWipeSignedOut")), null);
     assert.equal(await retain.isChecked(), true);
 

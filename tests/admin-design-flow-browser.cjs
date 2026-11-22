@@ -49,7 +49,7 @@ await require("./helpers/admin-toolbar.cjs").autoConfirmInline(page);
         await r.fulfill({ response, body: (await response.text()).replace(/ integrity="[^"]+"/g, "") });
       });
       await page.goto(base + "/admin/");
-      await page.waitForFunction(() => document.querySelectorAll("#statsGrid .stat-card").length === 4);
+      await page.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
       assert.equal(await page.locator('[data-panel="overview"],[data-tab="overview"]').count(), 0);
       assert.equal(await page.locator('[data-panel="invites"] #statsGrid').count(), 1);
       await page.locator('[data-tab="invites"]').click();

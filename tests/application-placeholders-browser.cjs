@@ -18,7 +18,7 @@ Object.assign(fixtures.event_settings[0],values);return {data:null,error:null};}
     await routeSyntheticSdk(page, mock + "\n" + extra + "\n" + publicationSeed);
     const base = "http://127.0.0.1:" + server.address().port;
     await page.goto(base + "/admin/");
-    await page.waitForFunction(() => document.querySelectorAll("#statsGrid .stat-card").length === 4);
+    await page.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
     await page.locator("#settingsToggle").click();
     const application = page.locator('[data-settings-panel="application"]');
     assert.equal(await application.isVisible(), true);

@@ -11,7 +11,7 @@ await page.route('**/supabase.min.js',route=>route.fulfill({contentType:'text/ja
 await page.route('**/js/config.js?*',route=>route.fulfill({contentType:'text/javascript',body:'window.RSVP_CONFIG={supabaseUrl:"http://127.0.0.1:54321",supabaseKey:"sb_publishable_synthetic"};'}));
 await page.route(/\/(rest|auth|functions)\/v1\//,route=>route.abort());
 await page.route('**/admin/',async route=>{const response=await route.fetch();await route.fulfill({response,body:(await response.text()).replace(/ integrity="[^"]+"/g,'')})});
-await page.goto((process.env.RSVP_TEST_BASE_URL||'http://127.0.0.1:'+server.address().port)+'/admin/');await page.waitForFunction(()=>document.querySelectorAll('#statsGrid .stat-card').length===4);
+await page.goto((process.env.RSVP_TEST_BASE_URL||'http://127.0.0.1:'+server.address().port)+'/admin/');await page.waitForFunction(()=>document.querySelector('#inviteOverviewCounts .invite-stat-row'));
 const firstHousehold = await page.evaluate(() => fixtures.households.find(h => h.id === document.querySelector('#inviteRows [data-invite-household]').dataset.inviteHousehold));
 assert.equal(await page.locator('#inviteRows .invite-compact-name').first().innerText(), firstHousehold.household_name + ' Family');
 await page.locator('#inviteSearchToggle').click();assert.equal(await page.locator('#inviteSearch').isVisible(),true);

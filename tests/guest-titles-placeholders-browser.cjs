@@ -164,7 +164,7 @@ const titleRpc=client.rpc;client.rpc=async(name,args)=>{
       }
       await page.goto(base + "/admin/");
       await page.waitForFunction(
-        () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+        () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
       );
       await page.locator("#settingsToggle").click();
       await page

@@ -25,7 +25,7 @@ const { server, mock, extra, stageExtra, out } =
     );
     await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
     await page.waitForFunction(
-      () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+      () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
     );
     assert.equal(await page.locator("#editModeButton").count(), 0);
     assert.equal(

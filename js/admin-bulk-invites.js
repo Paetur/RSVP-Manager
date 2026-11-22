@@ -214,7 +214,7 @@
         status: "ready",
         channel: queue.channel,
         contact_id: queue.contact_id || null,
-        message_subject: queue.message_subject || "",
+        message_subject: window.RSVP_INVITATION_TEXT.deliverySubject(household, queue, R),
         message_body: message,
         message_image: queue.message_image ?? null,
         expected_invitation_code: household.invite_code,

@@ -3,6 +3,7 @@ const { openBox } = require("./helpers/local-edit-ui.cjs");
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
 const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
+const { refreshFixture, selectOverviewTab } = require("./helpers/admin-toolbar.cjs");
 const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal-preferences");
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -27,6 +28,21 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal
   let fail = false,
     writes = [],
     delay;
+  const defaultCards = ["households", "food", "rsvp", "invites", "services", "language"];
+  const savedCards = ["food", "households", "rsvp", "services", "invites"];
+  const cardOrder = (page) => page.locator("#statsGrid [data-overview-card]")
+    .evaluateAll((cards) => cards.map((card) => card.dataset.overviewCard));
+  const settingsOrder = (page) => page.locator("#overviewCardOrder [data-overview-setting]")
+    .evaluateAll((rows) => rows.map((row) => row.dataset.overviewSetting));
+  async function openOverview(page) {
+    await page.locator("#mainSectionToggle").click();
+    await page.locator('[data-tab="invites"]').click();
+  }
+  async function editOverview(page) {
+    await page.locator("#settingsToggle").click();
+    await page.locator("[data-settings-tab=checklist]").click();
+    return openBox(page, "overview-appearance");
+  }
   async function device(account, storage) {
     const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
@@ -57,10 +73,11 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal
       return { data: { user: profiles[account] } };
     });
     await routeSyntheticSdk(page, mock + "\n" + extra +
-      `\nclient.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>window.profileRequest(values.data);`);
+      `\nfixtures.guests.push({id:"99999999-9999-4999-8999-999999999990",household_id:h3,first_name:"Second",language:"de"});
+client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>window.profileRequest(values.data);`);
     await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
     await page.waitForFunction(
-      () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+      () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
     );
     await page.locator("#settingsToggle").click();
     await page.locator("[data-settings-tab=checklist]").click();
@@ -172,18 +189,105 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal
     await page.locator("#saveInvitesAppearance").click();
     await page.locator("#invitesAppearanceStatus[data-state=saved]").waitFor({ state: "attached" });
     assert.equal(profiles.a.user_metadata.rsvp_invites_grouped, false);
+
+    // The real Overview and its editor share one saved order per account.
+    await openOverview(page);
+    assert.deepEqual(await cardOrder(page), defaultCards);
+    const inviteRows = page.locator("#inviteRows .invite-household");
+    const allCount = await inviteRows.count();
+    await selectOverviewTab(page, "invitation");
+    await page.locator('#inviteLanguageFilter [data-value="de"]').click();
+    const filteredCount = await inviteRows.count();
+    assert.ok(filteredCount > 0 && filteredCount < allCount, "the Language card actively narrows the list");
+    await page.setViewportSize({ width: 1160, height: 1100 });
+    const editor = await editOverview(page);
+    assert.deepEqual(await settingsOrder(page), defaultCards);
+    assert.deepEqual(await editor.locator('[data-overview-setting-tab] h4').allTextContents(), ["Information", "Invitation"]);
+    const row = (id) => editor.locator('[data-overview-setting="' + id + '"]');
+    const moveHouseholdsDown = row("households").locator('[data-overview-move="down"]');
+    assert.match(await moveHouseholdsDown.getAttribute("aria-label"), /^Move down · Households/);
+    assert.equal(await row("rsvp").locator('[data-overview-move="down"]').isDisabled(), true);
+    assert.equal(await row("invites").locator('[data-overview-move="up"]').isDisabled(), true);
+    await moveHouseholdsDown.focus();
+    await page.keyboard.press("Enter");
+    assert.equal(await moveHouseholdsDown.evaluate((button) => button === document.activeElement), true);
+    const reorderedInformation = ["food", "households", "rsvp", "invites", "services", "language"];
+    assert.deepEqual(await settingsOrder(page), reorderedInformation);
+    const serviceGrip = row("services").locator("[data-overview-grip]");
+    async function dragServicesTo(id) {
+      await serviceGrip.scrollIntoViewIfNeeded();
+      const grip = await serviceGrip.boundingBox();
+      const target = await row(id).boundingBox();
+      await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(target.x + 20, target.y + 6, { steps: 12 });
+      await page.mouse.move(target.x + 21, target.y + 6);
+      await page.mouse.up();
+    }
+    await dragServicesTo("rsvp");
+    assert.deepEqual(await settingsOrder(page), reorderedInformation, "dragging onto a different tab cannot change the saved order");
+    await dragServicesTo("invites");
+    const visibleLanguage = row("language").locator('input[type="checkbox"]');
+    await visibleLanguage.uncheck();
+    const layout = [...savedCards, "language"]
+      .map((id) => ({ id, shown: id !== "language" }));
+    assert.deepEqual(await settingsOrder(page), layout.map(({ id }) => id));
+    assert.deepEqual(await cardOrder(page), defaultCards, "edits stay in the independent draft");
+
+    const overviewSave = editor.locator("#saveOverviewAppearance");
+    fail = true;
+    await overviewSave.click();
+    await page.locator("#overviewAppearanceStatus[data-state=error]").waitFor();
+    assert.equal(await visibleLanguage.isChecked(), false, "a failed save retains the visibility draft");
+    assert.deepEqual(await cardOrder(page), defaultCards, "a failed save keeps the applied layout");
+    await overviewSave.click();
+    await page.locator("#overviewAppearanceStatus[data-state=saved]").waitFor({ state: "attached" });
+    assert.deepEqual(writes.at(-1), { rsvp_overview_layout: layout });
+    await openOverview(page);
+    assert.deepEqual(await cardOrder(page), savedCards);
+    assert.equal(await inviteRows.count(), allCount, "hiding the Language card clears its active filter");
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.deepEqual(await cardOrder(page), savedCards, "phone and desktop use the same saved order");
+
+    await editOverview(page);
+    assert.ok(await editor.evaluate((form) => form.scrollWidth <= form.clientWidth + 1), "the Overview editor fits a phone");
+    await editor.locator("#resetOverviewAppearance").click();
+    assert.deepEqual(await settingsOrder(page), defaultCards);
+    assert.equal(await visibleLanguage.isChecked(), true);
+    await editor.locator("#cancelOverviewAppearance").click();
+    await openOverview(page);
+    assert.deepEqual(await cardOrder(page), savedCards, "Cancel preserves the saved layout after staging a reset");
+
     const second = await device("a");
+    assert.deepEqual(await cardOrder(second.page), savedCards, "the Overview layout follows the signed-in account");
     assert.equal(await second.page.locator('#inviteGroupBy input[data-invite-grouping="none"]').isChecked(), true, "grouping follows the account to another device");
     assert.equal(
       await second.page.locator("#themePreference").inputValue(),
       "light",
     );
     assert.equal(await second.page.locator("#timeFormat").inputValue(), "24");
+    profiles.b.user_metadata.rsvp_overview_layout = [
+      { id: "language", shown: true }, { id: "guests", shown: false },
+      { id: "food", shown: true }, { id: "households", shown: true },
+      { id: "services", shown: true }, { id: "rsvp", shown: false },
+      { id: "invites", shown: true },
+    ];
     const b = await device("b", {
       "event-appearance": "dark",
       "rsvp-time-format": "12",
       "rsvp-interface-language": "de",
     });
+    assert.deepEqual(await cardOrder(b.page), ["food", "households", "language", "services", "invites"],
+      "legacy preferences keep each tab's relative order and the saved Households choice");
+    await b.page.evaluate(() => { window.__accessPermissions.sections.food = "none"; });
+    await refreshFixture(b.page);
+    await b.page.locator('#statsGrid [data-overview-card="food"]').waitFor({ state: "detached" });
+    await editOverview(b.page);
+    assert.deepEqual(await settingsOrder(b.page), ["households", "rsvp", "language", "services", "invites"], "the editor cannot show a card the administrator cannot access");
+    await b.page.evaluate(() => { window.__accessPermissions.sections.households = "none"; });
+    await refreshFixture(b.page);
+    await b.page.locator("#statsGrid .overview-people-breakdown").waitFor({ state: "detached" });
+    assert.equal(await b.page.locator("#inviteGroupTrees").count(), 1, "Invite-only access keeps the group filters without exposing guest totals");
     assert.equal(
       await b.page.locator("#themePreference").inputValue(),
       "system",
@@ -211,6 +315,15 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal
       false,
     );
     assert.equal(writes.length, count);
+    const restored = await editOverview(page);
+    await restored.locator("#resetOverviewAppearance").click();
+    await restored.locator("#saveOverviewAppearance").click();
+    await page.locator("#overviewAppearanceStatus[data-state=saved]").waitFor({ state: "attached" });
+    await openOverview(page);
+    assert.deepEqual(await cardOrder(page), defaultCards);
+    assert.equal(await page.locator("#inviteLanguageFilter [aria-pressed=true]").count(), 0);
+    await page.locator("#settingsToggle").click();
+    await page.locator("[data-settings-tab=checklist]").click();
     await openBox(page, "personal-preferences");
     // The header shortcut is desktop-only; it preserves other Interface drafts.
     await page.setViewportSize({ width: 1160, height: 900 });
@@ -273,7 +386,7 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal
     await page.waitForFunction(
       () =>
         document.documentElement.lang === "de" &&
-        document.querySelectorAll("#statsGrid .stat-card").length === 4,
+        document.querySelector("#inviteOverviewCounts .invite-stat-row"),
     );
     assert.equal(profiles.a.user_metadata.rsvp_interface_language, "de");
     await page.locator("#settingsToggle").click();
@@ -293,6 +406,7 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal
     console.log(
       "PASS personal Interface Save/Cancel: draft-only edits, discard, changed-field batching, view-only access, pending locks, failure retention/retry, account/device isolation, immediate header toggle, EN/DE/FO buttons and safe persist-before-language-reload.",
     );
+    console.log("PASS Overview appearance: keyboard and pointer reorder, focus, visibility and filter clearing, responsive and per-account persistence, failed save retry, Reset and Cancel.");
   } finally {
     await browser.close();
     await new Promise((r) => server.close(r));

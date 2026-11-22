@@ -105,7 +105,7 @@ const { root, out, server, mock, extra, stageExtra } =
     );
     await page.goto(base + "/admin/");
     await page.waitForFunction(
-      () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+      () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
     );
     await page.locator("[data-tab=food]").click();
     for (const id of ["foodGroupsSection", "foodCategoriesSection"])

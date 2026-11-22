@@ -30,7 +30,7 @@ The isolated test helper also has a web installation panel. It opens reviewed
 from this guide or the JSON blueprint. Until those links exist, follow the native
 authoring steps here. See [web installer instructions](ShortcutsTestSite.md#install-the-native-shortcuts-from-the-helper).
 
-For the organizer workspace, open **Main → Invites → iPhone Shortcuts** when the
+For the organizer workspace, open **Home → Main → iPhone Shortcuts** when the
 feature is enabled. See the [organizer guide](ShortcutOrganizer.md) for normal
 batch review and history; the dedicated test helper below remains separate.
 

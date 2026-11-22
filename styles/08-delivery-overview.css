@@ -540,12 +540,36 @@
 }
 .template-choice-menu button:hover { border-color: var(--line); }
 .template-choice-menu button[aria-pressed="true"]::after { content: "✓"; margin-inline-start: 8px; }
-.filter-choice-actions {
-  display: flex;
+.invite-layout-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 3px;
+  margin: 0;
+  padding: 0 0 3px;
+  min-width: 0;
+  border: 0;
   border-bottom: 1px solid var(--line);
 }
-.filter-choice-actions > button { flex: 1; }
+.invite-layout-choice {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  margin: 0;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: .88rem;
+  cursor: pointer;
+}
+.invite-layout-choice input { flex: none; margin: 0; }
+.invite-layout-choice span { overflow-wrap: anywhere; }
+.invite-layout-choice:hover, .invite-layout-choice:focus-within { border-color: var(--line); }
+.invite-layout-choice:has(input:checked) {
+  background: color-mix(in srgb, var(--teal) 12%, var(--light));
+  color: var(--action-text);
+}
 @media (max-width: 650px) {
   .template-choice-grid { grid-template-columns: minmax(0, 1fr); }
 }
@@ -573,8 +597,8 @@
 /* Search follows the invitation actions and expands below the toolbar. */
 #adminApp .invite-box-heading {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, max-content) 44px;
-  grid-template-areas: "title action search" "field field field";
+  grid-template-columns: minmax(0, 1fr) clamp(9rem, 19vw, 14rem) minmax(0, max-content) 44px;
+  grid-template-areas: "title shown action search" "field field field field";
   align-items: center;
   column-gap: 8px;
 }
@@ -595,7 +619,7 @@
   margin-block: 8px 0;
 }
 .invite-heading-title { grid-area: title; min-width: 0; }
-.invite-overview-filters > div { min-width: 0; }
+#inviteShownFieldsHost { grid-area: shown; min-width: 0; }
 #adminApp .invite-copy-action {
   appearance: none;
   display: inline-flex;
@@ -934,15 +958,9 @@
 /* One Invites list shares the existing draft/Sent action selection. */
 #adminApp [data-panel="invites"] { display: grid; gap: 16px; }
 #adminApp [data-panel="invites"].hidden { display: none; }
-.invite-sorting { min-width: 0; }
-.invite-sorting > .invite-overview-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: start;
-}
-.invite-sorting .invite-overview-filters > div { flex: 1 1 10rem; }
-.invite-sorting .template-choice { position: relative; }
-.invite-sorting .template-choice > .template-choice-menu {
+.invite-shown-fields { position: relative; }
+.invite-shown-fields:not([open]) > .template-choice-menu { display: none; }
+.invite-shown-fields[open] > .template-choice-menu {
   position: absolute;
   inset-block-start: 100%;
   inset-inline: -1px;
@@ -984,11 +1002,9 @@
 }
 @media (max-width: 750px) {
   #adminApp .invite-box-heading {
-    grid-template-areas: "title title title" "action action search" "field field field";
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-areas: "title title" "shown shown" "action search" "field field";
     row-gap: 8px;
   }
   #adminApp .invite-heading-search .admin-search-toggle { align-self: end; }
-}
-@media (max-width: 500px) {
-  .invite-sorting .invite-overview-filters > div { flex-basis: 100%; }
 }

@@ -79,10 +79,12 @@
     (name === "language" && can("languages")) ||
     (name === "events" && can("settings")) ||
     can(name);
-  async function refresh() {
-    access = await rpc("admin_get_access");
-    if (!access?.permissions?.sections)
+  async function refresh(current = () => true) {
+    const next = await rpc("admin_get_access");
+    if (!current()) return null;
+    if (!next?.permissions?.sections)
       throw Error(T("Administrator permissions are unavailable."));
+    access = next;
     return access;
   }
   function setHidden(node, hidden) {
@@ -136,19 +138,7 @@
     }
     setHidden(R.byId("authUsersLink"), !can("full"));
     setHidden(R.byId("exportBackup"), !can("exportBackup"));
-    const restore =
-      R.byId("backupFile")?.closest("form") ||
-      R.byId("backupFile")?.closest("details");
-    if (restore) setHidden(restore, !can("restoreBackup"));
-    for (const id of [
-      "backupFile",
-      "previewBackup",
-      "restoreBackupButton",
-    ])
-      setHidden(
-        R.byId(id)?.closest("label") || R.byId(id),
-        !can("restoreBackup"),
-      );
+    setHidden(R.byId("backupFile")?.closest(".backup-restore-panel"), !can("restoreBackup"));
     for (const node of document.querySelectorAll("[data-requires-section]"))
       setHidden(
         node,
@@ -710,6 +700,7 @@
     clear() {
       access = null;
       draft = null;
+      features = {};
     },
   };
 })();

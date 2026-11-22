@@ -1,5 +1,5 @@
 const {openBox}=require('./helpers/local-edit-ui.cjs');
-const {reopenDatabaseAfterRecovery}=require('./helpers/admin-toolbar.cjs');
+const {reopenDatabaseAfterRecovery,selectDatabaseTab}=require('./helpers/admin-toolbar.cjs');
 const {openWordingEditor,selectWorkTab}=require('./helpers/language-ui.cjs');
 const {chromium,webkit}=require('playwright'),{mock}=require('./helpers/admin-fixture.cjs');
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
@@ -7,13 +7,18 @@ const root=process.cwd();const server=http.createServer((req,res)=>{let name=new
 const extra=`
 fixtures.event_languages=[{language_code:'fo',display_name:'Føroyskt',enabled:true,sort_order:1},{language_code:'en',display_name:'English',enabled:true,sort_order:2},{language_code:'de',display_name:'Deutsch',enabled:true,sort_order:3}];fixtures.event_settings[0].default_language='en';fixtures.event_settings[0].fallback_language='de';
 fixtures.event_content=[{content_key:'ui:Quantity for {item}',language_code:'de',content_value:'Menge für {item}'}];
-const backup={format:'rsvp-application-backup',version:3,payload:{selection:{mode:'backup',sections:['venues','households','food','other','wording'],include_logs:true},created_at:'2026-11-01T12:00:00Z',tables:{'public.event_settings':[{event_name:'Restoration example'}]}},checksum:'synthetic'};window.__backup=backup;
+const backup={format:'rsvp-application-backup',version:3,payload:{selection:{mode:'backup',sections:['venues','households','food','other','wording'],include_logs:true},created_at:'2026-11-01T12:00:00Z',tables:{'public.event_settings':[{event_name:'Restoration example',invitation_picture_album:[{id:'synthetic-album'}]}],'public.invitation_send_queue':[{status:'draft'}]}},checksum:'synthetic'};window.__backup=backup;
 const initialRpc=client.rpc;client.rpc=async(name,a={})=>{if(name==='get_language_configuration')return {data:{languages:fixtures.event_languages.filter(l=>l.enabled),default_language:fixtures.event_settings[0].default_language,fallback_language:fixtures.event_settings[0].fallback_language,translations:fixtures.event_content.filter(c=>c.content_key.startsWith('ui:'))}};
 if(name==='admin_move_language'){const rows=[...fixtures.event_languages].sort((x,y)=>x.sort_order-y.sort_order||x.language_code.localeCompare(y.language_code));const index=rows.findIndex(row=>row.language_code===a.p_code);const target=index+a.p_direction;if(target>=0&&target<rows.length){[rows[index],rows[target]]=[rows[target],rows[index]];rows.forEach((row,i)=>{row.sort_order=i+1;});}return {data:null,error:null};}
 if(name==='admin_save_language'){const old=fixtures.event_languages.find(l=>l.language_code===a.p_code);if(!a.p_enabled&&[fixtures.event_settings[0].default_language,fixtures.event_settings[0].fallback_language].includes(a.p_code))return {error:{message:'Choose another default and fallback before disabling this language'}};const record={language_code:a.p_code,display_name:a.p_name,enabled:a.p_enabled,sort_order:a.p_order};if(old)Object.assign(old,record);else fixtures.event_languages.push(record);return {data:null};}
 if(name==='admin_set_language_preferences'){Object.assign(fixtures.event_settings[0],{default_language:a.p_default,fallback_language:a.p_fallback});return {data:null};}
 if(name==='admin_save_translation'){fixtures.event_content=fixtures.event_content.filter(c=>c.content_key!==a.p_key||c.language_code!==a.p_language);if(a.p_value)fixtures.event_content.push({content_key:a.p_key,language_code:a.p_language,content_value:a.p_value});return {data:null};}
-if(name==='admin_export_backup'){window.__exportOptions=a;return {data:{...backup,payload:{...backup.payload,selection:{mode:a.p_mode,sections:a.p_sections,include_logs:a.p_include_logs}}}};}
+if(name==='admin_export_backup'){
+ window.__exportOptions=a;
+ const selection={mode:a.p_mode,sections:a.p_sections,include_logs:a.p_include_logs};
+ const tables={...backup.payload.tables,'public.invitation_send_queue':a.p_mode==='backup'||a.p_sections.includes('drafts')?[{status:'draft'}]:[]};
+ return {data:{...backup,payload:{...backup.payload,selection,tables}}};
+}
 if(name==='admin_preview_backup'){
  window.__previewOptions=a;
  if(a.p_mode==='template')window.__templateSections=a.p_sections;
@@ -25,7 +30,7 @@ if(name==='admin_restore_backup'){sessionStorage.setItem('syntheticLanguageBacku
 async function run(type){const browser=await type.launch({headless:true});try{
  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>localStorage.setItem('rsvp-interface-language','en'));
  await page.route('**/supabase.min.js',r=>r.fulfill({contentType:'text/javascript',body:mock+'\n'+extra}));
- await page.goto('http://127.0.0.1:'+server.address().port+'/admin/');await page.waitForFunction(()=>document.querySelectorAll('#statsGrid .stat-card').length===4);
+ await page.goto('http://127.0.0.1:'+server.address().port+'/admin/');await page.locator('#statsGrid .stat-card').first().waitFor({state:'attached'});
  await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="languages"]').click();
  assert.equal(await page.locator('#addLanguageForm').isVisible(),false,'Add language is an explicit closed creation section');
  await page.locator('#addLanguageForm').evaluate(n=>n.parentElement.open=true);
@@ -59,13 +64,14 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.equal(await page.evaluate(()=>window.RSVP_I18N.t('Households',{},'sv')),'Hushåll');assert.equal(await page.evaluate(()=>window.RSVP_I18N.t('Quantity for {item}',{item:'Food'},'sv')),'Menge für Food');
  await page.locator('[data-settings-tab="backups"]').click();
  assert.equal(await page.locator('#backupExportMode input:checked').count(),1);
- assert.equal(await page.locator('#backupExportMode select,#backupRestoreMode select').count(),0);
+ assert.equal(await page.locator('#backupRestoreMode').count(),0);
+ assert.equal(await page.locator('#backupRestoreDestination input[type=radio]').count(),4);
+ assert.equal(await page.locator('#backupRestoreDestination input:checked').inputValue(),'clean');
  assert.equal(await page.locator('#backupExportSections').isVisible(),true);
  assert.equal(await page.locator('#backupExportSections > label:visible').count(),1);
  assert.equal(await page.locator('#backupExportSections #backupExportLogs').isVisible(),true);
- assert.equal(await page.locator('#backupTemplateSections').isVisible(),true);
- assert.equal(await page.locator('#backupTemplateSections > label:visible').count(),1);
- assert.equal(await page.locator('#backupTemplateSections #backupRestoreLogs').isVisible(),true);
+ assert.equal(await page.locator('#backupTemplateSections').isVisible(),false);
+ assert.equal(await page.locator('#backupFileType').isVisible(),false);
  await page.locator('#backupExportMode input[value="template"]').check();
  for(const width of [390,820,1440]){
   await page.setViewportSize({width,height:900});
@@ -85,63 +91,85 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await page.locator('#backupExportSections input[value="food"]').uncheck();
  assert.equal(await page.locator('#backupExportSections input[value="households"]').isChecked(),true,'templates allow independent sections');
  const templateDownload=page.waitForEvent('download');await page.locator('#exportBackup').click();
- assert.match((await templateDownload).suggestedFilename(),/^rsvp-template-/);
- assert.deepEqual(await page.evaluate(()=>window.__exportOptions),{p_mode:'template',p_sections:['venues','households','other','wording'],p_include_logs:false});
+ const partialDownload=await templateDownload;
+ assert.match(partialDownload.suggestedFilename(),/^rsvp-template-/);
+ const partial=JSON.parse(fs.readFileSync(await partialDownload.path(),'utf8'));
+ assert.deepEqual(await page.evaluate(()=>window.__exportOptions),{p_mode:'template',p_sections:['venues','households','other','language_text','invitation_templates','picture_album'],p_include_logs:false});
  await page.locator('#backupExportMode input[value="template"]').click();assert.equal(await page.locator('#backupExportMode input:checked').count(),1,'a mode always remains selected');
  await page.locator('#backupExportMode input[value="backup"]').check();
  await page.locator('#backupExportLogs').check();
- const file=()=>({name:'test-backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(contents))});await page.locator('#backupFile').setInputFiles(file());await page.locator('#previewBackup:not([disabled])').waitFor();assert.equal(await page.locator('#restoreBackupButton').isDisabled(),true);
- await page.locator('#previewBackup').click();await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.includes('empty application'));assert.equal(await page.locator('#restoreBackupButton').isDisabled(),true);
- await page.evaluate(()=>window.__canRestore=true);await page.locator('#previewBackup').click();await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.includes('rehearsal passed'));assert.equal(await page.locator('#restoreBackupButton').isEnabled(),true);
- await page.locator('#backupRestoreMode input[value="template"]').check();
- assert.equal(await page.locator('#restoreBackupButton').isDisabled(),true);
- await page.locator('#backupTemplateSections input[value="food"]').uncheck();
- await page.locator('#previewBackup').click();
- await page.waitForFunction(()=>window.__templateSections);
- assert.deepEqual(await page.evaluate(()=>window.__templateSections),['venues','households','other','wording']);
- assert.equal(await page.locator('#backupRestoreLogs').isDisabled(),true);
- assert.equal(await page.locator('#backupRestoreLogs').isChecked(),false);
- assert.equal(await page.evaluate(()=>window.__previewOptions.p_include_logs),false,'Partial restore never includes logs');
- await page.locator('#backupRestoreMode input[value="backup"]').check();
- await page.locator('#backupRestoreLogs').check();
- await page.locator('#previewBackup').click();
+ await selectDatabaseTab(page,'restore');
+ const restoreAction=page.locator('#restoreBackupAction'), fileType=page.locator('#backupFileType'),
+   restoreLogs=page.locator('#backupRestoreLogs'), restoreSections=page.locator('#backupTemplateSections');
+ const openBackup=(name,data)=>page.locator('#backupFile').setInputFiles({
+  name,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data)),
+ });
+ const detectBackup=(label)=>page.waitForFunction(text=>document.querySelector('#backupFileType').textContent.trim()===text,label);
+ await openBackup('test-backup.json',contents);
+ await detectBackup('Full backup detected');
+ assert.equal(await restoreAction.textContent(),'Validate backup');
+ assert.equal(await restoreLogs.isVisible(),true);
+ assert.equal(await restoreLogs.isChecked(),true);
+ await restoreAction.click();
+ await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.includes('empty application'));
+ assert.equal(await restoreAction.textContent(),'Validate backup','a failed preview cannot approve restoration');
+ await page.evaluate(()=>window.__canRestore=true);
+ await restoreAction.click();
  await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.includes('rehearsal passed'));
- await page.locator('#backupRestoreLogs').uncheck();
- assert.equal(await page.locator('#restoreBackupButton').isDisabled(),true,'log choices invalidate validation');
+ assert.equal(await restoreAction.textContent(),'Restore backup');
+ await restoreLogs.uncheck();
+ assert.equal(await restoreAction.textContent(),'Validate backup','changing activity-log selection invalidates validation');
+ await restoreAction.click();
+ await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.includes('rehearsal passed'));
+ assert.equal(await page.evaluate(()=>window.__previewOptions.p_include_logs),false);
+
+ await openBackup('test-planning.json',partial);
+ await detectBackup('Partial backup detected');
+ assert.equal(await restoreAction.textContent(),'Validate backup','a new file invalidates validation');
+ assert.equal(await restoreSections.locator('input[value="drafts"]').isVisible(),false,'draft controls stay hidden when the file omits drafts');
+ assert.equal(await restoreSections.locator('input[value="food"]').isVisible(),false);
+ assert.equal(await restoreLogs.isVisible(),false);
+ await restoreAction.click();
+ await page.waitForFunction(()=>window.__templateSections);
+ await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.includes('rehearsal passed'));
+ assert.deepEqual(await page.evaluate(()=>window.__templateSections),['venues','households','other','language_text','invitation_templates','picture_album']);
+ assert.equal(await restoreLogs.isVisible(),false);
+ assert.equal(await page.evaluate(()=>window.__previewOptions.p_include_logs),false,'Partial restore never includes logs');
+ await restoreSections.locator('input[value="venues"]').uncheck();
  await page.evaluate(()=>window.__holdBackupPreview=true);
- await page.locator('#previewBackup').click();await page.waitForFunction(()=>window.__releaseBackupPreview);
- await page.locator('#backupRestoreMode input[value="template"]').check();
- await page.locator('#backupTemplateSections input[value="other"]').uncheck();
+ await restoreAction.click();await page.waitForFunction(()=>window.__releaseBackupPreview);
+ await restoreSections.locator('input[value="other"]').uncheck();
  await page.evaluate(()=>{window.__holdBackupPreview=false;window.__releaseBackupPreview();});
- await page.locator('#previewBackup:not([disabled])').waitFor();
- assert.equal(await page.locator('#restoreBackupButton').isDisabled(),true,'late validation cannot approve a changed selection');
- await page.locator('#previewBackup').click();
+ await page.locator('#restoreBackupAction:enabled').waitFor();
+ assert.equal(await restoreAction.textContent(),'Validate backup','late validation cannot approve a changed selection');
+ await restoreAction.click();
  await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.includes('rehearsal passed'));
  assert.equal(await page.evaluate(()=>window.__previewOptions.p_include_logs),false);
  assert.equal(await page.evaluate(()=>window.__previewOptions.p_sections.includes('other')),false);
- await page.locator('#backupRestoreMode input[value="backup"]').check();
- assert.equal(await page.locator('#backupTemplateSections').isVisible(),true);
- assert.equal(await page.locator('#backupTemplateSections > label:visible').count(),1);
- assert.equal(await page.locator('#backupTemplateSections #backupRestoreLogs').isVisible(),true);
- await page.locator('#previewBackup').click();
+ const withoutLogs={...contents,payload:{...contents.payload,selection:{...contents.payload.selection,include_logs:false}}};
+ await openBackup('without-logs.json',withoutLogs);
+ await detectBackup('Full backup detected');
+ assert.equal(await restoreSections.isVisible(),false,'a Full file without logs has no selectable sections');
+ assert.equal(await restoreLogs.isVisible(),false);
+ await restoreAction.click();
  await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.includes('rehearsal passed'));
  assert.deepEqual(await page.evaluate(()=>window.__previewOptions.p_sections),['venues','households','food','other','wording'],'Full restore ignores the hidden planned subset');
- assert.equal(await page.locator('#restoreBackupConfirmation').count(),0);await page.locator('#restoreBackupButton').click();await page.locator('.inline-confirmation [data-inline-confirm]').click();
- await reopenDatabaseAfterRecovery(page);
+ assert.equal(await page.evaluate(()=>window.__previewOptions.p_include_logs),false);
+ assert.equal(await page.locator('#restoreBackupConfirmation').count(),0);await restoreAction.click();await page.locator('.inline-confirmation [data-inline-confirm]').click();
+ await reopenDatabaseAfterRecovery(page,'restore');
  assert.equal(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('syntheticLanguageBackupRestore')).p_confirmation),'RESTORE Restoration example');assert.equal(await page.evaluate(()=>window.__fixtures.event_settings[0].is_published),false);
- const limited={...contents,payload:{...contents.payload,selection:{mode:'template',sections:['other'],include_logs:false}}};
- await page.locator('#backupFile').setInputFiles({name:'limited.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(limited))});
- await page.locator('#previewBackup:not([disabled])').waitFor();
- assert.equal(await page.locator('#backupRestoreMode input:checked').inputValue(),'template');
- assert.equal(await page.locator('#backupRestoreMode input[value="backup"]').isDisabled(),true);
- assert.equal(await page.locator('#backupRestoreLogs').isDisabled(),true);
- assert.equal(await page.locator('#backupTemplateSections input[value="households"]').isDisabled(),true);
- assert.equal(await page.locator('#backupTemplateSections input[value="other"]').isChecked(),true);
+ const limited={...contents,payload:{...contents.payload,selection:{mode:'template',sections:['other'],include_logs:false},
+  tables:{'public.event_settings':[{event_name:'Restoration example'}]}}};
+ await openBackup('limited.json',limited);
+ await detectBackup('Partial backup detected');
+ assert.deepEqual(await restoreSections.locator('input:visible').evaluateAll(inputs=>inputs.map(input=>input.value)),['other']);
+ assert.equal(await restoreSections.locator('input[value="other"]').isChecked(),true);
  const obsolete={...contents,version:1};
  await page.locator('#backupFile').setInputFiles({name:'obsolete.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(obsolete))});
  await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.includes('Unsupported or damaged encrypted backup.'));
- assert.equal(await page.locator('#previewBackup').isDisabled(),true);
- await page.locator('#backupFile').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{')});await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.length>0);assert.equal(await page.locator('#previewBackup').isDisabled(),true);assert.equal(await page.locator('#restoreBackupButton').isDisabled(),true);
+ assert.equal(await restoreAction.isDisabled(),true);
+ assert.equal(await fileType.isVisible(),false);
+ await page.locator('#backupFile').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{')});await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.length>0);assert.equal(await restoreAction.isDisabled(),true);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),true,'Tools fit mobile');assert.deepEqual(errors,[]);
  await page.locator('#mainSectionToggle').click();
  await selectWorkTab(page,'invites');

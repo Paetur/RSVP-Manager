@@ -35,7 +35,7 @@ async function run(browserType){
    await page.route('**/supabase.min.js',r=>r.fulfill({contentType:'text/javascript',body:mock+'\n'+extra}));
    const base='http://127.0.0.1:'+server.address().port;
    await page.goto(base+'/admin/');await page.locator('#adminApp:not(.hidden)').waitFor();
-   await page.waitForFunction(()=>document.querySelector('#statsGrid').children.length===4);
+   await page.locator('#statsGrid .stat-card').first().waitFor({state:'attached'});
    assert.equal(await page.locator('html').getAttribute('lang'),lang);
    assert.equal(await page.locator('[data-tab="households"]').textContent(),lang==='en'?'Households':catalog.Households[lang]);
    await page.locator('#settingsToggle').click();
@@ -46,8 +46,16 @@ async function run(browserType){
    assert.equal(await timestampChecks.count(),2);assert.equal(await timestampChecks.first().isChecked(),true);assert.equal(await timestampChecks.nth(1).isChecked(),false);
    await wideStatus.getByRole('button',{name:lang==='en'?'Cancel':catalog.Cancel[lang],exact:true}).click();
    await page.locator('[data-settings-tab="backups"]').click();
-   for(const [id,labels] of [['backupExportMode',['Full backup','Partial backup']],['backupRestoreMode',['Full','Partial','Wipe']]])for(const label of labels)assert.equal(await page.locator('#'+id).getByRole('checkbox',{name:lang==='en'?label:catalog[label][lang],exact:true}).count(),1);
-   assert.equal(await page.getByRole('checkbox',{name:lang==='en'?'Include activity logs':catalog['Include activity logs'][lang],exact:true}).count(),2);
+   for(const label of ['Full backup','Partial backup'])assert.equal(await page.locator('#backupExportMode').getByRole('checkbox',{name:lang==='en'?label:catalog[label][lang],exact:true}).count(),1);
+   assert.equal(await page.getByRole('checkbox',{name:lang==='en'?'Include activity logs':catalog['Include activity logs'][lang],exact:true}).count(),1);
+   for(const label of ['Backup','Restore','Wipe'])assert.equal(await page.locator('#databaseTabs').getByRole('tab',{name:lang==='en'?label:catalog[label][lang],exact:true}).count(),1);
+   await page.locator('[data-database-tab="restore"]').click();
+   const destinations=page.locator('#backupRestoreDestination');
+   assert.equal(await destinations.getByRole('radio').count(),4);
+   for(const [value,label] of [['clean','Clean database'],['restart','Restart planning from backup'],['replace','Replace event data'],['wipe','Wipe and restore']]){
+    const text=await destinations.locator('input[value="'+value+'"]').evaluate(input=>input.labels[0].textContent);
+    assert.ok(text.includes(lang==='en'?label:catalog[label][lang]),lang+': '+label);
+   }
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'backup controls fit at 390px in '+lang);
    await page.locator('[data-settings-tab="languages"]').click();
    await selectContentTranslation(page,'welcome');
@@ -98,4 +106,4 @@ async function run(browserType){
   console.log('PASS '+browserType.name()+': FO/EN/DE admin, setup, guest, welcome saves, safe custom text, placeholders, mobile layout and retained RSVP answers');
  }finally{await browser.close();}
 }
-(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));try{await run(chromium);await run(webkit);}finally{server.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
+(async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));try{await run(chromium);if(process.env.RSVP_TEST_BROWSER!=='chromium')await run(webkit);}finally{server.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

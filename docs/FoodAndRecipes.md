@@ -2,7 +2,7 @@
 
 ## Choose when guests see food choices
 
-Under **Main → Events → Features**, enable Food and choose one of the **Guest food step** cards. **Collect interest** asks whether households can bring food while hiding the detailed menu. **Choose food** opens the menu to eligible households after they answer Yes. Save the setting when ready.
+Under **Home → Events → Features**, enable Food and choose one of the **Guest food step** cards. **Collect interest** asks whether households can bring food while hiding the detailed menu. **Choose food** opens the menu to eligible households after they answer Yes. Save the setting when ready.
 
 Edit the guest explanation at **Languages globe → Guests → Food explanation**. Configure the response after a saved Yes at **Guests → Food Interest Reply**, including an optional RSVP-deadline date placeholder and missing-deadline fallback. See [Languages](Languages.md#guests-food-text). The detailed list stays hidden throughout Collect interest.
 

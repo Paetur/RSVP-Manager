@@ -38,7 +38,7 @@ const { server, mock, extra, stageExtra, out, cleanup } =
           );
           await page.waitForFunction(
             () =>
-              document.querySelectorAll("#statsGrid .stat-card").length === 4,
+              document.querySelector("#inviteOverviewCounts .invite-stat-row"),
           );
           await page.locator("[data-tab=events]").click();
           const saveText = { en: "Save", de: "Speichern", fo: "Goym" }[

@@ -46,7 +46,7 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(base + "/admin/");
     await page.waitForFunction(
-      () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+      () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
     );
     await page.locator("#settingsToggle").click();
     await page.locator("[data-settings-tab=interface]").click();
@@ -267,7 +267,7 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
       await adminPage.clock.install();
       await adminPage.goto(base + "/admin/");
       await adminPage.waitForFunction(
-        () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+        () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
       );
       await adminPage.evaluate((policy) => {
         fixtures.event_settings[0].notification_preferences = {

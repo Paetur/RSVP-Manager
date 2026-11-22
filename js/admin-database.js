@@ -9,13 +9,47 @@
     confirm, downloadSafetyBackup, adminTime = value => new Date(value).toLocaleString(), onMessage }) {
     let actor = getActor(), generation = 0, keep = true, busy = false;
     let preview = null, receipt = null, message = "", messageKind = "", cleared = false;
+    let activeTab = "backup";
+    const tabList = R.byId("databaseTabs");
+    const tabs = Array.from(tabList?.querySelectorAll("[data-database-tab]") || []);
+    const powers = { backup: "exportBackup", restore: "restoreBackup", wipe: "full" };
     const host = () => R.byId("databaseWipeHost");
     const allowed = () => Boolean(getActor() && can("full"));
     const gate = () => allowed() && getStore().settings?.is_published === false && !cleared;
+    function availableTabs() {
+      return getActor() ? tabs.filter(tab => can(powers[tab.dataset.databaseTab])) : [];
+    }
+    function showTab(name = activeTab) {
+      const available = availableTabs();
+      const selected = available.find(tab => tab.dataset.databaseTab === name) || available[0];
+      activeTab = selected?.dataset.databaseTab || "backup";
+      for (const tab of tabs) {
+        const active = tab === selected;
+        tab.hidden = !available.includes(tab);
+        tab.tabIndex = active ? 0 : -1;
+        tab.setAttribute("aria-selected", String(active));
+        tab.classList.toggle("active", active);
+        R.byId(tab.getAttribute("aria-controls")).hidden = !active;
+      }
+    }
+    tabList?.addEventListener("click", event => {
+      const button = event.target.closest("[data-database-tab]");
+      if (button && availableTabs().includes(button)) showTab(button.dataset.databaseTab);
+    });
+    tabList?.addEventListener("keydown", event => {
+      const available = availableTabs(), index = available.indexOf(event.target);
+      if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? available.length - 1 :
+        (index + (event.key === "ArrowRight" ? 1 : -1) + available.length) % available.length;
+      const target = available[next];
+      showTab(target.dataset.databaseTab);
+      target.focus();
+    });
     function invalidate() { preview = null; receipt = null; }
     function clear() {
       generation++; actor = getActor(); keep = true; busy = false; cleared = false;
-      invalidate(); message = ""; messageKind = "";
+      invalidate(); message = ""; messageKind = ""; showTab("backup");
     }
     function current(ticket, owner) { return ticket === generation && owner === getActor() && gate(); }
     function status(value, kind = "") { message = value; messageKind = kind; }
@@ -115,6 +149,7 @@
       if (ready()) R.byId("databaseWipeAll")?.focus({ preventScroll: true });
     }
     function render() {
+      showTab();
       const box = host();
       if (!box) return;
       sync(); box.hidden = !allowed();

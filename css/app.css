@@ -3035,13 +3035,6 @@ html[data-theme="dark"] code {
   margin: 16px 0;
   overflow-wrap: anywhere;
 }
-#previewBackup {
-  margin-top: 12px;
-}
-#restoreBackupForm {
-  border-top: 1px solid var(--line);
-  padding-top: 16px;
-}
 .language-switch {
   flex-wrap: wrap;
 }
@@ -5381,6 +5374,7 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
 .backup-template-sections {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  align-items: start;
   gap: 8px 16px;
   margin: 10px 0;
 }
@@ -5394,6 +5388,21 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
   gap: 6px;
   margin: 0;
   min-height: 36px;
+}
+.backup-template-sections label:has(> input[value="drafts"]:disabled) {
+  color: var(--muted);
+}
+.backup-invitation-options,
+.backup-invitation-children {
+  display: grid;
+}
+.backup-invitation-children {
+  margin-inline-start: 0.55rem;
+  padding-inline-start: 0.85rem;
+  border-inline-start: 1px solid var(--line);
+}
+.backup-template-sections .backup-drafts-help {
+  margin-block-end: 0.4rem;
 }
 
 #adminApp .admin-row-icon.session-revoke-action {
@@ -5546,7 +5555,7 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
   }
 }
 
-/* Backup/restore modes are mutually exclusive checkmark choices. */
+/* Backup modes are mutually exclusive checkmark choices. */
 .backup-mode-choices {
   display: flex;
   flex-wrap: wrap;
@@ -7296,13 +7305,47 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
 .household-inline-editor > .household-compact-reading { margin-top: 0; }
 .form-actions .form-feedback { flex-basis: 100%; }
 
-/* Grouping is a separate preference editor inside the personal Interface box. */
-.interface-invites-appearance {
+/* Keep the appearance editors separate within the personal Interface box. */
+.interface-invites-appearance,
+.interface-overview-appearance {
   position: relative;
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
+.overview-card-settings {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.overview-card-setting-group + .overview-card-setting-group { margin-top: 10px; }
+.overview-card-setting-group > h4 { margin: 0 0 4px; color: var(--muted); font-size: .85rem; }
+.overview-card-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-block: 2px solid transparent;
+}
+.overview-card-setting[data-overview-drop="before"] { border-block-start-color: var(--action-text); }
+.overview-card-setting[data-overview-drop="after"] { border-block-end-color: var(--action-text); }
+.overview-card-grip {
+  color: var(--muted);
+  flex: 0 0 24px;
+  text-align: center;
+  user-select: none;
+  visibility: hidden;
+}
+.overview-card-grip[draggable="true"] { cursor: grab; visibility: visible; }
+.overview-card-setting > label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.overview-card-moves { display: flex; gap: 4px; }
+.overview-card-moves > .btn { min-height: 44px; width: 44px; padding: 0; }
 /* Event planning and feature settings. Shared card geometry lives in shared-editor refinements. */
 #adminApp [data-panel="events"] > :is(.settings-card, #planningConfigHost) {
   min-width: 0;
@@ -8607,12 +8650,36 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 }
 .template-choice-menu button:hover { border-color: var(--line); }
 .template-choice-menu button[aria-pressed="true"]::after { content: "✓"; margin-inline-start: 8px; }
-.filter-choice-actions {
-  display: flex;
+.invite-layout-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 3px;
+  margin: 0;
+  padding: 0 0 3px;
+  min-width: 0;
+  border: 0;
   border-bottom: 1px solid var(--line);
 }
-.filter-choice-actions > button { flex: 1; }
+.invite-layout-choice {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  margin: 0;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: .88rem;
+  cursor: pointer;
+}
+.invite-layout-choice input { flex: none; margin: 0; }
+.invite-layout-choice span { overflow-wrap: anywhere; }
+.invite-layout-choice:hover, .invite-layout-choice:focus-within { border-color: var(--line); }
+.invite-layout-choice:has(input:checked) {
+  background: color-mix(in srgb, var(--teal) 12%, var(--light));
+  color: var(--action-text);
+}
 @media (max-width: 650px) {
   .template-choice-grid { grid-template-columns: minmax(0, 1fr); }
 }
@@ -8640,8 +8707,8 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 /* Search follows the invitation actions and expands below the toolbar. */
 #adminApp .invite-box-heading {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, max-content) 44px;
-  grid-template-areas: "title action search" "field field field";
+  grid-template-columns: minmax(0, 1fr) clamp(9rem, 19vw, 14rem) minmax(0, max-content) 44px;
+  grid-template-areas: "title shown action search" "field field field field";
   align-items: center;
   column-gap: 8px;
 }
@@ -8662,7 +8729,7 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
   margin-block: 8px 0;
 }
 .invite-heading-title { grid-area: title; min-width: 0; }
-.invite-overview-filters > div { min-width: 0; }
+#inviteShownFieldsHost { grid-area: shown; min-width: 0; }
 #adminApp .invite-copy-action {
   appearance: none;
   display: inline-flex;
@@ -9001,15 +9068,9 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 /* One Invites list shares the existing draft/Sent action selection. */
 #adminApp [data-panel="invites"] { display: grid; gap: 16px; }
 #adminApp [data-panel="invites"].hidden { display: none; }
-.invite-sorting { min-width: 0; }
-.invite-sorting > .invite-overview-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: start;
-}
-.invite-sorting .invite-overview-filters > div { flex: 1 1 10rem; }
-.invite-sorting .template-choice { position: relative; }
-.invite-sorting .template-choice > .template-choice-menu {
+.invite-shown-fields { position: relative; }
+.invite-shown-fields:not([open]) > .template-choice-menu { display: none; }
+.invite-shown-fields[open] > .template-choice-menu {
   position: absolute;
   inset-block-start: 100%;
   inset-inline: -1px;
@@ -9051,13 +9112,11 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 }
 @media (max-width: 750px) {
   #adminApp .invite-box-heading {
-    grid-template-areas: "title title title" "action action search" "field field field";
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-areas: "title title" "shown shown" "action search" "field field";
     row-gap: 8px;
   }
   #adminApp .invite-heading-search .admin-search-toggle { align-self: end; }
-}
-@media (max-width: 500px) {
-  .invite-sorting .invite-overview-filters > div { flex-basis: 100%; }
 }
 /* Content-language records, field token help and compact event statistics. */
 #adminApp .settings-language-card > .settings-card-heading {
@@ -9245,6 +9304,72 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
   margin: 0;
   flex-shrink: 0;
 }
+#adminApp .overview-panel {
+  background: var(--white);
+  border-radius: 10px;
+  padding: 16px 20px 18px;
+}
+#adminApp .overview-panel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-bottom: 12px;
+}
+#adminApp .overview-panel-heading h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+#adminApp .overview-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+#adminApp .overview-tabs button {
+  min-height: 34px;
+  padding: 4px 16px;
+  color: var(--muted);
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 5px;
+  font-size: .82rem;
+  font-weight: 700;
+}
+#adminApp .overview-tabs button[aria-selected="true"] {
+  background: var(--light);
+  border-color: var(--line);
+  color: var(--action-text);
+}
+#adminApp :is(.overview-panel, .overview-tabs button, .overview-cards)[hidden] {
+  display: none;
+}
+#adminApp .overview-cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 10px;
+}
+#adminApp .overview-cards .stat-card {
+  min-width: 0;
+  background: color-mix(in srgb, var(--paper) 40%, var(--white));
+  border-radius: 10px;
+}
+@media (min-width: 701px) {
+  /* Keep the invites toolbar in place when the visible Overview tab changes. */
+  #adminApp .overview-card-stack { display: grid; }
+  #adminApp .overview-cards { grid-area: 1 / 1; }
+  #adminApp .overview-cards[hidden]:not(:empty) {
+    display: grid;
+    visibility: hidden;
+  }
+}
+@media (max-width: 700px) {
+  #adminApp .overview-panel { padding: 14px; }
+  #adminApp .overview-tabs button { padding-inline: 11px; }
+  #adminApp .overview-cards { grid-template-columns: minmax(0, 1fr); }
+}
 #adminApp .stat-card.stat-card-compact {
   padding: 14px;
 }
@@ -9261,6 +9386,19 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 }
 #adminApp .stat-heading span {
   font-weight: 650;
+}
+#adminApp .overview-people-totals {
+  gap: 3px 8px;
+  margin-bottom: 3px;
+}
+#adminApp .overview-people-breakdown {
+  color: var(--muted);
+  font-size: .76rem;
+  margin: 0 0 10px;
+}
+#adminApp .overview-people-breakdown + #inviteGroupTrees {
+  border-top: 1px solid var(--line);
+  padding-top: 7px;
 }
 #adminApp .stat-counts {
   display: grid;
@@ -9322,6 +9460,7 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
   }
 }
 @media (pointer: coarse) {
+  #adminApp .overview-tabs button,
   #adminApp .placeholder-help button,
   #adminApp #translationSearchToggle,
   #adminApp #translationSearchClose {
@@ -9343,11 +9482,6 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 @media (pointer: coarse) { .placeholder-category-tabs button { min-height: 44px; } }
 
 /* Invites owns the consolidated event summary and its read-only filters. */
-#adminApp .stat-people-guests {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
 #adminApp .invite-group-tree + .invite-group-tree { margin-top: 10px; }
 #adminApp .invite-group-tree > summary {
   display: flex;
@@ -9363,6 +9497,14 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 #adminApp .invite-group-tree > summary::before { content: "›"; color: var(--action-text); }
 #adminApp .invite-group-tree[open] > summary::before { transform: rotate(90deg); }
 #adminApp .invite-group-tree > summary > b { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+#adminApp .invite-group-tree > summary > .invite-session-active {
+  min-width: 0;
+  margin-inline-start: auto;
+  color: var(--action-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 #adminApp .invite-group-list {
   list-style: none;
   margin: 0 0 0 7px;
@@ -9415,20 +9557,25 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 @media (pointer: coarse) {
   #adminApp .stat-card .invite-stat-row, #adminApp .invite-group-tree > summary { min-height: 44px; }
 }
-/* Encryption transport controls; no changes to Full/Partial restore policy. */
-#adminApp [data-settings-panel="backups"]:not(.hidden) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-#adminApp [data-settings-panel="backups"] > .panel {
+/* Database tabs and backup controls. */
+.database-panel {
   min-width: 0;
 }
-@media (min-width: 1100px) {
-  #adminApp [data-settings-panel="backups"]:not(.hidden) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.database-panel .database-tab-panel {
+  min-width: 0;
+}
+.database-tabs button {
+  min-height: 44px;
+  padding-inline: 14px;
+  border-radius: 7px 7px 0 0;
+}
+.database-tabs button.active {
+  background: var(--light);
+  color: var(--action-text);
+}
+.database-tabs button[hidden],
+.database-panel .database-tab-panel[hidden] {
+  display: none;
 }
 .backup-password-dialog {
   width: min(30rem, calc(100vw - 32px));
@@ -9464,6 +9611,183 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 
 .backup-protection { display: flex; flex-wrap: wrap; gap: 12px 22px; border: 1px solid var(--line); border-radius: 12px; margin: 14px 0; padding: 10px 14px; }
 .backup-protection label { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+
+.backup-restore-file > label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 700;
+}
+.backup-restore-file-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding-inline: 9px;
+}
+#adminApp .backup-restore-file-row input[type="file"] {
+  flex: 1 1 13rem;
+  min-width: 0;
+  padding-inline: 0;
+  border: 0;
+  background: transparent;
+}
+.backup-file-type {
+  margin-block: 5px;
+  color: var(--action-text, var(--teal-dark));
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.backup-file-type:empty,
+.backup-restore-panel .backup-preview:empty,
+.backup-restore-actions #replacementSafetyStatus:empty {
+  display: none;
+}
+.backup-restore-destinations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  min-width: 0;
+  margin: 16px 0 0;
+  border: 0;
+  padding: 0;
+}
+.backup-restore-destinations legend,
+.backup-restore-panel #backupRestoreSectionsTitle {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+.backup-restore-destinations .backup-destination {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.backup-destination strong,
+.backup-destination small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.backup-destination small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.backup-restore-destinations .backup-destination:has(:checked) {
+  border-color: var(--teal);
+  background: var(--light);
+}
+.backup-restore-destinations .backup-destination:has(:disabled) {
+  color: var(--muted);
+  cursor: default;
+}
+#adminApp .backup-destination input[type="radio"] {
+  appearance: none;
+  display: grid;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 2px 0 0;
+  padding: 0;
+  border: 1px solid var(--muted);
+  border-radius: 4px;
+  background: transparent;
+}
+#adminApp .backup-destination input[type="radio"]:checked {
+  border-color: var(--teal);
+  background: var(--teal);
+}
+#adminApp .backup-destination input[type="radio"]:checked::after {
+  width: 8px;
+  height: 5px;
+  border: solid white;
+  border-width: 0 0 2px 2px;
+  transform: translateY(-1px) rotate(-45deg);
+  content: "";
+}
+#adminApp .backup-destination input:focus-visible {
+  outline: 2px solid var(--action-text, var(--teal-dark));
+  outline-offset: 3px;
+}
+.backup-restore-panel .backup-template-sections,
+.backup-restore-readonly-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 12px;
+  min-width: 0;
+  margin: 14px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+.backup-restore-contents {
+  margin: 14px 0 0;
+}
+.backup-restore-contents > p {
+  margin: 0 0 6px;
+}
+.backup-restore-readonly-sections {
+  margin: 0;
+  list-style: none;
+}
+.backup-restore-readonly-sections li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.86rem;
+}
+.backup-restore-readonly-sections .check {
+  display: inline-grid;
+  flex: 0 0 15px;
+  place-content: center;
+  height: 15px;
+  border-radius: 4px;
+  background: var(--teal);
+  color: white;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.backup-restore-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.backup-restore-actions #replacementSafetyStatus {
+  flex: 1 1 12rem;
+  margin: 0;
+}
+.backup-restore-actions .btn {
+  margin-inline-start: auto;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+@media (max-width: 480px) {
+  .backup-restore-destinations,
+  .backup-restore-panel .backup-template-sections,
+  .backup-restore-readonly-sections {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .backup-restore-actions .btn {
+    width: 100%;
+  }
+}
 /* The temporary, loopback-only installer shares the application's forms and controls. */
 .automatic-setup .automatic-steps {
   display: grid;

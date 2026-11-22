@@ -51,29 +51,46 @@
     if (error) throw error;
     return data;
   }
-  const wiping = () => $("backupRestoreMode")?.querySelector("input:checked")?.value === "wipe";
-  const replacing = () => wiping() || $("backupRestoreDestination")?.value === "replace";
-  const confirmationPrefix = () => wiping() ? "WIPE " : replacing() ? "REPLACE " : "RESTORE ";
+  const restoreActions = {
+    replace: {
+      preview: "admin_preview_event_replacement", prepare: "admin_prepare_event_replacement", apply: "admin_replace_event_data",
+      label: "Replace event data", confirmation: "REPLACE ", fileMode: "backup",
+    },
+    wipe: {
+      preview: "admin_preview_wipe", prepare: "admin_prepare_wipe", apply: "admin_wipe_restore",
+      label: "Wipe and restore", confirmation: "WIPE ", fileMode: "backup",
+    },
+    restart: {
+      preview: "admin_preview_planning_restart", prepare: "admin_prepare_planning_restart", apply: "admin_restart_planning",
+      label: "Restart planning from backup", confirmation: "RESTART ", fileMode: "template",
+    },
+  };
+  const restoreFileMode = () => backup?.payload?.selection?.mode;
+  const restoreOperation = () => $("backupRestoreDestination").querySelector("input:checked")?.value || "clean";
+  const compatibleDestination = (operation) =>
+    !backup || !restoreActions[operation] || restoreActions[operation].fileMode === restoreFileMode();
+  function restoreStep() {
+    if (!preview?.can_restore) return "validate";
+    if (restoreActions[restoreOperation()] && !replacementToken) return "safety";
+    return "restore";
+  }
   function mode() {
     const destination = $("backupRestoreDestination"), full = window.RSVP_ADMIN_ACCESS.can("full");
-    const wipeChoice = $("backupRestoreMode").querySelector("input[value=wipe]");
-    wipeChoice.disabled = !full || backup?.payload?.selection?.mode === "template";
-    if (!full && (destination.value === "replace" || wipeChoice.checked)) {
-      destination.value = "clean";
-      if (wipeChoice.checked) {
-        wipeChoice.checked = false;
-        $("backupRestoreMode").querySelector("input[value=backup]").checked = true;
-      }
+    if (!full && restoreActions[restoreOperation()]) {
+      destination.querySelector('input[value="clean"]').checked = true;
       clearRestorePreview();
+      updateRestoreChoices();
     }
-    const wipe = wiping(), restoreForm = $("restoreBackupForm"),
+    const operation = restoreOperation(), action = restoreActions[operation],
+      restoreForm = $("restoreBackupForm"),
       restoring = restoreForm.getAttribute("aria-busy") === "true",
       busy = restoring || restorePreparationPending || restoreConfirmationPending,
       canRestore = ctx.isEditing() && window.RSVP_ADMIN_ACCESS.can("restoreBackup");
-    destination.closest("label").classList.toggle("hidden", wipe);
-    destination.disabled = !full || restoring;
-    $("backupTemplateSections").classList.toggle("hidden", wipe);
-    $("backupRestoreLogsHelp").classList.toggle("hidden", wipe);
+    for (const input of destination.querySelectorAll("input"))
+      input.disabled = restoring || (input.value !== "clean" && (!full || !compatibleDestination(input.value)));
+    destination.disabled = restoring;
+    $("backupTemplateSections").disabled = restoring;
+    $("backupFile").disabled = restoring;
 
     for (const form of document.querySelectorAll("#languageRows form"))
       for (const control of form.elements)
@@ -106,20 +123,19 @@
     taskMode();
     for (const form of document.querySelectorAll(".other-category-name-form"))
       form.cleanSaveUpdate?.();
-    $("previewBackup").classList.toggle("hidden", wipe);
-    $("previewBackup").disabled = wipe || busy || !canRestore || !backup;
-    $("prepareReplacementSafety").classList.toggle("hidden", !replacing());
-    $("prepareReplacementSafety").disabled =
-      busy || !canRestore || !full || (wipe ? !backup : !preview?.can_restore);
-
-    restoreForm.classList.toggle("hidden", wipe && !replacementToken);
-    $("restoreBackupButton").disabled =
-      busy || !canRestore || !preview?.can_restore || (replacing() && !replacementToken);
-    $("restoreBackupButton").textContent = T(wipe ? "Wipe and restore" : replacing() ? "Replace event data" : "Restore backup");
-
-    $("replacementHelp").classList.toggle("hidden", !replacing());
-    if (wiping()) $("replacementHelp").textContent = T("Wipe accepts Full backups from other installations. Your administrator and destination configuration are kept; other administrators are disabled. Historical actors without a verified matching account are mapped to you, with original identities retained in the restore audit.");
-    else $("replacementHelp").textContent = T("Replace event data requires a Full backup from this installation. Download a safety backup before replacing current event data.");
+    const button = $("restoreBackupAction"), step = restoreStep();
+    button.disabled = busy || !canRestore || !backup || !compatibleDestination(operation);
+    button.textContent = T(step === "validate" ? "Validate backup" : step === "safety"
+      ? "Download safety backup" : action?.label || "Restore backup");
+    button.classList.toggle("secondary", step === "restore");
+    const details = $("replacementHelp");
+    let help = "";
+    if (!compatibleDestination(operation))
+      help = action.fileMode === "template" ? "This destination requires a Partial backup." : "This destination requires a Full backup.";
+    else if (operation === "wipe")
+      help = "Wipe accepts Full backups from other installations. Your administrator and destination configuration are kept; other administrators are disabled. Historical actors without a verified matching account are mapped to you, with original identities retained in the restore audit.";
+    details.textContent = help ? T(help) : "";
+    details.classList.toggle("hidden", !help);
   }
   function foodTypeTranslationKeys() {
     return [
@@ -1979,13 +1995,13 @@
   }
   function backupControls(exporting = false) {
     return {
-      mode: $(exporting ? "backupExportMode" : "backupRestoreMode"),
       sections: $(
         exporting ? "backupExportSections" : "backupTemplateSections",
       ),
       logs: $(exporting ? "backupExportLogs" : "backupRestoreLogs"),
       ...(exporting
         ? {
+            mode: $("backupExportMode"),
             compression: $("backupExportCompressed"),
             encryption: $("backupExportEncrypted"),
             password: $("backupEncryptionPassword"),
@@ -1995,76 +2011,118 @@
     };
   }
   function backupMode(exporting = false) {
-    const value = backupControls(exporting).mode.querySelector("input:checked")?.value || "backup";
-    return value === "wipe" ? "backup" : value;
+    return (exporting ? $("backupExportMode").querySelector("input:checked")?.value : restoreFileMode()) || "backup";
+  }
+  function availableBackupSections() {
+    const payload = backup?.payload, selection = payload?.selection;
+    if (!selection) return null;
+    const sections = new Set(selection.sections);
+    if (sections.has("wording")) {
+      sections.add("language_text");
+      sections.add("invitation_templates");
+    }
+    const album = payload.tables?.["public.event_settings"]?.[0]?.invitation_picture_album;
+    if (Array.isArray(album) && album.length) sections.add("picture_album");
+    return sections;
   }
   function backupOptions(exporting = false) {
-    const controls = backupControls(exporting);
+    const controls = backupControls(exporting), mode = backupMode(exporting);
     return {
-      p_mode: backupMode(exporting),
+      p_mode: mode,
       p_sections:
-        backupMode(exporting) === "backup"
+        mode === "backup"
           ? exporting
             ? ["venues", "households", "food", "other", "wording"]
             : backup?.payload?.selection?.sections || []
           : Array.from(
-              controls.sections.querySelectorAll("input[value]:checked"),
+              controls.sections.querySelectorAll("input[value]:checked:not(:disabled)"),
               (input) => input.value,
             ),
       p_include_logs:
-        backupMode(exporting) === "backup" && controls.logs.checked,
+        mode === "backup" && controls.logs.checked,
     };
   }
-  function updateBackupChoices(exporting = false) {
-    if (!exporting && replacing() && !wiping()) {
-      for (const input of backupControls().mode.querySelectorAll("input")) { input.checked = input.value === "backup"; input.disabled = input.value !== "wipe"; }
-    }
-    if (!exporting && (wiping() || $("backupRestoreDestination").value !== "replace")) {
-      for (const input of backupControls().mode.querySelectorAll("input")) input.disabled = false;
-    }
-    const controls = backupControls(exporting),
-      available = exporting ? null : backup?.payload?.selection,
-      template = backupMode(exporting) === "template",
-      inputs = Array.from(controls.sections.querySelectorAll("input[value]"));
-    for (const input of inputs)
-      input.closest("label").classList.toggle("hidden", !template);
+  function updateDraftChoice(sections, available) {
+    const drafts = sections.querySelector('input[value="drafts"]');
+    const hasHouseholds = sections.querySelector('input[value="households"]').checked;
+    sections.querySelector(".backup-drafts-help").classList.toggle("hidden", !available || hasHouseholds);
+    drafts.disabled = !available || !hasHouseholds;
+    if (drafts.disabled) drafts.checked = false;
+  }
+  function updateExportChoices() {
+    const controls = backupControls(true), template = backupMode(true) === "template",
+      invitationOptions = controls.sections.querySelector(".backup-invitation-options");
+    for (const label of controls.sections.querySelectorAll(":scope > label:not(.backup-log-option)"))
+      label.classList.toggle("hidden", !template);
+    invitationOptions.classList.toggle("hidden", !template);
     controls.logs.closest("label").classList.toggle("hidden", template);
-    if (exporting) {
-      const supported = window.RSVP_BACKUP_FILES.canCompress();
-      controls.compression.disabled = !supported;
-      if (!supported) controls.compression.checked = false;
-      $("backupCompressionHelp").textContent = supported
-        ? T(
-            "JSON or gzip (.json.gz) backups. Compression does not encrypt the file.",
-          )
-        : T("Compression is not supported in this browser. Use a JSON backup.");
+    const supported = window.RSVP_BACKUP_FILES.canCompress();
+    controls.compression.disabled = !supported;
+    if (!supported) controls.compression.checked = false;
+    $("backupCompressionHelp").textContent = supported
+      ? T("JSON or gzip (.json.gz) backups. Compression does not encrypt the file.")
+      : T("Compression is not supported in this browser. Use a JSON backup.");
+    $("backupExportHelp").classList.toggle("hidden", !template);
+    updateDraftChoice(controls.sections, true);
+    controls.logs.disabled = template;
+    if (template) controls.logs.checked = false;
+  }
+  const sectionLabel = (input) => input.closest("label").querySelector("span").textContent;
+  const isPlanningSection = (input) => !["drafts", "code_reservations"].includes(input.value);
+  function updateRestoreChoices() {
+    const controls = backupControls(), operation = restoreOperation(), selection = backup?.payload?.selection,
+      available = availableBackupSections(), template = selection?.mode === "template",
+      sections = Array.from(controls.sections.querySelectorAll("input[value]")),
+      exposedSections = sections.filter((input) => available?.has(input.value)),
+      editableSections = operation === "clean" && template && exposedSections.length > 0,
+      editableLogs = operation === "clean" && selection?.mode === "backup" && selection.include_logs,
+      invitationOptions = controls.sections.querySelector(".backup-invitation-options"),
+      contents = $("backupRestoreContents"), fileType = $("backupFileType");
+    fileType.textContent = selection ? T(template ? "Partial backup detected" : "Full backup detected") : "";
+    fileType.classList.toggle("hidden", !selection);
+    controls.sections.classList.toggle("hidden", !editableSections && !editableLogs);
+    for (const input of sections) {
+      const visible = editableSections && available.has(input.value);
+      input.closest("label").classList.toggle("hidden", !visible);
+      input.disabled = !visible;
     }
-    $(exporting ? "backupExportHelp" : "backupRestoreHelp").classList.toggle(
-      "hidden",
-      !template,
-    );
-    for (const input of inputs) {
-      input.disabled = !!available && !available.sections.includes(input.value);
-      if (input.disabled) input.checked = false;
+    invitationOptions.classList.toggle("hidden", !editableSections || !exposedSections.some((input) => invitationOptions.contains(input)));
+    if (operation === "clean") updateDraftChoice(controls.sections, editableSections && available.has("drafts"));
+    controls.logs.disabled = !editableLogs;
+    controls.logs.closest("label").classList.toggle("hidden", !editableLogs);
+    $("backupRestoreHelp").classList.toggle("hidden", operation !== "clean" || !template);
+
+    contents.replaceChildren();
+    if (operation === "restart" && template) {
+      const items = exposedSections.filter(isPlanningSection);
+      if (items.length) {
+        const list = ctx.R.dom("ul", { class: "backup-restore-readonly-sections" });
+        for (const input of items) {
+          const item = ctx.R.dom("li"), mark = ctx.R.dom("span", { class: "check" }, "✓");
+          mark.setAttribute("aria-hidden", "true");
+          item.append(mark, sectionLabel(input));
+          list.append(item);
+        }
+        contents.append(ctx.R.dom("p", { class: "backup-restore-contents-title" }, T("Sections in this backup")), list);
+      }
+      appendClearedPlanningSections(contents, { sections: Array.from(available) });
+      contents.append(ctx.R.dom("p", { class: "micro" }, T("Active invitation codes, drafts, replies and commitments start fresh.")));
+      if (available.has("code_reservations"))
+        contents.append(ctx.R.dom("p", { class: "micro" }, T("Restart uses this installation’s issued-code reservations.")));
+    } else if ((operation === "replace" || operation === "wipe") && selection?.mode === "backup") {
+      contents.append(ctx.R.dom("p", { class: "micro" }, T(selection.include_logs
+        ? "Full event data and activity logs from this file." : "Full event data from this file.")));
     }
-    controls.mode.querySelector('input[value="backup"]').disabled =
-      available?.mode === "template" || (!exporting && replacing() && !wiping());
-    controls.logs.disabled =
-      template || (!exporting && replacing()) || (!!available && !available.include_logs);
-    if (!exporting && replacing()) controls.logs.checked = available?.include_logs === true;
-    if (controls.logs.disabled && (template || !available?.include_logs)) controls.logs.checked = false;
+    contents.classList.toggle("hidden", !contents.childElementCount);
   }
   function initializeRestoreChoices() {
     const available = backup.payload.selection,
+      sections = availableBackupSections(),
       controls = backupControls();
-    const selectedMode = wiping() && available.mode === "backup" && window.RSVP_ADMIN_ACCESS.can("full")
-      ? "wipe" : available.mode;
-    for (const input of controls.mode.querySelectorAll("input"))
-      input.checked = input.value === selectedMode;
     for (const input of controls.sections.querySelectorAll("input[value]"))
-      input.checked = available.sections.includes(input.value);
+      input.checked = sections.has(input.value) && (input.value !== "drafts" || available.sections.includes("drafts"));
     controls.logs.checked = available.include_logs;
-    updateBackupChoices();
+    updateRestoreChoices();
   }
   function clearRestorePreview() {
     restoreSelection++;
@@ -2077,57 +2135,74 @@
     clearRestorePreview();
     mode();
   }
+  function appendClearedPlanningSections(previewBox, selection) {
+    const imported = new Set(selection.sections);
+    if (imported.has("wording")) {
+      imported.add("language_text");
+      imported.add("invitation_templates");
+    }
+    const cleared = Array.from($("backupTemplateSections").querySelectorAll("input[value]"))
+      .filter((input) => isPlanningSection(input) && !imported.has(input.value))
+      .map(sectionLabel);
+    if (cleared.length)
+      previewBox.append(ctx.R.dom("p", { class: "micro" },
+        T("Cleared planning sections: {sections}", { sections: cleared.join(", ") })));
+  }
   async function prepareRestore(download) {
-    const action = $(download ? "prepareReplacementSafety" : "previewBackup");
     const actor = ctx.getActor();
-    if (!actor || action.disabled) return;
-    const candidate = backup, selection = restoreSelection, wipe = wiping(), replace = replacing();
+    const candidate = backup, selection = restoreSelection, operation = restoreOperation(),
+      action = restoreActions[operation];
     const stillCurrent = () =>
       actor === ctx.getActor() && candidate === backup && selection === restoreSelection &&
-      wipe === wiping() && replace === replacing() && window.RSVP_ADMIN_ACCESS.can("restoreBackup") &&
-      (!replace || window.RSVP_ADMIN_ACCESS.can("full"));
+      operation === restoreOperation() && ctx.isEditing() && window.RSVP_ADMIN_ACCESS.can("restoreBackup") &&
+      (!action || window.RSVP_ADMIN_ACCESS.can("full"));
     const previewBox = $("backupPreview"), safetyStatus = $("replacementSafetyStatus");
-    const validate = !download || wipe;
-    let status = validate ? previewBox : safetyStatus;
     restorePreparationPending = true;
     replacementToken = null;
     safetyStatus.textContent = "";
     mode();
     try {
-      if (validate) {
-        preview = null;
-        previewBox.textContent = T("interface.messages.validating_backup");
-        const result = replace
-          ? await rpc(wipe ? "admin_preview_wipe" : "admin_preview_event_replacement", { p_backup: candidate })
-          : await rpc("admin_preview_backup", { p_backup: candidate, ...backupOptions() });
+      if (download) {
+        const result = await rpc(action.prepare, {
+          p_backup: candidate, p_expected_state: preview.destination_state,
+        });
         if (!stillCurrent()) return;
-        if (!result?.counts)
-          throw Error(T("interface.messages.backup_validation_is_unavailable"));
-        preview = result;
-        previewBox.replaceChildren(
-          ctx.R.dom("h3", {}, preview.event_name),
-          ctx.R.dom("p", {}, preview.can_restore
-            ? T("interface.messages.restore_rehearsal_passed_no_data_was_changed")
-            : T("interface.messages.this_destination_cannot_be_restored") + (preview.reason || "")),
-        );
-        for (const [name, count] of Object.entries(preview.counts))
-          if (count || preview.current_counts?.[name])
-            previewBox.append(ctx.R.dom("p", { class: "micro" }, name + ": " + (replace ? preview.preserved_tables?.includes(name) ? (preview.current_counts?.[name] || 0) + " · " + T("Preserved") : (preview.current_counts?.[name] || 0) + " → " + count : count)));
+        if (!result?.token || !result.safety_backup)
+          throw Error(T("The safety backup could not be downloaded. Review the current data and prepare again."));
+        if (!(await downloadSafetyBackup(result.safety_backup, stillCurrent)) || !stillCurrent()) return;
+        replacementToken = result.token;
+        safetyStatus.textContent = T("Safety backup downloaded. Store it privately before replacing event data.");
+        return;
       }
-      if (!download || !preview?.can_restore) return;
-      status = safetyStatus;
-      const result = await rpc(wipe ? "admin_prepare_wipe" : "admin_prepare_event_replacement", {
-        p_backup: candidate, p_expected_state: preview.destination_state,
-      });
+      preview = null;
+      previewBox.textContent = T("interface.messages.validating_backup");
+      const result = action
+        ? await rpc(action.preview, { p_backup: candidate })
+        : await rpc("admin_preview_backup", { p_backup: candidate, ...backupOptions() });
       if (!stillCurrent()) return;
-      if (!result?.token || !result.safety_backup)
-        throw Error(T("The safety backup could not be downloaded. Review the current data and prepare again."));
-      if (!(await downloadSafetyBackup(result.safety_backup, stillCurrent)) || !stillCurrent()) return;
-      replacementToken = result.token;
-      safetyStatus.textContent = T("Safety backup downloaded. Store it privately before replacing event data.");
+      if (!result?.counts)
+        throw Error(T("interface.messages.backup_validation_is_unavailable"));
+      preview = result;
+      previewBox.replaceChildren(
+        ctx.R.dom("h3", {}, preview.event_name),
+        ctx.R.dom("p", {}, preview.can_restore
+          ? T("interface.messages.restore_rehearsal_passed_no_data_was_changed")
+          : T("interface.messages.this_destination_cannot_be_restored") + (preview.reason || "")),
+      );
+      for (const [name, count] of Object.entries(preview.counts)) {
+        const current = preview.current_counts?.[name] || 0;
+        if (!count && !current) continue;
+        const change = !action ? count : preview.preserved_tables?.includes(name)
+          ? current + " · " + T("Preserved") : current + " → " + count;
+        previewBox.append(ctx.R.dom("p", { class: "micro" }, name + ": " + change));
+      }
+      if (action && preview.can_restore)
+        safetyStatus.textContent = T("Save a Full copy of the current event before continuing.");
     } catch (error) {
       if (stillCurrent()) {
-        if (status === previewBox) preview = null;
+        const needsValidation = !download || error?.message === "Destination changed; validate the backup again";
+        if (needsValidation) preview = null;
+        const status = needsValidation ? previewBox : safetyStatus;
         status.textContent = ctx.R.safeError(error);
       }
     } finally {
@@ -2311,7 +2386,7 @@
         backupEncryption.clearPasswords();
         button.disabled = false;
         controls.forEach((control) => (control.disabled = false));
-        updateBackupChoices(true);
+        updateExportChoices();
         backupEncryption.update();
       }
     });
@@ -2319,6 +2394,7 @@
       const generation = ++fileGeneration;
       backupEncryption.resetImport();
       backup = null;
+      updateRestoreChoices();
       resetRestorePreview();
       const file = $("backupFile").files[0];
       if (!file) return;
@@ -2354,70 +2430,65 @@
         }
       }
     });
-    for (const exporting of [true, false]) {
-      const controls = backupControls(exporting);
-      for (const control of [controls.mode, controls.sections]) {
-        control.addEventListener("change", (event) => {
-          if (control === controls.mode) {
-            for (const input of controls.mode.querySelectorAll("input"))
-              input.checked = input === event.target;
-          }
-          updateBackupChoices(exporting);
-          if (!exporting) resetRestorePreview();
-          mode();
-        });
-      }
-      updateBackupChoices(exporting);
+    const exportControls = backupControls(true);
+    exportControls.mode.addEventListener("change", (event) => {
+      for (const input of exportControls.mode.querySelectorAll("input"))
+        input.checked = input === event.target;
+      updateExportChoices();
+      mode();
+    });
+    exportControls.sections.addEventListener("change", () => {
+      updateExportChoices();
+      mode();
+    });
+    updateExportChoices();
+    for (const container of [$("backupRestoreDestination"), $("backupTemplateSections")]) {
+      container.addEventListener("change", () => {
+        updateRestoreChoices();
+        resetRestorePreview();
+      });
     }
-    $("previewBackup").addEventListener("click", () => prepareRestore(false));
-    $("backupRestoreDestination").disabled = !window.RSVP_ADMIN_ACCESS.can("full");
-    $("backupRestoreDestination").addEventListener("change", () => { resetRestorePreview(); updateBackupChoices(); mode(); });
-    $("prepareReplacementSafety").addEventListener("click", () => prepareRestore(true));
+    updateRestoreChoices();
     const restoreForm = $("restoreBackupForm");
     restoreForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const button = $("restoreBackupButton"), actor = ctx.getActor();
+      const button = $("restoreBackupAction"), actor = ctx.getActor();
       if (!actor || button.disabled) return;
+      const step = restoreStep();
+      if (step !== "restore") return prepareRestore(step === "safety");
       const candidate = backup, checked = preview, token = replacementToken,
-        confirmation = confirmationPrefix() + checked.event_name;
+        operation = restoreOperation(), action = restoreActions[operation],
+        confirmation = (action?.confirmation || "RESTORE ") + checked.event_name;
       restoreConfirmationPending = true;
       button.disabled = true;
       let approved;
       try { approved = await window.RSVP_INLINE.confirmIrreversible(button); }
       finally { restoreConfirmationPending = false; mode(); }
       if (!approved || button.disabled || actor !== ctx.getActor() || backup !== candidate ||
-          preview !== checked || replacementToken !== token) return;
-      const options = backupOptions(), replace = replacing(), wipe = wiping(),
-        controls = [
-          $("backupRestoreDestination"),
-          $("backupRestoreMode"),
-          $("backupTemplateSections"),
-          $("backupRestoreLogs"),
-          $("backupFile"),
-          $("previewBackup"),
-        ];
+          preview !== checked || replacementToken !== token || operation !== restoreOperation()) return;
+      const restoreOptions = action ? { p_safety_token: token } : backupOptions();
       restoreForm.setAttribute("aria-busy", "true");
-      button.disabled = true;
-      controls.forEach((control) => (control.disabled = true));
+      mode();
       try {
-        if (replace) await rpc(wipe ? "admin_wipe_restore" : "admin_replace_event_data", { p_backup: candidate, p_confirmation: confirmation, p_safety_token: token });
-        else await rpc("admin_restore_backup", { p_backup: candidate, p_confirmation: confirmation, ...options });
+        await rpc(action?.apply || "admin_restore_backup", {
+          p_backup: candidate, p_confirmation: confirmation, ...restoreOptions,
+        });
         if (backup === candidate) {
           backup = null;
           clearRestorePreview();
           $("backupFile").value = "";
         }
         if (actor !== ctx.getActor()) return;
-        ctx.returnToInvitesAfterDatabaseChange(replace
-          ? "Event data replaced. Current access and configuration are preserved; the event is unpublished."
-          : "interface.messages.application_restored_the_event_is_unpublished_review_administrato");
+        ctx.returnToInvitesAfterDatabaseChange(operation === "restart"
+          ? "Planning restarted. Current access and configuration are preserved; the event is unpublished."
+          : action ? "Event data replaced. Current access and configuration are preserved; the event is unpublished."
+            : "interface.messages.application_restored_the_event_is_unpublished_review_administrato");
       } catch (error) {
-        if (replace) clearRestorePreview();
+        if (action) clearRestorePreview();
         $("backupPreview").textContent = ctx.R.safeError(error);
       } finally {
         restoreForm.removeAttribute("aria-busy");
-        controls.forEach((control) => (control.disabled = false));
-        updateBackupChoices();
+        updateRestoreChoices();
         if (!backup) $("replacementSafetyStatus").textContent = "";
         mode();
       }

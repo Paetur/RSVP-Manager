@@ -168,28 +168,14 @@
     host.prepend(nav);
     select(rows.find(row => row.dataset.languageCode === window.RSVP_I18N?.language)?.dataset.languageCode || rows[0].dataset.languageCode);
   }
-  function multiChoice({ R, T, label, options, selected, onChange, disabled = false, group, className = "", allOrNone = false }) {
+  function multiChoice({ R, T, label, options, selected, onChange, disabled = false, group, className = "", beforeOptions }) {
     const classes = ["template-choice", "filter-choice", className].filter(Boolean).join(" ");
     const dropdown = R.dom("details", { class: classes, ...(group ? { name: group } : {}) });
     const summary = R.dom("summary");
     const caption = R.dom("span", { class: "filter-choice-label" }, T(label));
     const selection = R.dom("span", { class: "filter-choice-selection template-choice-values" });
     const menu = R.dom("div", { class: "template-choice-menu" });
-    if (allOrNone) {
-      const actions = R.dom("div", { class: "filter-choice-actions" });
-      for (const [action, name] of [["all", "All"], ["none", "None"]]) {
-        const button = R.dom("button", { type: "button", disabled }, T(name));
-        button.dataset.multiSelect = action;
-        button.addEventListener("click", () => {
-          selected.clear();
-          if (action === "all") for (const [key] of options) selected.add(key);
-          update();
-          onChange(null, action);
-        });
-        actions.append(button);
-      }
-      menu.append(actions);
-    }
+    if (beforeOptions) menu.append(beforeOptions);
     const controls = options.map(([key, name]) => {
       const button = R.dom("button", { type: "button", disabled }, T(name));
       button.dataset.value = key;

@@ -27,13 +27,13 @@ A fictional event in Dark mode, shown at iPad landscape size.
 - Filter households that need a draft and generate selected drafts from service/language-matched templates. Review drafts and move selected invitations between Draft and Ready. Copy recipients and invitations for manual sending, then mark the selected households Sent.
 - Manage event wording in multiple languages.
 - Give administrators Full, View only or Custom access.
-- Download JSON/gzip backups, optionally protect them with password-based encryption, and rehearse recovery separately.
+- Download Full or selected Partial backups, optionally protect them with password-based encryption, and restart planning on an unpublished installation with a Full safety backup.
 
 ## Downloads and installation
 
-Download **[0.9.0-beta.4](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-beta.4)** for the installation ZIP and checksum. [Installation instructions](INSTALL.md) describe the website, Supabase and administrator setup. Each installation starts unconfigured and has its own data.
+Download **[0.9.0-beta.5](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-beta.5)** for the installation ZIP and checksum. [Installation instructions](INSTALL.md) describe the website, Supabase and administrator setup. Each installation starts unconfigured and has its own data.
 
-Use the current installer for a fresh database. Beta.4 shares invitation template revisions and pictures, and uses backup format 3. For a retained installation, follow the [existing-installation instructions](INSTALL.md#existing-installations) for a reviewed update that preserves existing data and photos.
+Use the current installer for a fresh database. Beta.5 adds Database tabs and a planning restart while retaining backup format 3. For a retained installation, follow the [existing-installation instructions](INSTALL.md#existing-installations) for a reviewed update that preserves existing data and photos.
 
 For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 
@@ -66,6 +66,6 @@ These guides are organized as individual pages so they can later form a wiki.
 
 Review your venues, sessions, guest assignments, translations and contact details. Test a complete invitation and reply on the devices you intend to use. Keep the event unpublished until you are ready and have approved publication.
 
-Use the Service chip to copy the recipient number/email and the Draft or Ready chip to copy a saved invitation. When it includes a picture, check the full caption/link after pasting and use Text as the fallback. Review and send in your messaging app, then return to mark the selected households Sent. Administrator invitation emails use a separate email invitation process.
+Use the Service chip to copy the recipient number or email. Open a draft through Review, then use Make invitation(s) to prepare it on a published event. The Invitation chip copies a prepared invitation. Check the full caption and RSVP link after pasting, send in your messaging app, then return to use Mark sent. Administrator invitations use a separate email process.
 
 Private invitation links and downloaded backups should be shared only with the people who need them.

@@ -32,7 +32,7 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
       });
       await routeSyntheticSdk(page, mock + "\n" + extra);
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
-      await page.waitForFunction(() => document.querySelectorAll("#statsGrid .stat-card").length === 4);
+      await page.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
       assert.equal(await page.locator(".admin-search-control").count(), 4);
       assert.equal(await page.locator("#translationSearch").evaluate(node => node.closest(".admin-search-control")), null,
         "Languages retains its independent unsaved-editor navigation guard");
@@ -115,7 +115,7 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
     }, noMatch);
     await routeSyntheticSdk(page, mock + "\n" + extra);
     await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
-    await page.waitForFunction(() => document.querySelectorAll("#statsGrid .stat-card").length === 4);
+    await page.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
     await page.locator('[data-tab="households"]').click();
     assert.equal(await page.locator("#householdSearchToggle").getAttribute("aria-expanded"), "true", "restored filters are shown on initial enhancement");
     assert.equal(await page.locator("#householdSearchPanel").isVisible(), true);

@@ -36,9 +36,9 @@
   }) {
     const $ = R.byId;
     let inviteOverviewFilter = "all", inviteInterestFilter = "all", inviteAttendanceFilter = "all", visibleHouseholdIds = [];
-    const filterStates = new Map();
+    let inviteSessionFilter = null;
+    const languageSelection = new Set(), serviceSelection = new Set();
     const groupSelections = { top: new Set(), relation: new Set() };
-    const overlayName = "invite-overview-filters";
     const wideScreen = matchMedia("(min-width: 1024px)");
     const serviceLabels = { messages: "Messages", email: "Email", whatsapp: "WhatsApp", sms: "SMS", none: "None" };
     const visibleFields = window.RSVP_ADMIN_PREFERENCES.invitesFields;
@@ -46,6 +46,7 @@
     const requiredFields = window.RSVP_ADMIN_PREFERENCES.invitesRequiredFields;
     const shown = new Set();
     let shownOwner, shownDefaults, shownColumnDefaults, rowLayout = 1, oneRowShown = [], clipboardBusy = false;
+    let rowOverride, responsiveLayout;
 
     function renderShownFields() {
       const host = $("inviteShownFieldsHost");
@@ -55,7 +56,10 @@
       const changedOwner = shownOwner !== owner, changedFields = shownDefaults !== signature;
       const changedColumns = shownColumnDefaults !== columnSignature;
       const preferences = window.RSVP_ADMIN_PREFERENCES;
-      const nextLayout = wideScreen.matches ? preferences.invitesWideRows : preferences.invitesNarrowRows;
+      const savedLayout = wideScreen.matches ? preferences.invitesWideRows : preferences.invitesNarrowRows;
+      if (changedOwner || responsiveLayout !== savedLayout) rowOverride = undefined;
+      responsiveLayout = savedLayout;
+      const nextLayout = rowOverride ?? savedLayout;
       const changedLayout = rowLayout !== nextLayout;
       // Keep temporary one-row choices across responsive layout changes.
       if (changedOwner || changedFields) oneRowShown = defaults.slice();
@@ -70,6 +74,24 @@
       shownDefaults = signature;
       shownColumnDefaults = columnSignature;
       if (host.childElementCount) return;
+      const layoutChoices = R.dom("fieldset", { class: "invite-layout-choices" });
+      layoutChoices.append(R.dom("legend", { class: "sr-only" }, T("Rows")));
+      for (const [rows, label] of [[1, "1 Row"], [2, "2 Row"]]) {
+        const choice = R.dom("label", { class: "invite-layout-choice" });
+        const input = R.dom("input", { type: "radio", name: "inviteQuickRowLayout", value: rows });
+        input.checked = rowLayout === rows;
+        input.addEventListener("change", () => {
+          if (!input.checked) return;
+          rowOverride = rows;
+          render();
+          // Row changes replace the available fields and the dropdown controls.
+          const next = host.querySelector("details");
+          next.open = true;
+          next.querySelector('input[name="inviteQuickRowLayout"]:checked')?.focus({ preventScroll: true });
+        });
+        choice.append(input, R.dom("span", {}, T(label)));
+        layoutChoices.append(choice);
+      }
       host.append(window.RSVP_INLINE.multiChoice({
         R,
         T,
@@ -77,8 +99,7 @@
         options: (rowLayout === 1 ? visibleFields : columnGroups).filter(([key]) => !requiredFields.includes(key)),
         selected: shown,
         onChange: render,
-        group: overlayName,
-        allOrNone: true,
+        beforeOptions: layoutChoices,
         className: "invite-shown-fields",
       }));
     }
@@ -101,36 +122,33 @@
       focus?.focus({ preventScroll: true });
       focus?.scrollIntoView({ block: "nearest" });
     }
-    function filterChoices(id, label, values, openFilter) {
-      const host = $(id), keys = new Set(values.map(([key]) => key));
-      let state = filterStates.get(id);
-      if (!state) {
-        state = { selected: new Set(keys), keys };
-        filterStates.set(id, state);
-      } else {
-        const all = state.selected.size === state.keys.size && [...state.keys].every(key => state.selected.has(key));
-        for (const key of state.selected) if (!keys.has(key)) state.selected.delete(key);
-        if (all) for (const key of keys) state.selected.add(key);
-        state.keys = keys;
-      }
-      const dropdown = window.RSVP_INLINE.multiChoice({
-        R, T, label, options: values, selected: state.selected, group: overlayName, allOrNone: true,
-        onChange(key, action) {
-          render();
-          const control = action ? '[data-multi-select="' + action + '"]' : '[data-value="' + CSS.escape(key) + '"]';
-          $(id).querySelector(control)?.focus({ preventScroll: true });
-        },
-      });
-      dropdown.open = openFilter === id;
-      host.replaceChildren(dropdown);
-      return state.selected;
-    }
     function countFilterButton(label, count, pressed) {
       const button = R.dom("button", { type: "button", class: "stat-row invite-stat-row" });
       button.setAttribute("aria-pressed", String(pressed));
       button.classList.toggle("is-selected", pressed);
-      button.append(R.dom("span", {}, label), R.dom("b", {}, count));
+      button.append(R.dom("span", {}, label));
+      if (count != null) button.append(R.dom("b", {}, count));
       return button;
+    }
+
+    function renderOptionFilter(host, choices, selected, models, value) {
+      if (!host) return;
+      const counts = new Map(choices.map(([key]) => [key, 0]));
+      for (const key of selected) if (!counts.has(key)) selected.delete(key);
+      for (const model of models) {
+        const key = value(model);
+        if (counts.has(key)) counts.set(key, counts.get(key) + 1);
+      }
+      host.replaceChildren(...choices.map(([key, label], index) => {
+        const button = countFilterButton(T(label), counts.get(key), selected.has(key));
+        button.dataset.value = key;
+        button.addEventListener("click", () => {
+          if (!selected.delete(key)) selected.add(key);
+          render();
+          host.children[index]?.focus({ preventScroll: true });
+        });
+        return button;
+      }));
     }
 
     function renderCountFilters(host, choices, selected, data, update) {
@@ -146,9 +164,41 @@
       }));
     }
 
+    function renderSessionTree(sessions) {
+      const host = $("inviteSessionTree");
+      if (!host) return;
+      const list = R.dom("ul", { class: "invite-group-list" });
+      const tree = R.dom("details", { class: "invite-group-tree" });
+      const heading = R.dom("summary");
+      const selected = sessions.find(session => session.id === inviteSessionFilter);
+      heading.append(R.dom("span", {}, T("Sessions")), selected
+        ? R.dom("span", { class: "invite-session-active", title: selected.name }, selected.name)
+        : R.dom("b", {}, sessions.length));
+      for (const session of sessions) {
+        const item = R.dom("li");
+        const button = countFilterButton(session.name, null, inviteSessionFilter === session.id);
+        button.dataset.inviteSession = session.id;
+        button.addEventListener("click", () => {
+          inviteSessionFilter = inviteSessionFilter === session.id ? null : session.id;
+          render();
+          host.querySelector('[data-invite-session="' + CSS.escape(session.id) + '"]')?.focus({ preventScroll: true });
+        });
+        item.append(button);
+        list.append(item);
+      }
+      tree.append(heading, list);
+      setDisclosure(tree, "invite-overview-sessions");
+      host.replaceChildren(...(sessions.length ? [tree] : []));
+      const note = host.closest(".stat-card")?.querySelector(".stat-footnote");
+      if (note) note.hidden = !sessions.length || Boolean(inviteSessionFilter);
+    }
+
     function renderGroupTrees(store, all) {
       const host = $("inviteGroupTrees");
-      if (!host) return () => true;
+      if (!host) {
+        for (const selected of Object.values(groupSelections)) selected.clear();
+        return () => true;
+      }
       const configured = planningConfiguration().groups;
       const relations = ordered(store.relationGroups, "name");
       const relationOption = group => ({
@@ -208,7 +258,7 @@
           const heading = R.dom("summary");
           heading.append(R.dom("span", {}, T(label)), R.dom("b", {}, count));
           tree.append(heading, list(nodes));
-          setDisclosure(tree, "invite-overview-group-tree:" + scope, true);
+          setDisclosure(tree, "invite-overview-group-tree:" + scope);
           host.append(tree);
         }
         const active = [];
@@ -285,6 +335,9 @@
     }
     function render() {
       const store = getStore();
+      const sessions = window.RSVP_ADMIN_OVERVIEW.rsvpSessions(store);
+      if (!$("inviteSessionTree") || !sessions.some(session => session.id === inviteSessionFilter)) inviteSessionFilter = null;
+      renderSessionTree(sessions);
       const box = $("inviteRows");
       box.replaceChildren();
       renderShownFields();
@@ -303,7 +356,7 @@
               ),
           ),
           "household_name",
-        ).map(invitationOverview);
+        ).map(household => invitationOverview(household, inviteSessionFilter));
       const filters = [
         ["needs-draft", "No drafts", (r) => !r.latest],
         ["review", "Review", (r) => r.latest?.status === "draft"],
@@ -317,6 +370,7 @@
       if (statusTotal) statusTotal.textContent = String(all.length);
       if (countHost) renderCountFilters(countHost, filters.map(([key, label, test]) => [key, label, all.filter(test).length]),
         inviteOverviewFilter, "inviteFilter", next => { inviteOverviewFilter = next; });
+      else inviteOverviewFilter = "all";
       const attendanceHost = $("inviteAttendanceCounts");
       if (attendanceHost) renderCountFilters(attendanceHost, [
         ["attending", "Attending"], ["declined", "Not attending"], ["pending", "Unanswered"],
@@ -324,21 +378,25 @@
         inviteAttendanceFilter, "inviteAttendanceFilter", next => { inviteAttendanceFilter = next; });
       else inviteAttendanceFilter = "all";
       const matchesGroups = renderGroupTrees(store, all);
-      const openFilter = ["inviteLanguageFilter", "inviteChannelFilter"].find(id => $(id).querySelector("details[open]"));
-      const languageChoices = languages();
-      // Existing households can retain a disabled language; All must still show them.
-      for (const code of new Set(all.map(row => row.h.language || store.settings?.default_language || "en"))) {
-        if (!languageChoices.some(([key]) => key === code))
-          languageChoices.push(languages(code).find(([key]) => key === code) || [code, code.toUpperCase()]);
-      }
-      const selectedLanguages = filterChoices("inviteLanguageFilter", "Language", languageChoices, openFilter);
-      const services = filterChoices("inviteChannelFilter", "Services", Object.entries(serviceLabels), openFilter);
+      const languageHost = $("inviteLanguageFilter"), serviceHost = $("inviteChannelFilter");
+      const householdLanguage = row => row.h.language || store.settings?.default_language || "en";
+      if (languageHost) {
+        const languageChoices = languages();
+        // Existing households can retain a disabled language; All must still show them.
+        for (const code of new Set(all.map(householdLanguage))) {
+          if (!languageChoices.some(([key]) => key === code))
+            languageChoices.push(languages(code).find(([key]) => key === code) || [code, code.toUpperCase()]);
+        }
+        renderOptionFilter(languageHost, languageChoices, languageSelection, all, householdLanguage);
+      } else languageSelection.clear();
+      if (serviceHost) renderOptionFilter(serviceHost, Object.entries(serviceLabels), serviceSelection, all, row => row.service);
+      else serviceSelection.clear();
       const canInterestFilter = can("food") && store.settings?.food_enabled !== false;
       const showFoodInterest = canInterestFilter && store.settings?.food_stage === "interest";
       const showFoodItems = can("food") && store.settings?.food_enabled !== false && store.settings?.food_stage === "selection";
       const showFood = displayedFields.has("food") && (showFoodInterest || showFoodItems);
-      if (!canInterestFilter) inviteInterestFilter = "all";
       const foodHost = $("inviteFoodCounts");
+      if (!canInterestFilter || !foodHost) inviteInterestFilter = "all";
       if (foodHost) {
         const interestBox = $("inviteFoodInterest") || foodHost;
         interestBox.hidden = !canInterestFilter;
@@ -357,9 +415,10 @@
             .toLowerCase()
             .includes(search)) &&
         matchesGroups(r) &&
+        (!inviteSessionFilter || r.total > 0) &&
         (inviteAttendanceFilter === "all" || r.attendance[inviteAttendanceFilter] > 0) &&
-        selectedLanguages.has(r.h.language || store.settings?.default_language || "en") &&
-        services.has(r.service) &&
+        (!languageSelection.size || languageSelection.has(householdLanguage(r))) &&
+        (!serviceSelection.size || serviceSelection.has(r.service)) &&
         (!canInterestFilter || inviteInterestFilter === "all" ||
           window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, r.h) === inviteInterestFilter);
       const test = filters.find(([key]) => key === inviteOverviewFilter)?.[2] || (() => true);
@@ -624,7 +683,7 @@
         const activeIds = new Set(all.map(model => model.h.id));
         const historyIds = new Set(store.queue.map(record => record.household_id));
         const inactive = ordered(store.households.filter(h => !activeIds.has(h.id) && historyIds.has(h.id)), "household_name")
-          .map(invitationOverview).filter(matchesFilters);
+          .map(household => invitationOverview(household, inviteSessionFilter)).filter(matchesFilters);
         if (inactive.length) {
           box.append(inactiveHouseholds(inactive, Boolean(search)));
           inactiveShown = true;
@@ -672,9 +731,11 @@
       inviteOverviewFilter = "all";
       inviteInterestFilter = "all";
       inviteAttendanceFilter = "all";
+      inviteSessionFilter = null;
       for (const selected of Object.values(groupSelections)) selected.clear();
+      languageSelection.clear();
+      serviceSelection.clear();
       $("inviteSearch").value = "";
-      for (const state of filterStates.values()) state.selected = new Set(state.keys);
       rememberDisclosure("invite-household:" + householdId, true);
       render();
       const rows = $("inviteRows");
@@ -695,12 +756,15 @@
       row.querySelector("summary")?.focus();
     }
     wideScreen.addEventListener("change", () => {
+      rowOverride = undefined;
       if (getActor() && getStore().settings && can("invites")) render();
     });
-    document.addEventListener("pointerdown", event => {
-      for (const menu of $("inviteSortingHeading").parentElement.querySelectorAll("details[open]"))
-        if (!menu.contains(event.target)) menu.open = false;
-    });
+    function closeOutsideShownFields(event) {
+      const dropdown = $("inviteShownFieldsHost")?.querySelector("details[open]");
+      if (dropdown && !dropdown.contains(event.target)) dropdown.open = false;
+    }
+    document.addEventListener("pointerdown", closeOutsideShownFields);
+    document.addEventListener("focusin", closeOutsideShownFields);
     return { render, openHousehold, getVisibleHouseholdIds: () => visibleHouseholdIds.slice() };
   }
   window.RSVP_ADMIN_INVITES = { create };

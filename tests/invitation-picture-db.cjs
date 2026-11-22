@@ -168,10 +168,21 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
       household_name: "Snapshot dependency", planning_group_id: "general", language: "en",
     }]);
     await q("SELECT public.admin_create_guest($1,$2)", [bilingualHousehold, { first_name: "Example" }]);
-    await v("SELECT public.admin_save_delivery(null,$1,$2,null) v", [bilingualHousehold, {
+    const currentCode = await v("SELECT invite_code v FROM public.households WHERE id=$1", [bilingualHousehold]);
+    const savedCode = currentCode === "ABCDEFGH" ? "HGFEDCBA" : "ABCDEFGH";
+    const unrelatedLink = "https://outside.example.invalid/?code=ZXCVBNM2";
+    const restoredDraftId = await v("SELECT public.admin_save_delivery(null,$1,$2,null) v", [bilingualHousehold, {
       ...values, source_template_id: bilingualTemplate.id, source_template_revision: bilingualTemplate.revision,
+      message_subject: `RSVP ${savedCode}`,
+      message_body: `Custom (https://source.example.invalid/?=${savedCode}), also https://source.example.invalid/?code=${currentCode}. ${unrelatedLink}`,
     }]);
+    await db.exec("RESET ROLE");
+    await q("UPDATE public.invitation_send_queue SET invitation_code_snapshot=$1 WHERE id=$2", [savedCode, restoredDraftId]);
+    await db.exec("SET ROLE authenticated");
     await saveGermanPicture(null);
+    await q("SELECT public.admin_save_food_interest_reply('{\"en\":\"Synthetic food reply\"}','{}','[]')");
+    const albumRevision = (await load()).settings.invitation_album_revision;
+    await q("SELECT public.admin_save_invitation_picture(null,'Synthetic album entry',$1,$2)", [germanImage, albumRevision]);
     const selectedFull = await v("SELECT public.admin_export_backup('backup',ARRAY['households'],false) v");
     const germanSnapshot = selectedFull.payload.tables["app_private.invitation_snapshots"].find(row => row.content === germanImage.image);
     assert.ok(germanSnapshot, "an older template revision keeps the picture in its alternate language");
@@ -182,10 +193,72 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     assert.deepEqual(partialWording.payload.tables["public.invitation_send_queue"], []);
     const partialHouseholds = await v("SELECT public.admin_export_backup('template',ARRAY['households'],false) v");
     assert.deepEqual(partialHouseholds.payload.tables["app_private.invitation_snapshots"], []);
+    assert.deepEqual(partialHouseholds.payload.tables["public.event_settings"][0].invitation_picture_album, []);
+    const exportPartial = async (...sections) => (await v("SELECT public.admin_export_backup('template',$1,false) v", [sections])).payload.tables;
+    const language = await exportPartial("language_text");
+    assert.deepEqual(language["public.message_templates"].map(row => row.template_key), ["food-interest-reply"]);
+    assert.deepEqual(language["app_private.invitation_snapshots"], []);
+    const invitations = await exportPartial("invitation_templates");
+    assert.ok(invitations["public.message_templates"].every(row => row.template_key.startsWith("invitation:")));
+    assert.deepEqual(invitations["app_private.invitation_snapshots"], [sharedPicture]);
+    assert.deepEqual(invitations["public.event_settings"][0].invitation_picture_album, []);
+    const albumOnly = await exportPartial("picture_album");
+    assert.deepEqual(albumOnly["public.event_settings"][0].invitation_picture_album[0].picture, germanImage);
+    assert.deepEqual(albumOnly["public.message_templates"], []);
+    assert.deepEqual(albumOnly["app_private.invitation_snapshots"], []);
+    await assert.rejects(() => exportPartial("drafts"), /Select Households/);
+    const partialDrafts = await v("SELECT public.admin_export_backup('template',ARRAY['households','drafts'],false) v");
+    const partialTables = partialDrafts.payload.tables;
+    assert.deepEqual(partialTables["public.invitation_send_queue"].map(row => row.id).sort(), [shared, distinct, textOnly, restoredDraftId].sort());
+    assert.equal(partialTables["public.invitation_send_queue"].every(row => row.status === "draft" && row.created_by === null && row.invitation_code_snapshot === null), true);
+    assert.equal(partialTables["public.households"].every(row => row.invite_code === null), true);
+    assert.deepEqual(partialTables["public.message_templates"], []);
+    assert.deepEqual(partialTables["public.invitation_delivery_audit"], []);
+    assert.deepEqual(partialDrafts.payload.identities, []);
+    assert.ok(partialTables["app_private.invitation_snapshots"].some(row => row.id === germanSnapshot.id));
+    const savedDraft = partialTables["public.invitation_send_queue"].find(row => row.id === restoredDraftId);
+    assert.equal(savedDraft.message_body, `Custom ({invitation_link}), also {invitation_link}. ${unrelatedLink}`);
+    assert.equal(savedDraft.message_subject, "RSVP {invitation_link}");
+
     const allBackup = await v("SELECT public.admin_export_backup() v");
     await db.exec("RESET ROLE");
     const projected = await v("SELECT app_private.project_backup($1,'template',ARRAY['wording'],false) v", [allBackup]);
     assert.deepEqual(projected.payload.tables, partialWording.payload.tables);
+    const narrowerDrafts = await v("SELECT app_private.project_backup($1,'template',ARRAY['households','drafts'],false) v", [allBackup]);
+    assert.deepEqual(narrowerDrafts.payload.tables, partialTables);
+    const tamperedDraft = structuredClone(partialDrafts.payload);
+    tamperedDraft.tables["public.invitation_send_queue"][0].status = "sent";
+    const tampered = await v("SELECT app_private.seal_backup($1) v", [tamperedDraft]);
+    const destinationDrafts = await createDatabase();
+    try {
+      await signIn(destinationDrafts);
+      const preview = async archive => (await destinationDrafts.query("SELECT public.admin_preview_backup($1) v", [archive])).rows[0].v;
+      await assert.rejects(() => preview(tampered), /delivery history or an invitation code/);
+      const report = await preview(partialDrafts);
+      assert.equal(report.can_restore, true, report.reason);
+      await destinationDrafts.query("SELECT public.admin_restore_backup($1,$2)", [partialDrafts, `RESTORE ${report.event_name}`]);
+      const getDestination = async () => (await destinationDrafts.query("SELECT public.admin_load_data() v")).rows[0].v;
+      const restored = await getDestination();
+      assert.equal(restored.settings.is_published, false);
+      assert.equal(restored.households.find(row => row.id === bilingualHousehold).invite_code, null);
+      assert.deepEqual(restored.queue.find(row => row.id === restoredDraftId).message_image, image);
+      assert.deepEqual(restored.deliveries, []);
+      await destinationDrafts.exec("RESET ROLE; UPDATE public.event_settings SET is_published=true WHERE id=1; SET ROLE authenticated");
+      const published = await getDestination();
+      const freshCode = published.households.find(row => row.id === bilingualHousehold).invite_code;
+      assert.match(freshCode, /^[A-HJ-NP-Z2-9]{8}$/);
+      assert.notEqual(freshCode, currentCode);
+      assert.notEqual(freshCode, savedCode);
+      const link = `https://destination.example.invalid/?=${freshCode}`;
+      await destinationDrafts.query(saveDelivery, [restoredDraftId, bilingualHousehold, {
+        ...values, status: "ready", expected_invitation_code: freshCode,
+        message_subject: savedDraft.message_subject.replaceAll("{invitation_link}", link),
+        message_body: savedDraft.message_body.replaceAll("{invitation_link}", link),
+      }, savedDraft.revision]);
+      const readyDraft = (await getDestination()).queue.find(row => row.id === restoredDraftId);
+      assert.equal(readyDraft.invitation_code_snapshot, freshCode);
+      assert.equal(readyDraft.message_subject, `RSVP ${link}`);
+    } finally { await destinationDrafts.close(); }
     await q("UPDATE public.admins SET access_permissions=jsonb_set(app_private.permission_preset('custom'),'{sections,invites}','\"none\"')");
     await db.exec("SET ROLE authenticated");
     const hidden = await v("SELECT public.admin_load_data(true) v");

@@ -53,14 +53,9 @@ const layoutRpc=client.rpc;client.rpc=async(name,args)=>{
       await page.locator("#statsGrid .stat-card-compact").first().waitFor();
       assert.equal(
         await page.locator("#statsGrid .stat-card-compact").count(),
-        4,
+        6,
       );
-      assert.deepEqual(
-        await page
-          .locator("#inviteAttendanceCounts ~ .stat-people-guests dt")
-          .allTextContents(),
-        ["Adults", "Children"],
-      );
+      assert.match(await page.locator("#statsGrid .overview-people-breakdown").innerText(), /\d+ Adults · \d+ Children/);
       if (width === 1160)
         await page
           .locator("#statsGrid")

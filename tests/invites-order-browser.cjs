@@ -29,7 +29,7 @@ for(const h of fixtures.households.filter(h=>h.id!==h1&&!fixtures.guests.some(g=
       );
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
       await page.waitForFunction(
-        () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+        () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
       );
       async function compare() {
         await page.locator("[data-tab=households]").click();

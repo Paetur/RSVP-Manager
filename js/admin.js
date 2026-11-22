@@ -6,6 +6,9 @@
     A = window.RSVP_ADMIN_ACCESS;
   const can = (section, level = "view") => A.can(section, level);
   let authRecovery = null;
+  let eventDataActor = null,
+    eventLoadVersion = 0,
+    signingOut = false;
   let db = null,
     user = null,
     store = {
@@ -59,12 +62,24 @@
   let statusTimer = null,
     pendingAdminInvitation = null,
     invitationApiError = "";
-  function show(msg, type = "info") {
+  function show(msg, type = "info", autoDismiss = true) {
     clearTimeout(statusTimer);
     if (!R.showStatus("adminMessage", msg, type)) return;
-    if (window.RSVP_NOTIFICATIONS?.autoDismissAdmin() !== false)
+    if (autoDismiss && window.RSVP_NOTIFICATIONS?.autoDismissAdmin() !== false)
       statusTimer = setTimeout(() => R.showStatus("adminMessage", ""), 5000);
   }
+  function showEventMenus(ready) {
+    $("adminApp").classList.toggle("hidden", !ready);
+    qs(".admin-section-menu").classList.toggle("hidden", !ready);
+    $("guestPreviewButton").classList.toggle("hidden", !ready);
+  }
+  function resetEventLoad() {
+    eventLoadVersion++;
+    eventDataActor = null;
+    showEventMenus(false);
+  }
+  const currentActor = (actor) =>
+    !!actor && actor === user && !signingOut && !authRecovery?.blocksAccess();
 
   const fmt = (value) =>
     value
@@ -210,9 +225,9 @@
         ? "Settings"
         : activeTab === "language"
           ? "Languages"
-          : "Main";
+          : "Home";
     for (const [id, label] of [
-      ["mainSectionToggle", "Main"],
+      ["mainSectionToggle", "Home"],
       ["contentLanguagesToggle", "Languages"],
       ["settingsToggle", "Settings"],
     ]) {
@@ -288,15 +303,24 @@
     return data || [];
   }
   async function reload() {
-    show(T("interface.messages.loading_event_data"));
+    const actor = user;
+    if (!currentActor(actor)) return false;
+    const version = ++eventLoadVersion;
+    const current = () => currentActor(actor) && version === eventLoadVersion;
+    const opening = actor !== eventDataActor;
+    if (opening) $("refreshButton").disabled = true;
+    show(T("interface.messages.loading_event_data"), "info", !opening);
     try {
-      await A.refresh();
+      await A.refresh(current);
+      if (!current()) return false;
       let loaded = await R.adminRpc("admin_load_data", { p_compact_queue_pictures: true });
+      if (!current()) return false;
       if (loaded.error?.code === "PGRST202" &&
           loaded.error.message?.includes("admin_load_data(p_compact_queue_pictures)"))
         loaded = await R.adminRpc("admin_load_data");
+      if (!current()) return false;
       if (loaded.error) throw loaded.error;
-      if (!loaded.data)
+      if (!loaded.data?.settings)
         throw Error(T("Administrator permissions are unavailable."));
       const { queuePictures, ...data } = loaded.data;
       if (Array.isArray(data.queue))
@@ -310,14 +334,16 @@
             throw Error(T("The server returned an unreadable response."));
           return { ...delivery, message_image: picture };
         });
-      Object.assign(store, data);
-      A.setFeatures(store.settings);
-      store.admins = can("administrators")
+      const admins = can("administrators")
         ? await managementRpc("admin_list_members")
         : [];
-      store.adminInvitations = can("administrators")
+      if (!current()) return false;
+      const adminInvitations = can("administrators")
         ? await managementRpc("admin_list_invitations")
         : [];
+      if (!current()) return false;
+      Object.assign(store, data, { admins, adminInvitations });
+      A.setFeatures(store.settings);
       invitationApiError = "";
       if (store.languages.length)
         window.RSVP_I18N.configure({
@@ -327,11 +353,20 @@
           translations: store.content,
         });
       await window.RSVP_I18N.loadCatalogs();
+      if (!current()) return false;
+      showEventMenus(true);
       renderAll();
+      eventDataActor = actor;
+      if (opening) show("");
       return true;
     } catch (e) {
-      show(R.safeError(e), "error");
+      if (current()) {
+        if (opening) showEventMenus(false);
+        show(R.safeError(e), "error", !opening);
+      }
       return false;
+    } finally {
+      if (opening && current()) $("refreshButton").disabled = false;
     }
   }
   const statisticsView = window.RSVP_ADMIN_STATISTICS.create({
@@ -2371,12 +2406,13 @@
       .filter(Boolean)
       .join(" · ");
   }
-  function invitationOverview(h) {
+  function invitationOverview(h, sessionId) {
     const primary = householdPrimaryContact(h);
     return window.RSVP_ADMIN_OVERVIEW.invitationOverview(store, h, {
       primary,
       guest: householdPrimaryGuest(h),
       contactChannel: primary ? primaryContactChannel(primary) : null,
+      sessionId,
     });
   }
   function editHouseholdFromInvites(householdId) {
@@ -5157,12 +5193,16 @@
     venuesView.render();
   }
   async function checkAccess() {
-    if (authRecovery?.blocksAccess()) return;
+    const actor = user;
+    if (!currentActor(actor)) return;
+    resetEventLoad();
+    A.clear();
     const { data: access, error } = await R.adminRpc("is_admin");
+    if (!currentActor(actor)) return;
     if (error) throw error;
-    if (authRecovery?.blocksAccess()) return;
     if (access !== true) {
       const invitation = await R.adminRpc("admin_my_invitation");
+      if (!currentActor(actor)) return;
       if (invitation.error)
         throw new Error(
           T(
@@ -5175,7 +5215,6 @@
             "interface.messages.no_active_administrator_invitation_was_found_for_this_account_ask",
           ),
         );
-      if (authRecovery?.blocksAccess()) return;
       pendingAdminInvitation = invitation.data;
       $("loginPanel").classList.add("hidden");
       $("acceptInvitationPanel").classList.remove("hidden");
@@ -5189,21 +5228,20 @@
         $(id).required = !!invitation.data.needs_password;
       return;
     }
-    await window.RSVP_ADMIN_PREFERENCES.load(user);
-    if (authRecovery?.blocksAccess()) return;
+    await window.RSVP_ADMIN_PREFERENCES.load(actor);
+    if (!currentActor(actor)) return;
     $("acceptInvitationPanel").classList.add("hidden");
     pendingAdminInvitation = null;
     $("loginPanel").classList.add("hidden");
-    $("adminApp").classList.remove("hidden");
     $("adminTopActions").classList.remove("hidden");
-    document.querySelector(".admin-section-menu").classList.remove("hidden");
-    $("loggedInAs").textContent = user.email || "";
+    $("loggedInAs").textContent = actor.email || "";
     const previewTarget = R.guestPreviewTarget();
     if (previewTarget) {
-      await A.refresh();
+      await A.refresh(() => currentActor(actor));
+      if (!currentActor(actor)) return;
       if (A.canPreviewGuest()) {
         await R.adminRpc("admin_record_session", { p_action: "login" });
-        location.replace(R.guestPreviewURL(previewTarget));
+        if (currentActor(actor)) location.replace(R.guestPreviewURL(previewTarget));
         return;
       }
     }
@@ -5215,15 +5253,18 @@
     tab(activeTab, false);
 
     const loaded = await reload();
+    if (!currentActor(actor)) return;
     const logged = await R.adminRpc("admin_record_session", {
       p_action: "login",
     });
+    if (!currentActor(actor)) return;
     const { databaseChangeNotice, ...entry } = history.state || {};
     if (databaseChangeNotice) {
       history.replaceState(entry, "");
-      if (loaded && !logged.error && databaseChangeNotice.actor === user?.id)
+      if (loaded && !logged.error && databaseChangeNotice.actor === actor.id)
         show(T(databaseChangeNotice.message), "success");
     }
+    if (!loaded) return;
     if (logged.error)
       show(
         T("interface.messages.signed_in_but_session_logging_is_unavailable"),
@@ -5243,14 +5284,14 @@
       window.RSVP_ADMIN_PREFERENCES.clear();
       window.RSVP_CUSTOMIZATION?.clear(); appearanceOwner = null;
       user = null;
+      resetEventLoad();
       shortcutsView.clear();
       bulkInvitesView.clear();
       transportSecurity?.clear();
       experimentalView.clear();
       databaseView.clear();
-      $("adminApp").classList.add("hidden");
       $("adminTopActions").classList.add("hidden");
-      document.querySelector(".admin-section-menu").classList.add("hidden");
+      $("loggedInAs").textContent = "";
       $("acceptInvitationPanel").classList.add("hidden");
       $("loginPanel").classList.remove("hidden");
       db?.auth.signOut({ scope: "local" }).catch(() => {});
@@ -5266,6 +5307,55 @@
       $("guestPreviewButton"),
       $("logout"),
     );
+    $("refreshButton").addEventListener("click", async () => {
+      const actor = user, button = $("refreshButton");
+      if (!currentActor(actor)) return;
+      button.disabled = true;
+      button.classList.add("is-refreshing");
+      try {
+        if (await reload()) {
+          if (activeTab === "settings" && activeSettingsTab === "logs")
+            await loadLogs(true);
+          if (currentActor(actor)) show(T("interface.messages.event_data_refreshed"), "success");
+        }
+      } finally {
+        button.classList.remove("is-refreshing");
+        if (currentActor(actor)) button.disabled = false;
+      }
+    });
+    $("logout").addEventListener("click", async () => {
+      const actor = user, button = $("logout");
+      if (!currentActor(actor)) return;
+      signingOut = true;
+      button.disabled = true;
+      eventLoadVersion++;
+      showEventMenus(false);
+      try {
+        const logged = await R.adminRpc("admin_record_session", { p_action: "logout_requested" });
+        if (logged.error)
+          show(T("interface.messages.session_logging_is_unavailable"), "warning");
+        const result = await db.auth.signOut();
+        if (result.error) throw result.error;
+        user = null;
+        resetEventLoad();
+        shortcutsView.clear();
+        bulkInvitesView.clear();
+        transportSecurity?.clear();
+        experimentalView.clear();
+        databaseView.clear();
+        window.RSVP_ADMIN_PREFERENCES.clear();
+        location.reload();
+      } catch (error) {
+        if (user === actor && !authRecovery?.blocksAccess()) {
+          showEventMenus(eventDataActor === actor);
+          $("refreshButton").disabled = false;
+          show(R.safeError(error), "error");
+        }
+      } finally {
+        signingOut = false;
+        button.disabled = false;
+      }
+    });
     window.addEventListener("resize", updateTabOverflow);
     document.addEventListener("keydown", (event) => {
       const nav = event.target.closest('[role="tablist"]');
@@ -5306,6 +5396,8 @@
         A.clear();
         window.RSVP_ADMIN_PREFERENCES.clear();
         user = null;
+        resetEventLoad();
+        $("loggedInAs").textContent = "";
         shortcutsView.clear();
         bulkInvitesView.clear();
         transportSecurity?.clear();
@@ -5333,14 +5425,6 @@
     }
     const current = authRecovery.blocksAccess() ? null :
       (await db.auth.getUser()).data?.user;
-    if (current) {
-      user = current;
-      try {
-        await checkAccess();
-      } catch (e) {
-        show(R.safeError(e), "error");
-      }
-    }
     $("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       if (authRecovery.blocksAccess()) return;
@@ -5359,24 +5443,6 @@
         show(R.safeError(err), "error");
       }
       button.disabled = false;
-    });
-    $("logout").addEventListener("click", async () => {
-      const logged = await R.adminRpc("admin_record_session", {
-        p_action: "logout_requested",
-      });
-      if (logged.error)
-        show(T("interface.messages.session_logging_is_unavailable"), "warning");
-      const result = await db.auth.signOut();
-      if (result.error) show(R.safeError(result.error), "error");
-      else {
-        shortcutsView.clear();
-        bulkInvitesView.clear();
-        transportSecurity?.clear();
-      experimentalView.clear();
-        databaseView.clear();
-        window.RSVP_ADMIN_PREFERENCES.clear();
-        location.reload();
-      }
     });
     document
       .querySelectorAll("[data-tab]")
@@ -5402,21 +5468,6 @@
     });
     $("logMore").addEventListener("click", () => loadLogs(false));
     $("mainSectionToggle").addEventListener("click", () => tab(lastMainTab));
-    $("refreshButton").addEventListener("click", async () => {
-      const button = $("refreshButton");
-      button.disabled = true;
-      button.classList.add("is-refreshing");
-      try {
-        if (await reload()) {
-          if (activeTab === "settings" && activeSettingsTab === "logs")
-            await loadLogs(true);
-          show(T("interface.messages.event_data_refreshed"), "success");
-        }
-      } finally {
-        button.classList.remove("is-refreshing");
-        button.disabled = false;
-      }
-    });
     $("expandHouseholds").addEventListener("click", () =>
       expandHouseholdTree(true),
     );
@@ -5426,6 +5477,11 @@
     $("householdSearch").addEventListener("input", renderHouseholds);
     $("inviteSearch").addEventListener("input", invitesView.render);
     document.addEventListener("rsvp:invites-appearance", () => { if (store.settings) invitesView.render(); });
+    document.addEventListener("rsvp:overview-appearance", () => {
+      if (!store.settings) return;
+      statisticsView.render();
+      invitesView.render();
+    });
     $("showArchived").addEventListener("change", renderHouseholds);
     function setFoodDisclosure(selector, open) {
       if (!open) R.closePopups();
@@ -5733,6 +5789,15 @@
       } catch (error) { show(R.safeError(error), "error"); }
       finally { publicationBusy = false; syncApplicationPublication(); }
     });
+
+    if (current) {
+      user = current;
+      try {
+        await checkAccess();
+      } catch (e) {
+        if (currentActor(current)) show(R.safeError(e), "error");
+      }
+    }
   }
   document.addEventListener("DOMContentLoaded", () => {
     (A.init({

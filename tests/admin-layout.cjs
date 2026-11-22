@@ -48,7 +48,7 @@ async function run(){
    await page.locator('#adminApp:not(.hidden)').waitFor({timeout:12000});
    await page.locator('#householdRows .hierarchy-section').first().waitFor({state:'attached'});
    assert.equal(await page.locator('.admin-main-tabs [data-tab]').count(),6,'six main work tabs');
-   assert.deepEqual(await page.locator('.admin-main-tabs [data-tab]').evaluateAll(nodes=>nodes.map(n=>n.textContent.trim())),['Invites','Events','Venues','Households','Food','Other']);
+   assert.deepEqual(await page.locator('.admin-main-tabs [data-tab]').evaluateAll(nodes=>nodes.map(n=>n.textContent.trim())),['Main','Events','Venues','Households','Food','Other']);
    assert.deepEqual(await page.locator('.admin-top-actions>button').evaluateAll(nodes=>nodes.map(n=>n.id)),
      ['refreshButton','themeToggle','logout'],'topbar action icon order');
    assert.equal(await page.locator('#guestPreviewButton').getAttribute('target'),'_blank','website link opens a new tab');
@@ -79,7 +79,7 @@ async function run(){
    assert.equal(await page.locator('#adminInvitationsList .admin-member').count(),2,'failure does not claim a sent invitation');
    await page.setViewportSize({width:1100,height:750});
    await page.locator('#mainSectionToggle').click();
-   assert.equal(await page.locator('#settingsPage').isVisible(),false,'Main returns to Invites');
+   assert.equal(await page.locator('#settingsPage').isVisible(),false,'Home returns to the Main workspace');
    assert.equal(await page.locator('.admin-main-tabs').isVisible(),true,'main tabs restored');
    const previewDir=path.join(root,'artifacts');fs.mkdirSync(previewDir,{recursive:true});
    await page.screenshot({path:path.join(previewDir,'admin-overview-light.png'),fullPage:true});

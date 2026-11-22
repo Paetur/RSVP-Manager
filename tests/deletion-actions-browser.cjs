@@ -44,7 +44,7 @@ const earlierDeleteRpc=client.rpc;client.rpc=async(name,args)=>{
     assert.equal((await page.request.get(base + "/AGENTS.md")).status(), 404);
     assert.equal((await page.request.get(base + "/internal/docs/codex-handover.md")).status(), 404);
     await page.goto(base + "/admin/");
-    await page.waitForFunction(() => document.querySelectorAll("#statsGrid .stat-card").length === 4);
+    await page.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
     await page.locator("[data-tab=invites]").click();
     await page.locator("#inviteRows details.invite-household").evaluateAll(nodes => nodes.forEach(node => node.open = true));
     const record = page.locator("#inviteRows [data-delivery-id=draft-delete]");

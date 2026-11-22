@@ -13,6 +13,7 @@
         "personal",
       ],
       ["#invitesAppearanceForm", "invites-appearance", "Invites appearance", "personal"],
+      ["#overviewAppearanceForm", "overview-appearance", "Overview appearance", "personal"],
       ["#transportProtocols", "transport-security", "HTTP/SSL", "settings"],
       ["#shortcutExperimentalForm", "experimental-shortcuts", "Apple Shortcuts", "settings"],
       ["#guestNamesHost form", "guest-names", "Guest titles", "settings"],

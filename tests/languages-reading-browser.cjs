@@ -53,7 +53,7 @@ async function readings(page, key, expected) {
       }, { language, theme });
       await routeSyntheticSdk(page, mock + '\n' + extra + '\n' + fixture);
       await page.goto('http://127.0.0.1:' + server.address().port + '/admin/');
-      await page.waitForFunction(() => document.querySelectorAll('#statsGrid .stat-card').length === 4);
+      await page.waitForFunction(() => document.querySelector('#inviteOverviewCounts .invite-stat-row'));
       const cancelLabel = await page.evaluate(() => window.RSVP_I18N.t('Cancel'));
       await page.locator('#contentLanguagesToggle').click();
       const tab = name => page.locator('#contentTranslationTabs [data-translation-tab="' + name + '"]');

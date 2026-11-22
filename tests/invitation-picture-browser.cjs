@@ -164,7 +164,7 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
         });
       await page.goto(base + "/admin/");
       await page.waitForFunction(
-        () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+        () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
       );
       await page.evaluate((width) => {
         document.documentElement.dataset.theme =

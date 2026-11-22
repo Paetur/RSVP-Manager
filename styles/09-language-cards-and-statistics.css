@@ -184,6 +184,72 @@
   margin: 0;
   flex-shrink: 0;
 }
+#adminApp .overview-panel {
+  background: var(--white);
+  border-radius: 10px;
+  padding: 16px 20px 18px;
+}
+#adminApp .overview-panel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-bottom: 12px;
+}
+#adminApp .overview-panel-heading h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+#adminApp .overview-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+#adminApp .overview-tabs button {
+  min-height: 34px;
+  padding: 4px 16px;
+  color: var(--muted);
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 5px;
+  font-size: .82rem;
+  font-weight: 700;
+}
+#adminApp .overview-tabs button[aria-selected="true"] {
+  background: var(--light);
+  border-color: var(--line);
+  color: var(--action-text);
+}
+#adminApp :is(.overview-panel, .overview-tabs button, .overview-cards)[hidden] {
+  display: none;
+}
+#adminApp .overview-cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 10px;
+}
+#adminApp .overview-cards .stat-card {
+  min-width: 0;
+  background: color-mix(in srgb, var(--paper) 40%, var(--white));
+  border-radius: 10px;
+}
+@media (min-width: 701px) {
+  /* Keep the invites toolbar in place when the visible Overview tab changes. */
+  #adminApp .overview-card-stack { display: grid; }
+  #adminApp .overview-cards { grid-area: 1 / 1; }
+  #adminApp .overview-cards[hidden]:not(:empty) {
+    display: grid;
+    visibility: hidden;
+  }
+}
+@media (max-width: 700px) {
+  #adminApp .overview-panel { padding: 14px; }
+  #adminApp .overview-tabs button { padding-inline: 11px; }
+  #adminApp .overview-cards { grid-template-columns: minmax(0, 1fr); }
+}
 #adminApp .stat-card.stat-card-compact {
   padding: 14px;
 }
@@ -200,6 +266,19 @@
 }
 #adminApp .stat-heading span {
   font-weight: 650;
+}
+#adminApp .overview-people-totals {
+  gap: 3px 8px;
+  margin-bottom: 3px;
+}
+#adminApp .overview-people-breakdown {
+  color: var(--muted);
+  font-size: .76rem;
+  margin: 0 0 10px;
+}
+#adminApp .overview-people-breakdown + #inviteGroupTrees {
+  border-top: 1px solid var(--line);
+  padding-top: 7px;
 }
 #adminApp .stat-counts {
   display: grid;
@@ -261,6 +340,7 @@
   }
 }
 @media (pointer: coarse) {
+  #adminApp .overview-tabs button,
   #adminApp .placeholder-help button,
   #adminApp #translationSearchToggle,
   #adminApp #translationSearchClose {
@@ -282,11 +362,6 @@
 @media (pointer: coarse) { .placeholder-category-tabs button { min-height: 44px; } }
 
 /* Invites owns the consolidated event summary and its read-only filters. */
-#adminApp .stat-people-guests {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
 #adminApp .invite-group-tree + .invite-group-tree { margin-top: 10px; }
 #adminApp .invite-group-tree > summary {
   display: flex;
@@ -302,6 +377,14 @@
 #adminApp .invite-group-tree > summary::before { content: "›"; color: var(--action-text); }
 #adminApp .invite-group-tree[open] > summary::before { transform: rotate(90deg); }
 #adminApp .invite-group-tree > summary > b { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+#adminApp .invite-group-tree > summary > .invite-session-active {
+  min-width: 0;
+  margin-inline-start: auto;
+  color: var(--action-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 #adminApp .invite-group-list {
   list-style: none;
   margin: 0 0 0 7px;

@@ -24,7 +24,7 @@ The other top actions refresh the data, change appearance, open the sign-in-prot
 
 ## Prepare the event
 
-1. Review event details under Main → Events.
+1. Review event details under Home → Events.
 2. Add venues, then sessions with the right venue and local time.
 3. Add households and guests, preserving any parent–child grouping you need.
 4. Assign session invitations in Households → Household details, or through a session’s household manager.
@@ -41,7 +41,7 @@ On a wide screen, Events cards and the Venues and Sessions & scheduling boxes sh
 
 ## Set groups and event wording
 
-In **Main → Events → Event planning**, review the current preset, shared labels and groups. Use the pencil in the card’s top-right corner to choose a Wedding, Reunion, Conference, or Custom preset. **Use preset suggestions** adds suggested groups and fills blank labels. Review and save the changes. You can also add, rename, translate, and reorder groups directly.
+In **Home → Events → Event planning**, review the current preset, shared labels and groups. Use the pencil in the card’s top-right corner to choose a Wedding, Reunion, Conference, or Custom preset. **Use preset suggestions** adds suggested groups and fills blank labels. Review and save the changes. You can also add, rename, translate, and reorder groups directly.
 
 Shared labels appear in the main navigation, section headings, and the Invites statistics. Group names appear in Households, Invites, and session assignment lists. Move households out of a group before removing it. Planning-template backups carry the saved settings into a fresh installation.
 
@@ -51,7 +51,7 @@ Ask a Full administrator to review your access. Some actions, such as sending in
 
 ## Feature and guest appearance settings
 
-**Main → Events → Features** enables Food and Other without deleting their existing data. Guest food step chooses interest-only or detailed selection; changing it does not publish or send anything. Edit the food explanation and the reply after Yes under Languages globe → Guests.
+**Home → Events → Features** enables Food and Other without deleting their existing data. Guest food step chooses interest-only or detailed selection; changing it does not publish or send anything. Edit the food explanation and the reply after Yes under Languages globe → Guests.
 
 **Settings → Interface** holds your personal preferences. Event-wide customization is under **Settings → Invitations → Landing page → Invitation appearance** with independent Wide/Phone settings. Choose a mode to see its compact photo, colours, title, name and appearance summary; its pencil opens the existing editor. Replace/remove a private JPEG, crop and position it, adjust darkening and box opacity, and choose colors separately for Light/Dark. Open the single Preview to inspect the selected mode, including its unsaved changes. Save applies that mode, Cancel discards its draft, and Reset appearance restores the default treatment while keeping the photo. Photo dimensions, stored size and crop are available under Details. Choose whether guests see a light/dark toggle and their default Light, Dark or System appearance. Hiding the toggle enforces that default. System follows the device; guest choices are separate from administrator choices. Personal Time format offers language default, 12-hour or 24-hour without changing scheduled times.
 

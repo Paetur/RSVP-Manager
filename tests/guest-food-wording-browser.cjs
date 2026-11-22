@@ -91,7 +91,7 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
       await page.locator("#foodInterestReply").waitFor({ state: "detached" });
       await page.goto(base + "/admin/");
       await page.waitForFunction(
-        () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+        () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
       );
       assert.ok(
         (await page.locator("#statsGrid").textContent()).includes(

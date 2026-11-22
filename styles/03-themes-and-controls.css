@@ -870,13 +870,6 @@ html[data-theme="dark"] code {
   margin: 16px 0;
   overflow-wrap: anywhere;
 }
-#previewBackup {
-  margin-top: 12px;
-}
-#restoreBackupForm {
-  border-top: 1px solid var(--line);
-  padding-top: 16px;
-}
 .language-switch {
   flex-wrap: wrap;
 }

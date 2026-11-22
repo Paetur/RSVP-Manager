@@ -1,5 +1,14 @@
 # Release notes
 
+## 0.9.0-beta.5
+
+- Use **Settings → Database** for Backup, Restore and Wipe. Restore detects the file type, shows compatible destinations and sections, and guides you through validation and the safety backup when required.
+- Use **Restart planning from backup** to refill an existing unpublished installation from a Partial backup. The restart clears drafts, delivery history, active codes, replies and food commitments while keeping the destination’s administrator access and issued-code reservations. A required Full safety backup lets you recover the previous event.
+- Select wording, templates, the picture album and drafts separately in Partial backups. Issued-code reservations are optional and off by default. Saved invitation album pictures can reuse shared snapshots while the backup remains compatible with format 3.
+- The Overview separates Information from Invitation filters and supports personal card visibility and order. Select a session to scope attendance and Invites. The administrator menu appears after event data and access load.
+
+Retained beta.4 installations need a scoped database update. Protect the database and private pictures before updating, then download a fresh Full backup. See the [existing-installation instructions](../INSTALL.md#existing-installations) and [backup and restore guide](Backups.md).
+
 ## 0.9.0-beta.4
 
 - Share stored pictures and immutable template revisions across invitations and delivery history. Each household keeps its saved wording, recipient, RSVP link and custom edits.

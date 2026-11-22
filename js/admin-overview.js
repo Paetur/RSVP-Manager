@@ -111,7 +111,7 @@
         b.id.localeCompare(a.id),
       );
   }
-  function invitationOverview(store, h, { primary, guest, contactChannel }) {
+  function invitationOverview(store, h, { primary, guest, contactChannel, sessionId }) {
     const records = invitationRecords(store, h.id),
       latest = records.find(record => record.status !== "cancelled");
     const sent = records
@@ -156,7 +156,9 @@
     const guests = store.guests.filter(
       (g) => g.household_id === h.id && !g.archived_at,
     );
-    const attendance = attendanceCounts(store, guests, rsvpSessions(store));
+    const sessions = rsvpSessions(store);
+    const attendance = attendanceCounts(store, guests,
+      sessionId ? sessions.filter(session => session.id === sessionId) : sessions);
     const answers = attendance.attending + attendance.declined;
     return {
       h,
@@ -179,6 +181,7 @@
   }
   window.RSVP_ADMIN_OVERVIEW = {
     eventCounts,
+    rsvpSessions,
     invitationOverview,
     invitationRecords,
     invitationService,

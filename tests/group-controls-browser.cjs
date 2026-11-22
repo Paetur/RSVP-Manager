@@ -42,7 +42,7 @@ await require("./helpers/admin-toolbar.cjs").autoConfirmInline(page);
       );
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
       await page.waitForFunction(
-        () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
+        () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
       );
       assert.deepEqual(
         await page.locator("#inviteGroupTrees details > summary").evaluateAll(
@@ -50,12 +50,7 @@ await require("./helpers/admin-toolbar.cjs").autoConfirmInline(page);
         ),
         [["Top-level groups", "2"], ["Relational groups", "2"]],
       );
-      assert.deepEqual(
-        await page.locator("#inviteAttendanceCounts ~ .stat-people-guests dt").evaluateAll(
-          labels => labels.map(label => [label.textContent, label.nextElementSibling.textContent]),
-        ),
-        [["Adults", "1"], ["Children", "1"]],
-      );
+      assert.equal(await page.locator("#statsGrid .overview-people-breakdown").innerText(), "1 Adults · 1 Children");
       await page.locator("[data-tab=households]").click();
       assert.equal(await page.locator("#newHousehold").count(), 0);
       assert.equal(

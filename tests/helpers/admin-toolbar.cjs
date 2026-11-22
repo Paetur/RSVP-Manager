@@ -8,7 +8,11 @@ async function refreshFixture(page) {
     await button.evaluate((node) => node.click());
   }
 }
-async function reopenDatabaseAfterRecovery(page) {
+async function selectDatabaseTab(page, name) {
+  const tab = page.locator('[data-database-tab="' + name + '"]');
+  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+}
+async function reopenDatabaseAfterRecovery(page, tab = "backup") {
   await page.waitForFunction(() =>
     location.hash === '#invites' &&
     document.getElementById('mainSectionToggle')?.getAttribute('aria-pressed') === 'true' &&
@@ -18,8 +22,9 @@ async function reopenDatabaseAfterRecovery(page) {
   const application = page.locator('[data-settings-tab="application"][aria-selected="true"]');
   await application.waitFor({ state: "visible" });
   await page.locator('[data-settings-tab="backups"]').click();
+  await selectDatabaseTab(page, tab);
 }
-module.exports = { refreshFixture, reopenDatabaseAfterRecovery };
+module.exports = { refreshFixture, reopenDatabaseAfterRecovery, selectDatabaseTab };
 // Screenshot fixtures exercise the real preference handler in both themes;
 // desktop shortcut visibility is covered by the dedicated toolbar tests.
 async function toggleFixtureTheme(page) {
@@ -60,6 +65,12 @@ async function setInvitesGrouping(page, grouped) {
   await page.locator('[data-tab=invites]').click();
 }
 module.exports.setInvitesGrouping = setInvitesGrouping;
+
+async function selectOverviewTab(page, name) {
+  const tab = page.locator('[data-overview-tab="' + name + '"]');
+  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+}
+module.exports.selectOverviewTab = selectOverviewTab;
 
 // Presentation suites can exercise either saved layout at their test viewport.
 // Preference persistence itself is exercised through the actual Settings editor.

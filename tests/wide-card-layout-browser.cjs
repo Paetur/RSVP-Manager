@@ -5,6 +5,7 @@ const { chromium } = require("playwright"),
   path = require("node:path");
 const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
 const { openBox } = require("./helpers/local-edit-ui.cjs");
+const { selectDatabaseTab } = require("./helpers/admin-toolbar.cjs");
 const { server, mock, extra, stageExtra, cleanup } = createPublicFoodHarness("wide-card-layout");
 const previewDir = process.env.RSVP_WIDE_LAYOUT_PREVIEW_DIR;
 const seed = `
@@ -60,7 +61,7 @@ async function capture(panel, name, width) {
       });
       await routeSyntheticSdk(page, mock + "\n" + extra + "\n" + stageExtra + "\n" + seed);
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
-      await page.waitForFunction(() => document.querySelectorAll("#statsGrid .stat-card").length === 4);
+      await page.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
 
       await page.locator("[data-tab=events]").click();
       const events = page.locator("[data-panel=events]"), eventCards = events.locator(":scope > :is(.settings-card, #planningConfigHost):not(.hidden)");
@@ -119,8 +120,9 @@ async function capture(panel, name, width) {
 
       await page.locator("#settingsToggle").click();
       await page.locator("[data-settings-tab=backups]").click();
-      const backups = page.locator("[data-settings-panel=backups]"), backupBoxes = backups.locator(":scope > .panel");
-      await checkPair(backups, backupBoxes, width, "Backup and restore");
+      const backups = page.locator("[data-settings-panel=backups]"), database = backups.locator(":scope > .panel");
+      assert.equal(await database.count(), 1, "Backup, Restore and Wipe share one Database box");
+      await checkFullRow(backups, database, "Database");
       await checkBounds(page, "Backups");
       await capture(backups, "backups", width);
       await page.locator("#backupExportMode input[value=template]").check();
@@ -130,15 +132,16 @@ async function capture(panel, name, width) {
       assert(await page.locator("#backupExportMode input[value=template]").isChecked(), "resizing retains backup mode");
       assert.equal(await page.locator('#backupExportSections input[value="food"]').isChecked(), false, "resizing retains included sections");
       assert(await page.locator("#backupExportCompressed").isChecked(), "resizing retains file options");
-      assert(await page.locator("#previewBackup").isDisabled(), "no validation without a selected backup");
-      assert(await page.locator("#restoreBackupButton").isDisabled(), "restore remains gated");
+      await selectDatabaseTab(page, "restore");
+      assert(await page.getByRole("button", { name: "Validate backup", exact: true }).isDisabled(), "no validation without a selected backup");
+      assert.equal(await page.getByRole("button", { name: "Restore backup", exact: true }).count(), 0, "restore remains hidden before validation");
       assert.equal(await page.locator("#backupFile").inputValue(), "", "no backup file was selected");
       assert.equal(await page.evaluate(() => fixtures.event_settings[0].is_published), false);
       assert.equal(await page.evaluate(() => window.__calls.some(({ name }) => /restore|backup|save_venue|save_event|save_session/.test(name))), false, "layout checks never write event or backup data");
       assert.deepEqual(errors, []);
       await page.close();
     }
-    console.log("PASS wide cards: Events/Venues/Backup-Restore split wide and stack narrow; event/planning/venue/session/add editors span rows; Cancel, drafts, control choices, restore gates and unpublished state retained at 390/820/1440px.");
+    console.log("PASS wide cards: Events/Venues split wide and stack narrow; event/planning/venue/session/add editors span rows; Database tabs, Cancel, drafts, control choices, restore gates and unpublished state retained at 390/820/1440px.");
     if (previewDir) console.log("Synthetic previews: " + previewDir);
   } finally {
     await browser.close();
