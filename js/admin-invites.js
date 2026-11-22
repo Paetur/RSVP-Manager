@@ -293,7 +293,7 @@
     }
     function copyButton(model, kind, className) {
       const picture = kind === "invitation" && model.latest?.message_image;
-      const label = kind === "recipient" ? "Copy" : picture ? "Copy picture and text" : "Copy Invitation";
+      const label = kind === "recipient" ? "Copy" : kind === "message" ? "Copy message" : picture ? "Copy picture and text" : "Copy Invitation";
       const control = R.dom("button", { type: "button", class: className,
         disabled: clipboardBusy || !getActor() || !can("invites") || !copyValue(model, kind) });
       control.dataset.inviteCopy = kind;
@@ -308,7 +308,8 @@
         const current = () => {
           const fresh = currentModel(model.h.id);
           return actor === getActor() && can("invites") && control.isConnected && copyValue(fresh, kind) === value &&
-            (!attachment || fresh.latest?.id === queueId && fresh.latest?.revision === revision && fresh.latest?.message_image?.image === image);
+            (kind === "recipient" || fresh.latest?.id === queueId && fresh.latest?.revision === revision &&
+              (!attachment || fresh.latest?.message_image?.image === image));
         };
         // One clipboard operation at a time also prevents a slower picture
         // preparation from overwriting a later household's recipient/message.
@@ -326,7 +327,8 @@
               return;
             }
           } else await navigator.clipboard.writeText(value);
-          if (current()) show(T(attachment ? "Picture and text copied. Check the caption after pasting." : "Copied"), "success");
+          if (current()) show(T(attachment ? "Picture and text copied. Check the caption after pasting." :
+            kind === "message" ? "Invitation text copied." : "Copied"), "success");
         } catch (error) {
           if (current()) show(R.safeError(error), "error");
         } finally { setClipboardBusy(false); }
@@ -520,6 +522,11 @@
           const invitation = copyButton(model, "invitation", "invite-copy-action invite-copy-invitation");
           invitation.append(R.dom("span", { class: "invite-copy-pill" }, T(deliveryLabel)));
           invitationActions.append(invitation);
+          if (model.latest?.status === "ready") {
+            const text = copyButton(model, "message", "invite-copy-action invite-copy-text");
+            text.append(R.dom("span", { class: "invite-copy-pill" }, T("Text")));
+            invitationActions.append(text);
+          }
         }
         delivery.append(invitationActions);
         const lastSent = R.dom("span", { class: "invite-overview-last-sent" });

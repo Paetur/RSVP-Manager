@@ -80,6 +80,16 @@ client.rpc=async(name,a)=>{
     item.status='sent';item.sent_at='2026-11-20T12:00:00Z';item.revision++;
     return {data:item.id};
   }
+  if(name==='admin_load_data'){
+    if(window.__holdBulkReload){
+      window.__holdBulkReload=false;
+      await new Promise(resolve=>window.__resumeBulkReload=()=>{delete window.__resumeBulkReload;resolve();});
+    }
+    if(window.__failBulkReload){
+      window.__failBulkReload=false;
+      return {error:{message:'Synthetic invite refresh failure'}};
+    }
+  }
   const result=await overviewRpc(name,a);
   if(name==='admin_load_data')result.data.invitationTemplates=[overviewTemplate,...(window.__bulkTemplates||[])];
   return result;
@@ -161,8 +171,35 @@ async function checkBulkDraftGeneration(page) {
   assert.equal(await generate.isDisabled(), true, "empty selection cannot generate");
   await householdInput(ids[0]).check();
   assert.match(await list.locator("#inviteSelectionCount").innerText(), /^1\/[0-9]+$/);
+  await page.evaluate(id => {
+    window.__holdDraftFor = id;
+    window.__holdBulkReload = true;
+  }, ids[0]);
   await generate.click();
-  await status.getByText("1 draft created", { exact: true }).waitFor();
+  await page.waitForFunction(() => typeof window.__resumeDraft === "function");
+  const feedback = status.getByRole("status"), spinner = feedback.locator(".bulk-invite-spinner");
+  const pending = "Please wait while drafts are updated…";
+  assert.equal(await feedback.innerText(), pending);
+  assert.equal(await spinner.isVisible(), true);
+  assert.equal(await spinner.getAttribute("aria-hidden"), "true");
+  assert.equal(await bulk.getAttribute("aria-busy"), "true");
+  assert.equal(await bulk.getByRole("button").evaluateAll(buttons => buttons.every(button => button.disabled)), true);
+  assert.equal(await publicationHint.isVisible(), true, "draft creation retains the unpublished event guidance");
+  const [buttonsBox, hintBox, feedbackBox] = await Promise.all([action.boundingBox(), publicationHint.boundingBox(), feedback.boundingBox()]);
+  assert.ok(hintBox.y >= buttonsBox.y + buttonsBox.height && feedbackBox.y >= hintBox.y + hintBox.height,
+    "publication guidance and progress have separate lines beneath the action buttons");
+  assert.ok(Math.abs(feedbackBox.x + feedbackBox.width - buttonsBox.x - buttonsBox.width) <= 1,
+    "feedback aligns with the right edge of the action buttons");
+  await generate.dispatchEvent("click");
+  await page.evaluate(() => window.__resumeDraft());
+  await page.waitForFunction(() => typeof window.__resumeBulkReload === "function");
+  assert.equal(await feedback.innerText(), pending, "draft progress remains visible during the data refresh");
+  assert.equal(await spinner.isVisible(), true);
+  assert.equal(await generate.isDisabled(), true);
+  await page.evaluate(() => window.__resumeBulkReload());
+  await feedback.getByText("1 draft created", { exact: true }).waitFor();
+  assert.equal(await bulk.getAttribute("aria-busy"), "false");
+  assert.equal(await spinner.count(), 0);
   assert.deepEqual(await page.evaluate(() => window.__draftWrites.map(write => write.p_household_id)), [ids[0]]);
   assert.equal(await page.evaluate(id=>fixtures.invitation_send_queue.find(q=>q.household_id===id)?.template_id,ids[0]),"overview-template");
   assert.equal(await generate.isDisabled(), true, "existing drafts need no generation");
@@ -199,9 +236,15 @@ async function checkBulkDraftGeneration(page) {
   await generate.click();
   await status.getByText("0 drafts created · 1 changed during generation", { exact: true }).waitFor();
   assert.equal(await generate.isEnabled(), true, "a changed recipient remains available for a fresh attempt");
+  await page.evaluate(() => { window.__failBulkReload = true; });
   await generate.click();
-  await status.getByText("1 draft created", { exact: true }).waitFor();
+  await feedback.getByText("1 draft created · Bulk invites could not be refreshed.", { exact: true }).waitFor();
+  assert.equal(await bulk.getAttribute("aria-busy"), "false");
+  assert.equal(await spinner.count(), 0);
   assert.equal(await page.evaluate(id=>fixtures.invitation_send_queue.find(q=>q.household_id===id)?.template_id,ids[4]),"overview-template");
+  assert.doesNotMatch(await page.locator("#adminMessage").textContent(), /Synthetic invite refresh failure/);
+  await refreshFixture(page);
+  await page.waitForFunction(() => !document.querySelector("#refreshButton").disabled);
   assert.equal(await page.evaluate(ids => fixtures.invitation_send_queue.filter(queue =>
     [ids[2], ids[3]].includes(queue.household_id)).length, ids), 0, "zero/ambiguous results create no draft");
   assert.equal(await page.evaluate(() => fixtures.event_settings[0].is_published), false);
@@ -218,7 +261,7 @@ async function checkBulkDraftGeneration(page) {
   assert.equal(await publicationHint.count(), 0);
   assert.equal(await list.locator("[data-bulk-select]:checked").count(),0);
   assert.match(await list.locator("#inviteSelectionCount").innerText(), /^0\/[0-9]+$/, "counter follows visible selectable rows");
-  assert.equal(await status.locator(".bulk-invite-hint:not([role=status])").count(),0,"a completed batch keeps feedback without a stale publication or review hint");
+  assert.equal(await status.locator("#bulkInviteHint").isVisible(),false,"a completed batch keeps feedback without a stale publication or review hint");
 }
 
 
@@ -428,6 +471,7 @@ async function checkReadyGenerationBoundaries(page) {
   await page.evaluate(({ id }) => { window.__holdReadyFor = id; }, ids[1]);
   await prepare.click();
   await page.waitForFunction(() => typeof window.__resumeReady === "function");
+  assert.equal(await feedback.innerText(), "Please wait while invitations are prepared…");
   await page.evaluate(({ id }) => {
     // Replace the database fixture object so the rendered client snapshot is stale.
     fixtures.households = fixtures.households.map(h => h.id === id ? { ...h, invite_code: "QRSTAB23" } : h);
@@ -744,9 +788,10 @@ async function checkInvitesPictureCopy(page, prepared) {
     selected:[...document.querySelectorAll('#inviteRows [data-bulk-select]:checked')].map(node=>node.dataset.bulkSelect),
     copies:window.__invitesCopied.length,
   }));
-  const before=await state();
+  const beforeText=await state();
   const expected='Saved Føroyskt — 🧪\r\n'+prepared.link;
-  assert.equal(await text.count(),0,'a pictured invitation keeps one copy control');
+  assert.equal(await text.innerText(),'Text');
+  assert.match(await text.getAttribute('aria-label'),/^Copy message · /);
   assert.equal(await invitation.innerText(),'Invitation');
   assert.match(await invitation.getAttribute('aria-label'),/^Copy picture and text · /);
   assert.equal(await invitation.evaluate(button=>{
@@ -756,9 +801,15 @@ async function checkInvitesPictureCopy(page, prepared) {
   const otherId=await page.locator('#inviteRows [data-invite-household]:not([data-invite-household="'+prepared.id+'"]) .invite-copy-recipient:not(:disabled)').first().evaluate(button=>button.closest('[data-invite-household]').dataset.inviteHousehold);
   const other=page.locator('#inviteRows [data-invite-household="'+otherId+'"] .invite-copy-recipient');
   await row.evaluate(node=>{node.open=false;});
+  await text.click();
+  await page.waitForFunction(value=>window.__invitesCopied.at(-1)===value,expected);
+  assert.deepEqual(await page.evaluate(()=>window.__imageCopyCalls),[],'Text writes only the plain message and RSVP link');
+  assert.equal(await row.evaluate(node=>node.open),false,'Text copy does not toggle household details');
+  const before=await state();
+  assert.deepEqual(before,{...beforeText,copies:beforeText.copies+1},'Text copy leaves selections and delivery state intact');
   await invitation.click();
   assert.equal(await page.locator('#inviteRows [data-invite-copy]:not(:disabled)').count(),0,'pending image preparation disables copy actions across households');
-  await other.dispatchEvent('click');await invitation.dispatchEvent('click');
+  await other.dispatchEvent('click');await invitation.dispatchEvent('click');await text.dispatchEvent('click');
   assert.deepEqual(await state(),before,'pending image preparation cannot overwrite a recipient/message or change selection/delivery state');
   assert.deepEqual(await page.evaluate(()=>window.__imageCopyCalls),[{image:'data:image/jpeg;base64,c3ludGhldGlj',message:expected,currentAtStart:true}]);
   await page.evaluate(()=>window.__completeImageCopy(false));
@@ -801,7 +852,8 @@ async function checkInvitesPictureCopy(page, prepared) {
     q.message_image={image:'data:image/jpeg;base64,c3ludGhldGlj'};q.message_body='Saved Føroyskt — 🧪\r\n{invitation_link}';
     q.status='draft';window.__invitesTestView.render();
   });
-  assert.equal(await invitation.count(),0,'a saved Draft picture remains under Review before preparation');
+  assert.equal(await row.locator('.invite-copy-invitation,.invite-copy-text').count(),0,
+    'a saved Draft picture remains under Review before preparation');
   assert.equal(await row.getByRole('button',{name:/^Review/}).count(),1);
   await page.evaluate(()=>{window.__invitesStore.queue.find(q=>q.id==='queue-ready').status='ready';window.__invitesTestView.render();});
   const beforeFailure=await page.evaluate(()=>window.__invitesCopied.length);
@@ -814,7 +866,7 @@ async function checkInvitesPictureCopy(page, prepared) {
     window.RSVP_INVITATION_IMAGE=window.__imageCopyBefore.helper;window.__invitesStore.queue=window.__imageCopyBefore.queue;
     delete window.__imageCopyBefore;delete window.__completeImageCopy;window.__invitesTestView.render();
   });
-  assert.equal(await text.count(),0,'invitations without a picture keep the single existing copy chip');
+  assert.equal(await text.isEnabled(),true,'Text is also available for a ready invitation without a picture');
   assert.deepEqual({...await state(),copies:before.copies},{...before,queue:originalQueue},'picture and fallback copies preserve selection, backend history and saved invitation records');
 }
 
@@ -831,11 +883,12 @@ async function checkInvitesCopyAndFilters(page) {
     Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.__invitesCopied.push(value);}}});
     window.__invitesTestView.render();return {id:h.id,code:h.invite_code,link:window.RSVP.invitationURL(h.invite_code)};
   });
-  const row=page.locator('[data-invite-household="'+prepared.id+'"]'),recipient=row.locator('.invite-copy-recipient'),invitation=row.locator('.invite-copy-invitation');
+  const row=page.locator('[data-invite-household="'+prepared.id+'"]'),recipient=row.locator('.invite-copy-recipient'),invitation=row.locator('.invite-copy-invitation'),text=row.locator('.invite-copy-text');
   const calls=await page.evaluate(()=>window.__calls.length),queueBefore=await page.evaluate(()=>JSON.stringify(window.__invitesStore.queue));
   await row.evaluate(node=>{node.open=false;});
-  await recipient.click();await invitation.click();
-  assert.deepEqual(await page.evaluate(()=>window.__invitesCopied),['+298 12 34 56','Original saved invitation\n'+prepared.link]);
+  await recipient.click();await invitation.click();await text.click();
+  const message='Original saved invitation\n'+prepared.link;
+  assert.deepEqual(await page.evaluate(()=>window.__invitesCopied),['+298 12 34 56',message,message]);
   assert.equal(await row.evaluate(node=>node.open),false,'copy buttons do not toggle household disclosure');
   assert.equal(await page.evaluate(()=>window.__calls.length),calls,'Invites copying uses no RPC');
   assert.equal(await page.evaluate(()=>JSON.stringify(window.__invitesStore.queue)),queueBefore,'copying preserves saved delivery/status/history');
@@ -1082,6 +1135,7 @@ async function checkManualInvitations(page) {
   await page.evaluate(item=>{const q=fixtures.invitation_send_queue.find(q=>q.id===item.queue);q.status='ready';q.message_body='Stale revision\n'+item.link;window.__holdSent=q.id;},ids[3]); await refresh();
   await select([ids[3]]); const beforeStale=await page.evaluate(()=>fixtures.invitation_deliveries.length); await mark.click();
   await page.waitForFunction(()=>typeof window.__resumeSent==='function');
+  assert.equal(await status.getByRole('status').innerText(),'Please wait while invitations are marked sent…');
   await page.evaluate(id=>{fixtures.invitation_send_queue.find(q=>q.id===id).revision++;window.__resumeSent();},ids[3].queue);
   await message('Marking sent stopped.'); assert.equal(await page.evaluate(()=>fixtures.invitation_deliveries.length),beforeStale);
 

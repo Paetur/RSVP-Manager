@@ -1,4 +1,4 @@
-// Generated Studio entrypoint for RSVP Manager 0.9.0-beta.5.
+// Generated Studio entrypoint for RSVP Manager 0.9.0-beta.6.
 // Paste the COMPLETE file into index.ts for invitation-shortcuts.
 // Set the function JWT verification toggle to OFF; this handler validates requests itself.
 // Source hashes and version are recorded in manifest.json. Do not edit generated files.

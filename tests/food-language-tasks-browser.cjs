@@ -258,9 +258,8 @@ async function run(type){const browser=await type.launch({headless:true});try{
  if(process.env.SETTINGS_PREVIEW&&type.name()==='chromium')await page.locator('#translationEditor').screenshot({path:process.env.SETTINGS_PREVIEW+'/settings-language-preview.png'});
  await page.locator('#mainSectionToggle').click();
  await selectWorkTab(page,'venues');
- for(const id of ['venueList','sessionsList']){
-   assert.equal(await page.locator('#'+id).evaluate(node=>node.closest('details').open),true);
- }
+ const venueTab=page.locator('[data-venue-tab="venues"]'),sessionTab=page.locator('[data-venue-tab="sessions"]');
+ await sessionTab.click();
  const sessionRow=page.locator('#sessionsList > details').first();
  assert.equal(await sessionRow.evaluate(node=>node.open),false);
  assert.ok(await sessionRow.getByText('Main hall · Unscheduled · Atlantic/Faroe · RSVP required',{exact:true}).isVisible());
@@ -273,7 +272,8 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await sessionRow.locator(':scope > summary').getByText('Later session',{exact:true}).waitFor();
  assert.equal(await sessionRow.evaluate(node=>node.open),false);
 
- if(process.env.SETTINGS_PREVIEW&&type.name()==='chromium')await page.locator('[data-panel="venues"]').screenshot({path:process.env.SETTINGS_PREVIEW+'/settings-venues-sessions.png'});
+ if(process.env.SETTINGS_PREVIEW&&type.name()==='chromium')await page.locator('[data-panel="venues"]').screenshot({path:process.env.SETTINGS_PREVIEW+'/settings-sessions.png'});
+ await venueTab.click();
  const venue=page.locator('#venueList details').filter({hasText:'Main hall'});
  assert.equal(await venue.evaluate(d=>d.open),false);
  assert.ok(await venue.locator(':scope > summary').getByText('12 Example Street',{exact:false}).isVisible());
@@ -314,6 +314,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  });
  await refreshFixture(page);
  await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);
+ await sessionTab.click();
  const dinner=page.locator('#sessionsList > details').filter({hasText:'Dinner'});
  await dinner.locator(':scope > summary').click();if(!await dinner.locator('form.reading-editor').isVisible())await dinner.locator('[data-record-pencil]').click();
  await dinner.getByRole('button',{name:'Manage households',exact:true}).click();

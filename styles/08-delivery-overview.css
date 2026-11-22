@@ -598,7 +598,7 @@
 #adminApp .invite-box-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(9rem, 19vw, 14rem) minmax(0, max-content) 44px;
-  grid-template-areas: "title shown action search" "field field field field";
+  grid-template-areas: "title shown action search" ". . status ." "field field field field";
   align-items: center;
   column-gap: 8px;
 }
@@ -844,10 +844,27 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.bulk-invite-status-row { min-width: 0; }
-#bulkInviteStatus { margin-block-start: 8px; }
-#bulkInviteStatus:empty { display: none; }
-.bulk-invite-hint { margin: 0; }
+.bulk-invite-status-row {
+  grid-area: status;
+  min-width: 0;
+  contain: inline-size;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+.bulk-invite-hint, .bulk-invite-feedback { margin: 0; }
+.bulk-invite-hint:not([hidden]), .bulk-invite-feedback:not(:empty) { margin-block-start: 6px; }
+.bulk-invite-feedback:not(:empty) { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+.bulk-invite-spinner {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--line);
+  border-block-start-color: var(--action-text);
+  border-radius: 50%;
+  animation: bulk-invite-spin .8s linear infinite;
+}
+@keyframes bulk-invite-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .bulk-invite-spinner { animation: none; } }
 .bulk-invite-list {
   display: grid;
   gap: 8px;
@@ -1003,7 +1020,7 @@
 @media (max-width: 750px) {
   #adminApp .invite-box-heading {
     grid-template-columns: minmax(0, 1fr) 44px;
-    grid-template-areas: "title title" "shown shown" "action search" "field field";
+    grid-template-areas: "title title" "shown shown" "action search" "status ." "field field";
     row-gap: 8px;
   }
   #adminApp .invite-heading-search .admin-search-toggle { align-self: end; }

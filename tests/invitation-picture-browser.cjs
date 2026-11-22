@@ -495,7 +495,11 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
       assert.equal(await recipientChip.innerText(), "WhatsApp");
       await recipientChip.click();
       assert.equal(await page.evaluate(() => window.__pictureCopied), "+12025550111");
-      assert.equal(await householdRow.locator(':scope > summary [data-invite-copy="message"]').count(), 0);
+      const text = householdRow.locator(':scope > summary [data-invite-copy="message"]');
+      assert.equal(await text.innerText(), "Text");
+      await text.click();
+      await page.waitForFunction(value => window.__pictureCopied === value, "Hello " + link);
+      await page.evaluate(() => { window.__pictureCopied = null; });
       await ready.click();
       await page.waitForFunction(value => window.__pictureCopied === value, "Hello " + link);
       assert.equal(await page.evaluate(() => window.__pictureCopied), "Hello " + link);

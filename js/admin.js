@@ -302,14 +302,14 @@
     if (error) throw new Error(`${name}: ${R.safeError(error)}`);
     return data || [];
   }
-  async function reload() {
+  async function reload({ showFeedback = true } = {}) {
     const actor = user;
     if (!currentActor(actor)) return false;
     const version = ++eventLoadVersion;
     const current = () => currentActor(actor) && version === eventLoadVersion;
     const opening = actor !== eventDataActor;
     if (opening) $("refreshButton").disabled = true;
-    show(T("interface.messages.loading_event_data"), "info", !opening);
+    if (showFeedback) show(T("interface.messages.loading_event_data"), "info", !opening);
     try {
       await A.refresh(current);
       if (!current()) return false;
@@ -357,12 +357,12 @@
       showEventMenus(true);
       renderAll();
       eventDataActor = actor;
-      if (opening) show("");
+      if (opening && showFeedback) show("");
       return true;
     } catch (e) {
       if (current()) {
         if (opening) showEventMenus(false);
-        show(R.safeError(e), "error", !opening);
+        if (showFeedback) show(R.safeError(e), "error", !opening);
       }
       return false;
     } finally {
@@ -2496,7 +2496,8 @@
     confirm: (message, trigger) => window.RSVP_INLINE.confirm(message, { trigger }),
   });
   const bulkInvitesView = window.RSVP_ADMIN_BULK_INVITES.create({
-    R, T, getStore: () => store, getActor: () => user?.id || null, can, managementRpc, reload,
+    R, T, getStore: () => store, getActor: () => user?.id || null, can, managementRpc,
+    reload: () => reload({ showFeedback: false }),
     primaryContact: householdPrimaryContact, primaryGuest: householdPrimaryGuest, invitationDraft,
     getVisibleHouseholdIds: () => invitesView.getVisibleHouseholdIds(),
     onSelectionChange: () => invitesView.render(),

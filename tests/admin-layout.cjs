@@ -259,7 +259,7 @@ async function run(){
 
 
    await selectWorkTab(page,'venues');
-   await openSection(page,'Venues');await openSection(page,'Add venue');
+   await openSection(page,'Add venue');
    const newVenue=page.locator('#newVenueForm form');
    await newVenue.getByLabel('Venue name',{exact:true}).fill('Faroe test venue');
    await newVenue.getByLabel('Country code').fill('FO');
@@ -281,7 +281,7 @@ async function run(){
    const venueIds=await page.evaluate(()=>window.__fixtures.event_locations.map(v=>v.id));
    const savedVenue=page.locator('#venueList > details').first();await savedVenue.locator('summary').first().click();await savedVenue.locator('[data-record-pencil]').click();
    await savedVenue.locator('.venue-welcome-editor').screenshot({path:path.join(root,'artifacts','venue-welcome-preview.png')});
-   await openSection(page,'Sessions & scheduling');await openSection(page,'Add session');
+   await page.locator('[data-venue-tab="sessions"]').click();await openSection(page,'Add session');
    const newSession=page.locator('#newSessionEditor form');
    for(const [name,key,id] of [['Faroe celebration','faroe-celebration',venueIds[0]],['German celebration','german-celebration',venueIds[1]]]){
      await newSession.getByLabel('Session name',{exact:true}).fill(name);

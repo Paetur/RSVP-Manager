@@ -5,15 +5,6 @@
 .database-panel .database-tab-panel {
   min-width: 0;
 }
-.database-tabs button {
-  min-height: 44px;
-  padding-inline: 14px;
-  border-radius: 7px 7px 0 0;
-}
-.database-tabs button.active {
-  background: var(--light);
-  color: var(--action-text);
-}
 .database-tabs button[hidden],
 .database-panel .database-tab-panel[hidden] {
   display: none;

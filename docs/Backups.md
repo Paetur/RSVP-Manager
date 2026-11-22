@@ -24,6 +24,8 @@ The primary button starts at **Validate backup**. After successful validation, i
 
 Partial export shows **Venues & sessions**, **Households & guests**, **Food**, **Other**, **Language/Text data**, and **Invitation templates**. Under Invitation templates, **Picture album** and **Drafts** have separate checkboxes. The album checkbox includes the picture library. Images needed by selected templates and drafts travel with those records. Event settings and the configured languages and guest appearance are always included. Full export includes every available section.
 
+![The Database Backup tab with Partial backup selected and the individual export sections](images/ipad-backups.png)
+
 Select **Households & guests** to enable **Drafts**. Drafts are optional and return to **Review**. They retain their saved wording and pictures. After publication, **Make invitation(s)** prepares them with the current invitation links.
 
 **Issued-code reservations** is off by default for Partial export. Enable it to include the record of codes already issued, including codes retired from use. A clean Partial restore can carry over those reservations without enabling any past invitation link. A planning restart uses the destination’s reservations. Full backups always include issued-code reservations.

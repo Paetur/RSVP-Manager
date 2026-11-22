@@ -19,6 +19,17 @@
     show,
   }) {
     const $ = R.byId;
+    const tabs = [...$("venueWorkspaceTabs").querySelectorAll("[data-venue-tab]")];
+    for (const tab of tabs) tab.addEventListener("click", () => {
+      // Switch visibility without rebuilding either form or its draft.
+      for (const item of tabs) {
+        const active = item === tab;
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-selected", String(active));
+        item.tabIndex = active ? 0 : -1;
+        $(item.getAttribute("aria-controls")).hidden = !active;
+      }
+    });
     function venueSummaryRow(
       name,
       metadata,

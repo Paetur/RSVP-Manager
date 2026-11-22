@@ -1,5 +1,14 @@
 # Release notes
 
+## 0.9.0-beta.6
+
+- Invites shows batch progress and results beneath the action buttons. The publication notice has its own line, and the spinner stays visible until the list refresh finishes.
+- On Ready rows, use **Text** to copy the message and RSVP link. **Invitation** copies the picture and text together when a picture is included.
+- Switch between **Venues** and **Sessions** with dedicated tabs. Open editors keep their unsaved changes while you switch tabs.
+- The public README and guides show the current interface with synthetic event screenshots.
+
+Retained beta.5 installations need a scoped database update for the three batch progress labels. Backup format 3 and the 44-table manifest carry forward. See the [existing-installation instructions](../INSTALL.md#existing-installations).
+
 ## 0.9.0-beta.5
 
 - Use **Settings → Database** for Backup, Restore and Wipe. Restore detects the file type, shows compatible destinations and sections, and guides you through validation and the safety backup when required.

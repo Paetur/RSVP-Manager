@@ -879,6 +879,15 @@ html[data-theme] #adminApp .settings-page .settings-tabs button.active {
   outline: 2px solid var(--teal);
   outline-offset: -2px;
 }
+:is(.database-tabs, .venue-tabs) button {
+  min-height: 44px;
+  padding-inline: 14px;
+  border-radius: 7px 7px 0 0;
+}
+:is(.database-tabs, .venue-tabs) button.active {
+  background: var(--light);
+  color: var(--action-text);
+}
 .translation-search {
   display: grid;
   gap: 4px;
@@ -1410,25 +1419,11 @@ html[data-theme] #adminApp .settings-page .settings-tabs button.active {
 .form-feedback[data-state="error"] {
   color: var(--danger, #b85248);
 }
-/* Venues and scheduling stay independent boxes, sharing a row only when wide. */
-#adminApp [data-panel="venues"]:not(.hidden) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-#adminApp [data-panel="venues"] > .settings-management {
+.venue-workspace {
   min-width: 0;
-  margin: 0;
 }
-@media (min-width: 1100px) {
-  #adminApp [data-panel="venues"]:not(.hidden) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  #adminApp [data-panel="venues"] > .settings-management:has(.reading-editor.record-open),
-  #adminApp [data-panel="venues"] > .settings-management:has(details.admin-management.edit-only[open]) {
-    grid-column: 1 / -1;
-  }
+.venue-workspace > [role="tabpanel"][hidden] {
+  display: none;
 }
 
 .record-read-grid {

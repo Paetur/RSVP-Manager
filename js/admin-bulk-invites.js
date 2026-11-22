@@ -11,7 +11,7 @@
     const content = () => $("bulkInviteContent");
     const selected = new Set();
     let visibleHouseholds = new Set(), visibleRows = new Map();
-    let actor = null, busy = false, notice = "", generation = 0, selectionVersion = 0;
+    let actor = null, busy = false, progress = "", notice = "", generation = 0, selectionVersion = 0;
     const button = (label, action, disabled = false) => {
       const control = R.dom("button", { type: "button", class: "btn secondary", disabled }, T(label));
       control.addEventListener("click", action);
@@ -57,11 +57,11 @@
       selected.clear();
       visibleHouseholds.clear();
       visibleRows.clear();
-      notice = "";
+      progress = notice = "";
       const panel = host();
       if (panel) panel.hidden = true;
       content()?.replaceChildren();
-      $("bulkInviteStatus")?.replaceChildren();
+      renderStatus();
     }
 
     function sync() {
@@ -239,31 +239,40 @@
         && active.group === row.group ? active : null;
     }
 
-    async function writes(items, save, allowed, summary,
+    async function writes(items, save, allowed, pending, summary,
       failure = "Bulk preparation stopped. Review the list before trying again.", scope = () => true) {
       if (busy || !allowed()) return;
       const owner = getActor(), start = generation;
       const snapshots = items.map(row => ({ ...row, queue: row.queue ? { ...row.queue } : null }));
       let count = 0;
-      busy = true; notice = ""; refreshSelection();
+      busy = true;
+      progress = pending;
+      notice = "";
+      refreshSelection();
       const continuing = () => generation === start && getActor() === owner && allowed();
       try {
-        for (const item of snapshots) {
-          if (!continuing() || !scope()) break;
-          const row = current(item);
-          if (row && await save(row, () => continuing() && scope())) count++;
+        let operationFailure = "";
+        try {
+          for (const item of snapshots) {
+            if (!continuing() || !scope()) break;
+            const row = current(item);
+            if (row && await save(row, () => continuing() && scope())) count++;
+          }
+        } catch (error) {
+          operationFailure = T(failure) + " " + R.safeError(error);
         }
+        if (!continuing()) return;
+        const refreshed = await reload().catch(() => false);
         if (continuing()) {
-          if (!await reload()) throw Error(T("Bulk invites could not be refreshed."));
-          if (continuing()) notice = summary(count);
-        }
-      } catch (error) {
-        if (continuing()) {
-          await reload();
-          if (continuing()) notice = (count ? summary(count) + " " : "") + T(failure) + " " + R.safeError(error);
+          notice = [
+            (count || !operationFailure) && summary(count),
+            operationFailure,
+            !refreshed && T("Bulk invites could not be refreshed."),
+          ].filter(Boolean).join(" · ");
         }
       } finally {
         busy = false;
+        progress = "";
         refreshSelection();
       }
     }
@@ -307,7 +316,7 @@
           return false;
         }
         return true;
-      }, canDraft, count => {
+      }, canDraft, "Please wait while drafts are updated…", count => {
         const drafts = count - reverted;
         return [
           (drafts || !reverted) && T(drafts === 1 ? "{count} draft created" : "{count} drafts created", { count: drafts }),
@@ -328,7 +337,7 @@
         if (!continuing()) return false;
         const message = preparableMessage(row);
         return message && saveAsReady(row.household, row.queue, message);
-      }, canPrepare, count => T(count === 1 ? "{count} invitation marked ready." : "{count} invitations marked ready.", { count }),
+      }, canPrepare, "Please wait while invitations are prepared…", count => T(count === 1 ? "{count} invitation marked ready." : "{count} invitations marked ready.", { count }),
       undefined, selectedScope());
       focusAfterReadiness("[data-bulk-make-draft]:enabled");
     }
@@ -356,18 +365,36 @@
         });
         finished.add(household.id);
         return true;
-      }, canSend, count => T(count === 1 ? "{count} invitation marked sent." : "{count} invitations marked sent.", { count }),
+      }, canSend, "Please wait while invitations are marked sent…", count => T(count === 1 ? "{count} invitation marked sent." : "{count} invitations marked sent.", { count }),
       "Marking sent stopped. Review the list before trying again.", sameSelection);
     }
 
+    function renderStatus(hint = "") {
+      const guidance = $("bulkInviteHint"), feedback = $("bulkInviteFeedback");
+      if (!guidance || !feedback) return;
+      guidance.hidden = !hint;
+      if (guidance.textContent !== hint) guidance.textContent = hint;
+      const message = progress ? T(progress) : notice;
+      if (feedback.textContent === message && Boolean(feedback.querySelector(".bulk-invite-spinner")) === Boolean(progress)) return;
+      if (!message) feedback.replaceChildren();
+      else if (progress) {
+        const spinner = element("span", "bulk-invite-spinner");
+        spinner.setAttribute("aria-hidden", "true");
+        feedback.replaceChildren(spinner, R.dom("span", {}, message));
+      } else feedback.textContent = message;
+    }
+
     function render() {
-      const panel = host(), box = content(), statusBox = $("bulkInviteStatus");
+      const panel = host(), box = content();
       if (!panel || !box) return;
       sync();
       panel.hidden = !actor || !can("invites");
       box.replaceChildren();
-      statusBox?.replaceChildren();
-      if (panel.hidden) return;
+      panel.setAttribute("aria-busy", String(busy));
+      if (panel.hidden) {
+        renderStatus();
+        return;
+      }
       syncVisible(getVisibleHouseholdIds?.());
       const selection = [...visibleRows.values()].filter(row => selected.has(row.household.id));
       const actions = element("div", "bulk-invite-actions");
@@ -384,15 +411,8 @@
         button("Mark sent", () => markSent(selection), !sendEnabled),
       );
       box.append(actions);
-      if (!getStore().settings?.is_published)
-        statusBox?.append(element("p", "micro bulk-invite-hint", T("Publish the event to activate sending.")));
-      else if (selection.some(row => row.queue && !sendable(row)))
-        statusBox?.append(element("p", "micro bulk-invite-hint", T("Review incomplete drafts in Invites and mark them ready.")));
-      if (notice) {
-        const feedback = element("p", "micro bulk-invite-hint", notice);
-        feedback.setAttribute("role", "status");
-        statusBox?.append(feedback);
-      }
+      renderStatus(!getStore().settings?.is_published ? T("Publish the event to activate sending.") :
+        selection.some(row => row.queue && !sendable(row)) ? T("Review incomplete drafts in Invites and mark them ready.") : "");
     }
 
     return { render, clear, syncVisible, selectionControl, selectAllControl, changeToDraft,

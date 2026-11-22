@@ -44,7 +44,18 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.deepEqual(await page.locator('.admin-main-tabs [role="tab"]').evaluateAll(tabs=>tabs.map(tab=>tab.dataset.tab)),['invites','events','venues','households','food','other']);
  assert.equal(await page.locator('[data-tab=overview],[data-panel=overview]').count(),0,'Overview remains merged into Invites');
  await selectWorkTab(page,'venues');
- for(const id of ['venueList','sessionsList'])assert.equal(await page.locator('#'+id).evaluate(node=>node.closest('details').open),true);
+ const venueTab=page.locator('[data-venue-tab="venues"]'),sessionTab=page.locator('[data-venue-tab="sessions"]');
+ assert.equal(await venueTab.getAttribute('aria-selected'),'true');
+ assert.ok(await page.locator('#venueLocationsPanel').isVisible());
+ assert.equal(await page.locator('#venueSessionsPanel').isVisible(),false);
+ await venueTab.press('ArrowRight');
+ assert.equal(await sessionTab.getAttribute('aria-selected'),'true');
+ assert.ok(await sessionTab.evaluate(tab=>document.activeElement===tab));
+ assert.ok(await page.locator('#venueSessionsPanel').isVisible());
+ assert.equal(await page.locator('#venueLocationsPanel').isVisible(),false);
+ await sessionTab.press('Home');
+ assert.equal(await sessionTab.getAttribute('tabindex'),'-1');
+ assert.ok(await venueTab.evaluate(tab=>document.activeElement===tab));
  assert.equal(await page.locator('#newVenueForm').evaluate(node=>!!(node.closest('details').compareDocumentPosition(document.getElementById('venueList'))&Node.DOCUMENT_POSITION_FOLLOWING)),true);
  assert.equal(await page.locator('#newSessionEditor').evaluate(node=>!!(node.closest('details').compareDocumentPosition(document.getElementById('sessionsList'))&Node.DOCUMENT_POSITION_FOLLOWING)),true);
  assert.equal(await page.locator('#sessionsList .venue-map-link').count(),0);
@@ -56,7 +67,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await selectWorkTab(page,'venues');
  await page.locator('#venueList > details').first().getByRole('button',{name:'Move venue down',exact:true}).click();
  await page.locator('#venueList > details').first().locator(':scope > summary').getByText('Garden',{exact:true}).waitFor();
- if(preview&&type.name()==='webkit')await page.locator('[data-panel="venues"]').screenshot({path:preview+'/venues-and-sessions.png'});
+ if(preview&&type.name()==='webkit')await page.locator('[data-panel="venues"]').screenshot({path:preview+'/venues.png'});
 
  await selectContentTranslation(page,'welcome');
  assert.deepEqual(await page.locator('#contentTranslationTabs button').allTextContents(),['Welcome Message','Venues','Sessions','Guests','Food']);

@@ -20,11 +20,13 @@ Allow food in Household details controls whether the household may participate i
 
 A venue is a place. A session is an activity at a place and time. Several sessions can use the same venue.
 
-Use Venues to create and order places and sessions. Check each session’s venue and local time carefully. Manage households on a session lets you add or remove household invitations in bulk. Households → Household details provides session checkboxes and a collapsed Individual guest exceptions section. Save applies the household details and changed invitations together.
+Open **Home → Venues**. Use the **Venues** tab to add and order places.
 
-On wide screens, the Venues and Sessions & scheduling boxes appear side by side. Opening an editor or Add venue/session expands that box across the row; reading views return to columns when editing closes. Narrower screens stack the boxes.
+![The Venues tab showing two event locations](images/ipad-venues-sessions.png)
 
-![A venue and its two scheduled sessions shown in side-by-side panels](images/ipad-venues-sessions.png)
+Use the **Sessions** tab to add and arrange activities. Check each session’s venue and local time. **Manage households** on a session lets you add or remove household invitations in bulk. **Households → Household details** provides session checkboxes and an **Individual guest exceptions** section. Save applies the household details and changed invitations together.
+
+![The Sessions tab showing two activities with their venues and times](images/ipad-sessions.png)
 
 ## Replies
 
@@ -52,6 +54,8 @@ Use `{invitation_link}` in the message. You can also use `{household_name}` and 
 
 **Home → Main** opens the Overview and Invites list. The Overview starts on **Information**, with Households and Guests in one card, followed by Food items and New RSVP submissions. The **Invitation** tab contains Invites, Services and Language. **Shown fields** is in the Invites heading with **Make draft(s)**, **Make invitation(s)**, **Mark sent** and **Search**.
 
+![The Information tab of Overview with Households and Guests, Food items, and RSVP submissions](images/ipad-overview.png)
+
 Open **Settings → Interface → Overview appearance** to select which cards appear. Drag cards within their tab or use **Move up** and **Move down**. Select **Save** to apply the layout to your account on every screen size. **Reset to defaults** restores the starting order and visibility after saving. Switching tabs preserves active filters. Hiding a card in Settings clears its filters.
 
 Click **No drafts**, **Review**, **Ready**, **Sent**, **Waiting Reply** or **Replied** to filter the list by invitation status. Click the active status again to clear it. **No drafts** shows households without a current delivery. **Review** shows drafts. A household can have a sent invitation and a new reminder draft. In **New RSVP submissions**, expand **Sessions** and select a session to scope attendance counts and the matching households. Select it again to return to all sessions. Click **Attending**, **Not attending** or **Unanswered** to filter by those responses. A household with mixed answers can match more than one attendance filter.
@@ -64,7 +68,7 @@ In **Invites appearance → Rows**, choose one or two rows independently for nar
 
 Use **Invites appearance → Default shown fields** for separate defaults in both layouts. Household, Service and Invitation stay visible. In Rows 1, optional fields include Household info, Recipient, Last sent, RSVP, RSVP info and Food. Rows 2 always shows the Household, Service and Invitation details with optional RSVP and Food pairs. Changes made in the **Shown fields** menu apply to the current view. Returning to Rows 1 restores its temporary choices. Returning to Rows 2 restores its saved column defaults. Grouping, row layout and field defaults share the Invites appearance pencil and **Save / Cancel** controls. Saved choices follow the administrator account. A failed save keeps the edit for retry.
 
-Click the **Service** chip to copy the current recipient number or email. Click **Review** to open the household’s **Invitation → Drafts**. Check the details and use **Edit delivery** if needed. **Make invitation(s)** resolves the current RSVP link and moves an eligible draft to Ready on a published event. The **Invitation** chip copies a valid Ready invitation. For invitations with a picture, the chip tries to copy the picture and text together and falls back to text if necessary. Check the caption and RSVP link in the receiving app.
+Click the **Service** chip to copy the current recipient number or email. Click **Review** to open the household’s **Invitation → Drafts**. Check the details and use **Edit delivery** if needed. **Make invitation(s)** resolves the current RSVP link and moves an eligible draft to Ready on a published event. The **Invitation** chip copies a valid Ready invitation. For invitations with a picture, the chip tries to copy the picture and text together and falls back to text if necessary. Click **Text** to copy just the message and RSVP link. Check the caption and RSVP link in the receiving app.
 
 Expand a household to open **RSVP** or **Invitation**. Under **Invitation**, **Delivery logs** shows past attempts and recorded sending, **Drafts** shows the current draft, and **Current invitation(s)** shows the current prepared or sent invitation. **Change to Draft** returns a Ready invitation to Review and keeps its saved details. When no overview or list filter is active, **Inactive households** opens archived or guestless household histories when available. Session invitations are in Household details. The Food summary filters by interest in either food stage when Food is enabled and you have access.
 
@@ -76,8 +80,12 @@ Check households at the far right. The counter shows selected households over vi
 
 1. Choose **Make draft(s)**. Each selected household with no current delivery and exactly one matching service and language template gets a draft. A selected Ready invitation returns to Draft with its saved details. New and returned drafts are available under **Review**. The result reports missing or ambiguous template matches.
 2. Choose **Review**, check the drafts you want to prepare and use **Make invitation(s)**. You can also open a draft and do this individually. Resolve any missing recipient, template or RSVP link details before continuing.
-3. Choose **Ready** and copy the recipient with the **Service** chip. Copy the invitation with the **Invitation** chip, then check the picture, caption and RSVP link in the intended chat before sending.
+3. Choose **Ready** and copy the recipient with the **Service** chip. Copy the invitation with the **Invitation** chip or use **Text** to copy the message alone. Then check the picture, caption and RSVP link in the intended chat before sending.
 4. Back in RSVP Manager, check the Ready households you sent to and choose **Mark sent** to record your confirmation.
+
+The toolbar shows progress and reports results below its buttons. Before publication, the same area explains that publishing activates sending.
+
+![The Invites toolbar shows the publishing notice and draft progress together](images/ipad-invites-batch.png)
 
 With Apple Shortcuts enabled, open **Invites → iPhone Shortcuts** in its own box above the invitation list to review Ready WhatsApp invitations and select a batch. Creating a batch requires a published event, a trusted HTTPS website and API, and sending permission. Continue the review and launch steps in that box. Native Runner device acceptance remains pending. Sharing or preparing a batch leaves Sent confirmation to the organizer.
 
@@ -127,7 +135,7 @@ Guests can add one optional household comment while reviewing attendance, for ex
 
 ## Food-interest follow-up
 
-With Food enabled and Food View permission, click **Yes**, **No** or **Unanswered** under Food interest in the **Food items** statistics box to filter Invites. Click the active choice again to clear it, or choose **All** in the Invites statistics box to clear the status and Food-interest filters. Search, other filters and household hierarchy order are retained. This summary is available during both Collect interest and Choose food. Each household’s row shows its stored answer; these states are independent of RSVP and delivery. The Food items summary shows counts for active households with active guests, excluding archived and empty grouping households. Answering Yes alone does not reserve food or grant access to the detailed list.
+With Food enabled and Food View permission, click **Yes**, **No** or **Unanswered** under Food interest in the **Food items** statistics box to filter Invites. Click the active choice again to clear it. Search, other filters and household hierarchy order are retained. This summary is available during both Collect interest and Choose food. Each household’s row shows its stored answer. These states are independent of RSVP and delivery. The Food items summary counts active households with active guests. Food reservations and access to the detailed list are managed separately.
 
 ## Placeholder categories and correction
 

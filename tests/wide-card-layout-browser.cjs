@@ -87,36 +87,36 @@ async function capture(panel, name, width) {
       await checkPair(events, eventCards, width, "Cancelled planning cards");
 
       await page.locator("[data-tab=venues]").click();
-      const venues = page.locator("[data-panel=venues]"), venueBoxes = venues.locator(":scope > .settings-management");
-      await checkPair(venues, venueBoxes, width, "Venues and scheduling");
+      const venues = page.locator("[data-panel=venues]"), venueWorkspace = venues.locator(":scope > .venue-workspace");
+      const venueTab = page.locator('[data-venue-tab="venues"]'), sessionTab = page.locator('[data-venue-tab="sessions"]');
+      await checkFullRow(venues, venueWorkspace, "Venue workspace");
       await checkBounds(page, "Venues reading view");
       await capture(venues, "venues-readonly", width);
       const venue = page.locator("#venueList > details").first();
       await venue.locator(":scope > summary").click();
-      await checkPair(venues, venueBoxes, width, "Expanded venue reading view");
       await venue.locator("[data-record-pencil]").click();
       const venueForm = venue.locator("form.management-form"), venueName = venueForm.locator('input[type="text"]').first();
-      await checkFullRow(venues, venueBoxes.first(), "Venue");
       await venueName.fill("Unsaved example venue");
       await checkBounds(page, "Venue editor");
       await capture(venues, "venues-edit", width);
-      await venueForm.locator("[data-discard]").click();
-      assert.equal(await venueName.inputValue(), "Example hall", "Cancel restores venue name");
-      assert.equal(await venueForm.isVisible(), false);
-      await checkPair(venues, venueBoxes, width, "Cancelled venue boxes");
+      await sessionTab.click();
+      assert.equal(await venueForm.isVisible(), false, "the Venues editor is hidden on Sessions");
       const session = page.locator("#sessionsList > details").first();
       await session.locator(":scope > summary").click();
       await session.locator("[data-record-pencil]").click();
-      await checkFullRow(venues, venueBoxes.nth(1), "Session");
+      await checkFullRow(venues, venueWorkspace, "Session editor");
       await checkBounds(page, "Session editor");
       await session.locator("form [data-discard]").click();
-      await checkPair(venues, venueBoxes, width, "Cancelled session boxes");
+      await venueTab.click();
+      assert.ok(await venueForm.isVisible(), "returning to Venues restores the open editor");
+      assert.equal(await venueName.inputValue(), "Unsaved example venue", "switching tabs preserves the venue draft");
+      await venueForm.locator("[data-discard]").click();
+      assert.equal(await venueName.inputValue(), "Example hall", "Cancel restores venue name");
+      assert.equal(await venueForm.isVisible(), false);
       const addVenue = page.locator("#newVenueForm").locator("..");
       await addVenue.locator(":scope > summary").click();
-      await checkFullRow(venues, venueBoxes.first(), "Add venue");
       await checkBounds(page, "Add venue editor");
       await addVenue.locator(":scope > summary").click();
-      await checkPair(venues, venueBoxes, width, "Closed add-venue boxes");
 
       await page.locator("#settingsToggle").click();
       await page.locator("[data-settings-tab=backups]").click();
@@ -141,7 +141,7 @@ async function capture(panel, name, width) {
       assert.deepEqual(errors, []);
       await page.close();
     }
-    console.log("PASS wide cards: Events/Venues split wide and stack narrow; event/planning/venue/session/add editors span rows; Database tabs, Cancel, drafts, control choices, restore gates and unpublished state retained at 390/820/1440px.");
+    console.log("PASS wide cards: Events split wide and stack narrow; Venues and Sessions share one workspace, retain drafts and fit at 390/820/1440px. Database choices, restore gates and unpublished state are retained.");
     if (previewDir) console.log("Synthetic previews: " + previewDir);
   } finally {
     await browser.close();
