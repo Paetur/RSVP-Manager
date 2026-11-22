@@ -287,6 +287,10 @@
               message_image: await picture.read(),
               status: status.value,
               reason: reason.value.trim(),
+              ...(!q.id && automatic?.templateId && automatic.templateRevision ? {
+                source_template_id: automatic.templateId,
+                source_template_revision: automatic.templateRevision,
+              } : {}),
             },
           }),
       );
@@ -325,7 +329,7 @@
     }
 
     function markReadyButton(h, q, record) {
-      const ready = R.dom("button", { type: "button", class: "btn secondary" }, T("Mark ready"));
+      const ready = R.dom("button", { type: "button", class: "btn secondary" }, T("Make invitation(s)"));
       ready.dataset.markDeliveryReady = q.id;
       ready.addEventListener("click", async () => {
         if (ready.disabled || !ready.isConnected || pendingReady.has(q.id) || pendingDeletes.has(q.id) || !canMarkReady()) return;
@@ -424,6 +428,16 @@
         }
       });
       return button;
+    }
+
+    function sentConfirmation(q) {
+      const sent = getStore().deliveries.find(delivery => delivery.queue_id === q.id);
+      if (!sent && q.status !== "sent") return null;
+      const text = sent
+        ? T("interface.messages.manually_recorded_as_sent") + adminTime(sent.confirmed_at) +
+          " · " + actorName(sent.confirmed_by) + (sent.delivery_note ? " · " + sent.delivery_note : "")
+        : T("interface.messages.recorded_sent") + " · " + adminTime(q.sent_at || q.updated_at);
+      return R.dom("p", { class: "notice success" }, text);
     }
 
     function deliveryRecord(h, q, { editable, historyOnly, prepareDraft = false, standalone = false }) {
@@ -638,19 +652,8 @@
         );
         d.append(followup);
       }
-      const sent = store.deliveries.find((x) => x.queue_id === q.id);
-      if (sent)
-        d.append(
-          R.dom(
-            "p",
-            { class: "notice success" },
-            T("interface.messages.manually_recorded_as_sent") +
-              adminTime(sent.confirmed_at) +
-              " · " +
-              actorName(sent.confirmed_by) +
-              (sent.delivery_note ? " · " + sent.delivery_note : ""),
-          ),
-        );
+      const confirmation = sentConfirmation(q);
+      if (confirmation) d.append(confirmation);
       if (
         can("invites", "edit") &&
         editable &&
@@ -742,16 +745,48 @@
         const heading = section.querySelector("h3");
         heading.id = section.id + "-heading";
         section.setAttribute("aria-labelledby", heading.id);
-        entry.open = true;
       }
       return section;
     }
 
-    function currentSection(h, q) {
-      return currentInvitation(h, q, { editable: true, prepareDraft: q.status === "draft", standalone: true });
+    function invitationSection(h, current) {
+      const menu = disclosure(T("Invitation"), "feature-section");
+      const sections = R.dom("div", { class: "invite-household-submenus" });
+      const logs = disclosure(T("Delivery logs"));
+      const drafts = disclosure(T("Drafts"));
+      const invitations = disclosure(T("Current invitation(s)"));
+      logs.id = "invite-delivery-" + h.id;
+      logs.dataset.inviteDeliverySubmenu = "logs";
+      drafts.dataset.inviteDeliverySubmenu = "drafts";
+      invitations.dataset.inviteDeliverySubmenu = "current";
+
+      const history = window.RSVP_ADMIN_OVERVIEW.invitationRecords(getStore(), h.id)
+        .filter(record => record.id !== current?.id);
+      if (current) {
+        const prepareDraft = current.status === "draft";
+        const panel = currentInvitation(h, current, { editable: true, prepareDraft, standalone: true });
+        const bucket = prepareDraft ? drafts : ["ready", "sent"].includes(current.status) ? invitations : logs;
+        bucket.append(panel);
+        // Render the picture after the relevant submenu first exposes its record.
+        const openRecord = () => {
+          if (!bucket.open) return;
+          panel.querySelector("[data-delivery-id]").open = true;
+          bucket.removeEventListener("toggle", openRecord);
+        };
+        bucket.addEventListener("toggle", openRecord);
+      }
+      for (const record of history)
+        logs.append(deliveryRecord(h, record, { editable: true, historyOnly: false }));
+      if (current?.status === "sent") logs.append(sentConfirmation(current));
+      if (logs.childElementCount === 1) logs.append(R.dom("p", { class: "micro" }, T("interface.messages.no_delivery_recorded_yet")));
+      if (drafts.childElementCount === 1) drafts.append(R.dom("p", { class: "micro" }, T("No drafts")));
+      if (invitations.childElementCount === 1) invitations.append(R.dom("p", { class: "micro" }, T("No ready or sent invitations")));
+      sections.append(logs, drafts, invitations);
+      menu.append(sections);
+      return menu;
     }
 
-    function deliverySection(h, { allowCreate = false, historyOnly = false, separateCurrent = false } = {}) {
+    function deliverySection(h, { allowCreate = false, historyOnly = false } = {}) {
       const store = getStore();
       const d = disclosure(
         T("interface.messages.invitation_delivery"),
@@ -785,7 +820,7 @@
       const current = historyOnly ? null : records.find(record => record.status !== "cancelled");
       const recordOptions = { editable: allowCreate && !historyOnly, historyOnly };
       const groups = R.dom("div", { class: "invitation-delivery-sections" });
-      if (current && !separateCurrent) {
+      if (current) {
         groups.append(currentInvitation(h, current, {
           ...recordOptions, prepareDraft: allowCreate && current.status === "draft",
         }));
@@ -801,7 +836,7 @@
       return d;
     }
 
-    return { editor: deliveryEditor, section: deliverySection, currentSection };
+    return { editor: deliveryEditor, section: deliverySection, invitationSection };
   }
   window.RSVP_ADMIN_DELIVERY_RECORD = Object.freeze({ create });
 })();

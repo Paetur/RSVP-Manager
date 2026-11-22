@@ -45,10 +45,16 @@ await require("./helpers/admin-toolbar.cjs").autoConfirmInline(page);
         () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
       );
       assert.deepEqual(
-        await page.locator("#statsGrid .stat-card").first().locator("dt").evaluateAll(
+        await page.locator("#inviteGroupTrees details > summary").evaluateAll(
+          labels => labels.map(label => [...label.children].map(child => child.textContent)),
+        ),
+        [["Top-level groups", "2"], ["Relational groups", "2"]],
+      );
+      assert.deepEqual(
+        await page.locator("#inviteAttendanceCounts ~ .stat-people-guests dt").evaluateAll(
           labels => labels.map(label => [label.textContent, label.nextElementSibling.textContent]),
         ),
-        [["Top-level groups", "2"], ["Relational groups", "2"], ["Adults", "1"], ["Children", "1"]],
+        [["Adults", "1"], ["Children", "1"]],
       );
       await page.locator("[data-tab=households]").click();
       assert.equal(await page.locator("#newHousehold").count(), 0);

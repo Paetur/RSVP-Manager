@@ -42,9 +42,15 @@ async function run(type){
   assert.equal(await page.evaluate(()=>window.__calls.some(c=>c.name==='admin_save_delivery')),false,'opening Invites does not create a delivery');
   await page.locator('[data-invite-filter="needs-draft"]').click();
   await page.locator('[data-bulk-select-all]').check();
-  await action.getByRole('button',{name:'Generate Drafts',exact:true}).click();
-  await page.locator('#bulkInviteStatus').getByText('3 Ready',{exact:true}).waitFor();
-  await page.locator('[data-invite-filter="all"]').click();
+  await action.getByRole('button',{name:'Make draft(s)',exact:true}).click();
+  await page.locator('#bulkInviteStatus').getByText('3 drafts created',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__calls.filter(c=>c.name==='admin_save_delivery'&&c.args.p_values.status==='ready').length),0);
+  await page.locator('[data-invite-filter="needs-draft"]').click();
+  await page.locator('[data-invite-filter="review"]').click();
+  await page.locator('[data-bulk-select-all]').check();
+  await action.getByRole('button',{name:'Make invitation(s)',exact:true}).click();
+  await page.locator('#bulkInviteStatus').getByText('3 invitations marked ready.',{exact:true}).waitFor();
+  await page.locator('[data-invite-filter="review"]').click();
   const generated = await page.evaluate(()=>window.__calls.filter(c=>c.name==='admin_save_delivery'));
   const draftWrites=generated.filter(c=>c.args.p_values.status==='draft');
   const readyWrites=generated.filter(c=>c.args.p_values.status==='ready');
@@ -65,6 +71,8 @@ async function run(type){
   async function openDelivery(id) {
    const row=household(id);
    if(!await row.evaluate(node=>node.open))await row.locator(':scope > summary .invite-compact-name').click();
+   await row.locator('.invite-household-invitation').evaluate(node=>node.open=true);
+   await row.locator('[data-invite-delivery-submenu="current"]').evaluate(node=>node.open=true);
    const section=page.locator('#invite-delivery-'+id);await section.evaluate(node=>node.open=true);
    await section.locator('details').evaluateAll(nodes=>nodes.forEach(node=>node.open=true));
    return section;

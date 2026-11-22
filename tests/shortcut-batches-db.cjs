@@ -73,8 +73,24 @@ const { createShortcutFixture, hash } = require('./helpers/shortcut-fixture.cjs'
       await rejects(() => f.dispatch(second, 'image', { attempt_id: attempt.attempt_id }), /does not belong/);
       await rejects(() => f.dispatch({ ...first, capability: second.capability }, 'manifest'), /expired or revoked/);
       await f.owner();
+      const saved = await value('SELECT to_jsonb(q) v FROM public.invitation_send_queue q WHERE id=$1', [deliveries[0].queue_id]);
+      const sharedRef = saved.message_image.picture_ref;
+      assert.match(sharedRef, /^[0-9a-f]{64}$/);
+      assert.equal(saved.message_image.image, undefined);
+      assert.equal(await value("SELECT count(*)::integer v FROM app_private.invitation_snapshots WHERE kind='picture'"), 1);
       await rejects(() => q('UPDATE public.invitation_send_queue SET message_body=$1 WHERE id=$2', ['Changed private text', deliveries[0].queue_id]), /snapshot/);
       await f.asAdmin();
+      const save = 'SELECT public.admin_save_delivery($1,$2,$3,1) v';
+      const unchanged = {
+        status: 'ready', channel: saved.channel, contact_id: saved.contact_id,
+        message_body: saved.message_body, message_image: f.image,
+      };
+      await rejects(() => value(save, [saved.id, saved.household_id, { ...unchanged, message_image: saved.message_image }]),
+        /Invalid invitation picture/);
+      await rejects(() => value(save, [saved.id, saved.household_id, { ...unchanged, message_image: { ...f.image, name: 'changed.jpg' } }]),
+        /snapshot/);
+      assert.equal(await value(save, [saved.id, saved.household_id, unchanged]), saved.id,
+        'saving the same inline photo in a frozen delivery preserves the stored picture reference');
       for (const table of ['invitation_shortcut_batches', 'invitation_shortcut_items', 'invitation_shortcut_attempts']) {
         await rejects(() => q(`DELETE FROM public.${table}`), /permission denied/);
         await rejects(() => q(`UPDATE public.${table} SET ${table === 'invitation_shortcut_batches' ? "mode='live'" : table === 'invitation_shortcut_items' ? 'ordinal=1' : "state='processed'"}`), /permission denied/);

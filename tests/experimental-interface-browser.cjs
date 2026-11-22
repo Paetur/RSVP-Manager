@@ -215,11 +215,12 @@ client.rpc=async(name,args)=>{
     await page.locator('[data-tab="invites"]').click();
     const household = page.locator('[data-panel="invites"] [data-invite-household="22222222-2222-4222-8222-222222222222"]');
     if (!await household.evaluate(node => node.open)) await household.locator(":scope > summary .invite-compact-name").click();
-    const delivery = household.locator('[data-delivery-id="99999999-1111-4111-8111-111111111111"]');
-    if (!await delivery.evaluate(node => node.open)) await delivery.locator(":scope > summary").click();
+    const current = household.locator('[data-invite-delivery-submenu="current"]');
+    await current.locator(":scope > summary").click();
+    const delivery = current.locator('[data-delivery-id="99999999-1111-4111-8111-111111111111"]');
     assert.equal(await delivery.getByRole("button", { name: "Share invitation", exact: true }).count(), 0);
     assert.equal(await delivery.getByRole("link", { name: "Open WhatsApp", exact: true }).count(), 0);
-    assert.equal(await delivery.getByRole("button", { name: "Change to Draft", exact: true }).isVisible(), true);
+    await delivery.getByRole("button", { name: "Change to Draft", exact: true }).waitFor({ state: "visible" });
     await page.locator('[data-tab="events"]').click();
     await invitesTab();
     assert.equal(await selection.isVisible(), true, "switching tabs preserves the opened workspace");

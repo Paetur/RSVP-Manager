@@ -432,7 +432,7 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
       await householdRow.locator('[data-bulk-select="' + household + '"]').check();
       const action = page.locator("#bulkInvitesHost");
       assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "selecting a household does not create a delivery");
-      await action.getByRole("button", { name: "Generate Drafts", exact: true }).click();
+      await action.getByRole("button", { name: "Make draft(s)", exact: true }).click();
       await page.locator("#bulkInviteStatus").getByText("1 draft created", { exact: true }).waitFor();
       assert.deepEqual(await page.evaluate(() => window.__pictureLoadArgs),
         { p_compact_queue_pictures: true }, "the draft refresh requests compact pictures");
@@ -441,11 +441,12 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
       assert.equal(creation.p_values.only_if_missing, true);
       assert.equal(creation.p_values.template_id, "99999999-1111-4111-8111-111111111111");
       assert.equal(creation.p_values.template_revision, "88888888-1111-4111-8111-111111111111");
-      const inlineRecord = householdRow.locator(".current-invitation [data-delivery-id]");
+      const drafts = householdRow.locator('[data-invite-delivery-submenu="drafts"]');
+      const inlineRecord = drafts.locator(".current-invitation [data-delivery-id]");
       const inlinePicture = inlineRecord.locator(":scope > .invitation-picture");
       assert.equal(await inlinePicture.count(), 0, "collapsed household does not load its picture preview");
-      await householdRow.locator(":scope > summary .invite-compact-name").click();
-      if (!await inlineRecord.evaluate(node => node.open)) await inlineRecord.locator(":scope > summary").click();
+      await householdRow.locator(":scope > summary .invite-review-action").click();
+      assert.equal(await drafts.evaluate(node => node.open), true, "Review opens Drafts");
       await inlinePicture.waitFor();
       assert.equal(await page.getByRole("dialog", { name: "Invitation delivery", exact: true }).count(), 0, "created delivery review stays inline");
       const savedDraft = await page.evaluate(
@@ -482,14 +483,14 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
       await page.waitForFunction(() => !document.getElementById("refreshButton").disabled);
       await householdRow.locator(":scope > summary .invite-review-action").click();
       assert.equal(await inlineRecord.getByRole("button", { name: "Copy message", exact: true }).count(), 0);
-      await inlineRecord.locator("[data-mark-delivery-ready]").click();
+      await inlineRecord.getByRole("button", { name: "Make invitation(s)", exact: true }).click();
       const ready = householdRow.locator(':scope > summary [data-invite-copy="invitation"]');
       await ready.getByText("Invitation", { exact: true }).waitFor();
       const readySave = await page.evaluate(() => window.__calls.filter(c => c.name === "admin_save_delivery").at(-1).args);
       assert.equal(readySave.p_expected_revision, 2);
       assert.equal(readySave.p_values.status, "ready");
       assert.equal(readySave.p_values.message_body, "Hello " + link);
-      assert.deepEqual(readySave.p_values.message_image, savedDraft.message_image, "Mark ready keeps the whole picture snapshot");
+      assert.deepEqual(readySave.p_values.message_image, savedDraft.message_image, "Making the invitation keeps the whole picture snapshot");
       const recipientChip = householdRow.locator(':scope > summary [data-invite-copy="recipient"]');
       assert.equal(await recipientChip.innerText(), "WhatsApp");
       await recipientChip.click();

@@ -31,9 +31,9 @@ A fictional event in Dark mode, shown at iPad landscape size.
 
 ## Downloads and installation
 
-Download **[0.9.0-beta.3](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-beta.3)** for the installation ZIP and checksum. [Installation instructions](INSTALL.md) describe the website, Supabase and administrator setup. Each installation starts unconfigured and has its own data.
+Download **[0.9.0-beta.4](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-beta.4)** for the installation ZIP and checksum. [Installation instructions](INSTALL.md) describe the website, Supabase and administrator setup. Each installation starts unconfigured and has its own data.
 
-Use the current installer for a fresh database. Beta.3 retains the beta.2 backup contract. For a retained installation, follow the [existing-installation instructions](INSTALL.md#existing-installations) to update the administrator delivery-save routine and translation registry.
+Use the current installer for a fresh database. Beta.4 shares invitation template revisions and pictures, and uses backup format 3. For a retained installation, follow the [existing-installation instructions](INSTALL.md#existing-installations) for a reviewed update that preserves existing data and photos.
 
 For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 

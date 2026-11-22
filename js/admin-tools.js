@@ -2335,7 +2335,7 @@
         backup = parsed;
         if (
           backup.format !== "rsvp-application-backup" ||
-          backup.version !== 2 ||
+          backup.version !== 3 ||
           !backup.payload?.selection ||
           !["backup", "template"].includes(backup.payload.selection.mode) ||
           !Array.isArray(backup.payload.selection.sections) ||

@@ -8,7 +8,7 @@ window.__replacementCalls=JSON.parse(sessionStorage.getItem('syntheticReplacemen
 fixtures.event_settings[0].is_published=false;
 fixtures.event_locations=[{id:'aaaaaaaa-3333-4333-8333-aaaaaaaaaaaa',name:'Sample venue',timezone:'UTC',sort_order:0}];
 fixtures.food_items[0].recipe_text='Ingredients:\\nPotatoes and herbs.\\nRoast until golden.';
-const recoveryFile={format:'rsvp-application-backup',version:2,checksum:'synthetic',payload:{installation_id:'synthetic-origin',selection:{mode:'backup',sections:['venues','households','food','other','wording'],include_logs:true},tables:{'public.event_settings':[{event_name:'Sample recovery'}]}}};
+const recoveryFile={format:'rsvp-application-backup',version:3,checksum:'synthetic',payload:{installation_id:'synthetic-origin',selection:{mode:'backup',sections:['venues','households','food','other','wording'],include_logs:true},tables:{'public.event_settings':[{event_name:'Sample recovery'}]}}};
 window.__recoveryFile=recoveryFile;
 const inlineRpc=client.rpc;client.rpc=async(name,args)=>{
  if(['admin_preview_event_replacement','admin_prepare_event_replacement','admin_replace_event_data','admin_preview_wipe','admin_prepare_wipe','admin_wipe_restore','admin_restore_backup'].includes(name)){

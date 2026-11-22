@@ -20,7 +20,7 @@
     setDisclosure,
     rememberDisclosure,
     deliverySection,
-    currentInvitationSection,
+    invitationSection,
     deliveryEditor,
     invitationTemplateChoices,
     invitationDraft,
@@ -35,8 +35,11 @@
     onVisibleHouseholds = () => {},
   }) {
     const $ = R.byId;
-    let inviteOverviewFilter = "all", inviteInterestFilter = "all", visibleHouseholdIds = [];
+    let inviteOverviewFilter = "all", inviteInterestFilter = "all", inviteAttendanceFilter = "all", visibleHouseholdIds = [];
     const filterStates = new Map();
+    const groupSelections = { top: new Set(), relation: new Set() };
+    const overlayName = "invite-overview-filters";
+    const wideScreen = matchMedia("(min-width: 1024px)");
     const serviceLabels = { messages: "Messages", email: "Email", whatsapp: "WhatsApp", sms: "SMS", none: "None" };
     const visibleFields = window.RSVP_ADMIN_PREFERENCES.invitesFields;
     const columnGroups = window.RSVP_ADMIN_PREFERENCES.invitesColumnGroups;
@@ -44,24 +47,6 @@
     const shown = new Set();
     let shownOwner, shownDefaults, shownColumnDefaults, rowLayout = 1, oneRowShown = [], clipboardBusy = false;
 
-    function renderRowsLayout() {
-      for (const input of $("inviteRowsLayout").querySelectorAll("input")) {
-        input.checked = Number(input.value) === rowLayout;
-        if (input.dataset.bound) continue;
-        input.dataset.bound = "true";
-        input.addEventListener("change", () => {
-          if (!input.checked || !["1", "2"].includes(input.value)) return;
-          const next = Number(input.value);
-          if (next === rowLayout) return;
-          if (next === 2) oneRowShown = [...shown];
-          shown.clear();
-          for (const key of next === 2 ? window.RSVP_ADMIN_PREFERENCES.invitesTwoRowColumns : oneRowShown) shown.add(key);
-          rowLayout = next;
-          $("inviteShownFieldsHost").replaceChildren();
-          render();
-        });
-      }
-    }
     function renderShownFields() {
       const host = $("inviteShownFieldsHost");
       const owner = getActor(), defaults = window.RSVP_ADMIN_PREFERENCES.invitesShownFields;
@@ -69,11 +54,14 @@
       const signature = JSON.stringify(defaults), columnSignature = JSON.stringify(columnDefaults);
       const changedOwner = shownOwner !== owner, changedFields = shownDefaults !== signature;
       const changedColumns = shownColumnDefaults !== columnSignature;
-      // Each layout has its own defaults. Changing one must not discard the
-      // other layout's temporary choices; account changes always start at 1.
+      const preferences = window.RSVP_ADMIN_PREFERENCES;
+      const nextLayout = wideScreen.matches ? preferences.invitesWideRows : preferences.invitesNarrowRows;
+      const changedLayout = rowLayout !== nextLayout;
+      // Keep temporary one-row choices across responsive layout changes.
       if (changedOwner || changedFields) oneRowShown = defaults.slice();
-      if (changedOwner) rowLayout = 1;
-      if (changedOwner || rowLayout === 1 && changedFields || rowLayout === 2 && changedColumns) {
+      else if (changedLayout && rowLayout === 1) oneRowShown = [...shown];
+      rowLayout = nextLayout;
+      if (changedOwner || changedLayout || rowLayout === 1 && changedFields || rowLayout === 2 && changedColumns) {
         shown.clear();
         for (const key of rowLayout === 2 ? columnDefaults : oneRowShown) shown.add(key);
         host.replaceChildren();
@@ -89,18 +77,27 @@
         options: (rowLayout === 1 ? visibleFields : columnGroups).filter(([key]) => !requiredFields.includes(key)),
         selected: shown,
         onChange: render,
+        group: overlayName,
         allOrNone: true,
         className: "invite-shown-fields",
       }));
     }
-    function openCurrentDelivery(row, h) {
+    function openCurrentDelivery(row, householdId) {
       row.open = true;
       row.dispatchEvent(new Event("toggle"));
-      rememberDisclosure("invite-household:" + h.id, true);
-      const current = row.querySelector(".current-invitation > [data-delivery-id]");
-      if (!current) return;
-      current.open = true;
-      const focus = current.querySelector("[data-mark-delivery-ready]:enabled") || current.querySelector("summary");
+      const key = "invite-household:" + householdId;
+      rememberDisclosure(key, true);
+      const invitation = row.querySelector(".invite-household-invitation"),
+        current = invitation?.querySelector(".current-invitation > [data-delivery-id]"),
+        submenu = current?.closest("[data-invite-delivery-submenu]") ||
+          invitation?.querySelector('[data-invite-delivery-submenu="logs"]');
+      if (!submenu) return;
+      invitation.open = submenu.open = true;
+      if (current) current.open = true;
+      rememberDisclosure(key + ":invitation", true);
+      rememberDisclosure(key + ":invitation:" + submenu.dataset.inviteDeliverySubmenu, true);
+      const focus = current?.querySelector("[data-mark-delivery-ready]:enabled") ||
+        current?.querySelector("summary") || submenu.querySelector("summary");
       focus?.focus({ preventScroll: true });
       focus?.scrollIntoView({ block: "nearest" });
     }
@@ -117,7 +114,7 @@
         state.keys = keys;
       }
       const dropdown = window.RSVP_INLINE.multiChoice({
-        R, T, label, options: values, selected: state.selected, group: "invite-overview-filters", allOrNone: true,
+        R, T, label, options: values, selected: state.selected, group: overlayName, allOrNone: true,
         onChange(key, action) {
           render();
           const control = action ? '[data-multi-select="' + action + '"]' : '[data-value="' + CSS.escape(key) + '"]';
@@ -128,6 +125,103 @@
       host.replaceChildren(dropdown);
       return state.selected;
     }
+    function countFilterButton(label, count, pressed) {
+      const button = R.dom("button", { type: "button", class: "stat-row invite-stat-row" });
+      button.setAttribute("aria-pressed", String(pressed));
+      button.classList.toggle("is-selected", pressed);
+      button.append(R.dom("span", {}, label), R.dom("b", {}, count));
+      return button;
+    }
+
+    function renderCountFilters(host, choices, selected, data, update) {
+      host.replaceChildren(...choices.map(([key, label, count], index) => {
+        const button = countFilterButton(T(label), count, selected === key);
+        button.dataset[data] = key;
+        button.addEventListener("click", () => {
+          update(selected === key ? "all" : key);
+          render();
+          host.children[index]?.focus({ preventScroll: true });
+        });
+        return button;
+      }));
+    }
+
+    function renderGroupTrees(store, all) {
+      const host = $("inviteGroupTrees");
+      if (!host) return () => true;
+      const configured = planningConfiguration().groups;
+      const relations = ordered(store.relationGroups, "name");
+      const relationOption = group => ({
+        key: "group:" + group.id,
+        label: group.name,
+        matches: ({ h }) => h.relation_group_id === group.id,
+      });
+      const topKeys = new Set(configured.map(group => group.id));
+      const scoped = new Map();
+      for (const relation of relations) {
+        const options = scoped.get(relation.planning_group_id) || [];
+        options.push(relationOption(relation));
+        scoped.set(relation.planning_group_id, options);
+      }
+      const trees = [
+        ["top", "Top-level groups", configured.length, configured.map(group => ({
+          key: group.id, label: groupLabel(group.id), matches: ({ h }) => h.planning_group_id === group.id,
+        }))],
+        ["relation", "Relational groups", relations.length, [
+          ...configured.flatMap(group => {
+            const children = scoped.get(group.id);
+            return children ? [{
+              key: "planning:" + group.id, label: groupLabel(group.id), children,
+              matches: model => model.h.planning_group_id === group.id && children.some(child => child.matches(model)),
+            }] : [];
+          }),
+          ...relations.filter(group => !topKeys.has(group.planning_group_id)).map(relationOption),
+        ]],
+      ];
+      const filters = [];
+      host.replaceChildren();
+      for (const [scope, label, count, nodes] of trees) {
+        const options = new Map();
+        const selected = groupSelections[scope];
+        function list(entries) {
+          const tree = R.dom("ul", { class: "invite-group-list" });
+          for (const entry of entries) {
+            const item = R.dom("li");
+            const key = scope + ":" + entry.key;
+            const button = countFilterButton(entry.label, all.filter(entry.matches).length, selected.has(entry.key));
+            button.dataset.inviteGroup = key;
+            button.addEventListener("click", () => {
+              if (!selected.delete(entry.key)) selected.add(entry.key);
+              render();
+              host.querySelector('[data-invite-group="' + CSS.escape(key) + '"]')?.focus({ preventScroll: true });
+            });
+            options.set(entry.key, entry.matches);
+            item.append(button);
+            if (entry.children) item.append(list(entry.children));
+            tree.append(item);
+          }
+          return tree;
+        }
+        if (nodes.length) {
+          const tree = R.dom("details", { class: "invite-group-tree" });
+          tree.dataset.inviteGroupTree = scope;
+          const heading = R.dom("summary");
+          heading.append(R.dom("span", {}, T(label)), R.dom("b", {}, count));
+          tree.append(heading, list(nodes));
+          setDisclosure(tree, "invite-overview-group-tree:" + scope, true);
+          host.append(tree);
+        }
+        const active = [];
+        for (const key of selected) {
+          const matches = options.get(key);
+          if (matches) active.push(matches);
+          else selected.delete(key);
+        }
+        if (active.length) filters.push(active);
+      }
+      return model => filters.every(options => options.some(matches => matches(model)));
+    }
+
     function currentModel(id) {
       const store = getStore(), household = store.households.find(h => h.id === id && !h.archived_at);
       return household && store.guests.some(g => g.household_id === id && !g.archived_at) ? invitationOverview(household) : null;
@@ -194,7 +288,6 @@
       const box = $("inviteRows");
       box.replaceChildren();
       renderShownFields();
-      renderRowsLayout();
       box.dataset.rows = String(rowLayout);
       const displayedFields = rowLayout === 1 ? new Set([...shown, ...requiredFields]) : new Set([
         "householdInfo",
@@ -212,44 +305,26 @@
           "household_name",
         ).map(invitationOverview);
       const filters = [
-        ["all", "All", () => true],
-        ["not-sent", "Not sent", (r) => !r.sent],
-        ["needs-draft", "Needs draft", (r) => !r.latest],
+        ["needs-draft", "No drafts", (r) => !r.latest],
+        ["review", "Review", (r) => r.latest?.status === "draft"],
         ["ready", "Ready", (r) => r.ready],
-        ["sent", "Marked sent", (r) => r.sent],
-        ["awaiting", "Awaiting reply", (r) => r.sent && !r.replied],
+        ["sent", "Sent", (r) => r.sent],
+        ["awaiting", "Waiting Reply", (r) => r.sent && !r.replied],
         ["replied", "Replied", (r) => r.replied],
       ];
       const countHost = $("inviteOverviewCounts");
-      if (countHost) countHost.replaceChildren();
       const statusTotal = $("inviteStatusTotal");
       if (statusTotal) statusTotal.textContent = String(all.length);
-      for (const [key, label, test] of countHost ? filters : []) {
-        const button = R.dom(
-          "button",
-          { type: "button", class: "stat-row invite-stat-row invite-count-filter" },
-        );
-        button.dataset.inviteFilter = key;
-        button.setAttribute(
-          "aria-pressed",
-          String(inviteOverviewFilter === key),
-        );
-        button.classList.toggle("is-selected", inviteOverviewFilter === key);
-        button.append(R.dom("span", {}, T(label)), R.dom("b", {}, all.filter(test).length));
-        button.addEventListener("click", () => {
-          inviteOverviewFilter = key;
-          if (key === "all") inviteInterestFilter = "all";
-          render();
-          countHost.querySelector('[data-invite-filter="' + key + '"]')?.focus({ preventScroll: true });
-        });
-        countHost.append(button);
-      }
-      const openFilter = ["inviteGroupFilter", "inviteLanguageFilter", "inviteChannelFilter"]
-        .find(id => $(id).querySelector("details[open]"));
-      const groups = filterChoices("inviteGroupFilter", "Group", [
-        ...planningConfiguration().groups.map(g => ["top:" + g.id, groupLabel(g.id)]),
-        ...ordered(store.relationGroups, "name").map(g => ["relation:" + g.id, g.name]),
-      ], openFilter);
+      if (countHost) renderCountFilters(countHost, filters.map(([key, label, test]) => [key, label, all.filter(test).length]),
+        inviteOverviewFilter, "inviteFilter", next => { inviteOverviewFilter = next; });
+      const attendanceHost = $("inviteAttendanceCounts");
+      if (attendanceHost) renderCountFilters(attendanceHost, [
+        ["attending", "Attending"], ["declined", "Not attending"], ["pending", "Unanswered"],
+      ].map(([key, label]) => [key, label, all.reduce((sum, model) => sum + model.attendance[key], 0)]),
+        inviteAttendanceFilter, "inviteAttendanceFilter", next => { inviteAttendanceFilter = next; });
+      else inviteAttendanceFilter = "all";
+      const matchesGroups = renderGroupTrees(store, all);
+      const openFilter = ["inviteLanguageFilter", "inviteChannelFilter"].find(id => $(id).querySelector("details[open]"));
       const languageChoices = languages();
       // Existing households can retain a disabled language; All must still show them.
       for (const code of new Set(all.map(row => row.h.language || store.settings?.default_language || "en"))) {
@@ -265,25 +340,15 @@
       if (!canInterestFilter) inviteInterestFilter = "all";
       const foodHost = $("inviteFoodCounts");
       if (foodHost) {
-        foodHost.replaceChildren();
         const interestBox = $("inviteFoodInterest") || foodHost;
         interestBox.hidden = !canInterestFilter;
         foodHost.hidden = !canInterestFilter;
         if (canInterestFilter) {
           const counts = window.RSVP_ADMIN_OVERVIEW.foodInterestCounts(store);
-          for (const [key, label] of [["yes", "Yes"], ["no", "No"], ["unanswered", "Unanswered"]]) {
-            const control = R.dom("button", { type: "button", class: "stat-row invite-stat-row invite-food-filter" });
-            control.dataset.inviteFoodFilter = key;
-            control.setAttribute("aria-pressed", String(inviteInterestFilter === key));
-            control.classList.toggle("is-selected", inviteInterestFilter === key);
-            control.append(R.dom("span", {}, T(label)), R.dom("b", {}, counts[key]));
-            control.addEventListener("click", () => {
-              inviteInterestFilter = inviteInterestFilter === key ? "all" : key;
-              render();
-            });
-            foodHost.append(control);
-          }
-        }
+          renderCountFilters(foodHost, [["yes", "Yes"], ["no", "No"], ["unanswered", "Unanswered"]]
+            .map(([key, label]) => [key, label, counts[key]]),
+            inviteInterestFilter, "inviteFoodFilter", next => { inviteInterestFilter = next; });
+        } else foodHost.replaceChildren();
       }
       const matchesFilters = (r) =>
         (!search ||
@@ -291,7 +356,8 @@
             .join(" ")
             .toLowerCase()
             .includes(search)) &&
-        (groups.size === filterStates.get("inviteGroupFilter").keys.size || groups.has("top:" + r.h.planning_group_id) || groups.has("relation:" + r.h.relation_group_id)) &&
+        matchesGroups(r) &&
+        (inviteAttendanceFilter === "all" || r.attendance[inviteAttendanceFilter] > 0) &&
         selectedLanguages.has(r.h.language || store.settings?.default_language || "en") &&
         services.has(r.service) &&
         (!canInterestFilter || inviteInterestFilter === "all" ||
@@ -315,7 +381,7 @@
         { key: "selection", label: "" },
       ];
       box.style.setProperty("--invite-columns", "minmax(140px, 1.5fr) " + columns.slice(1).map(col =>
-        col.key === "selection" ? "44px" : col.key === "actions" ? "100px" :
+        col.key === "selection" ? "74px" : col.key === "actions" ? "100px" :
         ["householdInfo", "serviceInfo", "replyInfo"].includes(col.key) ? "minmax(50px, .8fr)" :
         col.key === "lastSent" ? "minmax(65px, 1fr)" : "minmax(80px, 1fr)").join(" "));
       const heading = R.dom("div", { class: "invite-overview-heading" });
@@ -388,7 +454,7 @@
           review.addEventListener("click", event => {
             event.preventDefault();
             event.stopPropagation();
-            if (getActor() && can("invites") && row.isConnected) openCurrentDelivery(row, h);
+            if (getActor() && can("invites") && row.isConnected) openCurrentDelivery(row, h.id);
           });
           invitationActions.append(review);
         } else {
@@ -432,28 +498,17 @@
           if (filled) return;
           filled = true;
           if (householdFacts) content.append(householdFacts(h));
-          if (model.latest) content.append(currentInvitationSection(h, model.latest));
-          for (const [section, label, build] of [
-            ["rsvp", "RSVP", rsvpSection],
-            ["delivery", "Invitation delivery", (household) => deliverySection(household, { allowCreate: true, separateCurrent: true })],
-          ]) {
-            const detail = build(h);
-            detail.id = "invite-" + section + "-" + h.id;
-            detail.querySelector("summary").textContent = T(label);
-            if (section === "rsvp")
-              detail
-                .querySelector("summary")
-                .append(
-                  " ",
-                  R.dom(
-                    "small",
-                    { class: "invite-rsvp-state muted" },
-                    T(h.rsvp_state === "locked" ? "Locked" : "Open"),
-                  ),
-                );
-            setDisclosure(detail, key + ":" + section);
-            content.append(detail);
-          }
+          const rsvp = rsvpSection(h);
+          rsvp.id = "invite-rsvp-" + h.id;
+          rsvp.querySelector("summary").replaceChildren(T("RSVP"), " ",
+            R.dom("small", { class: "invite-rsvp-state muted" }, T(h.rsvp_state === "locked" ? "Locked" : "Open")));
+          setDisclosure(rsvp, key + ":rsvp");
+          const invitation = invitationSection(h, model.latest);
+          invitation.classList.add("invite-household-invitation");
+          setDisclosure(invitation, key + ":invitation", true);
+          for (const section of invitation.querySelectorAll("[data-invite-delivery-submenu]"))
+            setDisclosure(section, key + ":invitation:" + section.dataset.inviteDeliverySubmenu);
+          content.append(rsvp, invitation);
         }
         row.addEventListener("toggle", () => {
           if (row.open) fillSections();
@@ -565,7 +620,7 @@
         }
       } else for (const model of visible) drawRow(model, list);
       let inactiveShown = false;
-      if (can("invites") && inviteOverviewFilter === "all" && inviteInterestFilter === "all") {
+      if (can("invites") && inviteOverviewFilter === "all" && inviteInterestFilter === "all" && inviteAttendanceFilter === "all") {
         const activeIds = new Set(all.map(model => model.h.id));
         const historyIds = new Set(store.queue.map(record => record.household_id));
         const inactive = ordered(store.households.filter(h => !activeIds.has(h.id) && historyIds.has(h.id)), "household_name")
@@ -616,6 +671,8 @@
     function openHousehold(householdId) {
       inviteOverviewFilter = "all";
       inviteInterestFilter = "all";
+      inviteAttendanceFilter = "all";
+      for (const selected of Object.values(groupSelections)) selected.clear();
       $("inviteSearch").value = "";
       for (const state of filterStates.values()) state.selected = new Set(state.keys);
       rememberDisclosure("invite-household:" + householdId, true);
@@ -625,14 +682,25 @@
       const row = rows.querySelector('[data-invite-household="' + escapedId + '"]') ||
         rows.querySelector('[data-invite-inactive-household="' + escapedId + '"]');
       if (!row) { window.RSVP_ADMIN_SEARCH.enhance({ R, T, iconAction }).open("inviteSearch"); return; }
-      if (row.dataset.inviteInactiveHousehold) row.parentElement.open = true;
+      if (!row.dataset.inviteInactiveHousehold) {
+        openCurrentDelivery(row, householdId);
+        return;
+      }
+      row.parentElement.open = true;
       row.open = true;
       row.dispatchEvent(new Event("toggle"));
-      const delivery = row.querySelector("#invite-delivery-" + householdId);
+      const delivery = row.querySelector("#invite-delivery-" + escapedId);
       if (delivery) delivery.open = true;
       row.scrollIntoView({ block: "nearest" });
       row.querySelector("summary")?.focus();
     }
+    wideScreen.addEventListener("change", () => {
+      if (getActor() && getStore().settings && can("invites")) render();
+    });
+    document.addEventListener("pointerdown", event => {
+      for (const menu of $("inviteSortingHeading").parentElement.querySelectorAll("details[open]"))
+        if (!menu.contains(event.target)) menu.open = false;
+    });
     return { render, openHousehold, getVisibleHouseholdIds: () => visibleHouseholdIds.slice() };
   }
   window.RSVP_ADMIN_INVITES = { create };

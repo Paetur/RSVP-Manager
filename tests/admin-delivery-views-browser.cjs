@@ -60,41 +60,45 @@ client.rpc=async(name,args)=>{
     assert.equal(await page.locator("#deliveryLog, .delivery-log-section").count(), 0);
     assert.equal(await first.locator("[data-delivery-id]").count(), 0, "collapsed household builds no records");
     await first.locator(":scope > summary .invite-compact-name").click();
-    const section = first.locator('[id^="invite-delivery-"]');
-    const current = first.locator(".invite-household-content > .current-invitation");
-    const history = section.locator(".household-delivery-history");
+    const menu = first.locator(".invite-household-invitation");
+    const history = menu.locator('[data-invite-delivery-submenu="logs"]');
+    const invitation = menu.locator('[data-invite-delivery-submenu="current"]');
+    const current = invitation.locator(".current-invitation");
+    await menu.waitFor();
+    assert.deepEqual(await menu.locator("[data-invite-delivery-submenu] > summary").allTextContents(),
+      ["Delivery logs", "Drafts", "Current invitation(s)"]);
+    assert.equal(await menu.evaluate(node => node.previousElementSibling.id.startsWith("invite-rsvp-")), true);
+    if (!await invitation.evaluate(node => node.open)) await invitation.locator(":scope > summary").click();
     await current.waitFor();
-    assert.equal(await current.evaluate(node =>
-      node.nextElementSibling.id.startsWith("invite-rsvp-") &&
-      node.nextElementSibling.nextElementSibling.id.startsWith("invite-delivery-")), true);
-    assert.equal(await section.locator(".current-invitation").count(), 0, "delivery history is independent of the current invitation");
+    assert.equal(await history.locator(".current-invitation").count(), 0, "Delivery logs are independent of the current invitation");
     assert.deepEqual(await recordIds(current), ["view-ready"], "newest cancelled row belongs to history");
     assert.deepEqual(await recordIds(history), ["view-cancelled", "view-failed", "view-sent"]);
     const ready = current.locator('[data-delivery-id="view-ready"]');
-    if (!await ready.evaluate(node => node.open)) await ready.locator(":scope > summary").click();
+    await ready.locator(".delivery-message").first().waitFor();
     assert.ok(await ready.getByText("Edit delivery", { exact: true }).isVisible());
     assert.ok(await ready.getByRole("button", { name: "Change to Draft", exact: true }).isVisible());
     assert.equal(await ready.locator("a[href^='https://wa.me/'], .invitation-send-form").count(), 0);
     for (const name of ["Copy message", "Share invitation", "Record as sent"])
       assert.equal(await ready.getByRole("button", { name, exact: true }).count(), 0, name + " belongs outside Current invitation");
     assert.equal(await ready.getByLabel("Sent note", { exact: true }).count(), 0);
-    if (!await section.evaluate(node => node.open)) await section.locator(":scope > summary").click();
+    if (!await history.evaluate(node => node.open)) await history.locator(":scope > summary").click();
     const sent = history.locator('[data-delivery-id="view-sent"]');
     await sent.locator(":scope > summary").click();
     assert.ok(await sent.getByText("Synthetic sent invitation", { exact: true }).isVisible());
     assert.match(await sent.innerText(), /Synthetic delivery note/);
     assert.equal(await sent.getByText("Edit delivery", { exact: true }).count(), 0);
     await second.locator(":scope > summary .invite-compact-name").click();
-    await second.locator(".current-invitation").waitFor();
+    await second.locator(".current-invitation").waitFor({ state: "attached" });
     assert.deepEqual(await recordIds(second), ["view-draft"], "records stay scoped to their own household");
     const draft = second.locator('[data-delivery-id="view-draft"]');
     const markReady = draft.locator("[data-mark-delivery-ready]");
     async function openDraft() {
-      const summary = draft.locator(":scope > summary");
-      await summary.waitFor();
-      if (!await draft.evaluate(node => node.open)) await summary.click();
+      const drafts = second.locator('[data-invite-delivery-submenu="drafts"]');
+      if (!await drafts.evaluate(node => node.open)) await drafts.locator(":scope > summary").click();
+      await draft.locator(".delivery-message").first().waitFor();
     }
     await openDraft();
+    assert.equal(await markReady.innerText(), "Make invitation(s)");
     assert.equal(await draft.getByRole("button", { name: "Copy message", exact: true }).count(), 0);
     assert.equal(await markReady.evaluate(button =>
       button.parentElement.previousElementSibling.querySelector("summary").textContent === "Edit delivery"), true);
@@ -126,6 +130,9 @@ client.rpc=async(name,args)=>{
     assert.equal(await markReady.evaluate(button => document.activeElement === button), true);
     assert.equal(await page.evaluate(() => reviewDraft.status), "draft");
     await markReady.click();
+    await second.locator(":scope > summary .invite-copy-invitation").waitFor();
+    const secondInvitation = second.locator('[data-invite-delivery-submenu="current"]');
+    if (!await secondInvitation.evaluate(node => node.open)) await secondInvitation.locator(":scope > summary").click();
     await draft.locator(":scope > summary").getByText(/Ready/).waitFor();
     assert.equal(await markReady.count(), 0);
     const attempt = await page.evaluate(() => window.__readyAttempts.at(-1));
@@ -135,7 +142,6 @@ client.rpc=async(name,args)=>{
     assert.ok(attempt.p_values.message_body.endsWith("?=" + inviteCode));
     const readySnapshot = await page.evaluate(() => structuredClone(reviewDraft));
     const demote = draft.getByRole("button", { name: "Change to Draft", exact: true });
-    if (!await draft.evaluate(node => node.open)) await draft.locator(":scope > summary").click();
     await demote.click();
     const review = second.locator(":scope > summary .invite-review-action");
     await review.waitFor();
@@ -173,7 +179,7 @@ client.rpc=async(name,args)=>{
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "open history fits a narrow screen");
     await page.locator('[data-invite-filter="needs-draft"]').click();
     assert.equal(await inactive.count(), 0, "inactive households do not contribute to draft generation");
-    await page.locator('[data-invite-filter="all"]').click();
+    await page.locator('[data-invite-filter="needs-draft"]').click();
 
     await page.evaluate(() => {
       const ready = fixtures.invitation_send_queue.find(q => q.status === "ready");
@@ -184,11 +190,20 @@ client.rpc=async(name,args)=>{
     await refreshFixture(page);
     await current.locator('[data-delivery-id="view-refreshed"]').waitFor();
     assert.deepEqual(await recordIds(current), ["view-refreshed"]);
-    assert.equal(await history.count(), 0, "the household history uses the reloaded store");
+    assert.equal(await history.locator("[data-delivery-id]").count(), 0, "the household history uses the reloaded store");
     assert.equal(await inactive.count(), 0, "empty inactive grouping stays hidden");
     const secondHistory = second.locator("details[id^=invite-delivery-]");
     if (!await secondHistory.evaluate(node => node.open)) await secondHistory.locator(":scope > summary").click();
     assert.ok(await second.getByText("No delivery recorded yet.", { exact: true }).isVisible());
+    await page.evaluate(() => {
+      const only = fixtures.invitation_send_queue[0];
+      only.status = "sent";
+      fixtures.invitation_deliveries = [{ queue_id: only.id, confirmed_at: only.updated_at,
+        confirmed_by: h1, delivery_note: "Synthetic current confirmation" }];
+    });
+    await refreshFixture(page);
+    await history.getByText(/Synthetic current confirmation/).waitFor();
+    assert.equal(await history.locator("[data-delivery-id]").count(), 0, "the confirmation avoids duplicating the current record");
     assert.deepEqual(errors, []);
     console.log(
       "PASS delivery views: standalone current invitation, household history, revision-checked readiness round trip, permissions, stale link and failed retry, inactive access and replaced-store reload.",

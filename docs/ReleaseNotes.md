@@ -1,5 +1,13 @@
 # Release notes
 
+## 0.9.0-beta.4
+
+- Share stored pictures and immutable template revisions across invitations and delivery history. Each household keeps its saved wording, recipient, RSVP link and custom edits.
+- Partial backup reads selected sections before packaging them. Full backup includes each referenced template revision and picture once. Restore validates these references under the new format 3 contract.
+- Use the household group trees and RSVP attendance filters in Invites. Rows follows the administrator’s narrow and wide settings. The toolbar creates drafts, prepares invitations and records sending as separate steps.
+
+Existing beta.3 installations need a scoped database update. Protect the existing database and private photos before updating, then download a fresh format 3 backup. Follow the [existing-installation instructions](../INSTALL.md#existing-installations).
+
 ## 0.9.0-beta.3
 
 - The Invites toolbar presents **Generate Drafts**, **Mark ready**, **Make draft**, **Mark Sent** and **Search**. **Sorting** keeps the row and filter settings together.

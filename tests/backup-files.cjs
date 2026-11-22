@@ -23,7 +23,7 @@ function load(overrides = {}) {
   const files = load(),
     payload = {
       format: "rsvp-application-backup",
-      version: 2,
+      version: 3,
       checksum: "synthetic",
       payload: {
         selection: { mode: "backup", include_logs: true, sections: ["food"] },

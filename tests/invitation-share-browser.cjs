@@ -62,26 +62,18 @@ const { server, mock, extra } = createFoodHarness("invitation-share");
         () => document.querySelectorAll("#statsGrid .stat-card").length === 4,
       );
       await page.locator("[data-tab=invites]").click();
-      const row = page
-        .locator("#inviteRows [data-invite-household]")
-        .filter({ has: page.locator("[data-delivery-id=share-ready]") });
-      await page
-        .locator("#inviteRows details.invite-household")
-        .evaluateAll((ns) => ns.forEach((n) => (n.open = true)));
-      await page.waitForFunction(() =>
-        document.querySelector("#inviteRows [data-delivery-id=share-ready]"),
-      );
-      // Delivery sections are lazy; open all generated disclosure ancestors.
-      await page
-        .locator("#inviteRows details")
-        .evaluateAll((ns) => ns.forEach((n) => (n.open = true)));
-      const ready = page.locator("#inviteRows [data-delivery-id=share-ready]"),
+      const household = await page.evaluate(() => window.__shareHousehold);
+      const row = page.locator(`#inviteRows [data-invite-household="${household}"]`);
+      await row.locator(":scope > summary .invite-compact-name").click();
+      const logs = row.locator('[data-invite-delivery-submenu="logs"]');
+      await logs.locator(":scope > summary").click();
+      const ready = logs.locator("[data-delivery-id=share-ready]"),
         trigger = ready.getByRole("button", {
           name: "Share invitation",
           exact: true,
         });
+      await ready.locator(":scope > summary").click();
       await trigger.waitFor();
-      assert.equal(await ready.locator("xpath=ancestor::section[contains(@class,'household-delivery-history')]").count(), 1);
       assert.equal(await page.locator("#inviteRows .current-invitation")
         .getByRole("button", { name: "Share invitation", exact: true }).count(), 0);
       assert.equal(

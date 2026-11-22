@@ -2305,7 +2305,7 @@
   const {
     editor: deliveryEditor,
     section: deliverySection,
-    currentSection: currentInvitationSection,
+    invitationSection,
   } = window.RSVP_ADMIN_DELIVERY_RECORD.create({
     R,
     T,
@@ -2427,7 +2427,7 @@
     setDisclosure,
     rememberDisclosure: (key, open) => expandedGroups.set(key, open),
     deliverySection,
-    currentInvitationSection,
+    invitationSection,
     deliveryEditor,
     invitationTemplateChoices,
     invitationDraft,

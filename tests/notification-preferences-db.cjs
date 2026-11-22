@@ -169,7 +169,7 @@ const { PGlite } = require("@electric-sql/pglite"),
       payload.tables["public.event_settings"][0].notification_preferences,
       prefs,
     );
-    const envelope = { format: "rsvp-application-backup", version: 2, payload };
+    const envelope = { format: "rsvp-application-backup", version: 3, payload };
     envelope.checksum = await v(
       "SELECT encode(sha256(convert_to($1::jsonb::text,'UTF8')),'hex') v",
       [payload],

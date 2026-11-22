@@ -121,8 +121,8 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
           ).every((v) => v === state),
         );
       }
-      await page.locator('[data-invite-filter="all"]').click();
-      assert.deepEqual(await rows.evaluateAll(nodes => nodes.map(node => node.dataset.inviteHousehold)), allHouseholdIds, "All restores every household");
+      await page.locator('[data-invite-food-filter="unanswered"]').click();
+      assert.deepEqual(await rows.evaluateAll(nodes => nodes.map(node => node.dataset.inviteHousehold)), allHouseholdIds, "repeating the Food option clears that filter");
       assert.deepEqual(await page.locator("[data-invite-food-filter]").evaluateAll(nodes => nodes.map(node => node.getAttribute("aria-pressed"))), ["false", "false", "false"]);
       assert.deepEqual(await page.evaluate(() => ({
         calls: window.__wordingRpcCalls.slice(), fixtures: JSON.stringify(window.__fixtures),

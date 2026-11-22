@@ -62,8 +62,8 @@ async function checksum(db,b){b.checksum=await value(db,"SELECT encode(sha256(co
  await require("./helpers/named-template.cjs").saveTemplate(src, { channel: "email", subject: "{event_name}", body: "Hello {household_name} {invitation_link}" });
  const backup=await value(src,'SELECT public.admin_export_backup() value');
  // Export and import use the same current, explicit section manifest.
- assert.equal(backup.version,2);
- assert.equal(Object.keys(backup.payload.tables).length,43);
+ assert.equal(backup.version,3);
+ assert.equal(Object.keys(backup.payload.tables).length,44);
  assert.equal(backup.payload.tables['public.households'].find(h=>h.id===household).visit_count,'2');
  for(const name of ['shortcut_runtime','invitation_shortcut_capabilities','invitation_shortcut_leases','shortcut_rate_limits','shortcut_gateway_rate_limits','guest_visit_scope','guest_visit_receipts','restore_safety_receipts'])assert.equal(backup.payload.tables['app_private.'+name],undefined);
  assert.deepEqual(backup.payload.selection,{mode:'backup',sections:['venues','households','food','other','wording'],include_logs:true});

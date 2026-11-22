@@ -68,7 +68,7 @@ function load(overrides = {}) {
 const password = 'Pæsswörd 🔐 " $ \\ : Ω',
   payload = {
     format: "rsvp-application-backup",
-    version: 2,
+    version: 3,
     checksum: "synthetic",
     payload: {
       selection: { mode: "backup", sections: ["food"], include_logs: false },

@@ -95,6 +95,7 @@ assert.equal(model.lastSent, "2026-01-03");
 assert.equal(model.channel, "sms");
 assert.equal(model.contactName, "Snapshot");
 assert.equal(model.contactValue, "synthetic");
+assert.deepEqual(model.attendance, { attending: 1, declined: 0, pending: 0 });
 assert.deepEqual(
   [model.guests, model.total, model.answers, model.replied],
   [2, 1, 1, false],
@@ -109,6 +110,7 @@ store.responses.push({
 store.queue[1].status = "ready";
 h.rsvp_state = "locked";
 model = plain(invitationOverview(store, h, contact));
+assert.deepEqual(model.attendance, { attending: 1, declined: 1, pending: 0 });
 assert.deepEqual(
   [model.total, model.answers, model.ready, model.replied],
   [2, 2, true, true],

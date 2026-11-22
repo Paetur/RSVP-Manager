@@ -24,4 +24,4 @@ Choose the page that matches what you want to do.
 
 ## Existing installations
 
-Use the current baseline or generated installer for an empty application database. Beta.3 keeps the beta.2 backup contract and updates the administrator delivery-save routine and translation registry. For an existing installation, follow the [installation instructions](../INSTALL.md#existing-installations).
+Use the current baseline or generated installer for an empty application database. Beta.4 uses shared invitation snapshots and application backup format 3. For an existing installation, follow the [installation instructions](../INSTALL.md#existing-installations).

@@ -7,7 +7,7 @@ const { chromium, webkit } = require("playwright"),
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
 const { reopenDatabaseAfterRecovery } = require("./helpers/admin-toolbar.cjs");
 const { server, mock, extra, out } = createFoodHarness("backup-compression");
-const behavior = `const envelope={format:'rsvp-application-backup',version:2,checksum:'synthetic',payload:{selection:{mode:'backup',sections:['venues','households','food','other','wording'],include_logs:true},tables:{'public.event_settings':[{event_name:'Synthetic recovery'}]}}};
+const behavior = `const envelope={format:'rsvp-application-backup',version:3,checksum:'synthetic',payload:{selection:{mode:'backup',sections:['venues','households','food','other','wording'],include_logs:true},tables:{'public.event_settings':[{event_name:'Synthetic recovery'}]}}};
 window.__backupRequests=JSON.parse(sessionStorage.getItem('syntheticBackupRequests')||'[]');const backupRpc=client.rpc;client.rpc=async(name,args)=>{if(['admin_export_backup','admin_preview_backup','admin_restore_backup'].includes(name)){window.__backupRequests.push({name,args});sessionStorage.setItem('syntheticBackupRequests',JSON.stringify(window.__backupRequests));if(name==='admin_export_backup')return {data:{...envelope,payload:{...envelope.payload,selection:{mode:args.p_mode,sections:args.p_sections,include_logs:args.p_include_logs}}}};if(name==='admin_preview_backup')return {data:{event_name:'Synthetic recovery',can_restore:true,counts:{'public.households':1}}};return {data:{restored:true,is_published:false}};}return backupRpc(name,args);};`;
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));

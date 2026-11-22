@@ -57,9 +57,7 @@ const layoutRpc=client.rpc;client.rpc=async(name,args)=>{
       );
       assert.deepEqual(
         await page
-          .locator("#statsGrid .stat-card")
-          .first()
-          .locator(".stat-people-guests dt")
+          .locator("#inviteAttendanceCounts ~ .stat-people-guests dt")
           .allTextContents(),
         ["Adults", "Children"],
       );

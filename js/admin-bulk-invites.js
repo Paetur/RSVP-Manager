@@ -47,7 +47,7 @@
         const recipient = contact?.contact_type === type ? contact.contact_value :
           type === "email" ? guest?.email : guest?.mobile;
         if (!(queue?.status === "ready" ? queue.recipient_snapshot?.contact_value : recipient)) group = "none";
-        return { household, queue, group, recipient, name: R.householdName(household) };
+        return { household, queue, group, name: R.householdName(household) };
       }).sort((a, b) => a.name.localeCompare(b.name) || a.household.id.localeCompare(b.household.id));
     }
 
@@ -70,7 +70,7 @@
       actor = getActor();
     }
 
-    const eligible = row => (row.group !== "none" || !row.queue || row.queue.channel === "manual") &&
+    const eligible = row => (row.group !== "none" || !row.queue || row.queue.status === "ready" || row.queue.channel === "manual") &&
       !["sent", "failed"].includes(row.queue?.status);
 
     function syncVisible(ids) {
@@ -119,6 +119,7 @@
       const input = R.dom("input", { type: "checkbox", disabled: busy || !actor || !can("invites") || !ids.length });
       input.dataset.bulkSelectAll = "";
       input.setAttribute("aria-label", T("interface.messages.select_all"));
+      input.setAttribute("aria-describedby", "inviteSelectionCount");
       input.checked = checked;
       input.indeterminate = mixed;
       input.addEventListener("change", () => {
@@ -136,7 +137,9 @@
         refreshSelection();
         $("inviteRows")?.querySelector("[data-bulk-select-all]")?.focus({ preventScroll: true });
       });
-      label.append(input);
+      const counter = R.dom("span", { id: "inviteSelectionCount" }, count + "/" + ids.length);
+      label.classList.add("bulk-invite-select-all");
+      label.append(counter, input);
       return label;
     }
 
@@ -196,6 +199,7 @@
     }
 
     const draftable = row => row.queue?.status === "ready" && revisioned(row.queue);
+    const canMakeDraft = row => !row.queue || draftable(row);
 
     async function saveStatus(household, queue, values) {
       const saved = await managementRpc("admin_save_delivery", {
@@ -264,19 +268,18 @@
       }
     }
 
-    function missingDrafts(selection) {
-      return selection.filter(row => !row.queue);
-    }
-
-    function createDrafts() {
+    async function makeDrafts() {
       syncVisible(getVisibleHouseholdIds?.());
-      const sameSelection = selectedScope();
-      const selection = [...visibleRows.values()].filter(row => selected.has(row.household.id));
-      const missing = missingDrafts(selection);
-      if (!missing.length) return;
-      const prepareReady = canPrepare();
-      let ready = 0, unmatched = 0, ambiguous = 0, changed = 0, readyError = "";
-      return writes(missing, async (row, continuing) => {
+      const items = [...visibleRows.values()].filter(row => selected.has(row.household.id) && canMakeDraft(row));
+      if (!items.length || busy || !canDraft()) return;
+      let reverted = 0, unmatched = 0, ambiguous = 0, changed = 0;
+      await writes(items, async row => {
+        if (row.queue) {
+          if (!draftable(row)) return false;
+          await saveAsDraft(row);
+          reverted++;
+          return true;
+        }
         const { household } = row;
         const service = row.group === "none" ? "manual" : row.group;
         const matches = (getStore().invitationTemplates || []).filter(template =>
@@ -293,8 +296,7 @@
         });
         const values = { channel, contact_id: null, message_subject: draft.subject || "",
           message_body: draft.body, message_image: draft.image };
-        // Save the matched Draft first so an unavailable Ready transition leaves
-        // a reviewable draft. The server checks the template under its delivery lock.
+        // The server checks template identity and eligibility under its delivery lock.
         const queueId = await managementRpc("admin_save_delivery", {
           p_id: null, p_household_id: household.id, p_expected_revision: null,
           p_values: { ...values, status: "draft", only_if_missing: true,
@@ -304,52 +306,37 @@
           changed++;
           return false;
         }
-        if (!prepareReady || !continuing() || !canPrepare()) return true;
-        const active = current(row);
-        if (!active || (channel !== "manual" && (active.group === "none" || !active.recipient?.trim()))) return true;
-        const message = readyMessage({ ...active, queue: values });
-        if (!message) return true;
-        try {
-          // A newly created draft starts at revision 1. The server also
-          // compares the expected invitation code against the locked household.
-          await saveAsReady(active.household, { ...values, id: queueId, revision: 1 }, message);
-          ready++;
-        } catch (error) {
-          readyError ||= R.safeError(error);
-        }
         return true;
       }, canDraft, count => {
-        const drafts = count - ready;
+        const drafts = count - reverted;
         return [
-          ready && ready + " " + T("Ready"),
-          (drafts || !ready) && T(drafts === 1 ? "{count} draft created" : "{count} drafts created", { count: drafts }),
+          (drafts || !reverted) && T(drafts === 1 ? "{count} draft created" : "{count} drafts created", { count: drafts }),
+          reverted && T(reverted === 1 ? "{count} invitation changed to draft." : "{count} invitations changed to draft.", { count: reverted }),
           ambiguous && T("{count} with multiple matches", { count: ambiguous }),
           unmatched && T("{count} with no match", { count: unmatched }),
           changed && T("{count} changed during generation", { count: changed }),
-          readyError,
         ].filter(Boolean).join(" · ");
-      }, undefined, sameSelection);
+      }, undefined, selectedScope());
+      focusAfterReadiness("[data-bulk-mark-ready]:enabled");
     }
 
-    async function changeSelectedReadiness(toReady) {
+    async function makeInvitations() {
       syncVisible(getVisibleHouseholdIds?.());
-      const allowed = toReady ? canPrepare : canDraft;
-      const matches = toReady ? preparableMessage : draftable;
-      const items = [...visibleRows.values()].filter(row => selected.has(row.household.id) && matches(row));
-      if (!items.length || busy || !allowed()) return;
+      const items = [...visibleRows.values()].filter(row => selected.has(row.household.id) && preparableMessage(row));
+      if (!items.length || busy || !canPrepare()) return;
       await writes(items, (row, continuing) => {
         if (!continuing()) return false;
-        if (!toReady) return draftable(row) && saveAsDraft(row);
         const message = preparableMessage(row);
         return message && saveAsReady(row.household, row.queue, message);
-      }, allowed, count => {
-        if (toReady) return T(count === 1 ? "{count} invitation marked ready." : "{count} invitations marked ready.", { count });
-        return T(count === 1 ? "{count} invitation changed to draft." : "{count} invitations changed to draft.", { count });
-      }, undefined, selectedScope());
+      }, canPrepare, count => T(count === 1 ? "{count} invitation marked ready." : "{count} invitations marked ready.", { count }),
+      undefined, selectedScope());
+      focusAfterReadiness("[data-bulk-make-draft]:enabled");
+    }
+
+    function focusAfterReadiness(selector) {
       if (document.activeElement !== document.body) return;
-      const fallback = content()?.querySelector(
-        toReady ? "[data-bulk-make-draft]:enabled" : "[data-bulk-mark-ready]:enabled",
-      ) ?? $("inviteOverviewCounts")?.querySelector('[aria-pressed="true"]');
+      const fallback = content()?.querySelector(selector) ??
+        $("inviteOverviewCounts")?.querySelector('[aria-pressed="true"]');
       if (fallback?.getClientRects().length) fallback.focus({ preventScroll: true });
     }
 
@@ -385,17 +372,16 @@
       const selection = [...visibleRows.values()].filter(row => selected.has(row.household.id));
       const actions = element("div", "bulk-invite-actions");
       const sendEnabled = !busy && canSend() && selection.length > 0 && selection.every(sendable);
-      const markReady = button("Mark ready", () => changeSelectedReadiness(true),
+      const markReady = button("Make invitation(s)", makeInvitations,
         busy || !canPrepare() || !selection.some(preparableMessage));
       markReady.dataset.bulkMarkReady = "";
-      const makeDraft = button("Make draft", () => changeSelectedReadiness(false),
-        busy || !canDraft() || !selection.some(draftable));
+      const makeDraft = button("Make draft(s)", makeDrafts,
+        busy || !canDraft() || !selection.some(canMakeDraft));
       makeDraft.dataset.bulkMakeDraft = "";
       actions.append(
-        button("Generate Drafts", createDrafts, busy || !canDraft() || !missingDrafts(selection).length),
-        markReady,
         makeDraft,
-        button("Mark Sent", () => markSent(selection), !sendEnabled),
+        markReady,
+        button("Mark sent", () => markSent(selection), !sendEnabled),
       );
       box.append(actions);
       if (!getStore().settings?.is_published)

@@ -8,6 +8,8 @@
     grouped: "rsvp_invites_grouped",
     shownFields: "rsvp_invites_shown_fields",
     twoRowColumns: "rsvp_invites_two_row_columns",
+    narrowRows: "rsvp_invites_narrow_rows",
+    wideRows: "rsvp_invites_wide_rows",
   };
   const invitesFields = Object.freeze([
     ["householdInfo", "Household info"],
@@ -52,12 +54,17 @@
   const form = () => element("personalPreferencesForm");
   const invitesForm = () => element("invitesAppearanceForm");
   const personalKinds = ["language", "appearance", "time", "hover"];
-  const invitesKinds = ["grouped", "shownFields", "twoRowColumns"];
+  const inviteWidths = [
+    ["narrowRows", "Narrow screens (below 1024 px)", 1],
+    ["wideRows", "Wide screens (1024 px and wider)", 2],
+  ];
+  const invitesKinds = ["grouped", "shownFields", "twoRowColumns", "narrowRows", "wideRows"];
   const kindsFor = node => node === invitesForm() ? invitesKinds : personalKinds;
   function valid(kind, value) {
     if (kind === "shownFields") return Array.isArray(value) && new Set(value).size === value.length && value.every(key => inviteFieldKeys.has(key));
     if (kind === "twoRowColumns") return Array.isArray(value) && new Set(value).size === value.length && value.every(key => inviteColumnKeys.has(key));
     if (kind === "grouped") return typeof value === "boolean" || value === "service";
+    if (kind === "narrowRows" || kind === "wideRows") return value === 1 || value === 2;
     return kind === "language"
       ? window.RSVP_I18N.enabled(value)
       : (kind === "appearance"
@@ -105,6 +112,8 @@
                 grouped: true,
                 shownFields: defaultInvitesShownFields.slice(),
                 twoRowColumns: defaultInvitesTwoRowColumns.slice(),
+                narrowRows: 1,
+                wideRows: 2,
               }[kind],
         ];
       }),
@@ -146,7 +155,7 @@
     if (groupingSave) groupingSave.disabled = busy || !account || !hasUnsaved(invitesKinds);
     for (const node of [form(), invitesForm()]) node?.setAttribute("aria-busy", String(busy));
     for (const button of form()?.querySelectorAll("[data-preference-choice]") || []) button.disabled = busy || !account;
-    for (const host of [element("inviteGroupBy"), element("inviteDefaultFields")])
+    for (const host of [element("inviteGroupBy"), element("inviteRowsPreference"), element("inviteDefaultFields")])
       for (const input of host?.querySelectorAll("input") || []) input.disabled = busy || !account || input.hasAttribute("data-invite-fixed-field") || input.hasAttribute("data-invite-fixed-column");
   }
   function renderDraft() {
@@ -156,6 +165,7 @@
         if (node) node.value = draft[kind];
       }
     syncInviteGrouping();
+    syncInviteRows();
     syncInviteDefaultFields();
     updateControls();
     syncChoices();
@@ -177,6 +187,34 @@
       }
       input.nextElementSibling.textContent = T(label);
       input.checked = input.value === groupingMode(draft?.grouped);
+    }
+  }
+  function syncInviteRows() {
+    const host = element("inviteRowsPreference");
+    if (!host) return;
+    const R = window.RSVP;
+    for (const [kind, label, defaultRows] of inviteWidths) {
+      let group = host.querySelector('[data-invite-width="' + kind + '"]');
+      if (!group) {
+        group = R.dom("fieldset", { class: "invite-default-layout" });
+        group.dataset.inviteWidth = kind;
+        group.append(R.dom("legend"));
+        for (const rows of [1, 2]) {
+          const option = R.dom("label", { class: "checkbox-label" });
+          const input = R.dom("input", { type: "radio", name: kind, value: String(rows) });
+          input.addEventListener("change", () => {
+            if (input.checked && !stage(kind, rows)) renderDraft();
+          });
+          option.append(input, R.dom("span"));
+          group.append(option);
+        }
+        host.append(group);
+      }
+      group.querySelector("legend").textContent = T(label);
+      for (const input of group.querySelectorAll("input")) {
+        input.checked = Number(input.value) === (draft?.[kind] ?? defaultRows);
+        input.nextElementSibling.textContent = T("Rows") + " " + input.value;
+      }
     }
   }
   function syncInviteDefaultFields() {
@@ -364,6 +402,8 @@
     get defaultInvitesShownFields() { return defaultInvitesShownFields; },
     get invitesShownFields() { return (baseline?.shownFields || defaultInvitesShownFields).slice(); },
     get invitesTwoRowColumns() { return (baseline?.twoRowColumns || defaultInvitesTwoRowColumns).slice(); },
+    get invitesNarrowRows() { return baseline?.narrowRows ?? 1; },
+    get invitesWideRows() { return baseline?.wideRows ?? 2; },
     hasUnsaved,
     stage,
     cancel: () => cancel(),
@@ -425,6 +465,7 @@
     invitesForm()?.addEventListener("submit", event => { event.preventDefault(); submit(invitesForm()); });
     element("cancelInvitesAppearance")?.addEventListener("click", () => cancel(invitesForm()));
     syncInviteGrouping();
+    syncInviteRows();
     syncInviteDefaultFields();
     updateControls();
   });

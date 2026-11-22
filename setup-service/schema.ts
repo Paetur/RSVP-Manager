@@ -149,7 +149,7 @@ export function schemaPlan(installer: string) {
       }
     } else if (
       (match = sql.match(
-        new RegExp(`^CREATE (OR REPLACE )?FUNCTION ${qualified}\\(([^]*?)\\) RETURNS`),
+        new RegExp(`^CREATE (OR REPLACE )?FUNCTION ${qualified}\\(([^]*?)\\)\\s+RETURNS\\b`),
       ))
     ) {
       // Dump arguments always name their parameters; split defaults without losing commas in literals.
@@ -197,7 +197,7 @@ export function schemaPlan(installer: string) {
       });
     } else if (
       (match = sql.match(
-        new RegExp(`^CREATE TRIGGER (${identifier}) [^]*? ON ${qualified} `),
+        new RegExp(`^CREATE TRIGGER (${identifier})\\s+[^]*?\\s+ON\\s+${qualified}\\s`),
       ))
     ) {
       objects.push({

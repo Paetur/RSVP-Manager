@@ -34,13 +34,14 @@ const { server, mock, extra } = createFoodHarness("admin-delivery-editor");
     await page.waitForFunction(() =>
       document.querySelector("#inviteRows [data-delivery-id=editor-existing]"),
     );
-    await page
-      .locator("#inviteRows details")
-      .evaluateAll((ns) => ns.forEach((n) => (n.open = true)));
     const record = page.locator(
-        "#inviteRows [data-delivery-id=editor-existing]",
-      ),
-      form = record.locator("details form").first();
+      '#inviteRows [data-invite-delivery-submenu="current"] [data-delivery-id=editor-existing]',
+    );
+    const current = record.locator('xpath=ancestor::details[@data-invite-delivery-submenu="current"]');
+    await current.locator(":scope > summary").click();
+    await record.getByText("Edit delivery", { exact: true }).click();
+    const form = record.locator("details form").first();
+    await form.locator(".delivery-customize > summary").click();
     const subject = form.getByLabel("Message subject", { exact: true }),
       body = form.getByLabel("Message text", { exact: true }),
       status = form.getByLabel("Delivery status", { exact: true });

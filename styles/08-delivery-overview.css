@@ -212,15 +212,18 @@
 .invitation-delivery-sections > section { min-width: 0; }
 .invite-inactive-households { margin-block-start: 12px; }
 .invite-inactive-households > details { margin-inline: 12px; }
-#adminApp :is(.invitation-delivery-sections, .invite-household-content > .current-invitation) h3 {
+#adminApp :is(.invitation-delivery-sections, .invite-household-submenus .current-invitation) h3 {
   margin-block: 0 8px;
   font-size: .88rem;
 }
-.invite-household-content > .current-invitation {
+.invite-household-submenus {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+}
+.invite-household-submenus .current-invitation {
   min-width: 0;
-  border-block-start: 1px solid var(--line);
-  padding-block-start: 8px;
-  margin-block: 6px;
+  padding: 8px;
 }
 #adminApp .invitation-send-form .btn {
   justify-self: start;
@@ -591,41 +594,7 @@
   width: min(100%, 27rem);
   margin-block: 8px 0;
 }
-.invite-header-tools {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 10px;
-  min-width: 0;
-  max-width: 100%;
-}
 .invite-heading-title { grid-area: title; min-width: 0; }
-.invite-rows-layout {
-  display: grid;
-  flex: 0 0 104px;
-  width: 104px;
-  box-sizing: border-box;
-  align-items: center;
-  margin: 0;
-  padding: 4px 6px 0;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  min-width: 0;
-}
-.invite-control-label { font-size: .82rem; line-height: 1.15; font-weight: 650; }
-.invite-row-options { display: flex; align-items: center; }
-#adminApp .invite-rows-layout label {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  flex: 0 0 44px;
-  min-width: 44px;
-  min-height: 44px;
-  margin: 0;
-  font-size: .82rem;
-}
-.invite-rows-layout input { width: auto; margin: 0; }
 .invite-overview-filters > div { min-width: 0; }
 #adminApp .invite-copy-action {
   appearance: none;
@@ -675,7 +644,6 @@
 #adminApp .invite-copy-recipient > .invite-copy-pill { font-weight: 650; }
 .invite-overview-service-info > .invite-overview-recipient { grid-column: auto; grid-row: auto; font-size: .75rem; color: var(--muted); line-height: 1.25; }
 #adminApp .invite-copy-action:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
-#inviteShownFieldsHost { flex: 1 1 9rem; min-width: 0; }
 .filter-choice > summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -973,8 +941,17 @@
   align-items: start;
 }
 .invite-sorting .invite-overview-filters > div { flex: 1 1 10rem; }
-.invite-sorting .invite-overview-filters > .invite-header-tools { flex: 1.4 1 18rem; }
-.invite-header-tools > #inviteShownFieldsHost { max-width: 16rem; }
+.invite-sorting .template-choice { position: relative; }
+.invite-sorting .template-choice > .template-choice-menu {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline: -1px;
+  z-index: 8;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--ink) 12%, transparent);
+}
 #adminApp .invite-overview-row > .invite-overview-select {
   display: flex;
   justify-content: flex-end;
@@ -991,6 +968,11 @@
   min-width: 44px;
   margin: 0;
 }
+#adminApp .invite-overview-select > .bulk-invite-select-all {
+  width: auto;
+  gap: 6px;
+}
+#inviteSelectionCount { white-space: nowrap; font-variant-numeric: tabular-nums; }
 @media (max-width: 1000px) {
   #adminApp #inviteRows .invite-overview-row { position: relative; }
   #adminApp .invite-overview-row > .invite-overview-identity { padding-inline-end: 50px; }
@@ -999,9 +981,6 @@
     inset-block-start: 0;
     inset-inline-end: 0;
   }
-}
-@media (max-width: 1000px) {
-  .invite-sorting .invite-overview-filters > .invite-header-tools { flex-basis: 100%; }
 }
 @media (max-width: 750px) {
   #adminApp .invite-box-heading {
@@ -1012,5 +991,4 @@
 }
 @media (max-width: 500px) {
   .invite-sorting .invite-overview-filters > div { flex-basis: 100%; }
-  .invite-header-tools > #inviteShownFieldsHost { max-width: none; }
 }

@@ -24,6 +24,29 @@
     }
     return counts;
   }
+  function rsvpSessions(store) {
+    return store.sessions.filter(session => session.is_active && session.requires_rsvp);
+  }
+
+  function attendanceCounts(store, guests, sessions) {
+    const counts = { attending: 0, declined: 0, pending: 0 };
+    for (const guest of guests)
+      for (const session of sessions) {
+        const override = store.overrides.find(
+          row => row.guest_id === guest.id && row.session_id === session.id,
+        );
+        const invited = override ? override.is_invited : store.defaults.find(
+          row => row.household_id === guest.household_id && row.session_id === session.id,
+        )?.is_invited;
+        if (!invited) continue;
+        const answer = store.responses.find(
+          row => row.guest_id === guest.id && row.session_id === session.id,
+        )?.rsvp_status;
+        counts[answer === "attending" || answer === "declined" ? answer : "pending"]++;
+      }
+    return counts;
+  }
+
   function eventCounts(store, includeInvites) {
     const invitedGuests = store.guests.filter(
         (g) =>
@@ -32,33 +55,8 @@
       ),
       invitedCount = invitedGuests.length,
       children = invitedGuests.filter((g) => g.is_child).length;
-    const sessionReplies = { attending: 0, declined: 0, pending: 0 },
-      rsvpSessions = store.sessions.filter(
-        (s) => s.is_active && s.requires_rsvp,
-      );
-    if (includeInvites)
-      for (const guest of invitedGuests)
-        for (const session of rsvpSessions) {
-          const override = store.overrides.find(
-            (o) => o.guest_id === guest.id && o.session_id === session.id,
-          );
-          if (
-            !(override
-              ? override.is_invited
-              : store.defaults.find(
-                  (d) =>
-                    d.household_id === guest.household_id &&
-                    d.session_id === session.id,
-                )?.is_invited)
-          )
-            continue;
-          const answer = store.responses.find(
-            (v) => v.guest_id === guest.id && v.session_id === session.id,
-          )?.rsvp_status;
-          sessionReplies[
-            answer === "attending" || answer === "declined" ? answer : "pending"
-          ]++;
-        }
+    const sessions = rsvpSessions(store);
+    const sessionReplies = attendanceCounts(store, includeInvites ? invitedGuests : [], sessions);
     const foodTotals = new Map();
     for (const claim of store.claims)
       foodTotals.set(
@@ -81,7 +79,7 @@
       invitedCount,
       children,
       sessionReplies,
-      rsvpSessions,
+      rsvpSessions: sessions,
       available,
       full,
       hidden: store.food.filter((f) => !f.archived_at && !f.active).length,
@@ -158,34 +156,8 @@
     const guests = store.guests.filter(
       (g) => g.household_id === h.id && !g.archived_at,
     );
-    let total = 0,
-      answers = 0;
-    for (const g of guests)
-      for (const session of store.sessions.filter(
-        (s) => s.is_active && s.requires_rsvp,
-      )) {
-        const override = store.overrides.find(
-          (o) => o.guest_id === g.id && o.session_id === session.id,
-        );
-        if (
-          !(override
-            ? override.is_invited
-            : store.defaults.find(
-                (d) => d.household_id === h.id && d.session_id === session.id,
-              )?.is_invited)
-        )
-          continue;
-        total++;
-        if (
-          store.responses.some(
-            (v) =>
-              v.guest_id === g.id &&
-              v.session_id === session.id &&
-              ["attending", "declined"].includes(v.rsvp_status),
-          )
-        )
-          answers++;
-      }
+    const attendance = attendanceCounts(store, guests, rsvpSessions(store));
+    const answers = attendance.attending + attendance.declined;
     return {
       h,
       latest,
@@ -198,8 +170,9 @@
       contactType,
       service,
       guests: guests.length,
-      total,
+      total: answers + attendance.pending,
       answers,
+      attendance,
       replied: h.rsvp_state === "locked",
       ready: latest?.status === "ready",
     };

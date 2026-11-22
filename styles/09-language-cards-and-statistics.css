@@ -287,6 +287,29 @@
   padding-top: 10px;
   border-top: 1px solid var(--line);
 }
+#adminApp .invite-group-tree + .invite-group-tree { margin-top: 10px; }
+#adminApp .invite-group-tree > summary {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 6px;
+  font-size: .76rem;
+  font-weight: 650;
+  color: var(--ink);
+  cursor: pointer;
+}
+#adminApp .invite-group-tree > summary::before { content: "›"; color: var(--action-text); }
+#adminApp .invite-group-tree[open] > summary::before { transform: rotate(90deg); }
+#adminApp .invite-group-tree > summary > b { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+#adminApp .invite-group-list {
+  list-style: none;
+  margin: 0 0 0 7px;
+  padding: 0 0 0 6px;
+  border-inline-start: 1px solid var(--line);
+}
+#adminApp .invite-group-list > li { min-width: 0; }
+#adminApp .invite-group-list > li button > span { overflow-wrap: anywhere; }
 #adminApp .invite-stat-rows {
   display: grid;
   gap: 2px;
@@ -329,5 +352,5 @@
   outline-offset: 2px;
 }
 @media (pointer: coarse) {
-  #adminApp .stat-card .invite-stat-row { min-height: 44px; }
+  #adminApp .stat-card .invite-stat-row, #adminApp .invite-group-tree > summary { min-height: 44px; }
 }

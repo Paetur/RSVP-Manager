@@ -60,3 +60,14 @@ async function setInvitesGrouping(page, grouped) {
   await page.locator('[data-tab=invites]').click();
 }
 module.exports.setInvitesGrouping = setInvitesGrouping;
+
+// Presentation suites can exercise either saved layout at their test viewport.
+// Preference persistence itself is exercised through the actual Settings editor.
+async function setFixtureInviteRows(page, rows) {
+  await page.evaluate(value => {
+    for (const key of ["invitesNarrowRows", "invitesWideRows"])
+      Object.defineProperty(window.RSVP_ADMIN_PREFERENCES, key, { configurable: true, get: () => value });
+    document.dispatchEvent(new Event("rsvp:invites-appearance"));
+  }, rows);
+}
+module.exports.setFixtureInviteRows = setFixtureInviteRows;

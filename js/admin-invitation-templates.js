@@ -21,7 +21,7 @@
       const resolved = window.RSVP_PLACEHOLDERS.context(getStore(), { household: h, language: binding.language || template?.language_code || h.language || "en", ...context });
       const fill = text => { try { return window.RSVP_PLACEHOLDERS.fill(text, resolved.values, resolved.options); } catch (_) { return text; } };
       const enabled = options(template), short = enabled.includes("shortMessage") && (channel === "sms" || !enabled.includes("message"));
-      return { subject: template ? enabled.includes("subject") ? fill(template.subject) : "" : fill("{event_name}"), body: fill((short ? template?.short_body : enabled.includes("message") ? template?.body : "") || "{invitation_link}"), image: channel === "sms" || !enabled.includes("picture") ? null : template?.message_image || null, hasTemplate: !!template, context, templateId: named?.id };
+      return { subject: template ? enabled.includes("subject") ? fill(template.subject) : "" : fill("{event_name}"), body: fill((short ? template?.short_body : enabled.includes("message") ? template?.body : "") || "{invitation_link}"), image: channel === "sms" || !enabled.includes("picture") ? null : template?.message_image || null, hasTemplate: !!template, context, templateId: named?.id, templateRevision: named?.revision };
     }
     function preview(subject, body, image, language, binding) {
       const resolved = window.RSVP_PLACEHOLDERS.context(getStore(), { language, sample: true, ...binding });
