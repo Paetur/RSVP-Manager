@@ -164,6 +164,7 @@
       h,
       latest,
       sent: !!last,
+      seen: Number(h.visit_count) > 0,
       lastSent: last?.delivery?.confirmed_at || last?.q.updated_at,
       channel,
       templateService,

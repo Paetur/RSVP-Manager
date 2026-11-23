@@ -45,8 +45,15 @@
     const columnGroups = window.RSVP_ADMIN_PREFERENCES.invitesColumnGroups;
     const requiredFields = window.RSVP_ADMIN_PREFERENCES.invitesRequiredFields;
     const shown = new Set();
+    const activityReaders = new WeakMap();
     let shownOwner, shownDefaults, shownColumnDefaults, rowLayout = 1, oneRowShown = [], clipboardBusy = false;
     let rowOverride, responsiveLayout;
+
+    function refreshInvitationActivity() {
+      $("inviteRows")?.querySelectorAll("details[data-invite-household][open]").forEach(
+        row => activityReaders.get(row)?.()
+      );
+    }
 
     function renderShownFields() {
       const host = $("inviteShownFieldsHost");
@@ -258,7 +265,7 @@
           const heading = R.dom("summary");
           heading.append(R.dom("span", {}, T(label)), R.dom("b", {}, count));
           tree.append(heading, list(nodes));
-          setDisclosure(tree, "invite-overview-group-tree:" + scope);
+          setDisclosure(tree, "invite-overview-group-tree:" + scope, scope === "top");
           host.append(tree);
         }
         const active = [];
@@ -270,6 +277,10 @@
         if (active.length) filters.push(active);
       }
       return model => filters.every(options => options.some(matches => matches(model)));
+    }
+
+    function invitationNotSeen(model) {
+      return !model.seen && (model.ready || model.sent);
     }
 
     function currentModel(id) {
@@ -364,6 +375,8 @@
         ["review", "Review", (r) => r.latest?.status === "draft"],
         ["ready", "Ready", (r) => r.ready],
         ["sent", "Sent", (r) => r.sent],
+        ["unseen", "interface.messages.invites_unseen", invitationNotSeen],
+        ["seen", "Seen", (r) => r.seen],
         ["awaiting", "Waiting Reply", (r) => r.sent && !r.replied],
         ["replied", "Replied", (r) => r.replied],
       ];
@@ -425,6 +438,21 @@
           window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, r.h) === inviteInterestFilter);
       const test = filters.find(([key]) => key === inviteOverviewFilter)?.[2] || (() => true);
       const visible = all.filter(model => test(model) && matchesFilters(model));
+      function renderSeenSummary() {
+        $("inviteSeenSummary").textContent = T("interface.messages.invites_seen_summary", {
+          sent: visible.filter(model => model.sent).length,
+          unseen: visible.filter(invitationNotSeen).length,
+          seen: visible.filter(model => model.seen).length,
+        });
+      }
+      function refreshSeenCounts() {
+        for (const [key, , matches] of filters.filter(([key]) => key === "seen" || key === "unseen")) {
+          const count = countHost?.querySelector(`[data-invite-filter="${key}"] b`);
+          if (count) count.textContent = String(all.filter(matches).length);
+        }
+        renderSeenSummary();
+      }
+      renderSeenSummary();
       visibleHouseholdIds = visible.map(model => model.h.id);
       onVisibleHouseholds(visibleHouseholdIds.slice());
       $("inviteResultCount").hidden = true;
@@ -528,7 +556,28 @@
             invitationActions.append(text);
           }
         }
-        delivery.append(invitationActions);
+        const seen = R.dom("small", { class: "muted invite-overview-seen" });
+        function renderSeen() {
+          seen.hidden = !(model.seen || invitationNotSeen(model));
+          if (seen.hidden) {
+            delete seen.dataset.inviteSeen;
+            return;
+          }
+          seen.dataset.inviteSeen = model.seen ? "seen" : "unseen";
+          if (!model.seen) {
+            seen.textContent = T("interface.messages.invites_unseen");
+            return;
+          }
+          const visitedAt = h.last_visited_at || h.first_visited_at;
+          const visitTime = visitedAt ? R.dom("time", {}, adminTime(visitedAt)) : null;
+          if (visitTime) visitTime.dateTime = visitedAt;
+          seen.replaceChildren(
+            R.dom("span", { class: "sr-only" }, T("Seen") + " "),
+            visitTime || "–",
+          );
+        }
+        renderSeen();
+        delivery.append(invitationActions, seen);
         const lastSent = R.dom("span", { class: "invite-overview-last-sent" });
         if (model.lastSent) {
           lastSent.append(R.dom("small", { class: "muted" },
@@ -559,11 +608,39 @@
           if (displayedFields.has("replyInfo") && model.total) reply.append(replyInfo);
         }
         const content = R.dom("div", { class: "invite-household-content" });
-        let filled = false;
+        let filled = false, facts, latestActivityRequest = 0;
+        async function refreshActivity() {
+          const actor = getActor();
+          const readable = () => actor && actor === getActor() && can("invites") &&
+            row.isConnected && row.open && !row.closest("[hidden], .hidden");
+          if (!facts || !readable()) return;
+          const request = ++latestActivityRequest;
+          try {
+            const activity = await managementRpc("admin_invitation_activity", { p_household_id: h.id });
+            if (!activity || request !== latestActivityRequest || !readable() ||
+                !getStore().households.includes(h)) return;
+            const { first_visited_at, last_visited_at, visit_count } = activity;
+            // Refresh the dashboard's visit fields without replacing the open household.
+            Object.assign(h, { first_visited_at, last_visited_at, visit_count });
+            const wasSeen = model.seen;
+            model.seen = Number(visit_count) > 0;
+            const next = householdFacts(h);
+            facts.replaceWith(next);
+            facts = next;
+            renderSeen();
+            if (model.seen !== wasSeen) refreshSeenCounts();
+          } catch (_) {
+            // Keep the dashboard's visit facts if the activity lookup is unavailable.
+          }
+        }
+        activityReaders.set(row, refreshActivity);
         function fillSections() {
           if (filled) return;
           filled = true;
-          if (householdFacts) content.append(householdFacts(h));
+          if (householdFacts) {
+            facts = householdFacts(h);
+            content.append(facts);
+          }
           const rsvp = rsvpSection(h);
           rsvp.id = "invite-rsvp-" + h.id;
           rsvp.querySelector("summary").replaceChildren(T("RSVP"), " ",
@@ -577,7 +654,9 @@
           content.append(rsvp, invitation);
         }
         row.addEventListener("toggle", () => {
-          if (row.open) fillSections();
+          if (!row.open) return;
+          fillSections();
+          refreshActivity();
         });
         if (row.open) fillSections();
         const actions = R.dom("span", { class: "invite-row-actions" });
@@ -706,7 +785,7 @@
               : "No households match these filters."),
           ),
         );
-
+      refreshInvitationActivity();
     }
 
     function inactiveHouseholds(models, searching) {
@@ -772,7 +851,7 @@
     }
     document.addEventListener("pointerdown", closeOutsideShownFields);
     document.addEventListener("focusin", closeOutsideShownFields);
-    return { render, openHousehold, getVisibleHouseholdIds: () => visibleHouseholdIds.slice() };
+    return { render, openHousehold, refreshInvitationActivity, getVisibleHouseholdIds: () => visibleHouseholdIds.slice() };
   }
   window.RSVP_ADMIN_INVITES = { create };
 })();

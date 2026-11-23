@@ -21,7 +21,7 @@ const { root, out, server, mock, extra, stageExtra } =
         r.fulfill({ contentType: "text/html", body: "<p>Map fixture</p>" }),
       );
       const behavior =
-        "\nfixtures.event_settings[0].food_stage='selection';window.__foodAnswer=null;const previous=client.functions.invoke;client.functions.invoke=async(name,request)=>{if(request.body.action==='set_household_food_interest'&&!request.body.args.p_interest&&fixtures.food_claims.length)return {error:{message:'Existing commitments'}};if(request.body.action==='set_household_food_claim'){const a=request.body.args;fixtures.food_claims=fixtures.food_claims.filter(c=>c.food_item_id!==a.p_food_item_id);if(a.p_quantity)fixtures.food_claims.push({food_item_id:a.p_food_item_id,quantity:a.p_quantity});return {data:null};}return previous(name,request);};";
+        "\nfixtures.event_settings[0].food_stage='selection';window.__invite.household.rsvp_state='locked';window.__foodAnswer=null;const previous=client.functions.invoke;client.functions.invoke=async(name,request)=>{if(request.body.action==='set_household_food_interest'&&!request.body.args.p_interest&&fixtures.food_claims.length)return {error:{message:'Existing commitments'}};if(request.body.action==='set_household_food_claim'){const a=request.body.args;fixtures.food_claims=fixtures.food_claims.filter(c=>c.food_item_id!==a.p_food_item_id);if(a.p_quantity)fixtures.food_claims.push({food_item_id:a.p_food_item_id,quantity:a.p_quantity});return {data:null};}return previous(name,request);};";
       await page.route("**/supabase.min.js", (r) =>
         r.fulfill({
           contentType: "text/javascript",
@@ -41,7 +41,7 @@ const { root, out, server, mock, extra, stageExtra } =
           exact: true,
         });
       await yes.waitFor();
-      const boxes = await host.locator("button").evaluateAll((nodes) =>
+      const boxes = await host.locator(".food-interest-choices button").evaluateAll((nodes) =>
         nodes.map((n) => {
           const r = n.getBoundingClientRect();
           return { top: r.top, left: r.left };
@@ -52,6 +52,8 @@ const { root, out, server, mock, extra, stageExtra } =
       assert.equal(await page.locator("#foodList").isHidden(), true);
       assert.equal(await host.locator("form").count(), 0);
       await yes.click();
+      assert.equal(await page.locator("#foodList").isHidden(), true, "the draft does not open the menu");
+      await page.locator("#confirmFoodInterest").click();
       await page.locator("#foodList:not(.hidden)").waitFor();
       assert.equal(await page.evaluate(() => window.__interestWrites), 1);
       assert.ok(
@@ -83,11 +85,7 @@ const { root, out, server, mock, extra, stageExtra } =
       assert.ok(pairRects[1].left > pairRects[0].left);
       for (const tile of await pair.locator(":scope>button").all())
         assert.ok((await tile.boundingBox()).height >= 44);
-      await no.click();
-      await page.locator("#foodList.hidden").waitFor({ state: "attached" });
-      assert.equal(await no.getAttribute("aria-pressed"), "true");
-      await yes.click();
-      await page.locator("#foodList:not(.hidden)").waitFor();
+      assert.equal(await no.isDisabled(), true, "a confirmed answer cannot be switched");
       const group = page.locator(".guest-food-group").first(),
         pick = group.locator(":scope>button");
       await pick.waitFor();
@@ -120,8 +118,7 @@ const { root, out, server, mock, extra, stageExtra } =
         false,
         "Selection does not expand the disclosure",
       );
-      await no.click();
-      await page.locator("#guestStatus.error").waitFor();
+      assert.equal(await no.isDisabled(), true);
       assert.equal(await yes.getAttribute("aria-pressed"), "true");
       assert.equal(
         await page.evaluate(() => window.__fixtures.food_claims.length),
@@ -195,7 +192,7 @@ const { root, out, server, mock, extra, stageExtra } =
       await page.close();
     }
     console.log(
-      "PASS food click flow: immediate yes/no, conditional list, full-card group selection, error/retry, toggle-off selection and separate details, protected commitments and phone/desktop bounds.",
+      "PASS food click flow: confirmed yes/no, conditional list, full-card group selection, error/retry, toggle-off selection and separate details, protected commitments and phone/desktop bounds.",
     );
   } finally {
     await browser.close();

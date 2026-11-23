@@ -39,9 +39,9 @@ const titleRpc=client.rpc;client.rpc=async(name,args)=>{
         if (res.status() >= 400)
           resourceFailures.push([new URL(res.url()).pathname, res.status()]);
       });
-      await page.addInitScript(() =>
-        localStorage.setItem("rsvp-interface-language", "en"),
-      );
+      await page.addInitScript(() => {
+        if (window === window.top) localStorage.setItem("rsvp-interface-language", "en");
+      });
       await page.route("**/supabase.min.js", (r) =>
         r.fulfill({
           contentType: "text/javascript",

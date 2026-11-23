@@ -45,7 +45,8 @@ fixtures.households[1].latest_rsvp_submission_id='new-submission';fixtures.rsvp_
         await page.route("**/supabase.min.js", (r) =>
           r.fulfill({
             contentType: "text/javascript",
-            body: mock + "\n" + extra + "\n" + stageExtra + "\n" + behavior,
+            body: mock + "\n" + extra + "\n" + stageExtra + "\n" + behavior +
+              "\nwindow.__invite.household.language=" + JSON.stringify(language) + ";",
           }),
         );
         await page.route("**maps.google.com/**", (r) =>
@@ -53,9 +54,51 @@ fixtures.households[1].latest_rsvp_submission_id='new-submission';fixtures.rsvp_
         );
         const url = "http://127.0.0.1:" + server.address().port;
         await page.goto(url + "/?ABCDEFGH");
+        const inlineValidation = page.locator("#rsvpValidation");
+        await page.locator("#saveRsvp").press("Enter");
+        assert.equal(
+          await inlineValidation.textContent(),
+          require(`../locales/${language}/interface.json`).messages
+            .choose_a_response_for_every_invited_guest_and_session,
+        );
+        await page.waitForFunction((narrow) => {
+          const firstAnswer = document.querySelector("#rsvpRows input[value=attending]");
+          const inViewport = node => {
+            const { top, bottom } = node.getBoundingClientRect();
+            return top >= 0 && bottom <= innerHeight;
+          };
+          return document.activeElement === firstAnswer &&
+            inViewport(firstAnswer.closest("label")) &&
+            inViewport(document.getElementById("rsvpValidation")) &&
+            (!narrow || inViewport(document.getElementById("saveRsvp")));
+        }, width < 700);
+        const geometry = await inlineValidation.evaluate(warning => {
+          const focusedChoice = document.activeElement.closest("label");
+          const [first, second] = focusedChoice.closest(".response-options").querySelectorAll("label");
+          const warningBox = warning.getBoundingClientRect();
+          const firstBox = first.getBoundingClientRect();
+          const secondBox = second.getBoundingClientRect();
+          const style = getComputedStyle(focusedChoice);
+          const outline = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+          return {
+            leftDifference: warningBox.left - firstBox.left,
+            rightDifference: warningBox.right - secondBox.right,
+            gap: warningBox.top - Math.max(firstBox.bottom, secondBox.bottom),
+            outline,
+          };
+        });
+        assert.ok(Math.abs(geometry.leftDifference) <= 1, "the warning aligns with the first answer's left edge");
+        assert.ok(Math.abs(geometry.rightDifference) <= 1, "the warning aligns with the second answer's right edge");
+        assert.ok(geometry.outline > 0 && geometry.gap >= geometry.outline - 0.5,
+          "the warning stays below the answers and their keyboard focus ring");
+        assert.equal(await page.locator("#confirmRsvp").isVisible(), false);
+        assert.equal(await page.evaluate(() => window.__rsvpCalls.length), 0);
         await page.locator("#rsvpRows input[value=attending]").first().check();
+        assert.equal(await inlineValidation.isHidden(), true);
+        assert.equal(await page.locator("#guestStatus").isHidden(), true);
         const comment =
           'No nuts, please.\n<img src=x onerror="window.__unsafe=true">';
+        await page.locator("#rsvpCommentDisclosure summary").click();
         await page.locator("#rsvpComment").fill(comment);
         await page.locator("#saveRsvp").click();
         assert.equal(
@@ -65,6 +108,7 @@ fixtures.households[1].latest_rsvp_submission_id='new-submission';fixtures.rsvp_
         assert.equal(await page.locator("#rsvpCommentPreview img").count(), 0);
         await page.locator("#editRsvp").click();
         assert.equal(await page.locator("#rsvpComment").inputValue(), comment);
+        assert.equal(await inlineValidation.isHidden(), true);
         await page.locator("#saveRsvp").click();
         if (language === "en")
           await page.locator("#invitationCard").screenshot({
@@ -88,6 +132,7 @@ fixtures.households[1].latest_rsvp_submission_id='new-submission';fixtures.rsvp_
         );
         await page.goto(url + "/?ABCDEFGH");
         await page.locator("#rsvpCommentPreview").waitFor();
+        assert.equal(await inlineValidation.isHidden(), true);
         assert.equal(
           await page.locator("#rsvpCommentPreview p").textContent(),
           comment,
@@ -157,6 +202,11 @@ fixtures.households[1].latest_rsvp_submission_id='new-submission';fixtures.rsvp_
           (
             await page.locator("#foodReview .food-review-list").textContent()
           ).includes("2 × Nut-free cake"),
+        );
+        assert.equal(
+          await page.locator("#foodReviewTitle").evaluate(heading => document.activeElement === heading),
+          true,
+          "opening review transfers focus from the quantity field to the review heading",
         );
         assert(
           await page.evaluate(

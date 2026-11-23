@@ -18,6 +18,22 @@ const overviewTemplate={
 };
 const overviewRpc=client.rpc;
 client.rpc=async(name,a)=>{
+  if(name==='admin_invitation_activity'){
+    const household=fixtures.households.find(item=>item.id===a.p_household_id);
+    if(!household)return {data:null};
+    (window.__activityReads??=[]).push(a.p_household_id);
+    const activity=structuredClone(window.__activityFixture?.[a.p_household_id] || {
+      first_visited_at:household.first_visited_at??null,
+      last_visited_at:household.last_visited_at??null,
+      visit_count:household.visit_count??0,
+      invitation_loads:{first_at:null,last_at:null,count:0},
+    });
+    if(window.__holdActivityRead===a.p_household_id){
+      window.__holdActivityRead=null;
+      await new Promise(resolve=>window.__releaseActivityRead=resolve);
+    }
+    return {data:activity};
+  }
   if(name==='admin_save_delivery'){
     (window.__draftWrites??=[]).push(a);
     if(!['edit'].includes(window.__accessPermissions.sections.invites))return {error:{message:'Synthetic edit permission denied'}};
@@ -104,6 +120,144 @@ async function chooseInviteFilter(page, id, selected = []) {
   }
   const active = await filter.locator('button[data-value][aria-pressed="true"]').evaluateAll(nodes => nodes.map(node => node.dataset.value));
   for (const key of active) if (!selected.includes(key)) await filter.locator('button[data-value="' + key + '"]').click();
+}
+
+async function visibleSeenText(badge) {
+  return badge.evaluate(node => Array.from(node.childNodes)
+    .filter(child => !child.classList?.contains("sr-only"))
+    .map(child => child.textContent).join(""));
+}
+
+async function checkInvitationActivity(page) {
+  await selectOverviewTab(page, "invitation");
+  const { sentId, readyId, initialReads, households } = await page.evaluate(() => {
+    const store = window.__invitesStore;
+    return {
+      sentId: store.queue.find(item => item.id === "queue-sent").household_id,
+      readyId: store.queue.find(item => item.id === "queue-ready").household_id,
+      initialReads: window.__fetchCount,
+      households: structuredClone(store.households),
+    };
+  });
+  const openedAt = "2026-11-22T20:25:44.125Z";
+  const firstVisitedAt = "2026-11-22T21:25:44.125Z";
+  const lastVisitedAt = "2026-11-22T22:25:44.125Z";
+  const row = id => page.locator('[data-invite-household="' + id + '"]');
+  const fact = (id, name) => row(id).locator('[data-shortcut-fact="' + name + '"]');
+  const badge = (id, state) => row(id).locator('.invite-overview-delivery [data-invite-seen="' + state + '"]');
+  const toggle = id => row(id).locator(":scope > summary .invite-compact-name").click();
+  const statusCounts = () => Promise.all(["sent", "unseen", "seen"].map(state =>
+    page.locator('#inviteOverviewCounts [data-invite-filter="' + state + '"] b').textContent()));
+  const expectVisit = async (id, count, latestVisitAt) => {
+    await fact(id, "visits").filter({ hasText: new RegExp("^" + count + "$") }).waitFor();
+    const firstVisit = await fact(id, "first_visit").textContent();
+    const lastVisit = await fact(id, "last_visit").textContent();
+    assert.match(firstVisit, /2026/);
+    assert.match(lastVisit, /2026/);
+    const seen = badge(id, "seen");
+    assert.equal(await visibleSeenText(seen), lastVisit, "a seen row shows only the visit date");
+    assert.equal(await seen.locator("time").getAttribute("datetime"), latestVisitAt);
+    assert.equal((await seen.locator(".sr-only").textContent()).trim(), "Seen");
+    return { firstVisit, lastVisit };
+  };
+
+  assert.equal(await badge(readyId, "unseen").textContent(), "Not seen", "a Ready invitation shows its visit status before Marked sent");
+  if (!await row(sentId).evaluate(node => node.open)) await toggle(sentId);
+  assert.equal(await fact(sentId, "visits").textContent(), "0");
+  const submenus = row(sentId).locator(".invite-household-submenus");
+  await submenus.waitFor();
+  const geometry = await submenus.locator(":scope > details").evaluateAll(nodes => nodes.map(node => {
+    const { top, bottom, height } = node.getBoundingClientRect();
+    return { top, bottom, height };
+  }));
+  assert.equal(geometry.length, 3);
+  assert.ok(geometry.every(({ height }) => height > 0), "all Invitation submenus are visible");
+  assert.ok(geometry.slice(1).every(({ top }, index) =>
+    top >= geometry[index].bottom && top - geometry[index].bottom <= 8), "Invitation submenus sit close together");
+  await page.evaluate(id => { window.__holdActivityRead = id; }, sentId);
+  await toggle(sentId);
+  await toggle(sentId);
+  await page.waitForFunction(() => typeof window.__releaseActivityRead === "function");
+
+  await page.locator("#settingsToggle").click();
+  await page.evaluate(({ sentId, openedAt }) => {
+    window.__activityFixture = { [sentId]: {
+      first_visited_at: null, last_visited_at: null, visit_count: 0,
+      invitation_loads: { first_at: openedAt, last_at: openedAt, count: 1 },
+    } };
+    window.__logFixtures.unshift({
+      event_key: "opened:1", occurred_at: openedAt, category: "invitations", action: "opened",
+      household_id: sentId, household_name: "Example child", actor: "Guest", subject: "Invitation opened",
+      details: { recording: "Successful invitation load" },
+    });
+  }, { sentId, openedAt });
+  await page.locator("[data-settings-tab=logs]").click();
+  await page.locator('#logRows time[datetime="' + openedAt + '"]').waitFor();
+  const readsBeforeRaw = await page.evaluate(() => window.__activityReads.length);
+  await page.locator("#mainSectionToggle").click();
+  await page.waitForFunction(previous => window.__activityReads.length > previous, readsBeforeRaw);
+  assert.deepEqual(await row(sentId).locator("[data-shortcut-fact]").evaluateAll(nodes =>
+    nodes.map(node => node.dataset.shortcutFact)), ["first_visit", "last_visit", "visits", "rsvp"],
+  "the expanded household has a single set of visit fields and an RSVP status");
+  assert.equal(await fact(sentId, "first_visit").textContent(), "Not yet");
+  assert.equal(await fact(sentId, "last_visit").textContent(), "Not yet");
+  assert.equal(await fact(sentId, "visits").textContent(), "0", "a raw link load is not a qualified visit");
+  assert.equal(await badge(sentId, "unseen").textContent(), "Not seen");
+  assert.deepEqual(await statusCounts(), ["1", "2", "0"], "Not seen covers both Ready and sent rows that have no visit");
+
+  await page.locator("#settingsToggle").click();
+  await page.evaluate(({ sentId, firstVisitedAt, lastVisitedAt }) => {
+    Object.assign(window.__activityFixture[sentId], {
+      first_visited_at: firstVisitedAt, last_visited_at: lastVisitedAt, visit_count: 2,
+    });
+  }, { sentId, firstVisitedAt, lastVisitedAt });
+  await page.locator("#mainSectionToggle").click();
+  const { firstVisit, lastVisit } = await expectVisit(sentId, 2, lastVisitedAt);
+  assert.notEqual(lastVisit, firstVisit, "the badge uses the latest qualifying visit");
+  await page.evaluate(async () => {
+    window.__releaseActivityRead();
+    delete window.__releaseActivityRead;
+    await new Promise(resolve => requestAnimationFrame(resolve));
+  });
+  assert.equal(await fact(sentId, "last_visit").textContent(), lastVisit, "an older lookup cannot replace the latest visit");
+  assert.equal(await fact(sentId, "rsvp").textContent(), "Awaiting reply");
+  assert.deepEqual(await statusCounts(), ["1", "1", "1"], "a fresh sent visit moves it from Not seen to Seen");
+  const summary = page.locator("#inviteSeenSummary");
+  assert.equal(await summary.textContent(), "1 sent · 1 not seen · 1 seen");
+
+  await toggle(sentId);
+  const readyFilter = page.locator('[data-invite-filter="ready"]');
+  await readyFilter.click();
+  if (!await row(readyId).evaluate(node => node.open)) await toggle(readyId);
+  assert.equal(await fact(readyId, "visits").textContent(), "0");
+  const current = row(readyId).locator('[data-invite-delivery-submenu="current"]');
+  const currentWasOpen = await current.evaluate(node => node.open);
+  if (!currentWasOpen) await current.locator(":scope > summary").click();
+  await current.evaluate(node => { window.__openReadyBeforeVisit = node; });
+  await page.evaluate(({ readyId, firstVisitedAt }) => {
+    window.__activityFixture[readyId] = {
+      first_visited_at: firstVisitedAt, last_visited_at: firstVisitedAt, visit_count: 1,
+    };
+    window.__invitesTestView.refreshInvitationActivity();
+  }, { readyId, firstVisitedAt });
+  await expectVisit(readyId, 1, firstVisitedAt);
+  assert.deepEqual(await statusCounts(), ["1", "0", "2"], "a Ready visit moves to Seen without increasing Sent");
+  assert.equal(await summary.textContent(), "0 sent · 0 not seen · 1 seen", "the summary updates for the current Ready filter");
+  assert.equal(await readyFilter.getAttribute("aria-pressed"), "true");
+  assert.equal(await current.evaluate(node => node.open && node === window.__openReadyBeforeVisit), true,
+    "refreshing the Ready visit keeps the open invitation content in place");
+  assert.equal(await page.evaluate(() => window.__fetchCount), initialReads, "activity refresh does not reload the dashboard");
+
+  if (!currentWasOpen) await current.locator(":scope > summary").click();
+  await toggle(readyId);
+  await readyFilter.click();
+  await page.evaluate(({ households, openedAt }) => {
+    window.__invitesStore.households = households;
+    delete window.__activityFixture;
+    delete window.__openReadyBeforeVisit;
+    window.__logFixtures = window.__logFixtures.filter(entry => entry.occurred_at !== openedAt);
+    window.__invitesTestView.render();
+  }, { households, openedAt });
 }
 
 async function checkBulkDraftGeneration(page) {
@@ -544,7 +698,7 @@ async function checkOverviewFilters(page) {
   const top=page.locator('[data-invite-group="top:'+seed.sideB+'"]');
   assert.equal(await relation.locator('ul ul [data-invite-group="relation:group:related-a"]').count(),1,'scoped relationship is nested beneath its planning group');
   assert.deepEqual(await page.locator('#inviteOverviewCounts [data-invite-filter] > span').allTextContents(),
-    ['No drafts','Review','Ready','Sent','Waiting Reply','Replied']);
+    ['No drafts','Review','Ready','Sent','Not seen','Seen','Waiting Reply','Replied']);
   assert.deepEqual(await page.locator('#inviteAttendanceCounts b').allTextContents(),['1','1','2'],'counts refer to guest/session answers');
   assert.match(await page.locator('#statsGrid [data-overview-card="households"] .overview-people-breakdown').innerText(), /\d+ Adults · \d+ Children/);
   const sessions = page.locator('#inviteSessionTree details');
@@ -563,16 +717,21 @@ async function checkOverviewFilters(page) {
   await second.click();
   assert.deepEqual(await rows(),all,'repeating a session selection returns to all sessions');
   const groupTrees=page.locator('#inviteGroupTrees details');
-  assert.deepEqual(await groupTrees.evaluateAll(nodes=>nodes.map(node=>node.open)),[false,false]);
-  await groupTrees.locator('summary').first().click();
+  const topTree=page.locator('[data-invite-group-tree="top"]');
+  assert.deepEqual(await groupTrees.evaluateAll(nodes=>nodes.map(node=>node.open)),[true,false],
+    'Top-level groups starts expanded and Relational groups stays collapsed');
   await relation.locator('summary').click();
   await scoped.click();assert.deepEqual(await rows(),[seed.sent]);
   await shared.click();assert.deepEqual(await rows(),all,'selected relational groups combine');
   await top.click();assert.deepEqual(await rows(),[seed.ready],'top-level and relational group choices intersect');
   await top.click();assert.deepEqual(await rows(),all,'pressing an active group clears that choice');
   await scoped.click();await shared.click();
+  await topTree.locator('summary').click();
   await attend.click();assert.deepEqual(await rows(),[seed.sent]);
+  assert.equal(await topTree.evaluate(node=>node.open),false,'a manually collapsed Top-level groups tree stays collapsed after rerender');
   assert.equal(await attend.evaluate(button=>button===document.activeElement),true,'attendance filter keeps focus after rerender');
+  await topTree.locator('summary').click();
+  assert.equal(await topTree.evaluate(node=>node.open),true);
   await decline.click();assert.deepEqual(await rows(),[seed.sent],'mixed households can match either RSVP answer');
   await pending.click();assert.deepEqual(await rows(),[seed.ready],'unanswered only matches an invited session without a response');
   await pending.click();assert.deepEqual(await rows(),all,'pressing the active attendance filter restores all rows');
@@ -600,6 +759,83 @@ async function checkOverviewFilters(page) {
   await page.evaluate(records=>{window.__invitesStore.relationGroups=records;window.__invitesTestView.render();},seed.prior.relationGroups);
 }
 
+async function checkSeenPresentation(page) {
+  await selectOverviewTab(page, "invitation");
+  const seed = await page.evaluate(() => {
+    const store = window.__invitesStore;
+    const { households, guests, queue } = store;
+    const [sentUnseen, readySeen] = ["queue-sent", "queue-ready"].map(id => queue.find(item => item.id === id).household_id);
+    const unsentSeen = households.find(household => !household.invite_code).id;
+    const readyUnseen = crypto.randomUUID();
+    const unprepared = crypto.randomUUID();
+    const visitAt = "2026-11-22T21:25:44.125Z";
+    const visit = { first_visited_at: visitAt, last_visited_at: visitAt, visit_count: 1 };
+    store.households = [
+      ...households.map(household => {
+        if (household.id === sentUnseen) return { ...household, visit_count: 0 };
+        return { ...household, ...visit, ...(household.id === unsentSeen ? { invite_code: "SYNTHABC", last_visited_at: null } : {}) };
+      }),
+      { id: readyUnseen, household_name: "Synthetic Ready household", language: "en", invite_code: "SYNTH2BC", visit_count: 0 },
+      { id: unprepared, household_name: "Synthetic unprepared household", language: "en", visit_count: 0 },
+    ];
+    store.guests = [...guests, ...[unsentSeen, readyUnseen, unprepared].map(id =>
+      ({ id: crypto.randomUUID(), household_id: id, first_name: "Synthetic guest" }))];
+    store.queue = [...queue, {
+      ...queue.find(item => item.id === "queue-ready"), id: "queue-ready-unseen", household_id: readyUnseen,
+    }];
+    window.__invitesTestView.render();
+    return { prior: { households, guests, queue }, sentUnseen, readySeen, unsentSeen, readyUnseen, unprepared, visitAt };
+  });
+  const filter = state => page.locator('#inviteOverviewCounts [data-invite-filter="' + state + '"]');
+  const row = id => page.locator('#inviteRows [data-invite-household="' + id + '"]');
+  const rows = () => page.locator('#inviteRows [data-invite-household]').evaluateAll(nodes => nodes.map(node => node.dataset.inviteHousehold).sort());
+  const summary = page.locator('.invite-heading-title #inviteSeenSummary');
+  const all = [seed.sentUnseen, seed.readySeen, seed.unsentSeen, seed.readyUnseen, seed.unprepared].sort();
+  assert.deepEqual(await Promise.all(["sent", "unseen", "seen"].map(state => filter(state).locator("b").textContent())),
+    ["1", "2", "2"], "Seen and Not seen count qualifying rows independently of the Sent total");
+  assert.equal(await summary.innerText(), "1 sent · 2 not seen · 2 seen");
+  const offsets = await Promise.all(["sent", "unseen", "seen"].map(state =>
+    filter(state).locator("span").evaluate(node => node.getBoundingClientRect().left)));
+  assert.equal(new Set(offsets).size, 1, "Sent, Not seen and Seen are peer rows with aligned labels");
+  const delivery = row(seed.unsentSeen).locator(".invite-overview-delivery");
+  assert.equal(await delivery.locator(".invite-copy-options").innerText(), "Not sent");
+  const seen = delivery.locator('[data-invite-seen="seen"]');
+  const visitTime = delivery.locator("time");
+  assert.equal(await visitTime.getAttribute("datetime"), seed.visitAt);
+  assert.equal(await visibleSeenText(seen), await visitTime.innerText(),
+    "seen rows show the formatted visit date without a visual Seen prefix");
+  assert.match(await visitTime.innerText(), /2026/);
+  assert.ok(await seen.evaluate(node => node.getBoundingClientRect().top >=
+    node.parentElement.querySelector(".invite-copy-options").getBoundingClientRect().bottom), "the visit date is below the invitation controls");
+  assert.equal(await row(seed.sentUnseen).locator('[data-invite-seen="unseen"]').innerText(), "Not seen");
+  assert.equal(await row(seed.readyUnseen).locator('[data-invite-seen="unseen"]').innerText(), "Not seen");
+  assert.equal(await visibleSeenText(row(seed.readySeen).locator('[data-invite-seen="seen"]')), await visitTime.innerText());
+  assert.equal(await row(seed.unprepared).locator("[data-invite-seen]:visible").count(), 0);
+
+  await filter("seen").click();
+  assert.deepEqual(await rows(), [seed.readySeen, seed.unsentSeen].sort(), "Seen includes both a Ready and an unmarked invitation");
+  assert.equal(await filter("seen").getAttribute("aria-pressed"), "true");
+  assert.equal(await summary.innerText(), "0 sent · 0 not seen · 2 seen");
+  await filter("seen").click();
+  assert.deepEqual(await rows(), all);
+  await filter("unseen").click();
+  assert.deepEqual(await rows(), [seed.sentUnseen, seed.readyUnseen].sort());
+  assert.equal(await summary.innerText(), "1 sent · 2 not seen · 0 seen");
+  await filter("unseen").click();
+  await filter("sent").click();
+  assert.deepEqual(await rows(), [seed.sentUnseen], "Sent still requires explicitly recording delivery");
+  assert.equal(await summary.innerText(), "1 sent · 1 not seen · 0 seen");
+  await filter("sent").click();
+  await chooseInviteFilter(page, "inviteLanguageFilter", ["fo"]);
+  assert.deepEqual(await rows(), [seed.sentUnseen, seed.unsentSeen].sort());
+  assert.equal(await summary.innerText(), "1 sent · 1 not seen · 1 seen", "summary reflects the current language filter");
+  await chooseInviteFilter(page, "inviteLanguageFilter");
+  await page.evaluate(prior => {
+    Object.assign(window.__invitesStore, prior);
+    window.__invitesTestView.render();
+  }, seed.prior);
+}
+
 async function checkRowsPresentation(page) {
   const fields=page.locator('#inviteShownFieldsHost .invite-shown-fields');
   const toggle=async key=>{if(!await fields.evaluate(node=>node.open))await fields.locator('summary').click();await fields.locator('[data-value="'+key+'"]').click();};
@@ -625,7 +861,7 @@ async function checkRowsPresentation(page) {
   const heading=()=>page.locator('#inviteRows .invite-overview-heading > span:not(.invite-overview-select)').allTextContents();
   assert.equal(await page.locator('#inviteRows').getAttribute('data-rows'),'1');
   assert.deepEqual(await heading(),['Household','Household info','Recipient','Service','Invitation','Last sent','RSVP','RSVP info','Food interest','Actions'],'one row keeps all secondary details in separate columns');
-  assert.equal(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta,#inviteRows .invite-overview-recipient small,#inviteRows .invite-overview-delivery small,#inviteRows .invite-overview-reply small').count(),0,'one row has no nested secondary details');
+  assert.equal(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta,#inviteRows .invite-overview-recipient small,#inviteRows .invite-overview-delivery small:not([data-invite-seen]),#inviteRows .invite-overview-reply small').count(),0,'one row has no nested optional details');
   assert.match((await page.locator('#inviteRows .invite-overview-last-sent').allTextContents()).join(' '),/2026/);
   assert.match((await page.locator('#inviteRows .invite-overview-reply-info').allTextContents()).join(' '),/0 \/ [1-9]\d* responses/);
   for(const text of await page.locator('#inviteRows .invite-copy-recipient .invite-copy-pill').allTextContents())assert.match(text,/^(Messages|Email|WhatsApp|SMS|None)$/,'one-row service info omits numbers and email addresses');
@@ -712,7 +948,7 @@ async function checkGroupingPreservation(page) {
   assert.deepEqual(await state(),before,'changing grouping preserves captured rows and delivery/write state');
   assert.ok(await page.locator('#inviteRows .invite-overview-group[data-invite-service]').count()>0);
   assert.equal(await page.locator('#inviteRows [data-invite-household]').evaluateAll(nodes=>new Set(nodes.map(n=>n.dataset.inviteHousehold)).size===nodes.length),true,'service grouping never duplicates rows');
-  assert.equal(await page.locator('#inviteRows .invite-overview-group').evaluateAll(groups=>groups.every(n=>parseFloat(getComputedStyle(n).borderTopWidth)>0&&parseFloat(getComputedStyle(n).borderRadius)>0)),true,'service groups have outlined containers');
+  assert.equal(await page.locator('#inviteRows .invite-overview-group').evaluateAll(groups=>groups.every(n=>parseFloat(getComputedStyle(n).borderTopWidth)>0&&parseFloat(getComputedStyle(n).borderBottomLeftRadius)>0)),true,'service groups have outlined containers');
   const copied=await page.evaluate(()=>{window.__groupCopies=[];window.__groupClipboardBefore=Object.getOwnPropertyDescriptor(navigator,'clipboard');Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>window.__groupCopies.push(text)}});return true;});
   assert.equal(copied,true);
   const row=page.locator('[data-invite-household="'+ready.household_id+'"]'),open=await row.evaluate(node=>node.open);
@@ -1245,12 +1481,30 @@ async function checkManualInvitations(page) {
       if(width>1000)assert.equal(geometry.foodAfterReply,true,'Food follows RSVP horizontally in the wide view');
       assert.equal(geometry.overflow,false,'summary stays within its width');
       assert.deepEqual(await page.locator('.invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Recipient','Service','Invitation','Last sent','RSVP','Food interest','Actions']);
-      if (width > 1000) assert.equal(await page.evaluate(() => {
-        const labels=[...document.querySelectorAll('.invite-overview-heading > span')], cells=[...document.querySelector('.invite-household > summary').children];
-        return cells.every((cell,i)=>Math.abs(cell.getBoundingClientRect().left-labels[i].getBoundingClientRect().left)<3);
-      }),true,'column headings align with their cells');
+      if (width > 1000) {
+        assert.equal(await page.evaluate(() => {
+          const labels=[...document.querySelectorAll('.invite-overview-heading > span')], cells=[...document.querySelector('.invite-household > summary').children];
+          return cells.every((cell,i)=>Math.abs(cell.getBoundingClientRect().left-labels[i].getBoundingClientRect().left)<3);
+        }),true,'column headings align with their cells');
+        const header = await page.locator(".invite-overview-heading").evaluate(node => {
+          const style = getComputedStyle(node);
+          const firstGroup = node.parentElement.querySelector(".invite-overview-group");
+          return {
+            topBorder: parseFloat(style.borderTopWidth),
+            groupGap: firstGroup.getBoundingClientRect().top - node.getBoundingClientRect().bottom,
+          };
+        });
+        assert.ok(header.topBorder >= 1, "the invitation columns have a top divider");
+        assert.ok(header.groupGap >= 0 && header.groupGap < 10, "the first invitation group sits close below the column headings");
+      }
       if(process.env.RSVP_INVITE_PREVIEW_DIR){fs.mkdirSync(process.env.RSVP_INVITE_PREVIEW_DIR,{recursive:true});await page.locator('#inviteRows').screenshot({path:path.join(process.env.RSVP_INVITE_PREVIEW_DIR,`invites-${width}.png`)});}
-      if(width===1440){await checkOverviewFilters(page);await checkRowsPresentation(page);await checkGroupingPreservation(page);}
+      if (width === 1440) {
+        await checkInvitationActivity(page);
+        await checkOverviewFilters(page);
+        await checkSeenPresentation(page);
+        await checkRowsPresentation(page);
+        await checkGroupingPreservation(page);
+      }
       await page.locator("#settingsToggle").click();
       assert.equal(
         await page
@@ -1447,7 +1701,7 @@ async function checkManualInvitations(page) {
       await page.close();
     }
     console.log(
-      "PASS Invites overview: visible select-all and count, Draft-only generation, mixed-selection drafting and readiness, responsive filters, exact Invitation clipboard content and fallback, individual Review, guarded manual Sent, partial recovery and preserved history.",
+      "PASS Invites overview: visible select-all and count, separate link loads and qualified visits, Draft-only generation, mixed-selection drafting and readiness, responsive filters, exact Invitation clipboard content and fallback, individual Review, guarded manual Sent, partial recovery and preserved history.",
     );
   } finally {
     await browser.close();

@@ -56,11 +56,11 @@ Invites read access.
 ## Invitation visits
 
 Expand any household to see first visit, most recent visit and count, even if it
-has no Shortcuts batch. Visits do not submit or confirm RSVP. Administrator
-previews are excluded; qualifying visible browser visits are deduplicated using
-the existing server rules. Stored timestamps remain UTC and display using the
-administrator's time settings. Earlier raw link loads are not converted into
-qualified visits.
+has no Shortcuts batch. The visit count records qualifying visible browser
+visits, with administrator previews excluded and repeat visits grouped.
+**Invitation opened** in Logs records link loads separately, grouped within
+15 minutes. RSVP is recorded separately. Timestamps use the administrator’s
+time settings.
 
 ## Local HTTP installations
 

@@ -22,9 +22,11 @@ const server=http.createServer((req,res)=>{
 const extra=`
 const originalFrom=client.from;client.from=function(name){const query=originalFrom.call(this,name);query.upsert=async(rows,options)=>{if(name!=='event_content')throw Error('Unexpected mutation '+name);window.__contentSave={rows,options};fixtures.event_content=rows;return {error:null};};return query;};
 fixtures.event_languages=['fo','en','de'].map((language_code,i)=>({language_code,display_name:language_code,enabled:true,sort_order:i+1}));
+fixtures.event_languages.push({language_code:'sv',display_name:'Svenska',enabled:false,sort_order:4});
 fixtures.households[0].household_name='Food';fixtures.guests[0].first_name='Settings';
-client.functions={invoke:async(name,request)=>{const action=request.body.action;if(action==='get_invitation_v2')return {data:{eventData:{event:{event_name:'Settings',default_language:'fo',event_date:'2027-02-20',timezone:'Europe/Berlin',food_enabled:true,food_stage:'selection'},content:{de:'Unser Fest',fo:'Okkara veitsla'},sessions:[{id:s1,name:'Food'}],locations:[],translations:[]},household:{name:'Food',language:'fo',rsvp_state:'open'},guests:[{id:'g',first_name:'Settings'}],invitations:[{guest_id:'g',session_id:s1,requires_rsvp:true}]}};if(action==='get_household_food')return {data:{stage:'selection',interest:true,items:[{id:'dish',name_en:'Food',quantity_needed:5,claimed_total:0}],claims:[]}};return {error:null};}};
-const originalRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_save_translation'){fixtures.event_content=fixtures.event_content.filter(c=>c.content_key!==args.p_key||c.language_code!==args.p_language);fixtures.event_content.push({content_key:args.p_key,language_code:args.p_language,content_value:args.p_value});return {data:null};}return name.startsWith('get_public_event')?{data:{event:{event_name:'Settings',default_language:'fo',event_date:'2027-02-20',timezone:'Europe/Berlin'},content:{de:'Unser Fest',fo:'Okkara veitsla'},sessions:[{id:s1,name:'Food'}]}}:originalRpc(name,args);};
+const invitationLanguages={JKLMNPQR:{id:h1,language:'de'},MNPRSTUV:{id:h3,language:'de'},RSTUVWXY:{id:'40000000-0000-4000-8000-000000000001',language:'sv'}};
+client.functions={invoke:async(name,request)=>{const action=request.body.action;if(action==='get_invitation_v2')return {data:{eventData:{event:{event_name:'Settings',default_language:'fo',event_date:'2027-02-20',timezone:'Europe/Berlin',food_enabled:true,food_stage:'selection'},content:{de:'Unser Fest',fo:'Okkara veitsla'},sessions:[{id:s1,name:'Food'}],locations:[],translations:[]},household:{id:h2,name:'Food',language:'fo',rsvp_state:'open',...invitationLanguages[request.body.args.p_code]},guests:[{id:'g',first_name:'Settings'}],invitations:[{guest_id:'g',session_id:s1,requires_rsvp:true}]}};if(action==='get_household_food')return {data:{stage:'selection',interest:true,items:[{id:'dish',name_en:'Food',quantity_needed:5,claimed_total:0}],claims:[]}};return {error:null};}};
+const originalRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='get_language_configuration')return {data:{languages:fixtures.event_languages,default_language:'fo',fallback_language:'en',translations:fixtures.event_content}};if(name==='admin_save_translation'){fixtures.event_content=fixtures.event_content.filter(c=>c.content_key!==args.p_key||c.language_code!==args.p_language);fixtures.event_content.push({content_key:args.p_key,language_code:args.p_language,content_value:args.p_value});return {data:null};}return name.startsWith('get_public_event')?{data:{event:{event_name:'Settings',default_language:'fo',event_date:'2027-02-20',timezone:'Europe/Berlin'},content:{de:'Unser Fest',fo:'Okkara veitsla'},sessions:[{id:s1,name:'Food'}]}}:originalRpc(name,args);};
 `;
 async function run(browserType){
  const browser=await browserType.launch({headless:true});
@@ -80,6 +82,22 @@ async function run(browserType){
    assert.equal(await page.locator('#inviteCode').getAttribute('placeholder'),catalog['Invitation code'].de);
    assert.equal(await page.locator('.guest-food-choice>button').textContent(),'Food');
    assert.equal(await page.locator('#foodList input[type=number]').count(),1);assert.equal(await page.locator('#foodList input[type=number]').getAttribute('aria-label'),catalog['Quantity for {item}'].de.replace('{item}','Food'));
+   if(lang==='en'){
+    assert.equal(await page.evaluate(()=>localStorage.getItem('rsvp-interface-language')),'en','guest language choice does not change organizer preference');
+    async function openInvitation(code,expectedLanguage){
+     await page.goto(base+'/?='+code);
+     await page.waitForFunction(expected=>document.documentElement.lang===expected&&document.querySelector('#rsvpRows input[value=attending]'),expectedLanguage);
+     const label=expectedLanguage==='en'?'Attending':catalog.Attending[expectedLanguage];
+     await page.locator('#rsvpRows').getByText(label,{exact:true}).waitFor();
+    }
+    await openInvitation('JKLMNPQR','de');
+    await page.locator('#languageSwitcher [data-language="en"]').click();
+    await page.locator('#rsvpRows').getByText('Attending',{exact:true}).waitFor();
+    await openInvitation('JKLMNPQR','en');
+    await openInvitation('MNPRSTUV','de');
+    await openInvitation('RSTUVWXY','fo');
+    assert.equal(await page.locator('#languageSwitcher [data-language="sv"]').count(),0);
+   }
    assert.deepEqual(errors,[]);await page.close();
   }
   const ipad=await browser.newPage({viewport:{width:1024,height:768},hasTouch:true});
@@ -103,7 +121,7 @@ async function run(browserType){
   fs.mkdirSync('artifacts',{recursive:true});
   await ipad.screenshot({path:'artifacts/json-languages-ipad-'+browserType.name()+'.png',fullPage:true});
   await ipad.close();
-  console.log('PASS '+browserType.name()+': FO/EN/DE admin, setup, guest, welcome saves, safe custom text, placeholders, mobile layout and retained RSVP answers');
+  console.log('PASS '+browserType.name()+': FO/EN/DE admin, setup, household invitation language, scoped guest choices, welcome saves, safe custom text, placeholders, mobile layout and retained RSVP answers');
  }finally{await browser.close();}
 }
 (async()=>{await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));try{await run(chromium);if(process.env.RSVP_TEST_BROWSER!=='chromium')await run(webkit);}finally{server.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

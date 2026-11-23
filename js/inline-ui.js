@@ -223,6 +223,11 @@
     get: key => open.get(key),
     reconcile(can) {
       for (const [key, dialog] of open) {
+        const section = dialog.dataset.assignmentSection;
+        if (section && (!can("venues", "edit") || !can(section, "edit"))) {
+          dialog.close();
+          continue;
+        }
         if ((key.startsWith("food-") && dialog.dataset.permissionEdit === "true" && !can("languages", "edit")) || ((key.startsWith("invitation-delivery:") || key.startsWith("template-choice:")) && !can("invites", "edit"))) dialog.close();
       }
     },

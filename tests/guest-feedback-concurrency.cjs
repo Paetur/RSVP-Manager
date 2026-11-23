@@ -418,8 +418,39 @@ async function waitBlocked(db, pid) {
       ),
       3,
     );
+    const responseHousehold = await value(
+      "INSERT INTO public.households(household_name,language,planning_group_id,food) VALUES('Joint response','en','general',true) RETURNING id v",
+    );
+    const responseGuest = await value(
+      "INSERT INTO public.guests(household_id,first_name) VALUES($1,'Guest') RETURNING id v",
+      [responseHousehold],
+    );
+    const responseSession = await value(
+      "INSERT INTO public.event_sessions(session_key,name) VALUES('shared_response','Shared response') RETURNING id v",
+    );
+    await db.query("INSERT INTO public.household_session_defaults VALUES($1,$2,true)", [responseHousehold, responseSession]);
+    const responseCode = await value("SELECT invite_code v FROM public.households WHERE id=$1", [responseHousehold]);
+    const submit = (client) => client.query("SELECT public.submit_household_response($1,$2,$3,NULL,false) v", [
+      responseCode,
+      "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      JSON.stringify([{ guest_id: responseGuest, session_id: responseSession, status: "attending" }]),
+    ]);
+    await left.query("BEGIN");
+    const firstResponse = (await submit(left)).rows[0].v;
+    const duplicateResponse = submit(right);
+    try {
+      await waitBlocked(db,pid);
+    } finally {
+      await left.query("COMMIT");
+    }
+    const retryResponse = (await duplicateResponse).rows[0].v;
+    assert.equal(firstResponse.rsvp.already_processed,false);
+    assert.equal(retryResponse.rsvp.already_processed,true);
+    assert.equal(retryResponse.rsvp.submission_id,firstResponse.rsvp.submission_id);
+    assert.equal(retryResponse.food.interest,false);
+    assert.equal(await value("SELECT count(*)::integer v FROM public.rsvp_submissions WHERE household_id=$1", [responseHousehold]),1);
     console.log(
-      "PASS real PostgreSQL: competing group capacity, atomic loser rollback, regroup/reservation and menu-stage locking, companion retries, concurrent household limit, archive/reservation lock ordering, category cycle prevention and multi-unit capacity",
+      "PASS real PostgreSQL: competing food capacity and rollback, food stage/reservation/archive locks, companion retries and limits, category cycle prevention, and exactly one combined response under concurrent retry",
     );
   } finally {
     if (leftConnected) {

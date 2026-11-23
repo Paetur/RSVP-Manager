@@ -1,4 +1,4 @@
-// Generated Studio entrypoint for RSVP Manager 0.9.0-beta.6.
+// Generated Studio entrypoint for RSVP Manager 0.9.0-beta.7.
 // Paste the COMPLETE file into index.ts for guest-gateway.
 // Set the function JWT verification toggle to OFF; this handler validates requests itself.
 // Source hashes and version are recorded in manifest.json. Do not edit generated files.
@@ -96,7 +96,7 @@ export async function readLimitedBody(request, maxBytes) {
 const allowedOrigin = siteOrigin(Deno.env.get("RSVP_SITE_ORIGIN"));
 const allowed = new Set([
   "set_household_food_interest", "add_household_guest", "set_household_food_group", "get_invitation_v2", "get_household_food", "set_household_food_claim",
-  "confirm_household_food", "submit_household_rsvp", "acknowledge_household_visit"
+  "confirm_household_food", "submit_household_rsvp", "submit_household_response", "acknowledge_household_visit"
 ]);
 const codePattern = /^[A-HJ-NP-Z2-9]{8}$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -130,11 +130,15 @@ function requestValid(action: string, args: Record<string, unknown>) {
       && Number.isInteger(args.p_quantity) && (args.p_quantity as number) >= 0 && (args.p_quantity as number) <= 1000
       && (args.p_notes == null || (typeof args.p_notes === "string" && args.p_notes.length <= 500));
   }
-  if (action === "submit_household_rsvp") {
-    return (keys === "p_code,p_request_id,p_responses" || keys === "p_code,p_comment,p_request_id,p_responses")
+  if (action === "submit_household_rsvp" || action === "submit_household_response") {
+    const combined = action === "submit_household_response";
+    const validKeys = combined
+      ? keys === "p_code,p_comment,p_food_interest,p_request_id,p_responses" && typeof args.p_food_interest === "boolean"
+      : keys === "p_code,p_request_id,p_responses" || keys === "p_code,p_comment,p_request_id,p_responses";
+    return validKeys
       && (args.p_comment == null || (typeof args.p_comment === "string" && args.p_comment.length <= 2000))
       && typeof args.p_request_id === "string" && uuidPattern.test(args.p_request_id)
-      && Array.isArray(args.p_responses) && args.p_responses.length <= 100
+      && Array.isArray(args.p_responses) && args.p_responses.length <= 100 && (!combined || args.p_responses.length > 0)
       && args.p_responses.every((x: unknown) => {
         if (!x || typeof x !== "object" || Array.isArray(x)) return false;
         const r = x as Record<string, unknown>;

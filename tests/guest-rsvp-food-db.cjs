@@ -399,6 +399,57 @@ async function setup() {
       /permission denied/,
     );
     await db.exec("RESET ROLE");
+    const jointHousehold = await v(
+      "INSERT INTO public.households(household_name,planning_group_id,language,food) VALUES('Joint response','general','en',false) RETURNING id v",
+    );
+    const jointGuest = await v(
+      "INSERT INTO public.guests(household_id,first_name) VALUES($1,'Joint guest') RETURNING id v",
+      [jointHousehold],
+    );
+    await db.query("INSERT INTO public.household_session_defaults VALUES($1,$2,true)", [jointHousehold, sid]);
+    const jointCode = await v("SELECT invite_code v FROM public.households WHERE id=$1", [jointHousehold]);
+    const jointAnswers = [{ guest_id: jointGuest, session_id: sid, status: "declined" }];
+    const jointRequest = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const submitJoint = (interest = false, responses = jointAnswers) => v(
+      "SELECT public.submit_household_response($1,$2,$3,$4,$5) v",
+      [jointCode, jointRequest, responses, "Shared review", interest],
+    );
+    const availability = async () => (await v("SELECT public.get_invitation_v2($1) v", [jointCode])).household.can_submit_rsvp;
+    const jointRows = () => v(`SELECT jsonb_build_object(
+      'state',h.rsvp_state,'food',h.food_interest,
+      'submissions',(SELECT count(*) FROM public.rsvp_submissions s WHERE s.household_id=h.id),
+      'audit',(SELECT count(*) FROM public.rsvp_household_audit a WHERE a.household_id=h.id)
+    ) v FROM public.households h WHERE h.id=$1`, [jointHousehold]);
+    for (const role of ["anon", "authenticated"]) {
+      await db.exec("SET ROLE " + role);
+      await assert.rejects(() => submitJoint(), /permission denied/);
+      await db.exec("RESET ROLE");
+    }
+    await db.exec("SET ROLE service_role");
+    assert.equal(await v("SELECT public.guest_gateway_allow_request($1,$2,'submit_household_response') v", ["a".repeat(64), jointCode]), true);
+    await assert.rejects(() => submitJoint(), /Food answer unavailable/);
+    await db.exec("RESET ROLE");
+    assert.deepEqual(await jointRows(), { state: "open", food: null, submissions: 0, audit: 0 });
+
+    await db.exec("UPDATE public.event_settings SET food_stage='interest',rsvp_deadline=now()-interval '1 day' WHERE id=1");
+    assert.equal(await availability(), false);
+    await assert.rejects(() => submitJoint(), /RSVP deadline passed/);
+    await db.query("UPDATE public.households SET late_submission_until=now()+interval '1 day' WHERE id=$1", [jointHousehold]);
+    assert.equal(await availability(), true);
+    await assert.rejects(() => submitJoint(false, answers), /Incomplete or unauthorized/);
+    assert.deepEqual(await jointRows(), { state: "open", food: null, submissions: 0, audit: 0 });
+    await db.exec("SET ROLE service_role");
+    const joint = await submitJoint();
+    assert.equal(joint.rsvp.already_processed, false);
+    assert.equal(joint.food.interest, false);
+    const replay = await submitJoint();
+    assert.equal(replay.rsvp.already_processed, true);
+    assert.equal(replay.rsvp.submission_id, joint.rsvp.submission_id);
+    await assert.rejects(() => submitJoint(true), /different answers/);
+    await db.exec("RESET ROLE");
+    assert.equal(await availability(), false);
+    assert.deepEqual(await jointRows(), { state: "locked", food: false, submissions: 1, audit: 1 });
+
     await db.query(
       "INSERT INTO auth.users VALUES('22222222-2222-4222-8222-222222222222','other@example.invalid',now(),'unused')",
     );

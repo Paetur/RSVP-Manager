@@ -11,9 +11,24 @@ const server=http.createServer((req,res)=>{
  if(!file.startsWith(root+path.sep)||!fs.existsSync(file)){res.writeHead(404);res.end();return;}
  res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css'}[path.extname(file)]||'text/plain')+';charset=utf-8');res.end(path.extname(file)==='.html'?fs.readFileSync(file,'utf8').replace(/ integrity="[^"]+"/g,''):fs.readFileSync(file));
 });
+async function assertAssignmentModal(dialog, workspace, originalHeight) {
+ const presentation=await dialog.evaluate(node=>{
+   const {left,top,right,bottom}=node.getBoundingClientRect();
+   return {
+     modal:node.matches(':modal'),
+     bodyOwned:node.parentElement===document.body,
+     focusInside:node.contains(document.activeElement),
+     fitsViewport:left>=0&&top>=0&&right<=innerWidth+1&&bottom<=innerHeight+1,
+   };
+ });
+ assert.deepEqual(presentation,{modal:true,bodyOwned:true,focusInside:true,fitsViewport:true});
+ if(originalHeight!==undefined)assert.equal(await workspace.evaluate(node=>node.offsetHeight),originalHeight,'opening the assignment popup does not resize the venue workspace');
+}
 async function run(type){const browser=await type.launch({headless:true});try{
  const page=await browser.newPage({viewport:{width:820,height:1180}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.addInitScript(()=>localStorage.setItem('rsvp-interface-language','en'));
+ await page.addInitScript(()=>{
+   if(window===window.top)localStorage.setItem('rsvp-interface-language','en');
+ });
  const extra=`fixtures.event_content.push({content_key:'venue:venue-1:welcome',language_code:'fo',content_value:'Vælkomin í høllina'});fixtures.event_sessions[0].description='Meet before dinner';fixtures.event_sessions[0].location_id='venue-1';fixtures.event_locations=[{id:'venue-1',name:'Main hall',welcome_en:'Welcome to the hall',notes:'Use the front door',address:'12 Example Street',country_code:'FO',timezone:'Atlantic/Faroe',map_url:'https://maps.example.invalid/main-hall'},{id:'venue-2',name:'Garden'}];fixtures.households[1].food=true;fixtures.households[2].food=true;fixtures.household_session_defaults.push({household_id:h2,session_id:s1,is_invited:true});fixtures.other_categories=[{id:'other-cat',name:'Tasks',sort_order:0}];fixtures.other_items=[{id:'task-one',category_id:'other-cat',item:'Arrange chairs',assigned_to:'Example helper',status:'open',sort_order:0,updated_at:'2026-11-01T12:00:00Z'}];fixtures.food_items.forEach(f=>{f.description_en='Bring chilled';f.admin_comment='Private supplier note';});const foodFrom=client.from;client.from=function(name){const table=foodFrom.call(this,name);if(name==='food_item_types')table.insert=async record=>{(fixtures.food_item_types??=[]).push(record);return {error:null};};if(name==='food_items')table.update=record=>({eq:(_,id)=>{Object.assign(fixtures.food_items.find(f=>f.id===id),record);window.__savedFood=record;return {then:resolve=>Promise.resolve({error:null}).then(resolve),select:async()=>({data:[{id}],error:null})};}});return table;};const oldTaskRpc=window.__managementRpc;window.__managementRpc=(name,args)=>{if(name==='admin_session_invitation_locks')return {data:[h1],error:null};if(name==='admin_edit_session_households'){window.__sessionHouseholds=args;for(const [ids,invited] of [[args.p_add,true],[args.p_remove,false]])for(const id of ids){const existing=fixtures.household_session_defaults.find(d=>d.household_id===id&&d.session_id===args.p_session_id);if(existing)existing.is_invited=invited;else fixtures.household_session_defaults.push({household_id:id,session_id:args.p_session_id,is_invited:invited});}return {data:null,error:null};}if(name==='admin_move_session'){const rows=[...fixtures.event_sessions].sort((a,b)=>a.sort_order-b.sort_order);const i=rows.findIndex(s=>s.id===args.p_session_id),j=i+args.p_direction;if(j>=0&&j<rows.length){[rows[i],rows[j]]=[rows[j],rows[i]];rows.forEach((s,index)=>s.sort_order=index+1);}return {data:null,error:null};}if((name==='admin_rename_member'||name==='admin_update_member')){window.__renamedAdmin=args;return {data:null,error:null};}if(name==='admin_list_members'&&window.__renamedAdmin)return {data:[{user_id:h1,name:window.__renamedAdmin.p_name,email:'test-admin@example.invalid'}],error:null};if(name==='admin_edit_venue_food'){window.__venueFood=args;for(const id of args.p_add){const item=fixtures.food_items.find(f=>f.id===id);item.venue_ids=[...new Set([...(item.venue_ids||[]),args.p_venue_id])];}for(const id of args.p_remove){const item=fixtures.food_items.find(f=>f.id===id);item.venue_ids=(item.venue_ids||fixtures.event_locations.filter(v=>!v.archived_at).map(v=>v.id)).filter(venue=>venue!==args.p_venue_id);}return {data:null,error:null};}if(name==='admin_save_translation'){(window.__savedTypeTranslations??=[]).push(args);fixtures.event_content=fixtures.event_content.filter(row=>row.content_key!==args.p_key||row.language_code!==args.p_language);if(args.p_value)fixtures.event_content.push({content_key:args.p_key,language_code:args.p_language,content_value:args.p_value});return {data:null,error:null};}if(name==='admin_save_food_translations'){window.__foodTranslationSaves=(window.__foodTranslationSaves||0)+1;if(window.__failFoodTranslations){window.__failFoodTranslations=false;return {data:null,error:{message:'Simulated translation failure'}};}window.__savedTranslations=args;for(const change of args.p_changes){fixtures.event_content=fixtures.event_content.filter(row=>row.content_key!==change.key||row.language_code!==change.language);if(change.value)fixtures.event_content.push({content_key:change.key,language_code:change.language,content_value:change.value});}return {data:null,error:null};}if(name==='admin_set_food_selection'){const old=fixtures.food_claims.findIndex(c=>c.household_id===args.p_household_id&&c.food_item_id===args.p_food_item_id);if(old>=0)fixtures.food_claims.splice(old,1);if(args.p_quantity)fixtures.food_claims.push({household_id:args.p_household_id,food_item_id:args.p_food_item_id,quantity:args.p_quantity});window.__savedSelection=args;return {data:null,error:null};}if(name==='admin_save_other'){window.__savedOther=args;const value={...args.p_values,id:args.p_id,updated_at:new Date().toISOString()},old=fixtures.other_items.find(r=>r.id===args.p_id);if(old)Object.assign(old,value);else fixtures.other_items.push(value);return {data:value,error:null};}return oldTaskRpc(name,args);};const batchRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_save_translations')(window.__batchTranslationSaves??=[]).push(args);return batchRpc(name,args);};`;
  await page.route('**/supabase.min.js',r=>r.fulfill({contentType:'text/javascript',body:mock+'\n'+extra}));
  await page.goto('http://127.0.0.1:'+server.address().port+'/admin/');await page.waitForFunction(()=>document.querySelector('#inviteOverviewCounts .invite-stat-row'));
@@ -285,16 +300,41 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await refreshFixture(page);
  await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);
  await venue.locator(':scope > summary').evaluate(summary=>summary.parentElement.open=true);if(!await venue.locator('form.reading-editor').isVisible())await venue.locator('[data-record-pencil]').click();
- await venue.getByRole('button',{name:'Manage food',exact:true}).click();
- const foodDialog=page.getByRole("region",{name:'Venue food'});
+ const workspace=page.locator('.venue-workspace');
+ const manageFood=venue.getByRole('button',{name:'Manage food',exact:true});
+ assert.equal(await manageFood.getAttribute('aria-haspopup'),'dialog');
+ const foodDialog=page.getByRole('dialog',{name:'Venue food · Main hall',exact:true});
+ const venuesHeight=await workspace.evaluate(node=>node.offsetHeight);
+ await manageFood.click();
+ await assertAssignmentModal(foodDialog,workspace,venuesHeight);
+ await foodDialog.getByRole('checkbox',{name:'First dish',exact:true}).uncheck();
+ await foodDialog.getByRole('button',{name:'Cancel',exact:true}).click();
+ await foodDialog.waitFor({state:'detached'});
+ await page.waitForFunction(node=>document.activeElement===node,await manageFood.elementHandle());
+ assert.equal(await page.evaluate(()=>Boolean(window.__venueFood)),false,'Cancel does not write venue food assignments');
+ await manageFood.click();
  assert.deepEqual(await foodDialog.locator('legend').allTextContents(),['Main dishes','Desserts']);
  assert.deepEqual(await foodDialog.getByRole('group',{name:'Main dishes'}).locator('label').allTextContents(),['First dish','Sample dish']);
  assert.ok(await foodDialog.getByRole('checkbox',{name:'First dish',exact:true}).isChecked());
  await foodDialog.getByRole('checkbox',{name:'First dish',exact:true}).uncheck();
  await foodDialog.getByRole('checkbox',{name:'Sample dessert',exact:true}).check();
  if(process.env.SETTINGS_PREVIEW&&type.name()==='chromium')await foodDialog.screenshot({path:process.env.SETTINGS_PREVIEW+'/venue-manage-food-categories.png'});
- await foodDialog.getByRole('button',{name:'Save',exact:true}).click();
+ await page.evaluate(()=>{
+   const write=window.__managementRpc;
+   window.__managementRpc=(name,args)=>{
+     if(name!=='admin_edit_venue_food')return write(name,args);
+     window.__managementRpc=write;
+     return {error:{message:'Simulated venue food save failure'}};
+   };
+ });
+ const saveFood=foodDialog.getByRole('button',{name:'Save',exact:true});
+ await saveFood.click();
+ await foodDialog.getByRole('status').getByText('Simulated venue food save failure',{exact:true}).waitFor();
+ assert.equal(await foodDialog.getByRole('checkbox',{name:'First dish',exact:true}).isChecked(),false);
+ assert.equal(await foodDialog.getByRole('checkbox',{name:'Sample dessert',exact:true}).isChecked(),true);
+ await saveFood.click();
  await foodDialog.waitFor({state:'detached'});
+ await page.waitForFunction(()=>document.activeElement?.getAttribute('data-record-pencil')==='venue:venue-1');
  assert.deepEqual(await page.evaluate(()=>window.__venueFood.p_add),['dessert-example']);
  assert.deepEqual(await page.evaluate(()=>window.__venueFood.p_remove),['first-example']);
  assert.deepEqual(await page.evaluate(()=>window.__fixtures.food_items.find(item=>item.id==='first-example').venue_ids),['venue-2']);
@@ -317,8 +357,19 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await sessionTab.click();
  const dinner=page.locator('#sessionsList > details').filter({hasText:'Dinner'});
  await dinner.locator(':scope > summary').click();if(!await dinner.locator('form.reading-editor').isVisible())await dinner.locator('[data-record-pencil]').click();
- await dinner.getByRole('button',{name:'Manage households',exact:true}).click();
- const householdDialog=page.getByRole("region",{name:'Manage households'});
+ const manageHouseholds=dinner.getByRole('button',{name:'Manage households',exact:true});
+ assert.equal(await manageHouseholds.getAttribute('aria-haspopup'),'dialog');
+ const householdDialog=page.getByRole('dialog',{name:'Manage households · Dinner',exact:true});
+ const sessionsHeight=await workspace.evaluate(node=>node.offsetHeight);
+ await manageHouseholds.press('Enter');
+ await assertAssignmentModal(householdDialog,workspace,sessionsHeight);
+ await page.setViewportSize({width:390,height:844});
+ await assertAssignmentModal(householdDialog,workspace);
+ await page.setViewportSize({width:820,height:1180});
+ await page.keyboard.press('Escape');
+ await householdDialog.waitFor({state:'detached'});
+ await page.waitForFunction(node=>document.activeElement===node,await manageHouseholds.elementHandle());
+ await manageHouseholds.press('Enter');
  const protectedRow=householdDialog.getByRole('checkbox',{name:/Example parent/});
  assert.ok(await protectedRow.isDisabled());
  assert.ok(await protectedRow.isChecked());

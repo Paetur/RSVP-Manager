@@ -1609,13 +1609,17 @@ textarea {
   overflow: hidden;
   border-radius: 10px;
 }
+#adminApp .food-category-heading,
+#adminApp .invite-overview-heading {
+  background: #e9eee7;
+  color: var(--ink);
+}
 #adminApp .food-category-heading {
   display: flex;
   align-items: center;
   gap: 9px;
   flex-wrap: wrap;
   padding: 10px 12px;
-  background: #e9eee7;
   border: 0;
 }
 #adminApp .food-category-heading::before {
@@ -2250,7 +2254,8 @@ html[data-theme="dark"] #adminApp .tree-planning-group {
   color: var(--ink);
 }
 html[data-theme="dark"] #adminApp .tree-group,
-html[data-theme="dark"] #adminApp .food-category-heading {
+html[data-theme="dark"] #adminApp .food-category-heading,
+html[data-theme="dark"] #adminApp .invite-overview-heading {
   background: #2a4037;
   color: var(--ink);
 }
@@ -3809,6 +3814,10 @@ html[data-theme="dark"] code {
 .venue-assignment-footer {
   justify-content: flex-end;
 }
+.venue-assignment-dialog {
+  width: min(36rem, calc(100vw - 32px));
+  overflow-wrap: anywhere;
+}
 .venue-assignment-list {
   max-height: 38vh;
   overflow: auto;
@@ -3991,7 +4000,10 @@ html[data-theme] #adminApp .settings-page .settings-tabs button.active {
   outline: 2px solid var(--teal);
   outline-offset: -2px;
 }
-:is(.database-tabs, .venue-tabs) button {
+.settings-language-tabs {
+  margin-bottom: 0;
+}
+:is(.database-tabs, .venue-tabs, .settings-language-tabs) button {
   min-height: 44px;
   padding-inline: 14px;
   border-radius: 7px 7px 0 0;
@@ -6757,6 +6769,19 @@ html[data-theme="light"] body.guest-photo .rsvp-inline .radio-pill:has(input:che
   opacity: 0.7;
 }
 
+.food-interest-choices[data-confirmed="true"] .food-interest-choice:disabled {
+  cursor: default;
+}
+.food-interest-choices[data-confirmed="true"] .food-interest-choice[aria-pressed="true"] {
+  opacity: 1;
+}
+.food-interest-status:empty {
+  display: none;
+}
+.food-interest-status.error {
+  color: var(--danger);
+}
+
 body.guest-photo .food-interest-choice[aria-pressed="true"] {
   border-color: #b4dcc7;
   box-shadow: inset 0 0 0 1px #b4dcc7;
@@ -6769,6 +6794,98 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
 .food-interest-reply {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.guest-response-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.guest-response-actions > p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.guest-response-actions .btn {
+  max-width: 100%;
+  white-space: normal;
+}
+#foodInterestPreview {
+  margin-top: 12px;
+}
+#foodInterestPreview h4 {
+  margin: 0 0 4px;
+}
+#foodInterestPreview p {
+  margin: 0;
+}
+#rsvpRows #rsvpValidation {
+  grid-column: -2 / -1;
+  margin: 0;
+  text-align: start;
+}
+
+.guest-comment-panel summary {
+  cursor: pointer;
+  min-block-size: 44px;
+  align-content: center;
+  font-weight: 600;
+}
+.guest-comment-panel summary::marker {
+  color: var(--teal);
+}
+.guest-comment-panel .rsvp-comment-field {
+  margin-block-start: 8px;
+}
+.btn.guest-step-next {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  inline-size: 44px;
+  min-block-size: 44px;
+  padding: 0;
+  margin: 10px auto 0;
+  border-radius: 50%;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+.guest-review-actions:has(> button:not(.hidden)) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-block-start: 16px;
+}
+.guest-review-actions > #editRsvp {
+  margin-inline-start: auto;
+}
+@media (max-width: 545px) {
+  .guest-response-footer {
+    position: fixed;
+    z-index: 10;
+    inset-inline: 0;
+    inset-block-end: var(--guest-response-keyboard-inset, 0px);
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+    background: var(--paper);
+    border-block-start: 1px solid var(--line);
+  }
+  #guestFixedResponseActions:has(> #editRsvp:not(.hidden)) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  #guestFixedResponseActions .btn {
+    inline-size: 100%;
+    min-block-size: 44px;
+    white-space: normal;
+  }
+  html.has-guest-response-footer {
+    scroll-padding-block-end: calc(var(--guest-response-footer-height, 66px) + var(--guest-response-keyboard-inset, 0px) + 12px);
+  }
+  html.has-guest-response-footer body {
+    padding-block-end: calc(var(--guest-response-footer-height, 66px) + var(--guest-response-keyboard-inset, 0px));
+  }
 }
 /* Local preview: shared inline checks, compact summaries and aligned maps. */
 #adminApp label:has(> input[type="checkbox"]),
@@ -6808,9 +6925,8 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
   flex: none;
   min-width: 0;
 }
-.rsvp-submit-row #saveRsvp {
-  margin-left: 0;
-  flex: none;
+.rsvp-submit-row #rsvpValidation {
+  margin: 0;
 }
 .rsvp-session {
   display: grid;
@@ -6895,10 +7011,6 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
 @media (max-width: 600px) {
   .rsvp-session {
     column-gap: 12px;
-  }
-  .rsvp-submit-row #saveRsvp {
-    max-width: 100%;
-    white-space: normal;
   }
   .venue-summary-content {
     gap: 10px;
@@ -8176,9 +8288,22 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 #adminApp .invite-overview-row > .invite-overview-recipient,
 #adminApp .invite-overview-reply { font-size: .82rem; line-height: 1.25; }
 .invite-overview-heading {
-  font-size: 0.72rem;
-  color: var(--muted);
-  padding: 8px 2px;
+  font-size: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 5px 1px 4px;
+}
+.invite-overview-heading > :not(.invite-overview-select) { font-weight: 700; }
+#inviteRows > .invite-compact-list { margin-block-start: 0; }
+#inviteRows .invite-overview-group:first-child {
+  margin-block-start: 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+#inviteRows > .invite-overview-heading:has(+ .invite-compact-list > .invite-overview-group) {
+  border-block-end: 0;
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
 }
 .invite-overview-row > .invite-overview-identity,
 .invite-overview-row > .invite-overview-household-info,
@@ -8225,7 +8350,7 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
   margin: 0 0 6px;
   padding: 0;
 }
-#inviteRows.is-grouped > .invite-overview-heading { margin-inline: 13px; }
+#inviteRows.is-grouped > .invite-overview-heading { padding-inline: 14px; }
 .invite-overview-group > .invite-household:last-child > summary { border-bottom: 0; }
 .invite-overview-row:before {
   display: none !important;
@@ -8256,6 +8381,10 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
     padding-block: 0;
   }
   .invite-overview-heading > :not(.invite-overview-select) { display: none; }
+  #inviteRows > .invite-overview-heading:not(:has([data-bulk-select-all])) + .invite-compact-list > .invite-overview-group:first-child {
+    border-start-start-radius: 12px;
+    border-start-end-radius: 12px;
+  }
   #adminApp .invite-overview-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
@@ -8323,8 +8452,11 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 }
 .invite-household-submenus {
   display: grid;
-  gap: 7px;
-  padding: 8px;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+#adminApp .invite-household-submenus > .admin-management {
+  margin-block: 0;
 }
 .invite-household-submenus .current-invitation {
   min-width: 0;
@@ -8724,6 +8856,12 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
   margin-block: 8px 0;
 }
 .invite-heading-title { grid-area: title; min-width: 0; }
+#adminApp .invite-heading-title .invite-seen-summary {
+  margin-block: 4px 0;
+  font-variant-numeric: tabular-nums;
+}
+#adminApp .invite-overview-seen { font-size: .72rem; }
+#adminApp [data-invite-seen="seen"] { color: var(--action-text); }
 #inviteShownFieldsHost { grid-area: shown; min-width: 0; }
 #adminApp .invite-copy-action {
   appearance: none;

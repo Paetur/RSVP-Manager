@@ -1,5 +1,14 @@
 # Release notes
 
+## 0.9.0-beta.7
+
+- Guests review and submit RSVP and food interest together when both are due. The page checks each answer before advancing, keeps the comment below Food, and pins the review and submit controls on narrow screens. Invitation links open in the household's language and remember each guest's language choice for that invitation.
+- Invites counts qualifying visits before or after sending is recorded. The filtered summary and household rows show **Not seen** or the latest visit time. The bold column headings sit flush against the first group.
+- Settings → Language has separate **Languages** and **Translations** tabs. The tabs keep open edits while switching. Venue food and session household assignment open in dialogs.
+- Current guides include updated screenshots from a fictional event.
+
+Retained beta.6 installations need a reviewed, scoped database update and the matching guest gateway. Backup format 3 and the 44-table manifest carry forward. See the [existing-installation instructions](../INSTALL.md#existing-installations).
+
 ## 0.9.0-beta.6
 
 - Invites shows batch progress and results beneath the action buttons. The publication notice has its own line, and the spinner stays visible until the list refresh finishes.

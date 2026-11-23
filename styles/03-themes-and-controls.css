@@ -85,7 +85,8 @@ html[data-theme="dark"] #adminApp .tree-planning-group {
   color: var(--ink);
 }
 html[data-theme="dark"] #adminApp .tree-group,
-html[data-theme="dark"] #adminApp .food-category-heading {
+html[data-theme="dark"] #adminApp .food-category-heading,
+html[data-theme="dark"] #adminApp .invite-overview-heading {
   background: #2a4037;
   color: var(--ink);
 }

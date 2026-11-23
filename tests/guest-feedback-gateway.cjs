@@ -17,7 +17,7 @@ const assert = require("node:assert/strict");
   const calls = [];
   try {
     global.fetch = async (url, options) => {
-      calls.push({ url, args: JSON.parse(options.body) });
+      calls.push({ url, args: JSON.parse(options.body), authorization: options.headers.Authorization });
       return new Response(
         JSON.stringify(
           url.endsWith("guest_gateway_allow_request") ? true : { ok: true },
@@ -128,6 +128,27 @@ const assert = require("node:assert/strict");
       { ...response, p_household_id: "forged" },
     ])
       assert.equal((await send("submit_household_rsvp", args)).status, 400);
+    const combined = { ...response, p_food_interest: false };
+    const combinedStart = calls.length;
+    assert.equal((await send("submit_household_response", combined)).status, 200);
+    assert.deepEqual(calls.slice(combinedStart).map(({ url }) => url.split("/").at(-1)), [
+      "guest_gateway_allow_request",
+      "submit_household_response",
+    ]);
+    assert.equal(calls[combinedStart].args.p_action, "submit_household_response");
+    assert.deepEqual(calls.at(-1).args, combined);
+    assert.equal(calls.at(-1).authorization, "Bearer synthetic-server-key");
+    for (const args of [
+      response,
+      { ...combined, p_food_interest: null },
+      { ...combined, p_food_interest: "true" },
+      { ...combined, p_comment: "x".repeat(2001) },
+      { ...combined, p_responses: [] },
+      { ...combined, p_responses: [{ ...response.p_responses[0], status: "maybe" }] },
+      { ...combined, p_household_id: "forged" },
+    ])
+      assert.equal((await send("submit_household_response", args)).status, 400);
+    assert.equal(calls.length, combinedStart + 2, "Invalid combined requests stop before the service adapter");
     for (const p_quantity of [0, 1, 6, 1000])
       assert.equal(
         (
@@ -151,7 +172,7 @@ const assert = require("node:assert/strict");
         400,
       );
     console.log(
-      "PASS gateway: scoped RSVP comments and quantity bounds, companions and Food Groups, forged targets and exact origins",
+      "PASS gateway: one validated combined response call, scoped RSVP comments and quantity bounds, companions and Food Groups, forged targets and exact origins",
     );
   } finally {
     global.fetch = originalFetch;

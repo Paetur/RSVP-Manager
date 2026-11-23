@@ -28,14 +28,17 @@ const server = http.createServer((req, res) => {
       const page = await browser.newPage({viewport:{width,height:1000}}), errors=[];
       page.on('pageerror', e => errors.push(e.message));
       await page.addInitScript(language => localStorage.setItem('rsvp-interface-language', language), language);
-      await page.route('**/supabase.min.js', r => r.fulfill({contentType:'text/javascript',body:harness.mock+'\n'+harness.extra+'\n'+harness.stageExtra+'\n'+setupFixture}));
+      const householdLanguage = `window.__invite.household.language=${JSON.stringify(language)};`;
+      await page.route('**/supabase.min.js', r => r.fulfill({contentType:'text/javascript',body:[harness.mock,harness.extra,harness.stageExtra,"window.__invite.household.rsvp_state='locked';",setupFixture,householdLanguage].join('\n')}));
       await page.route('**maps.google.com/**', r => r.fulfill({contentType:'text/html',body:'Synthetic map'}));
       await page.goto(base + '?ABCDEFGH');
       await page.locator('#foodCard:not(.hidden)').waitFor();
+      assert.equal(await page.locator('html').getAttribute('lang'), language);
       assert.equal(await page.evaluate(() => RSVP.siteRoot.href), base);
       assert.equal(await page.evaluate(() => RSVP.invitationURL('ABCDEFGH')), base + '?=ABCDEFGH');
       assert.ok((await page.evaluate(() => RSVP.guestPreviewURL('sample', true))).startsWith(base + 'admin/'));
       await page.locator('.food-interest-choices button').first().click();
+      await page.locator('#confirmFoodInterest').click();
       await page.waitForFunction(() => window.__interestWrites === 1);
       assert.equal(await page.locator('#foodList').isHidden(), true);
       await page.goto(base + 'admin/');

@@ -4,14 +4,17 @@ Open the private invitation link your organizer sent you. You do not need an adm
 
 ## Attendance
 
-1. Choose your language if needed and review your household’s sessions.
+1. Review your household’s sessions. The link opens in your household’s language. If you choose another language, this browser remembers it for this invitation.
 2. Answer separately for each invited person and session using the inline choices. Adults appear before children.
 
-   ![A guest invitation with individual attendance choices for the reception and dinner](images/ipad-guest-invitation.png)
-3. Optionally add a household comment, such as dietary requirements or another message for the organizer. Choose **Review RSVP**, check the list and use **Back to edit** if needed.
+   ![A guest invitation with individual attendance choices for the ceremony and reception](images/ipad-guest-invitation.png)
+3. Use the down arrow after RSVP to check for missing attendance answers and move to the next section. When **Food coordination** asks for a Yes or No, its down arrow checks that answer before continuing.
+4. Open **RSVP comment** below the questions if you want to share dietary requirements or another message.
+5. When RSVP and the food question both need an answer, choose **Review responses**, check both answers, then choose **Submit responses** to save and lock them together. On phones, the review and submit actions stay in the bottom footer. Use **Edit answers** to return to your choices.
 
-   ![RSVP review with two session answers, a comment, and Confirm RSVP and Back to edit buttons](images/ipad-rsvp-review.png)
-4. Choose **Confirm RSVP**. Your answers and comment lock and remain visible. The comment is shared only with your own household and authorized administrators.
+   ![Review of two session answers and the food answer, with Submit responses and Edit answers](images/ipad-rsvp-review.png)
+
+When only RSVP needs an answer, use **Review RSVP** and **Confirm RSVP**. Your household comment is visible to your household and authorized administrators.
 
 Before submitting, **Add person** lets you add someone to your own household, including whether they are a child. They inherit its session invitations; review their replies too. If you have already confirmed or the response window has closed, contact the organizer.
 
@@ -19,7 +22,7 @@ Each session shows its welcome message, address and local time. The map thumbnai
 
 ## Food
 
-If offered, choose **I can bring food** or **I can’t bring food**. Your answer saves immediately; there is no separate Save button. It is independent of attendance, so you can answer after confirming your RSVP. Choosing Yes alone does not reserve anything or grant food access.
+If offered, choose **I can bring food** or **I can’t bring food**. When RSVP is due too, include both answers in **Submit responses**. When only the food question needs an answer, select **Confirm food answer**. You can change your choice before saving. The saved answer stays visible and read-only. Yes signals interest. Food access and item reservations are handled separately.
 
 While the organizer is collecting interest, the detailed list stays hidden. Once selection is open, eligible households who answer Yes see choices under category and sub-category headings.
 

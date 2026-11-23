@@ -697,6 +697,10 @@
 .venue-assignment-footer {
   justify-content: flex-end;
 }
+.venue-assignment-dialog {
+  width: min(36rem, calc(100vw - 32px));
+  overflow-wrap: anywhere;
+}
 .venue-assignment-list {
   max-height: 38vh;
   overflow: auto;
@@ -879,7 +883,10 @@ html[data-theme] #adminApp .settings-page .settings-tabs button.active {
   outline: 2px solid var(--teal);
   outline-offset: -2px;
 }
-:is(.database-tabs, .venue-tabs) button {
+.settings-language-tabs {
+  margin-bottom: 0;
+}
+:is(.database-tabs, .venue-tabs, .settings-language-tabs) button {
   min-height: 44px;
   padding-inline: 14px;
   border-radius: 7px 7px 0 0;

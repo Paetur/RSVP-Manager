@@ -7,6 +7,16 @@ const fs = require("node:fs"),
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
 const { root, out, server, mock, extra, stageExtra } =
   createFoodHarness("food-interest");
+const savedAnswer = `
+window.__invite.household.rsvp_state='locked';
+window.__foodAnswer=JSON.parse(sessionStorage.getItem('synthetic-interest-answer'));
+const answerInvoke=client.functions.invoke;
+client.functions.invoke=async(name,request)=>{
+  const answer=await answerInvoke(name,request);
+  if(request.body.action==='set_household_food_interest'&&!answer.error)
+    sessionStorage.setItem('synthetic-interest-answer',JSON.stringify(window.__foodAnswer));
+  return answer;
+};`;
 (async () => {
   fs.mkdirSync(out, { recursive: true });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -30,52 +40,64 @@ const { root, out, server, mock, extra, stageExtra } =
       await page.route("**/supabase.min.js", (r) =>
         r.fulfill({
           contentType: "text/javascript",
-          body: mock + "\n" + extra + "\n" + stageExtra,
+          body: mock + "\n" + extra + "\n" + stageExtra + "\n" + savedAnswer,
         }),
       );
       await page.goto(base + "/?ABCDEFGH");
       await page.locator("#foodCard:not(.hidden)").waitFor();
       assert.equal(await page.locator("#foodList").isHidden(), true);
       assert.equal(await page.locator("#confirmFood").isHidden(), true);
-      assert.equal(await page.locator("#foodInterestHost form").count(), 0);
       const choices = page.locator(".food-interest-choices");
+      const confirm = page.locator("#confirmFoodInterest");
       assert.equal(await choices.getByRole("button").count(), 2);
-      await page.evaluate(() => (window.__failInterest = true));
+      assert.equal(await confirm.isDisabled(), true);
+      await page.locator("#languageSwitcher [data-language=de]").click();
       await choices
         .getByRole("button", {
           name: "Ich kann kein Essen mitbringen",
           exact: true,
         })
         .click();
-      await page.locator("#guestStatus.error").waitFor();
-      assert.equal(await page.evaluate(() => window.__foodAnswer), null);
-      await choices
-        .getByRole("button", {
-          name: "Ich kann kein Essen mitbringen",
-          exact: true,
-        })
-        .click();
-      await page.waitForFunction(() => window.__interestWrites === 1);
-      assert.equal(await page.evaluate(() => window.__foodAnswer), false);
       await page.locator("#languageSwitcher [data-language=en]").click();
+      const no = choices.getByRole("button", { name: "I can’t bring food", exact: true });
+      const yes = choices.getByRole("button", { name: "I can bring food", exact: true });
+      await yes.click();
+      await no.click();
+      assert.equal(await page.evaluate(() => window.__interestRequests || 0), 0,
+        "picking or changing a draft does not submit an answer");
+      assert.equal(await confirm.isEnabled(), true);
+      if (width === 390) {
+        await page.evaluate(() => (window.__failInterest = true));
+        await confirm.click();
+        await page.locator("#foodInterestStatus.error").waitFor();
+        assert.equal(await page.evaluate(() => window.__foodAnswer), null);
+        assert.equal(await no.getAttribute("aria-pressed"), "true", "a failed save retains the draft");
+        await confirm.click();
+        await page.waitForFunction(() => window.__interestWrites === 1);
+      } else {
+        await page.evaluate(() => {
+          window.__foodAnswer = true;
+          sessionStorage.setItem('synthetic-interest-answer', 'true');
+        });
+        await confirm.click();
+      }
+      await confirm.waitFor({ state: "detached" });
+      const saved = width === 390 ? no : yes;
+      assert.equal(await saved.getAttribute("aria-pressed"), "true", "the saved or competing answer is shown");
+      assert.equal(await no.isDisabled(), true);
+      assert.equal(await yes.isDisabled(), true);
+      await page.goto(base + "/?ABCDEFGH");
+      await page.locator("#foodCard:not(.hidden)").waitFor();
       assert.equal(
-        await choices
-          .getByRole("button", { name: "I can’t bring food", exact: true })
-          .getAttribute("aria-pressed"),
+        await saved.getAttribute("aria-pressed"),
         "true",
       );
-      await choices
-        .getByRole("button", { name: "I can bring food", exact: true })
-        .click();
-      await page.waitForFunction(() => window.__interestWrites === 2);
+      assert.equal(await saved.isDisabled(), true, "a saved answer stays locked after reload");
+      assert.equal(await confirm.count(), 0);
       assert.equal(
         await page.locator("#foodList").isHidden(),
         true,
         "interest mode never opens the list",
-      );
-      assert.equal(
-        await page.locator("#foodInterestHost button[type=submit]").count(),
-        0,
       );
       assert.equal(
         await page.evaluate(
@@ -232,7 +254,7 @@ const { root, out, server, mock, extra, stageExtra } =
     );
     assert.deepEqual(errors, []);
     console.log(
-      "PASS food interest UI: click-to-save yes/no, failure/retry, translated saved answers, no detailed list, separate panels/add windows, icon alignment and explicit non-publication stage switch",
+      "PASS food interest UI: explicit confirmation, failed-save retry and conflict recovery, translated locked answers after reload, hidden menu, admin layout and stage switch",
     );
   } finally {
     if (browser) await browser.close();

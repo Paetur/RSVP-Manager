@@ -744,13 +744,17 @@
   overflow: hidden;
   border-radius: 10px;
 }
+#adminApp .food-category-heading,
+#adminApp .invite-overview-heading {
+  background: #e9eee7;
+  color: var(--ink);
+}
 #adminApp .food-category-heading {
   display: flex;
   align-items: center;
   gap: 9px;
   flex-wrap: wrap;
   padding: 10px 12px;
-  background: #e9eee7;
   border: 0;
 }
 #adminApp .food-category-heading::before {

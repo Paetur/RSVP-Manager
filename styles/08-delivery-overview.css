@@ -71,9 +71,22 @@
 #adminApp .invite-overview-row > .invite-overview-recipient,
 #adminApp .invite-overview-reply { font-size: .82rem; line-height: 1.25; }
 .invite-overview-heading {
-  font-size: 0.72rem;
-  color: var(--muted);
-  padding: 8px 2px;
+  font-size: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 5px 1px 4px;
+}
+.invite-overview-heading > :not(.invite-overview-select) { font-weight: 700; }
+#inviteRows > .invite-compact-list { margin-block-start: 0; }
+#inviteRows .invite-overview-group:first-child {
+  margin-block-start: 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+#inviteRows > .invite-overview-heading:has(+ .invite-compact-list > .invite-overview-group) {
+  border-block-end: 0;
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
 }
 .invite-overview-row > .invite-overview-identity,
 .invite-overview-row > .invite-overview-household-info,
@@ -120,7 +133,7 @@
   margin: 0 0 6px;
   padding: 0;
 }
-#inviteRows.is-grouped > .invite-overview-heading { margin-inline: 13px; }
+#inviteRows.is-grouped > .invite-overview-heading { padding-inline: 14px; }
 .invite-overview-group > .invite-household:last-child > summary { border-bottom: 0; }
 .invite-overview-row:before {
   display: none !important;
@@ -151,6 +164,10 @@
     padding-block: 0;
   }
   .invite-overview-heading > :not(.invite-overview-select) { display: none; }
+  #inviteRows > .invite-overview-heading:not(:has([data-bulk-select-all])) + .invite-compact-list > .invite-overview-group:first-child {
+    border-start-start-radius: 12px;
+    border-start-end-radius: 12px;
+  }
   #adminApp .invite-overview-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
@@ -218,8 +235,11 @@
 }
 .invite-household-submenus {
   display: grid;
-  gap: 7px;
-  padding: 8px;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+#adminApp .invite-household-submenus > .admin-management {
+  margin-block: 0;
 }
 .invite-household-submenus .current-invitation {
   min-width: 0;
@@ -619,6 +639,12 @@
   margin-block: 8px 0;
 }
 .invite-heading-title { grid-area: title; min-width: 0; }
+#adminApp .invite-heading-title .invite-seen-summary {
+  margin-block: 4px 0;
+  font-variant-numeric: tabular-nums;
+}
+#adminApp .invite-overview-seen { font-size: .72rem; }
+#adminApp [data-invite-seen="seen"] { color: var(--action-text); }
 #inviteShownFieldsHost { grid-area: shown; min-width: 0; }
 #adminApp .invite-copy-action {
   appearance: none;

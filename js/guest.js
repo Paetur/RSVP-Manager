@@ -32,6 +32,7 @@
   };
   let languageChange = 0,
     foodInterestDraft;
+  let foodInterestError = false;
   let foodInterestSaving = false,
     foodLoadVersion = 0,
     foodReviewSignature = null,
@@ -39,9 +40,13 @@
   const contentTranslations = new Map();
   let rsvpCommentDraft = "",
     reviewComment = "",
+    reviewFoodInterest,
+    combinedResponseSaved = false,
+    foodAccess = "resolved",
     foodSavePending = false;
   const foodQuantityDrafts = new Map();
   let language = window.RSVP_I18N.language,
+    guestLanguageChoice = null,
     eventData = null,
     invitation = null,
     code = null,
@@ -50,10 +55,26 @@
     reviewResponses = null,
     rsvpSubmitting = false;
   const $ = R.byId;
+  const narrowResponseScreen = matchMedia("(max-width: 545px)");
   function t(k, params = {}) {
     return window.RSVP_I18N.t(dict[k] || k, params, language);
   }
-  let guestStatusTimer = null;
+  function invitationLanguageStorageKey() {
+    const householdId = invitation?.household?.id;
+    return householdId ? "rsvp-guest-language:" + householdId : null;
+  }
+  function savedInvitationLanguage() {
+    const key = invitationLanguageStorageKey();
+    if (!key) return null;
+    if (guestLanguageChoice?.key === key) return guestLanguageChoice.language;
+    try {
+      return localStorage.getItem(key);
+    } catch (_) {
+      return null;
+    }
+  }
+  let guestStatusTimer = null,
+    rsvpValidationInStatus = false;
   let pendingVisit = null,
     visitSending = false,
     visitRetryTimer = null;
@@ -87,18 +108,112 @@
   function status(s, type = "info") {
     clearTimeout(guestStatusTimer);
     guestStatusTimer = null;
+    rsvpValidationInStatus = false;
     preserveFoodViewport(() => {
       const visible = R.showStatus("guestStatus", s, type);
       if (visible && window.RSVP_NOTIFICATIONS?.autoDismissGuest())
         guestStatusTimer = setTimeout(() => status(""), 5000);
     });
   }
+  function clearRsvpValidation() {
+    const validation = $("rsvpValidation"), next = $("rsvpNext");
+    if (validation.parentNode !== next.parentNode) next.before(validation);
+    $("rsvpRows").querySelector('[aria-describedby="rsvpValidation"]')?.removeAttribute("aria-describedby");
+    R.showStatus(validation, "");
+    if (rsvpValidationInStatus) status("");
+  }
+  function rsvpClosed() {
+    return !previewTarget && invitation?.household?.can_submit_rsvp === false;
+  }
+  function canReviewRsvp() {
+    return invitation?.household?.rsvp_state !== "locked" && !rsvpClosed() &&
+      !!invitation?.invitations?.some((link) => link.requires_rsvp);
+  }
+  function combinedResponseAvailable() {
+    return canReviewRsvp() && foodState != null && foodState.interest == null;
+  }
+  function foodInterestLabel(value) {
+    return t(value ? "interface.messages.food_interest_yes" : "interface.messages.food_interest_no");
+  }
+  function measureResponseFooter() {
+    const viewport = window.visualViewport;
+    const editing = document.activeElement?.matches('textarea, input[type="text"], input[type="number"]');
+    const keyboardInset = editing && viewport?.scale === 1
+      ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      : 0;
+    document.documentElement.style.setProperty("--guest-response-keyboard-inset", keyboardInset + "px");
+    const height = $("guestResponseFooter").offsetHeight;
+    if (height) document.documentElement.style.setProperty("--guest-response-footer-height", height + "px");
+  }
+  function placeResponseButtons() {
+    const mobile = narrowResponseScreen.matches;
+    const reviewActions = mobile ? ["editRsvp", "confirmRsvp"] : ["confirmRsvp", "editRsvp"];
+    const actions = [
+      ["saveRsvp", "guestWideReviewActions"],
+      ["reviewResponses", "guestWideReviewActions"],
+      ...reviewActions.map(id => [id, "rsvpReviewAction"]),
+    ];
+    const focused = document.activeElement;
+    let active = false;
+    // Move the same controls so form association, handlers, and pending state survive.
+    for (const [id, desktop] of actions) {
+      const button = $(id), host = $(mobile ? "guestFixedResponseActions" : desktop);
+      if (button.parentNode !== host) host.append(button);
+      if (!button.classList.contains("hidden")) active = true;
+    }
+    const showFooter = mobile && active;
+    $("guestResponseFooter").classList.toggle("hidden", !showFooter);
+    document.documentElement.classList.toggle("has-guest-response-footer", showFooter);
+    if (showFooter) measureResponseFooter();
+    if (actions.some(([id]) => focused === $(id)) && !focused.classList.contains("hidden"))
+      focused.focus({ preventScroll: true });
+  }
+  function renderResponseActions() {
+    const combined = combinedResponseAvailable();
+    const checking = foodAccess !== "resolved";
+    const reviewing = !!reviewResponses;
+    const editing = canReviewRsvp() && !reviewing;
+    const canProceed = editing && !checking;
+    const showFood = foodState != null && reviewFoodInterest === undefined;
+    $("saveRsvp").classList.toggle("hidden", !canProceed || combined);
+    $("reviewResponses").classList.toggle("hidden", !canProceed || !combined);
+    $("confirmRsvp").classList.toggle("hidden", !reviewing || !canReviewRsvp());
+    $("editRsvp").classList.toggle("hidden", !reviewing || !canReviewRsvp());
+    $("rsvpCommentPanel").classList.toggle("hidden", !editing);
+    $("rsvpNext").classList.toggle("hidden", !canProceed);
+    $("rsvpNext").setAttribute(
+      "aria-label",
+      t(showFood ? "interface.messages.go_to_food_coordination" : "interface.messages.go_to_response_actions"),
+    );
+    $("rsvpNext").setAttribute("aria-controls", showFood ? "foodCard" : "rsvpCommentPanel");
+    $("foodNext").classList.toggle("hidden", !canProceed || !showFood);
+    $("combinedResponseActions").classList.toggle(
+      "hidden", reviewing || (!checking && (!editing || narrowResponseScreen.matches)),
+    );
+    $("retryResponseFood").classList.toggle("hidden", foodAccess !== "failed");
+    $("responseFoodStatus").classList.toggle("hidden", !checking);
+    $("responseFoodStatus").textContent = checking
+      ? t(foodAccess === "failed" ? "offline" : "interface.messages.loading_event_data")
+      : "";
+    $("foodCard").classList.toggle("hidden", !showFood);
+    if (!combined) R.showStatus("foodResponseValidation", "");
+    placeResponseButtons();
+  }
   async function setLanguage(lang, save = false) {
     const change = ++languageChange;
     language = window.RSVP_I18N.enabled(lang)
       ? lang
       : window.RSVP_I18N.defaultLanguage;
-    await window.RSVP_I18N.setLanguage(language, save);
+    if (save && code) {
+      const key = invitationLanguageStorageKey();
+      if (key) {
+        guestLanguageChoice = { key, language };
+        try {
+          localStorage.setItem(key, language);
+        } catch (_) { /* The current invitation still keeps its language choice. */ }
+      }
+    }
+    await window.RSVP_I18N.setLanguage(language, false);
     if (change !== languageChange) return;
     document.querySelectorAll("[data-language]").forEach((b) => {
       b.classList.toggle("selected", b.dataset.language === language);
@@ -109,14 +224,18 @@
     $("codeCard").querySelector("p").textContent = t("codeHelp");
     $("codeForm").querySelector("button").textContent = t("open");
     $("saveRsvp").textContent = t("Review RSVP");
+    $("reviewResponses").textContent = t("interface.messages.review_responses");
+    $("retryResponseFood").textContent = t("interface.messages.retry_food_access");
+    $("foodInterestPreviewTitle").textContent = t("interface.messages.food_interest_question");
     $("confirmFood").textContent = t("interface.messages.food_review");
     $("foodCard").querySelector("h2").textContent = t("food");
     $("foodCard").querySelector("p").textContent = t("foodHelp");
-    $("rsvpCommentLabel").textContent = t("RSVP comment (optional)");
+    $("rsvpCommentLabel").textContent = t("interface.messages.rsvp_comment");
+    $("foodNext").setAttribute("aria-label", t("interface.messages.go_to_response_actions"));
     $("rsvpCommentHelp").textContent = t(
       "Dietary requirements or anything else we should know.",
     );
-    $("rsvpCommentPreviewLabel").textContent = t("Comment");
+    $("rsvpCommentPreviewLabel").textContent = t("interface.messages.rsvp_comment");
     $("rsvpReviewTitle").textContent = t("Review RSVP");
     $("rsvpReviewHelp").textContent = t(
       "Check the answers for each guest and session. Confirming locks the RSVP.",
@@ -386,8 +505,9 @@
   function renderInvitation(answers = new Map()) {
     const h = invitation.household || {},
       locked = h.rsvp_state === "locked";
+    clearRsvpValidation();
     $("rsvpComment").value = rsvpCommentDraft;
-    $("rsvpComment").disabled = locked || rsvpSubmitting;
+    $("rsvpComment").disabled = locked || rsvpClosed() || rsvpSubmitting;
     $("householdName").textContent =
       R.householdName(h) || t(previewTarget === "sample" ? "Sample household" : "dear");
     $("invitationCard").classList.remove("hidden");
@@ -433,11 +553,11 @@
           const label = R.dom("label", { class: "radio-pill" });
           const input = R.dom("input", {
             type: "radio",
-            form: "rsvpForm",
             name,
             value,
-            disabled: locked,
+            disabled: locked || rsvpClosed(),
           });
+          input.setAttribute("form", "rsvpForm");
           input.dataset.guestId = guest.id;
           input.dataset.sessionId = session.id;
           input.checked =
@@ -456,11 +576,10 @@
       rows.append(card);
     }
     if (!answerCount) rows.append(R.dom("p", { class: "muted" }, t("all")));
-    $("saveRsvp").classList.toggle("hidden", locked || !answerCount);
     $("rsvpHint").textContent = locked
       ? t("locked")
       : answerCount
-        ? t("who")
+        ? t(rsvpClosed() ? "interface.messages.rsvp_responses_closed" : "who")
         : "";
     const cards = rows.querySelectorAll(".rsvp-session");
     (cards[cards.length - 1] || rows).append(guestHost);
@@ -587,6 +706,7 @@
           }
           pendingRsvp = null;
           reviewResponses = null;
+          reviewFoodInterest = undefined;
           renderInvitation(answers);
           status(t("interface.messages.guest_added"), "success");
           return;
@@ -602,6 +722,7 @@
         invitation = data;
         pendingRsvp = null;
         reviewResponses = null;
+        reviewFoodInterest = undefined;
         renderInvitation(answers);
         status(t("interface.messages.guest_added"), "success");
       } finally {
@@ -613,12 +734,20 @@
   }
   function renderRsvpReview() {
     const locked = invitation?.household?.rsvp_state === "locked",
-      reviewing = locked || !!reviewResponses;
+      reviewing = locked || !!reviewResponses,
+      combined = reviewFoodInterest !== undefined;
+    const title = $("rsvpReviewTitle");
+    title.classList.toggle("hidden", !combined);
+    title.textContent = t(combined ? "interface.messages.review_responses" : "Review RSVP");
+    $("confirmRsvp").textContent = t(combined ? "interface.messages.submit_responses" : "Confirm RSVP");
+    $("editRsvp").textContent = t(combined ? "interface.messages.edit_answers" : "Back to edit");
+    const foodPreview = $("foodInterestPreview");
+    foodPreview.classList.toggle("hidden", !combined);
+    foodPreview.querySelector("p").textContent = combined ? foodInterestLabel(reviewFoodInterest) : "";
+    renderResponseActions();
     $("householdGuestHost").classList.toggle("hidden", reviewing);
     $("rsvpEditor").classList.toggle("hidden", reviewing);
     $("rsvpReview").classList.toggle("hidden", !reviewing);
-    $("confirmRsvp").classList.toggle("hidden", locked);
-    $("editRsvp").classList.toggle("hidden", locked);
     $("confirmRsvp").disabled = $("editRsvp").disabled =
       locked || rsvpSubmitting;
     const comment = locked
@@ -626,11 +755,12 @@
       : reviewComment;
     $("rsvpCommentPreview").classList.toggle("hidden", !reviewing || !comment);
     $("rsvpCommentPreview").querySelector("p").textContent = comment;
-    $("rsvpReviewHelp").textContent = locked
-      ? t("thanks")
-      : t(
-          "Check the answers for each guest and session. Confirming locks the RSVP.",
-        );
+    const help = locked
+      ? combinedResponseSaved ? "interface.messages.combined_responses_saved" : "thanks"
+      : combined
+        ? "interface.messages.review_combined_responses_help"
+        : "Check the answers for each guest and session. Confirming locks the RSVP.";
+    $("rsvpReviewHelp").textContent = t(help);
     const rows = $("rsvpReviewRows");
     rows.replaceChildren();
     if (!reviewing) return;
@@ -700,37 +830,37 @@
     code = inviteCode;
     invitation = data;
     rsvpCommentDraft = data.household?.rsvp_comment || "";
+    $("rsvpCommentDisclosure").open = false;
     reviewComment = "";
     pendingRsvp = null;
     reviewResponses = null;
+    reviewFoodInterest = undefined;
+    combinedResponseSaved = false;
+    ++foodLoadVersion;
+    foodState = null;
+    foodInterestDraft = undefined;
+    foodInterestError = false;
+    // An incomplete food lookup must never expose RSVP-only submission.
+    foodAccess = eventData.event?.food_enabled === false ? "resolved" : "loading";
+    R.showStatus("responseSubmitError", "");
+    clearRsvpValidation();
     $("rsvpRows").before($("householdGuestHost"));
     $("rsvpRows").replaceChildren();
     $("codeCard").classList.add("hidden");
     $("invitationCard").classList.remove("hidden");
-    const guestLang = invitation.household?.language;
-    if (
-      !window.RSVP_I18N.hasPreference() &&
-      window.RSVP_I18N.enabled(guestLang)
-    )
-      language = guestLang;
-    await setLanguage(language);
+    await setLanguage(
+      [savedInvitationLanguage(), invitation.household?.language, eventData.event?.default_language]
+        .find((candidate) => window.RSVP_I18N.enabled(candidate)),
+    );
     queueRenderedVisit(data.visitReceipt, inviteCode);
     await loadFood();
   }
   $("rsvpComment").addEventListener("input", () => {
     rsvpCommentDraft = $("rsvpComment").value;
   });
-  function reviewRsvp(event) {
-    event.preventDefault();
-    if (
-      !invitation ||
-      (!code && !previewTarget) ||
-      invitation.household?.rsvp_state === "locked" ||
-      reviewResponses ||
-      rsvpSubmitting
-    )
-      return;
+  function readRequiredRsvp(showEventWarning = false) {
     const responses = [];
+    const missing = new Set();
     const checked = new Map(
       Array.from(
         $("rsvpRows").querySelectorAll("input[type=radio]:checked"),
@@ -742,9 +872,8 @@
       const name = "reply_" + link.guest_id + "_" + link.session_id,
         answer = checked.get(name);
       if (!answer) {
-        status(t("choose"), "warning");
-        $("rsvpForm").elements.namedItem(name)?.[0]?.focus();
-        return;
+        missing.add(name);
+        continue;
       }
       responses.push({
         guest_id: link.guest_id,
@@ -752,18 +881,91 @@
         status: answer,
       });
     }
-    if (!responses.length) return;
+    clearRsvpValidation();
+    if (!missing.size) return responses;
+
+    const validation = $("rsvpValidation"), message = t("choose");
+    const firstMissing = Array.from($("rsvpRows").querySelectorAll('input[type="radio"]'))
+      .find((input) => missing.has(input.name));
+    const question = firstMissing?.closest("fieldset");
+    if (showEventWarning) {
+      status(message, "warning");
+      rsvpValidationInStatus = true;
+    }
+    question?.querySelector(".rsvp-person-row")?.append(validation);
+    firstMissing?.setAttribute("aria-describedby", "rsvpValidation");
+    R.showStatus(validation, message, "warning");
+    focusGuestResponsePanel(question || validation, firstMissing || $("rsvpNext"));
+    return null;
+  }
+  function foodAnswerMissing() {
+    const missing = combinedResponseAvailable() && foodInterestDraft === undefined;
+    R.showStatus(
+      "foodResponseValidation",
+      missing ? t("interface.messages.food_interest_required") : "",
+      "warning",
+    );
+    return missing;
+  }
+  function focusGuestResponsePanel(panel, target) {
+    target.focus({ preventScroll: true });
+    panel.scrollIntoView({ block: "start", behavior: "instant" });
+    target.scrollIntoView({ block: "nearest", behavior: "instant" });
+  }
+  function advanceFromRsvp() {
+    if (!readRequiredRsvp()) return;
+    const food = $("foodCard");
+    if (!food.classList.contains("hidden")) {
+      focusGuestResponsePanel(food, $("foodInterestYes")?.disabled === false
+        ? $("foodInterestYes")
+        : food.querySelector("h2"));
+      return;
+    }
+    focusGuestResponsePanel($("rsvpCommentPanel"), $("rsvpCommentLabel"));
+  }
+  function advanceFromFood() {
+    if (foodAnswerMissing()) {
+      $("foodInterestYes").focus();
+      return;
+    }
+    focusGuestResponsePanel($("rsvpCommentPanel"), $("rsvpCommentLabel"));
+  }
+  function reviewRsvp(event) {
+    event.preventDefault();
+    if (
+      !invitation ||
+      (!code && !previewTarget) ||
+      !canReviewRsvp() ||
+      foodAccess !== "resolved" ||
+      foodInterestSaving ||
+      reviewResponses ||
+      rsvpSubmitting
+    )
+      return;
+    const combined = combinedResponseAvailable();
+    const missingFood = foodAnswerMissing();
+    const responses = readRequiredRsvp(!combined);
+    if (!responses?.length) return;
+    if (missingFood) {
+      $("foodInterestYes").focus();
+      return;
+    }
     if ($("rsvpComment").value.length > 2000) {
       status(t("RSVP comment must be at most 2000 characters"), "error");
+      $("rsvpCommentDisclosure").open = true;
       $("rsvpComment").focus();
       return;
     }
     rsvpCommentDraft = $("rsvpComment").value;
     reviewComment = rsvpCommentDraft.trim();
     reviewResponses = responses;
+    reviewFoodInterest = combined ? foodInterestDraft : undefined;
+    if (combined) ++foodLoadVersion;
+    R.showStatus("responseSubmitError", "");
     status("");
     renderRsvpReview();
-    const first = $("rsvpReviewRows").firstElementChild || $("rsvpReview");
+    const first = combined ? $("rsvpReviewTitle") :
+      $("rsvpReviewRows").firstElementChild || $("rsvpReview");
     first.tabIndex = -1;
     first.focus();
   }
@@ -771,9 +973,12 @@
     if (rsvpSubmitting || invitation?.household?.rsvp_state === "locked")
       return;
     reviewResponses = null;
+    reviewFoodInterest = undefined;
+    clearRsvpValidation();
+    R.showStatus("responseSubmitError", "");
     status("");
     renderRsvpReview();
-    $("saveRsvp").focus();
+    $(combinedResponseAvailable() ? "reviewResponses" : "saveRsvp").focus();
   }
   function lockReviewedRsvp(responses) {
     for (const link of invitation.invitations || []) {
@@ -787,137 +992,210 @@
     invitation.household.rsvp_comment = reviewComment;
     invitation.household.rsvp_state = "locked";
     reviewResponses = null;
+    reviewFoodInterest = undefined;
     renderInvitation();
   }
+  function finishCombinedResponse(responses, food) {
+    foodState = food;
+    foodInterestDraft = undefined;
+    foodInterestError = false;
+    combinedResponseSaved = true;
+    lockReviewedRsvp(responses);
+    renderFood();
+    const message = $("rsvpReviewHelp");
+    message.tabIndex = -1;
+    message.focus();
+  }
   async function confirmRsvp() {
-    if (
-      !reviewResponses ||
-      rsvpSubmitting ||
-      invitation?.household?.rsvp_state === "locked"
-    )
-      return;
-    const responses = reviewResponses;
-    if (previewTarget) {
-      lockReviewedRsvp(responses);
-      status(t("thanks"), "success");
+    if (!reviewResponses || rsvpSubmitting || !canReviewRsvp()) return;
+    const responses = reviewResponses, foodInterest = reviewFoodInterest;
+    const combined = foodInterest !== undefined;
+    if (!combined && combinedResponseAvailable()) {
+      // Food became available while the previous RSVP-only review was open.
+      editRsvp();
       return;
     }
-    const signature = JSON.stringify({ responses, comment: reviewComment });
+    if (previewTarget) {
+      if (combined) finishCombinedResponse(responses, { ...foodState, interest: foodInterest });
+      else {
+        lockReviewedRsvp(responses);
+        status(t("thanks"), "success");
+      }
+      return;
+    }
+    const signature = JSON.stringify({ responses, comment: reviewComment, foodInterest });
     if (pendingRsvp?.signature !== signature)
       pendingRsvp = { signature, id: R.randomId() };
     rsvpSubmitting = true;
     $("confirmRsvp").disabled = true;
     $("editRsvp").disabled = true;
+    R.showStatus("responseSubmitError", "");
     status("");
     try {
-      const { error } = await R.guestRpc("submit_household_rsvp", {
-        p_code: code,
-        p_request_id: pendingRsvp.id,
-        p_responses: responses,
-        p_comment: reviewComment || null,
-      });
-      if (error) {
-        status(R.safeError(error), "error");
-        return;
+      const { data, error } = await R.guestRpc(
+        combined ? "submit_household_response" : "submit_household_rsvp",
+        {
+          p_code: code,
+          p_request_id: pendingRsvp.id,
+          p_responses: responses,
+          p_comment: reviewComment || null,
+          ...(combined ? { p_food_interest: foodInterest } : {}),
+        },
+      );
+      if (combined) {
+        if (error || !data?.rsvp?.submission_id || data.food?.interest !== foodInterest || !Array.isArray(data.food?.items)) {
+          R.showStatus("responseSubmitError", R.safeError(error), "error");
+          return;
+        }
+        finishCombinedResponse(responses, data.food);
+      } else {
+        if (error) {
+          status(R.safeError(error), "error");
+          return;
+        }
+        lockReviewedRsvp(responses);
+        await loadInvitation(code);
+        status(t("thanks"), "success");
       }
-      lockReviewedRsvp(responses);
-      await loadInvitation(code);
-      status(t("thanks"), "success");
     } finally {
       rsvpSubmitting = false;
       const locked = invitation?.household?.rsvp_state === "locked";
       $("confirmRsvp").disabled = $("editRsvp").disabled = locked;
+      if (combined && !locked) $("confirmRsvp").focus({ preventScroll: true });
     }
   }
   async function loadFood() {
-    if (foodInterestSaving) return;
+    if (foodInterestSaving || reviewFoodInterest !== undefined) return;
     const revision = ++foodLoadVersion;
-    const db = R.getClient();
+    const current = () => revision === foodLoadVersion && !foodInterestSaving && reviewFoodInterest === undefined;
+    if (foodAccess !== "resolved") {
+      foodAccess = "loading";
+      renderResponseActions();
+    }
     try {
       const { data, error } = await R.guestRpc("get_household_food", {
         p_code: code,
       });
-      if (revision !== foodLoadVersion || foodInterestSaving) return;
-      if (error || !data || !Array.isArray(data.items)) {
-        $("foodCard").classList.add("hidden");
-        return;
+      if (!current()) return;
+      if (error || (data != null && !Array.isArray(data.items))) throw error || new Error();
+      // A successful null lookup is an unavailable food section; a transport
+      // failure keeps the last authorized state and any drafted food answer.
+      foodAccess = "resolved";
+      foodState = data ?? null;
+      if (foodState == null || foodState.interest != null) {
+        foodInterestDraft = undefined;
+        foodInterestError = false;
       }
-      // The database must itself restrict food data to households with food access.
-      foodState = data;
-      $("foodCard").classList.remove("hidden");
-      renderFood();
+      if (foodState) renderFood();
+      else renderResponseActions();
+      return true;
     } catch (_) {
-      $("foodCard").classList.add("hidden");
+      if (current() && foodAccess !== "resolved") {
+        foodAccess = "failed";
+        renderResponseActions();
+      }
     }
   }
-  async function saveFoodInterest(chosen) {
-    const original = foodState.interest ?? null;
-    if (foodInterestSaving || foodSavePending || chosen === original) return;
-    foodInterestDraft = chosen;
+  async function saveFoodInterest() {
+    const chosen = foodInterestDraft;
+    if (!foodState || foodInterestSaving || foodSavePending || foodState.interest != null ||
+        combinedResponseAvailable() || typeof chosen !== "boolean") return;
+    const restoreFocus = document.activeElement === $("confirmFoodInterest");
     foodInterestSaving = true;
+    foodInterestError = false;
     ++foodLoadVersion;
     renderFood();
     try {
       if (previewTarget) {
         foodState.interest = chosen;
-        foodInterestDraft = undefined;
-        status(t("foodSaved"), "success");
-        return;
+      } else {
+        const { data, error } = await R.guestRpc("set_household_food_interest", {
+          p_code: code,
+          p_interest: chosen,
+          p_expected_interest: null,
+        });
+        if (error || !data) {
+          foodInterestError = true;
+          return;
+        }
+        foodState = data;
       }
-      const { data, error } = await R.guestRpc("set_household_food_interest", {
-        p_code: code,
-        p_interest: chosen,
-        p_expected_interest: original,
-      });
-      if (error || !data) {
-        foodInterestDraft = undefined;
-        status(t("interface.messages.food_interest_failed"), "error");
-        return;
-      }
-      foodState = data;
       foodInterestDraft = undefined;
-      status(t("interface.messages.food_interest_saved"), "success");
     } catch (_) {
-      foodInterestDraft = undefined;
-      status(t("interface.messages.food_interest_failed"), "error");
+      foodInterestError = true;
     } finally {
       foodInterestSaving = false;
-      renderFood();
+      const refreshed = foodInterestError && await loadFood();
+      if (!refreshed) renderFood();
+      if (restoreFocus && document.activeElement === document.body)
+        ($("confirmFoodInterest") || $("foodInterestStatus"))?.focus({ preventScroll: true });
     }
   }
   function renderFoodInterest() {
     const host = $("foodInterestHost");
+    const focusedId = host.contains(document.activeElement) ? document.activeElement.id : "";
     host.replaceChildren();
     const original = foodState.interest ?? null;
+    const confirmed = original !== null;
+    const combined = combinedResponseAvailable();
+    const busy = foodInterestSaving || foodSavePending;
     const choices = R.dom("div", { class: "food-interest-choices" });
+    choices.dataset.confirmed = String(confirmed);
     choices.setAttribute("role", "group");
     choices.setAttribute(
       "aria-label",
       t("interface.messages.food_interest_question"),
     );
     choices.setAttribute("aria-busy", String(foodInterestSaving));
+    const confirm = R.dom("button", {
+      type: "button",
+      class: "btn",
+      id: "confirmFoodInterest",
+    }, t("interface.messages.food_interest_confirm"));
+    confirm.disabled = busy || foodInterestDraft === undefined;
+    confirm.addEventListener("click", saveFoodInterest);
+    const feedback = R.dom("p", {
+      class: "small food-interest-status",
+      id: "foodInterestStatus",
+    });
+    feedback.setAttribute("role", "status");
+    feedback.tabIndex = -1;
+    feedback.textContent = confirmed ? t("interface.messages.food_interest_saved") :
+      foodInterestError ? t("interface.messages.food_interest_failed") : "";
+    feedback.classList.toggle("error", foodInterestError);
     for (const value of [true, false]) {
       const button = R.dom(
         "button",
-        { type: "button", class: "food-interest-choice guest-response" },
-        t(
-          "interface.messages." +
-            (value ? "food_interest_yes" : "food_interest_no"),
-        ),
+        { type: "button", class: "food-interest-choice guest-response", id: value ? "foodInterestYes" : "foodInterestNo" },
+        foodInterestLabel(value),
       );
       button.setAttribute("aria-label", button.textContent);
+      if (combined && !confirmed) button.setAttribute("aria-describedby", "foodResponseValidation");
       button.setAttribute(
         "aria-pressed",
-        String(
-          (foodInterestDraft === undefined ? original : foodInterestDraft) ===
-            value,
-        ),
+        String((confirmed ? original : foodInterestDraft) === value),
       );
-      button.disabled = foodInterestSaving || foodSavePending;
-      button.addEventListener("click", () => saveFoodInterest(value));
+      button.disabled = confirmed || busy;
+      button.addEventListener("click", () => {
+        foodInterestDraft = value;
+        foodInterestError = false;
+        R.showStatus("foodResponseValidation", "");
+        feedback.textContent = "";
+        feedback.classList.remove("error");
+        for (const choice of choices.children)
+          choice.setAttribute("aria-pressed", String(choice === button));
+        confirm.disabled = false;
+      });
       choices.append(button);
     }
-    host.append(choices);
+    host.append(choices, feedback);
+    if (!confirmed && !combined) {
+      const footer = R.dom("div", { class: "form-footer" });
+      footer.append(confirm);
+      host.append(footer);
+    }
+    const focused = focusedId && $(focusedId);
+    if (focused && !focused.disabled) focused.focus({ preventScroll: true });
     if (
       foodState.stage === "interest" &&
       original === true &&
@@ -996,6 +1274,7 @@
     preserveFoodViewport(() => {
       renderFoodContent();
       renderFoodReview();
+      renderResponseActions();
     });
   }
   function renderFoodContent() {
@@ -1493,7 +1772,7 @@
         id: "foodFollowup",
         class: "small food-followup",
       });
-      $("foodCard").append(followup);
+      $("foodNext").before(followup);
     }
     followup.textContent = t("interface.messages.food_followup");
     followup.classList.toggle("hidden", !foodState?.claims?.length);
@@ -1732,9 +2011,34 @@
         window.location.assign(R.invitationURL(candidate));
       });
     $("rsvpForm").addEventListener("submit", reviewRsvp);
+    $("rsvpNext").addEventListener("click", advanceFromRsvp);
+    $("foodNext").addEventListener("click", advanceFromFood);
+    narrowResponseScreen.addEventListener("change", renderResponseActions);
+    if (typeof ResizeObserver === "function")
+      new ResizeObserver(measureResponseFooter).observe($("guestResponseFooter"));
+    window.visualViewport?.addEventListener("resize", measureResponseFooter);
+    window.visualViewport?.addEventListener("scroll", measureResponseFooter);
+    $("rsvpRows").addEventListener("change", (event) => {
+      if (event.target.matches('input[type="radio"][form="rsvpForm"]'))
+        clearRsvpValidation();
+    });
     $("confirmRsvp").addEventListener("click", confirmRsvp);
     $("editRsvp").addEventListener("click", editRsvp);
-    $("confirmFood").addEventListener("click", reviewFood);
+    $("retryResponseFood").addEventListener("click", async () => {
+      await loadFood();
+      if (foodAccess === "failed") $("retryResponseFood").focus();
+      else if (combinedResponseAvailable()) $("reviewResponses").focus();
+      else if (canReviewRsvp()) $("saveRsvp").focus();
+    });
+    const foodReviewButton = $("confirmFood");
+    foodReviewButton.addEventListener("mousedown", (event) => {
+      const quantity = document.activeElement;
+      // Hold focus on a settled quantity until the click opens and focuses the
+      // review. Moving focus at mouse-down can scroll the button off the pointer.
+      if (event.button === 0 && quantity?.matches("#foodList input[data-item-id]") &&
+          quantity.value === quantity.defaultValue) event.preventDefault();
+    });
+    foodReviewButton.addEventListener("click", reviewFood);
     if (previewTarget) {
       $("adminLink").classList.add("hidden");
       await openPreview();

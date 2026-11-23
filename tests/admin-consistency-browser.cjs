@@ -161,6 +161,14 @@ async function run(type){const browser=await type.launch({headless:true});try{
  if(preview&&type.name()==='webkit'){await page.locator('[data-preference-choices="appearance"] [data-preference-choice="dark"]').click();await page.mouse.move(0,0);await page.screenshot({path:preview+'/settings-interface.png',fullPage:true});}
  await page.locator('[data-settings-tab="languages"]').click();
  assert.equal(await page.locator('.settings-tabs').getAttribute('role'),'tablist');
+ const languageTab=page.locator('#settingsLanguageTabLanguages'), translationTab=page.locator('#settingsLanguageTabTranslations');
+ assert.equal(await languageTab.getAttribute('aria-selected'),'true');
+ assert.equal(await page.locator('#languageRows').isVisible(),true);
+ assert.equal(await page.locator('#translationEditor').isVisible(),false);
+ await languageTab.press('ArrowRight');
+ assert.equal(await translationTab.getAttribute('aria-selected'),'true');
+ assert.equal(await page.evaluate(()=>document.activeElement.id),'settingsLanguageTabTranslations');
+ assert.equal(await page.locator('#languageRows').isVisible(),false);
  assert.equal(await page.locator('#contentTranslationTabs').isVisible(),false);
  assert.deepEqual(await page.locator('#interfaceLanguageTabs button').allTextContents(),['Føroyskt','English','Deutsch']);
  const categoryTabs=page.locator('#wordingCategoryTabs');assert.ok(await categoryTabs.isVisible());
@@ -175,6 +183,11 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await page.getByRole('combobox',{name:'Rows per page',exact:true}).selectOption('10');assert.equal(await page.locator('.wording-row').count(),10);
  let wording=await openWordingEditor(page,'de','interface.messages.households');
  await wording.locator('textarea').fill('Unfinished wording');
+ await translationTab.press('Home');
+ assert.equal(await languageTab.getAttribute('aria-selected'),'true');
+ assert.equal(await page.locator('#translationEditor').isVisible(),false);
+ await languageTab.press('End');
+ assert.equal(await wording.locator('textarea').inputValue(),'Unfinished wording');
  await categoryTabs.locator('[data-translation-tab="backups"]').click();assert.equal(await page.locator('[data-wording-key="interface.messages.households"]').count(),0);
  await categoryTabs.locator('[data-translation-tab="households"]').click();assert.equal(await wording.locator('textarea').inputValue(),'Unfinished wording');
  await page.locator('#interfaceLanguageTabs [data-translation-tab="en"]').click();
@@ -185,8 +198,10 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await wording.locator('button[type="submit"]').click();await page.waitForFunction(()=>window.RSVP_I18N.t('Households',{},'de')==='Haushalte, "Familien"\nWeitere');
  await page.locator('#translationSearch').fill('');await page.waitForFunction(()=>document.querySelectorAll('.wording-row').length===10);
  await page.waitForFunction(()=>document.querySelector('.wording-row')?.dataset.wordingSource!=='Households');
- if(preview&&type.name()==='webkit'){await page.locator('.settings-page').screenshot({path:preview+'/settings-language-list.png'});await page.locator('#translationEditor').screenshot({path:preview+'/settings-wording-categories.png'});}
+ if(preview&&type.name()==='webkit')await page.locator('#translationEditor').screenshot({path:preview+'/settings-wording-categories.png'});
+ await languageTab.click();
  await page.getByRole('heading',{name:'Choose enabled languages',exact:true}).waitFor();
+ if(preview&&type.name()==='webkit')await page.locator('.settings-page').screenshot({path:preview+'/settings-language-list.png'});
  const language=page.locator('#languageRows [data-language-code="de"]');
  assert.equal(await language.locator('button[type="submit"]').textContent(),'Save');
  const [download]=await Promise.all([page.waitForEvent('download'),page.locator('[data-editor-key="language:de"] .settings-card-heading').getByRole('button',{name:/Export CSV/}).click()]);

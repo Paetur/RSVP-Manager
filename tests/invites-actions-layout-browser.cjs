@@ -204,7 +204,7 @@ async function mergedInvitesGeometry(page) {
    serviceOutsideCopy:rows.every(row=>!row.querySelector('.invite-copy-recipient .invite-overview-recipient')),
    contained:rows.every(row=>{const a=row.getBoundingClientRect();return [...row.children].every(child=>{const b=child.getBoundingClientRect();return b.left>=a.left-1&&b.right<=a.right+1;});}),
    duplicate:host.querySelectorAll('.bulk-invite-row,.bulk-invite-list').length,
-   outlines:[...host.querySelectorAll('#inviteRows .invite-overview-group')].every(group=>{const style=getComputedStyle(group);return parseFloat(style.borderTopWidth)>0&&parseFloat(style.borderRadius)>0;}),
+   outlines:[...host.querySelectorAll('#inviteRows .invite-overview-group')].every(group=>{const style=getComputedStyle(group);return parseFloat(style.borderTopWidth)>0&&parseFloat(style.borderBottomLeftRadius)>0;}),
    pageFits:document.documentElement.scrollWidth<=innerWidth+1};
  });
  assert.equal(result.cards,6,'the Overview has six cards with household and guest counts combined');assert.ok(result.rows>0);

@@ -156,6 +156,7 @@
     if (name === "placeholders") window.RSVP_ADMIN_PLACEHOLDERS.render({ R, T });
   }
   function tab(name, updateUrl = true) {
+    const previousTab = activeTab;
     const oldOverview = name === "overview";
     if (oldOverview) name = "invites";
     if (name === "tasks") name = "other";
@@ -201,6 +202,7 @@
     );
     if (name === "settings") settingsTab(activeSettingsTab);
     A.apply();
+    if (name === "invites" && name !== previousTab) invitesView.refreshInvitationActivity();
     if (updateUrl || oldOverview) {
       const hash = "#" + name;
       const next = location.pathname + location.search + hash;
@@ -4838,6 +4840,7 @@
         { class: "btn secondary", type: "button" },
         T("food.messages.manage_food"),
       );
+      food.setAttribute("aria-haspopup", "dialog");
       food.addEventListener("click", () => venueFoodDialog(v, food));
       footer.append(food);
     }
@@ -4947,6 +4950,8 @@
     );
   }
   function assignmentDialog({
+    key,
+    section,
     title,
     name,
     help,
@@ -4955,10 +4960,17 @@
     saveChanges,
     trigger,
   }) {
-    const dialog = R.inlinePanel({
-      class: "food-recipe-dialog venue-assignment-dialog",
+    if (
+      !trigger.isConnected || !trigger.getClientRects().length ||
+      !can("venues", "edit") || !can(section, "edit") || window.RSVP_POPUPS.get(key)
+    ) return;
+    const recordKey = trigger.closest("form")?.dataset.formKey;
+    const label = title + " · " + name;
+    const dialog = window.RSVP_POPUPS.create(key, {
+      class: "venue-assignment-dialog",
     }, trigger);
-    dialog.setAttribute("aria-label", title);
+    dialog.setAttribute("aria-label", label);
+    dialog.dataset.assignmentSection = section;
     const form = R.dom("form");
     form.append(R.dom("p", { class: "micro" }, help));
     const list = R.dom("div", { class: "venue-assignment-list" });
@@ -5034,28 +5046,34 @@
       const remove = editable
         .filter((check) => !check.checked && assigned.has(check.value))
         .map((check) => check.value);
-      save.disabled = true;
+      save.disabled = cancel.disabled = true;
       form.setAttribute("aria-busy", "true");
       status.textContent = "";
       try {
         await saveChanges(add, remove);
         dialog.close();
         await reload();
+        if (recordKey && !trigger.isConnected && document.activeElement === document.body) {
+          const pencil = qs('[data-record-pencil="' + CSS.escape(recordKey) + '"]:not(:disabled)');
+          if (pencil?.getClientRects().length) pencil.focus();
+        }
         show(T("interface.messages.changes_saved"), "success");
       } catch (error) {
         status.textContent = R.safeError(error);
       } finally {
         form.removeAttribute("aria-busy");
+        cancel.disabled = false;
         updateSelection();
       }
     });
-    dialog.append(R.dom("h2", {}, title + " · " + name), form);
-    dialog.addEventListener("close", () => dialog.remove(), { once: true });
-    $("adminApp").append(dialog);
+    dialog.append(R.dom("h2", {}, label), form);
     dialog.openInline();
+    (editable.length ? selectAll : cancel).focus();
   }
   function venueFoodDialog(venue, trigger) {
     assignmentDialog({
+      key: "venue-food:" + venue.id,
+      section: "food",
       trigger,
       title: T("food.messages.venue_food"),
       name: venue.name,
@@ -5131,6 +5149,8 @@
       }
     }
     assignmentDialog({
+      key: "session-households:" + session.id,
+      section: "invites",
       trigger,
       title: T("interface.messages.manage_households"),
       name: session.name,
@@ -5453,6 +5473,20 @@
       .forEach((b) =>
         b.addEventListener("click", () => settingsTab(b.dataset.settingsTab)),
       );
+    const languageTabs = [...$("settingsLanguageTabs").querySelectorAll('[role="tab"]')];
+    for (const languageTab of languageTabs) {
+      languageTab.addEventListener("click", () => {
+        if (!A.settingsAllowed("languages")) return;
+        // Keep open forms and drafts mounted when switching between the two panels.
+        for (const item of languageTabs) {
+          const active = item === languageTab;
+          item.classList.toggle("active", active);
+          item.setAttribute("aria-selected", String(active));
+          item.tabIndex = active ? 0 : -1;
+          $(item.getAttribute("aria-controls")).hidden = !active;
+        }
+      });
+    }
     $("settingsToggle").addEventListener("click", () => tab("settings"));
     $("logFilters").addEventListener("submit", (e) => {
       e.preventDefault();

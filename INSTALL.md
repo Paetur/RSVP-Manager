@@ -14,7 +14,7 @@ For a dedicated Supabase Cloud project, the [trusted local setup companion](docs
 
 ## Existing installations
 
-Beta.6 adds invitation progress messages, a text-only copy action and separate Venues and Sessions tabs. A retained beta.5 installation needs a scoped translation registry update for three new labels. Beta.6 keeps backup format 3 and the 44-table manifest. Use the fresh installer only on an empty application database.
+Beta.7 combines guest RSVP and food-interest confirmation when both answers are due. A retained beta.6 installation needs a scoped database update and the matching guest gateway before serving the new website. Beta.7 keeps backup format 3 and the 44-table manifest. Use the fresh installer only on an empty application database.
 
 Verify the installed schema and prepare a reviewed change for that installation. Protect its database, administrator access, private photos and configuration, including the existing publication setting. Rehearse the update and rollback on disposable data, then verify data and access afterward. Keep the website and backend compatible.
 
@@ -75,7 +75,7 @@ CLI alternative, after `gh auth login`:
 ```bash
 gh variable set RSVP_SUPABASE_URL --repo OWNER/WEBSITE --body 'https://YOUR-PROJECT.supabase.co'
 gh variable set RSVP_PUBLISHABLE_KEY --repo OWNER/WEBSITE --body 'sb_publishable_YOUR_PUBLIC_KEY'
-gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-beta.6
+gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-beta.7
 ```
 
 Use the workflow filename and release input name from your copy of the [deployment template](deployment/README.md). For direct static hosting without this Actions workflow, upload the wizard's downloaded file as `js/config.js` in the installation directory instead.

@@ -215,6 +215,7 @@
           { class: "btn secondary edit-only", type: "button" },
           T("interface.messages.manage_households"),
         );
+        households.setAttribute("aria-haspopup", "dialog");
         households.addEventListener("click", async () => {
           if (!isEditing()) return;
           households.disabled = true;

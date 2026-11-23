@@ -9,6 +9,7 @@ const { openBox } = require("./helpers/local-edit-ui.cjs");
 const { server, mock, extra, stageExtra } =
   createFoodHarness("guest-food-wording");
 const additions = String.raw`
+window.__invite.household.rsvp_state='locked';
 fixtures.event_settings[0].rsvp_deadline='2027-03-27T23:30:00Z';fixtures.event_settings[0].timezone='Europe/Berlin';fixtures.event_settings[0].food_introduction={en:'Original explanation',de:'Erklärung'};
 window.__replyRows=[{template_key:'food-interest-reply',language_code:'en',body:'Please return around {rsvp_deadline:+5}'},{template_key:'food-interest-reply-no-deadline',language_code:'en',body:'Please check later.'}];
 for(const [n,interest] of [['yes',true],['no',false],['unanswered',null]]){const id='report-'+n;fixtures.households.push({id,household_name:'Report '+n,planning_group_id:'group_a',relation_group_id:cat2,parent_id:null,language:'en',food:true,food_interest:interest});fixtures.guests.push({id:'guest-'+n,household_id:id,first_name:'Guest',last_name:n});}
@@ -51,11 +52,12 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
       await page
         .getByRole("button", { name: "I can bring food", exact: true })
         .click();
-      await page.locator("#guestStatus.error").waitFor();
       assert.equal(await page.locator("#foodInterestReply").count(), 0);
-      await page
-        .getByRole("button", { name: "I can bring food", exact: true })
-        .click();
+      const confirm = page.locator("#confirmFoodInterest");
+      await confirm.click();
+      await page.locator("#foodInterestStatus.error").waitFor();
+      assert.equal(await page.locator("#foodInterestReply").count(), 0);
+      await confirm.click();
       await page.locator("#foodInterestReply").waitFor();
       assert.equal(
         await page.locator("#foodInterestReply").textContent(),
@@ -85,10 +87,8 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
         "Bitte am 2. April 2027 wiederkommen",
       );
       await page.locator("#languageSwitcher [data-language=en]").click();
-      await page
-        .getByRole("button", { name: "I can’t bring food", exact: true })
-        .click();
-      await page.locator("#foodInterestReply").waitFor({ state: "detached" });
+      assert.equal(await page.getByRole("button", { name: "I can’t bring food", exact: true }).isDisabled(), true);
+      assert.equal(await confirm.count(), 0);
       await page.goto(base + "/admin/");
       await page.waitForFunction(
         () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),

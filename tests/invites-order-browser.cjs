@@ -127,7 +127,7 @@ for(const h of fixtures.households.filter(h=>h.id!==h1&&!fixtures.guests.some(g=
       });
       await refreshFixture(page);await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
       await setInvitesGrouping(page,'service');
-      const serviceGroups=await page.locator('#inviteRows .invite-overview-group').evaluateAll(groups=>groups.map(group=>({service:group.dataset.inviteService,title:group.querySelector('h3').textContent,ids:[...group.querySelectorAll('[data-invite-household]')].map(row=>row.dataset.inviteHousehold),outlined:parseFloat(getComputedStyle(group).borderTopWidth)>0&&parseFloat(getComputedStyle(group).borderRadius)>0})));
+      const serviceGroups=await page.locator('#inviteRows .invite-overview-group').evaluateAll(groups=>groups.map(group=>({service:group.dataset.inviteService,title:group.querySelector('h3').textContent,ids:[...group.querySelectorAll('[data-invite-household]')].map(row=>row.dataset.inviteHousehold),outlined:parseFloat(getComputedStyle(group).borderTopWidth)>0&&parseFloat(getComputedStyle(group).borderBottomLeftRadius)>0})));
       assert.deepEqual(serviceGroups.map(group=>group.service),['messages','email','whatsapp','sms','none'],'service groups follow the stable service order');
       assert.deepEqual(serviceGroups.map(group=>group.title),['Messages','Email','WhatsApp','SMS','None']);
       for(const item of expectedServices)assert.ok(serviceGroups.find(group=>group.service===item.service).ids.includes(item.id),'household belongs to its service group: '+item.service);

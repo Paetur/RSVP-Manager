@@ -6,12 +6,12 @@
   <meta name="description" content="A private invitation and RSVP experience.">
   <meta name="referrer" content="no-referrer">
   <title>Event Invitation</title>
-  <link rel="stylesheet" href="css/app.css?v=20261117-queued">
-  <script src="js/translations.js?v=20261117-queued" defer></script><script src="js/interface-overrides.js?v=20261114-guest-food-maintenance" defer></script><script src="js/i18n.js?v=20261115-queued-settings-delivery" defer></script>
+  <link rel="stylesheet" href="css/app.css?v=20261123-guest-review-alignment">
+  <script src="js/translations.js?v=20261122-guest-response-navigation" defer></script><script src="js/interface-overrides.js?v=20261114-guest-food-maintenance" defer></script><script src="js/i18n.js?v=20261115-queued-settings-delivery" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js" integrity="sha384-jP+y6mxch/vbLrNpx4basfv6ciZQuHwdRHgZGa6Mhja0Xm4p87ok2OQavTrRIGxH" crossorigin="anonymous" defer></script>
   <script src="js/config.production.js?v=20261107-local-recovery" defer></script><script src="js/config.js?v=20261107-local-recovery" defer></script>
   <script src="js/guest-design.js?v=20261114-guest-food-maintenance" defer></script><script src="js/notifications.js?v=20261114-guest-food-maintenance" defer></script><script src="js/household-name.js?v=20261115-household-name" defer></script><script src="js/core.js?v=20261117-shortcuts-c" data-app-core defer></script><script src="js/inline-ui.js?v=20261116-events-delete-appearance" defer></script><script src="js/text-placeholders.js?v=20261115-inline-restore" defer></script>
-  <script src="js/guest-names.js?v=20261115-queued-settings-delivery" defer></script><script src="js/guest.js?v=20261117-shortcuts-c" defer></script>
+  <script src="js/guest-names.js?v=20261115-queued-settings-delivery" defer></script><script src="js/guest.js?v=20261123-guest-review-alignment" defer></script>
 </head>
 <body>
   <header class="topbar"><div class="site-width topbar-inner">
@@ -31,24 +31,63 @@
       <section id="invitationCard" class="panel hidden"><span class="eyebrow">PERSONAL INVITATION</span><h2 id="householdName">Welcome</h2><p id="invitationDescription" class="muted">We look forward to celebrating our day with you.</p><form id="rsvpForm"></form>
         <div id="rsvpEditor">
           <div id="rsvpRows" class="rsvp-rows"></div>
-          <label class="rsvp-comment-field"><span id="rsvpCommentLabel">RSVP comment (optional)</span><textarea id="rsvpComment" form="rsvpForm" maxlength="2000" rows="3" aria-describedby="rsvpCommentHelp"></textarea><small id="rsvpCommentHelp" class="muted">Dietary requirements or anything else we should know.</small></label>
-          <div class="form-footer rsvp-submit-row"><span id="rsvpHint" class="muted small"></span><button id="saveRsvp" type="submit" form="rsvpForm" class="btn">Review RSVP</button></div>
+          <div class="form-footer rsvp-submit-row">
+            <span id="rsvpHint" class="muted small"></span>
+            <p id="rsvpValidation" class="notice hidden" role="alert"></p>
+            <button id="rsvpNext" class="btn secondary guest-step-next hidden" type="button" aria-label="Go to Food coordination"><span aria-hidden="true">↓</span></button>
+          </div>
         </div>
         <section id="rsvpReview" class="hidden" aria-labelledby="rsvpReviewTitle">
-          <h3 id="rsvpReviewTitle" class="hidden">Review RSVP</h3>
-          <p id="rsvpReviewHelp" class="muted small">Check the answers for each guest and session. Confirming locks the RSVP.</p>
-          <div id="rsvpReviewRows" class="rsvp-rows"></div>
-          <div id="rsvpCommentPreview" class="rsvp-comment-preview hidden"><strong id="rsvpCommentPreviewLabel">Comment</strong><p></p></div>
-          <div class="form-footer">
-            <button id="confirmRsvp" type="button" class="btn">Confirm RSVP</button>
-            <button id="editRsvp" type="button" class="btn secondary">Back to edit</button>
+          <div class="guest-review-content">
+            <h3 id="rsvpReviewTitle" class="hidden">Review RSVP</h3>
+            <p id="rsvpReviewHelp" class="muted small">Check the answers for each guest and session. Confirming locks the RSVP.</p>
+            <p id="responseSubmitError" class="notice hidden" role="alert"></p>
+            <div id="rsvpReviewRows" class="rsvp-rows"></div>
+            <div id="rsvpCommentPreview" class="rsvp-comment-preview hidden"><strong id="rsvpCommentPreviewLabel">RSVP comment</strong><p></p></div>
+            <section id="foodInterestPreview" class="guest-response hidden" aria-labelledby="foodInterestPreviewTitle">
+              <h4 id="foodInterestPreviewTitle">Can you bring food?</h4>
+              <p></p>
+            </section>
+          </div>
+          <div id="rsvpReviewAction" class="guest-review-actions">
+            <button id="confirmRsvp" type="button" class="btn hidden">Confirm RSVP</button>
+            <button id="editRsvp" type="button" class="btn secondary hidden">Back to edit</button>
           </div>
         </section>
       <div id="householdGuestHost"></div></section>
-      <section id="foodCard" class="panel hidden"><span class="eyebrow">FOOD COORDINATION</span><h2>What can you bring?</h2><p class="muted">Choose items only if you want to contribute. Quantities cannot exceed what is needed.</p><div id="foodInterestHost"></div><div id="foodList" class="food-list"></div><div class="form-footer"><button id="confirmFood" class="btn secondary hidden" type="button">Confirm my selections</button><span id="foodHint" class="muted small"></span></div></section>
+      <section id="foodCard" class="panel hidden">
+        <span class="eyebrow">FOOD COORDINATION</span>
+        <h2 tabindex="-1">What can you bring?</h2>
+        <p class="muted">Choose items only if you want to contribute. Quantities cannot exceed what is needed.</p>
+        <div id="foodInterestHost"></div>
+        <p id="foodResponseValidation" class="notice hidden" role="alert"></p>
+        <div id="foodList" class="food-list"></div>
+        <div class="form-footer"><button id="confirmFood" class="btn secondary hidden" type="button">Confirm my selections</button><span id="foodHint" class="muted small"></span></div>
+        <button id="foodNext" class="btn secondary guest-step-next hidden" type="button" aria-controls="rsvpCommentPanel" aria-label="Go to comment and review"><span aria-hidden="true">↓</span></button>
+      </section>
+      <section id="rsvpCommentPanel" class="panel guest-comment-panel hidden" aria-labelledby="rsvpCommentLabel">
+        <details id="rsvpCommentDisclosure">
+          <summary id="rsvpCommentLabel">RSVP comment</summary>
+          <div class="rsvp-comment-field">
+            <textarea id="rsvpComment" form="rsvpForm" maxlength="2000" rows="3" aria-labelledby="rsvpCommentLabel" aria-describedby="rsvpCommentHelp"></textarea>
+            <small id="rsvpCommentHelp" class="muted">Dietary requirements or anything else we should know.</small>
+          </div>
+        </details>
+      </section>
+      <div id="combinedResponseActions" class="panel guest-response-actions hidden">
+        <p id="responseFoodStatus" class="muted small hidden" role="status"></p>
+        <button id="retryResponseFood" class="btn secondary hidden" type="button">Check food availability again</button>
+        <div id="guestWideReviewActions">
+          <button id="saveRsvp" type="submit" form="rsvpForm" class="btn hidden" aria-describedby="rsvpValidation">Review RSVP</button>
+          <button id="reviewResponses" class="btn hidden" type="submit" form="rsvpForm">Review responses</button>
+        </div>
+      </div>
     </div>
   </main>
   <footer class="site-width guest-footnote"><p class="micro">Private invitations · Please do not share your invitation link.</p></footer>
+  <div id="guestResponseFooter" class="guest-response-footer hidden">
+    <div id="guestFixedResponseActions" class="site-width"></div>
+  </div>
 </body>
 </html>
 

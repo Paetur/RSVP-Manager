@@ -39,6 +39,19 @@
   opacity: 0.7;
 }
 
+.food-interest-choices[data-confirmed="true"] .food-interest-choice:disabled {
+  cursor: default;
+}
+.food-interest-choices[data-confirmed="true"] .food-interest-choice[aria-pressed="true"] {
+  opacity: 1;
+}
+.food-interest-status:empty {
+  display: none;
+}
+.food-interest-status.error {
+  color: var(--danger);
+}
+
 body.guest-photo .food-interest-choice[aria-pressed="true"] {
   border-color: #b4dcc7;
   box-shadow: inset 0 0 0 1px #b4dcc7;
@@ -51,4 +64,96 @@ body.guest-photo .food-interest-choice[aria-pressed="true"]:before {
 .food-interest-reply {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.guest-response-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.guest-response-actions > p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.guest-response-actions .btn {
+  max-width: 100%;
+  white-space: normal;
+}
+#foodInterestPreview {
+  margin-top: 12px;
+}
+#foodInterestPreview h4 {
+  margin: 0 0 4px;
+}
+#foodInterestPreview p {
+  margin: 0;
+}
+#rsvpRows #rsvpValidation {
+  grid-column: -2 / -1;
+  margin: 0;
+  text-align: start;
+}
+
+.guest-comment-panel summary {
+  cursor: pointer;
+  min-block-size: 44px;
+  align-content: center;
+  font-weight: 600;
+}
+.guest-comment-panel summary::marker {
+  color: var(--teal);
+}
+.guest-comment-panel .rsvp-comment-field {
+  margin-block-start: 8px;
+}
+.btn.guest-step-next {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  inline-size: 44px;
+  min-block-size: 44px;
+  padding: 0;
+  margin: 10px auto 0;
+  border-radius: 50%;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+.guest-review-actions:has(> button:not(.hidden)) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-block-start: 16px;
+}
+.guest-review-actions > #editRsvp {
+  margin-inline-start: auto;
+}
+@media (max-width: 545px) {
+  .guest-response-footer {
+    position: fixed;
+    z-index: 10;
+    inset-inline: 0;
+    inset-block-end: var(--guest-response-keyboard-inset, 0px);
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+    background: var(--paper);
+    border-block-start: 1px solid var(--line);
+  }
+  #guestFixedResponseActions:has(> #editRsvp:not(.hidden)) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  #guestFixedResponseActions .btn {
+    inline-size: 100%;
+    min-block-size: 44px;
+    white-space: normal;
+  }
+  html.has-guest-response-footer {
+    scroll-padding-block-end: calc(var(--guest-response-footer-height, 66px) + var(--guest-response-keyboard-inset, 0px) + 12px);
+  }
+  html.has-guest-response-footer body {
+    padding-block-end: calc(var(--guest-response-footer-height, 66px) + var(--guest-response-keyboard-inset, 0px));
+  }
 }

@@ -281,7 +281,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
     for(const [i,response] of args.p_responses.entries())invites[i].response=response.status;
     locked=true;return {data:{submission_id:'mock'}};
    }
-   if(action==='get_invitation_v2')return {data:{household:{name:'Example household',language:'sv',rsvp_state:locked?'locked':'open'},guests,invitations:invites}};
+   if(action==='get_invitation_v2')return {data:{household:{id:'10000000-0000-4000-8000-000000000001',name:'Example household',language:'sv',rsvp_state:locked?'locked':'open'},guests,invitations:invites}};
    if(action==='get_household_food')return {data:{items:[{id:'food',name_en:'Dish',quantity_needed:5}],claims:[]}};
    return {data:null};
   }};

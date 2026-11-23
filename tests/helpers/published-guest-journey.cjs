@@ -21,6 +21,7 @@ const gatewayArguments = {
   set_household_food_claim: ["p_code", "p_food_item_id", "p_quantity", "p_notes"],
   confirm_household_food: ["p_code", "p_expected_claims"],
   submit_household_rsvp: ["p_code", "p_request_id", "p_responses", "p_comment"],
+  submit_household_response: ["p_code", "p_request_id", "p_responses", "p_comment", "p_food_interest"],
 };
 const jsonArguments = new Set(["p_expected_claims", "p_responses"]);
 
@@ -92,7 +93,9 @@ async function createGuestJourneyFixture(origin) {
   const get = async (sql, values = []) => (await db.query(sql, values)).rows[0]?.v;
   try {
     const households = [];
-    for (const [householdName, firstName] of [["Morgan", "Alex"], ["Riley", "Sam"]]) {
+    for (const [householdName, firstName] of [
+      ["Morgan", "Alex"], ["Riley", "Sam"], ["Quinn", "Robin"], ["Taylor", "Avery"],
+    ]) {
       const id = await get(
         "INSERT INTO public.households(household_name,planning_group_id,language,food) VALUES($1,'general','en',true) RETURNING id v",
         [householdName],
@@ -124,7 +127,7 @@ async function createGuestJourneyFixture(origin) {
       "INSERT INTO public.food_items(name_en,quantity_needed) VALUES('Synthetic fruit basket',1) RETURNING id v",
     );
     await db.exec(
-      "UPDATE public.event_settings SET event_name='Synthetic celebration', event_date=current_date+14, rsvp_deadline=now()+interval '1 day', food_stage='selection', food_enabled=true WHERE id=1",
+      "UPDATE public.event_settings SET event_name='Synthetic celebration', event_date=current_date+14, rsvp_deadline=now()+interval '1 day', food_stage='selection', food_enabled=false WHERE id=1",
     );
 
     await signIn(db);
@@ -174,6 +177,13 @@ async function createGuestJourneyFixture(origin) {
         "SELECT public.admin_reopen_household_rsvp($1,'Synthetic reopening') v",
         [person.id],
       ),
+      enableFood: () => db.exec("UPDATE public.event_settings SET food_enabled=true WHERE id=1"),
+      resetDeadline: () => db.exec("UPDATE public.event_settings SET rsvp_deadline=now()+interval '1 day' WHERE id=1"),
+      responseState: person => get(`
+        SELECT jsonb_build_object('rsvp', h.rsvp_state, 'food', h.food_interest, 'submissions',
+          (SELECT count(*) FROM public.rsvp_submissions WHERE household_id=h.id)) v
+        FROM public.households h WHERE id=$1
+      `, [person.id]),
       expireDeadline: () => db.exec("UPDATE public.event_settings SET rsvp_deadline=now()-interval '1 day' WHERE id=1"),
       allowLate: person => organizer(
         "SELECT public.admin_authorize_late_rsvp($1,now()+interval '1 day','Synthetic late response') v",

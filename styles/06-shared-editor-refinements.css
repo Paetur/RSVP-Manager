@@ -36,9 +36,8 @@
   flex: none;
   min-width: 0;
 }
-.rsvp-submit-row #saveRsvp {
-  margin-left: 0;
-  flex: none;
+.rsvp-submit-row #rsvpValidation {
+  margin: 0;
 }
 .rsvp-session {
   display: grid;
@@ -123,10 +122,6 @@
 @media (max-width: 600px) {
   .rsvp-session {
     column-gap: 12px;
-  }
-  .rsvp-submit-row #saveRsvp {
-    max-width: 100%;
-    white-space: normal;
   }
   .venue-summary-content {
     gap: 10px;

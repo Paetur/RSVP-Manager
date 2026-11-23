@@ -2,7 +2,7 @@
 
 ## Choose when guests see food choices
 
-Under **Home → Events → Features**, enable Food and choose one of the **Guest food step** cards. **Collect interest** asks whether households can bring food while hiding the detailed menu. **Choose food** opens the menu to eligible households after they answer Yes. Save the setting when ready.
+Under **Home → Events → Features**, enable Food and choose one of the **Guest food step** cards. **Collect interest** asks whether households can bring food while hiding the detailed menu. Guests save their Yes or No with **Submit responses** when they also owe an RSVP, or **Confirm food answer** when only the food question is outstanding. The saved answer is read-only. **Choose food** opens the menu to eligible households with a saved Yes. Save the setting when ready.
 
 Edit the guest explanation at **Languages globe → Guests → Food explanation**. Configure the response after a saved Yes at **Guests → Food Interest Reply**, including an optional RSVP-deadline date placeholder and missing-deadline fallback. See [Languages](Languages.md#guests-food-text). The detailed list stays hidden throughout Collect interest.
 
@@ -36,7 +36,7 @@ Guests select one box that reserves one unit of **every member** atomically. Eac
 
 Names and quantities under an item are actual household commitments. Use **Add household**, the assignment pencil or **Remove assignment** to manage them. The same commitment appears in that household’s Food area; enter it only once.
 
-Choose venues in the item editor. For bulk changes, use **Manage food** on a venue and save selected items. Other venue assignments are retained. Guests also need the appropriate session invitation and household food access.
+Choose venues in the item editor. For bulk changes, use **Manage food** on a venue to open the assignment dialog and save your selected items. Other venue assignments are retained. Guests also need the appropriate session invitation and household food access.
 
 ## Guest flow
 

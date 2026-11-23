@@ -10,7 +10,7 @@ A fictional event in Dark mode, shown at iPad landscape width.
 
 ### Invites
 
-![The Invitation overview and grouped household list with Invitation and Text copy buttons](docs/images/ipad-invites.png)
+![Invitation overview and grouped household list with Seen and Not seen counts, visit dates and copy buttons](docs/images/ipad-invites.png)
 
 ### Templates
 
@@ -31,9 +31,9 @@ A fictional event in Dark mode, shown at iPad landscape width.
 
 ## Downloads and installation
 
-Download **[0.9.0-beta.6](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-beta.6)** for the installation ZIP and checksum. [Installation instructions](INSTALL.md) describe the website, Supabase and administrator setup. Each installation starts unconfigured and has its own data.
+Download **[0.9.0-beta.7](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-beta.7)** for the installation ZIP and checksum. [Installation instructions](INSTALL.md) describe the website, Supabase and administrator setup. Each installation starts unconfigured and has its own data.
 
-Use the current installer for a fresh database. Beta.6 adds invitation batch progress, a text-only copy action and dedicated Venues and Sessions tabs. It retains backup format 3. For a retained installation, follow the [existing-installation instructions](INSTALL.md#existing-installations) for a reviewed update that preserves existing data and photos.
+Use the current installer for a fresh database. Beta.7 combines guest RSVP and food-interest confirmation, shows invitation visits in Invites, and separates language settings from translations. It retains backup format 3. For a retained installation, follow the [existing-installation instructions](INSTALL.md#existing-installations) for a reviewed update that preserves existing data and photos.
 
 For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 
