@@ -39,6 +39,8 @@ jobs:
           node tests/backup-column-order-db.cjs
           node tests/event-replacement-db.cjs
           node tests/venue-session-timestamps-db.cjs
+          node tests/admin-change-db.cjs
+          node tests/guest-overview-db.cjs
           node tests/guest-names-db.cjs
           node tests/household-display-db.cjs
           node tests/text-placeholders.cjs
@@ -182,6 +184,8 @@ jobs:
           node tests/admin-ui-cleanup-browser.cjs
       - name: Test compact food, language categories and task sheet
         run: node tests/food-language-tasks-browser.cjs
+      - name: Test household food access and session invitation tabs
+        run: node tests/food-access-browser.cjs
       - name: Test Food recipe links and editor translation globes
         run: node tests/food-popups-browser.cjs
       - name: Test guest contacts, primary contact validation and ordering

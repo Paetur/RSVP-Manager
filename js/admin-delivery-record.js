@@ -324,8 +324,28 @@
       const row = section?.closest("[data-invite-household]");
       const target = row?.querySelector(action + ":enabled") ||
         section?.querySelector("[data-delivery-id] > summary") ||
+        section?.parentElement.querySelector(":scope > summary") ||
         document.querySelector('#statsGrid [data-invite-filter][aria-pressed="true"]');
       if (target?.getClientRects().length) target.focus({ preventScroll: Boolean(row) });
+    }
+
+    async function saveReady(household, queue, body) {
+      const id = await managementRpc("admin_save_delivery", {
+        p_id: queue.id,
+        p_household_id: household.id,
+        p_expected_revision: queue.revision,
+        p_values: {
+          status: "ready",
+          channel: queue.channel,
+          contact_id: queue.contact_id || null,
+          message_subject: window.RSVP_INVITATION_TEXT.deliverySubject(household, queue, R),
+          message_body: body,
+          message_image: queue.message_image ?? null,
+          expected_invitation_code: household.invite_code,
+        },
+      });
+      if (id !== queue.id) throw Error(T("Changed. Try again."));
+      return true;
     }
 
     function markReadyButton(h, q, record) {
@@ -356,21 +376,7 @@
         form?.cleanSaveUpdate?.();
         let saved = false;
         try {
-          const id = await managementRpc("admin_save_delivery", {
-            p_id: current.id,
-            p_household_id: household.id,
-            p_expected_revision: current.revision,
-            p_values: {
-              channel: current.channel,
-              contact_id: current.contact_id || null,
-              message_subject: window.RSVP_INVITATION_TEXT.deliverySubject(household, current, R),
-              message_body: body,
-              message_image: current.message_image ?? null,
-              expected_invitation_code: household.invite_code,
-              status: "ready",
-            },
-          });
-          if (id !== current.id) throw Error(T("Changed. Try again."));
+          await saveReady(household, current, body);
           saved = true;
           if (await reload()) {
             show(T("interface.messages.changes_saved"), "success");
@@ -440,59 +446,61 @@
       return R.dom("p", { class: "notice success" }, text);
     }
 
-    function deliveryRecord(h, q, { editable, historyOnly, prepareDraft = false, standalone = false }) {
+    function deliveryChannel(channel) {
+      return ({
+        email: T("interface.messages.email"),
+        sms: "SMS",
+        whatsapp: "WhatsApp",
+        postal: T("interface.messages.postal"),
+        manual: T("interface.messages.manual"),
+      })[channel] || channel;
+    }
+
+    function deliveryStatus(status) {
+      return ({
+        draft: T("interface.messages.draft"),
+        ready: T("interface.messages.ready"),
+        sent: T("interface.messages.recorded_sent"),
+        failed: T("interface.messages.failed"),
+        cancelled: T("interface.messages.cancelled"),
+      })[status] || status;
+    }
+
+    function deliveryPreview(host, reveal, { recipient = {}, subject, body, picture }) {
+      const message = R.dom("pre", { class: "delivery-message" }, body);
+      const to = [recipient.contact_name, recipient.contact_value].filter(Boolean).join(" · ");
+      if (to) host.append(R.dom("p", { class: "small" }, T("interface.messages.to") + to));
+      if (subject) host.append(R.dom("p", { class: "micro" }, subject));
+      host.append(message);
+      if (!picture) return;
+      // Delay decoding attached pictures until their actual disclosure opens.
+      const showPicture = () => {
+        if (!reveal.open) return;
+        reveal.removeEventListener("toggle", showPicture);
+        const fragment = document.createDocumentFragment();
+        window.RSVP_INVITATION_IMAGE.preview(fragment, picture, { R, T });
+        message.after(fragment);
+      };
+      if (reveal.open) showPicture();
+      else reveal.addEventListener("toggle", showPicture);
+    }
+
+    function deliveryRecord(h, q, {
+      editable, historyOnly, prepareDraft = false, standalone = false, reveal,
+    }) {
       const store = getStore();
-      const d = disclosure(
-        ({
-          email: T("interface.messages.email"),
-          sms: "SMS",
-          whatsapp: "WhatsApp",
-          postal: T("interface.messages.postal"),
-          manual: T("interface.messages.manual"),
-        }[q.channel] || q.channel) +
-          " · " +
-          ({
-            draft: T("interface.messages.draft"),
-            ready: T("interface.messages.ready"),
-            sent: T("interface.messages.recorded_sent"),
-            failed: T("interface.messages.failed"),
-            cancelled: T("interface.messages.cancelled"),
-          }[q.status] || q.status) +
-          " · " +
-          adminTime(q.updated_at),
-      );
+      const d = reveal ? R.dom("div") : disclosure([
+        deliveryChannel(q.channel), deliveryStatus(q.status), adminTime(q.updated_at),
+      ].filter(Boolean).join(" · "));
       d.dataset.deliveryId = q.id;
-      const recipient = q.recipient_snapshot || {};
       const preparedBody = prepareDraft && store.settings?.is_published &&
         window.RSVP_INVITATION_TEXT.deliveryMessage(h, q, R);
-      const subject = preparedBody
-        ? window.RSVP_INVITATION_TEXT.deliverySubject(h, q, R)
-        : q.message_subject || "";
-      const message = R.dom("pre", { class: "delivery-message" }, preparedBody || q.message_body);
-      d.append(
-        R.dom(
-          "p",
-          { class: "small" },
-          T("interface.messages.to") +
-            [recipient.contact_name, recipient.contact_value]
-              .filter(Boolean)
-              .join(" · "),
-        ),
-        R.dom("p", { class: "micro" }, subject),
-        message,
-      );
-      if (q.message_image) {
-        // A household can retain several large invitation pictures.
-        const showPicture = () => {
-          if (!d.open) return;
-          d.removeEventListener("toggle", showPicture);
-          const picture = document.createDocumentFragment();
-          window.RSVP_INVITATION_IMAGE.preview(picture, q.message_image, { R, T });
-          message.after(picture);
-        };
-        if (d.open) showPicture();
-        else d.addEventListener("toggle", showPicture);
-      }
+      deliveryPreview(d, reveal || d, {
+        recipient: q.recipient_snapshot || {},
+        subject: preparedBody ? window.RSVP_INVITATION_TEXT.deliverySubject(h, q, R) : q.message_subject,
+        body: preparedBody || q.message_body,
+        picture: q.message_image,
+      });
       let copy;
       if (!standalone && !prepareDraft) {
         copy = R.dom(
@@ -655,8 +663,10 @@
         );
         d.append(followup);
       }
-      const confirmation = sentConfirmation(q);
-      if (confirmation) d.append(confirmation);
+      if (!standalone) {
+        const confirmation = sentConfirmation(q);
+        if (confirmation) d.append(confirmation);
+      }
       if (
         can("invites", "edit") &&
         editable &&
@@ -743,48 +753,99 @@
       const section = R.dom("section", { class: "current-invitation" });
       const entry = deliveryRecord(h, q, options);
       section.append(R.dom("h3", {}, T("Current invitation")), entry);
-      if (options.standalone) {
-        section.id = "invite-current-" + h.id;
-        const heading = section.querySelector("h3");
-        heading.id = section.id + "-heading";
-        section.setAttribute("aria-labelledby", heading.id);
-      }
       return section;
     }
 
+    function sentDeliveryLog(q, sent) {
+      const snapshot = sent?.message_snapshot;
+      const legacy = q.status === "sent" ? q : {};
+      // The saved record does not distinguish an invitation from a reminder.
+      const label = [
+        deliveryStatus("sent"),
+        deliveryChannel(snapshot ? snapshot.channel : legacy.channel),
+        snapshot ? snapshot.subject : legacy.message_subject,
+        sent?.confirmed_by && actorName(sent.confirmed_by),
+        adminTime(sent?.confirmed_at || legacy.sent_at || legacy.updated_at),
+      ].filter(Boolean).join(" · ");
+      const canPreview = can("invites") && typeof snapshot?.body === "string" && snapshot.body.trim();
+      const log = canPreview ? disclosure(label) : R.dom("p", { class: "micro" }, label);
+      log.dataset.deliveryLogQueueId = q.id;
+      if (canPreview) {
+        // Compact loads omit the duplicate picture stored with the same immutable sent row.
+        const picture = Object.hasOwn(snapshot, "message_image") ? snapshot.message_image
+          : q.status === "sent" ? q.message_image : null;
+        deliveryPreview(log, log, {
+          recipient: sent.recipient_snapshot || {}, subject: snapshot.subject,
+          body: snapshot.body, picture,
+        });
+        if (sent.delivery_note) log.append(R.dom("p", { class: "micro" }, sent.delivery_note));
+      } else if (sent?.delivery_note) log.append(" · ", sent.delivery_note);
+      return log;
+    }
+
     function invitationSection(h, current) {
+      const store = getStore();
       const menu = disclosure(T("Invitation"), "feature-section");
       const sections = R.dom("div", { class: "invite-household-submenus" });
-      const logs = disclosure(T("Delivery logs"));
-      const drafts = disclosure(T("Drafts"));
       const invitations = disclosure(T("Current invitation(s)"));
-      logs.id = "invite-delivery-" + h.id;
-      logs.dataset.inviteDeliverySubmenu = "logs";
-      drafts.dataset.inviteDeliverySubmenu = "drafts";
+      const drafts = disclosure(T("Drafts"));
+      const logs = disclosure(T("Delivery logs"));
       invitations.dataset.inviteDeliverySubmenu = "current";
+      drafts.dataset.inviteDeliverySubmenu = "drafts";
+      logs.dataset.inviteDeliverySubmenu = "logs";
+      logs.id = "invite-delivery-" + h.id;
 
-      const history = window.RSVP_ADMIN_OVERVIEW.invitationRecords(getStore(), h.id)
-        .filter(record => record.id !== current?.id);
-      if (current) {
-        const prepareDraft = current.status === "draft";
-        const panel = currentInvitation(h, current, { editable: true, prepareDraft, standalone: true });
-        const bucket = prepareDraft ? drafts : ["ready", "sent"].includes(current.status) ? invitations : logs;
-        bucket.append(panel);
-        // Render the picture after the relevant submenu first exposes its record.
-        const openRecord = () => {
-          if (!bucket.open) return;
-          panel.querySelector("[data-delivery-id]").open = true;
-          bucket.removeEventListener("toggle", openRecord);
-        };
-        bucket.addEventListener("toggle", openRecord);
+      const records = window.RSVP_ADMIN_OVERVIEW.invitationRecords(store, h.id);
+      const sameInvitation = record => h.invite_code && record.invitation_code_snapshot === h.invite_code;
+      const lastSent = records.find(record => record.status === "sent" && sameInvitation(record));
+      const ready = records.filter(record =>
+        record === lastSent ||
+        (record.status === "ready" && (record.id === current?.id || sameInvitation(record))) ||
+        (record.status === "sent" && record.id === current?.id),
+      );
+      const pending = records.filter(record => ["draft", "failed"].includes(record.status));
+      const confirmations = new Map(store.deliveries.map(sent => [sent.queue_id, sent]));
+      const history = records.filter(record =>
+        record.status === "sent" || confirmations.has(record.id) ||
+        (!ready.includes(record) && !pending.includes(record)),
+      ).sort((left, right) => {
+        const time = record => confirmations.get(record.id)?.confirmed_at || record.updated_at || "";
+        return time(right).localeCompare(time(left));
+      });
+      for (const [bucket, items, empty] of [
+        [invitations, ready, "No ready or sent invitations"],
+        [drafts, pending, "No drafts"],
+      ]) {
+        if (!items.length) {
+          bucket.append(R.dom("p", { class: "micro" }, T(empty)));
+          continue;
+        }
+        const group = R.dom("div", { class: "current-invitation" });
+        for (const record of items) {
+          const primary = record.id === current?.id;
+          const entry = deliveryRecord(h, record, {
+            editable: primary || pending.includes(record) || record === lastSent,
+            prepareDraft: primary && record.status === "draft",
+            standalone: true,
+            reveal: items.length === 1 ? bucket : undefined,
+          });
+          if (primary) {
+            group.id = "invite-current-" + h.id;
+            entry.dataset.primaryDelivery = "";
+          }
+          group.append(entry);
+        }
+        bucket.append(group);
       }
-      for (const record of history)
-        logs.append(deliveryRecord(h, record, { editable: true, historyOnly: false }));
-      if (current?.status === "sent") logs.append(sentConfirmation(current));
-      if (logs.childElementCount === 1) logs.append(R.dom("p", { class: "micro" }, T("interface.messages.no_delivery_recorded_yet")));
-      if (drafts.childElementCount === 1) drafts.append(R.dom("p", { class: "micro" }, T("No drafts")));
-      if (invitations.childElementCount === 1) invitations.append(R.dom("p", { class: "micro" }, T("No ready or sent invitations")));
-      sections.append(logs, drafts, invitations);
+      if (history.length) {
+        logs.firstElementChild.append(" · ", R.dom("small", { class: "muted" }, String(history.length)));
+        for (const record of history) {
+          const sent = confirmations.get(record.id);
+          if (sent || record.status === "sent") logs.append(sentDeliveryLog(record, sent));
+          else logs.append(deliveryRecord(h, record, { editable: false, historyOnly: true, standalone: true }));
+        }
+      } else logs.append(R.dom("p", { class: "micro" }, T("interface.messages.no_delivery_recorded_yet")));
+      sections.append(invitations, drafts, logs);
       menu.append(sections);
       return menu;
     }
@@ -839,7 +900,7 @@
       return d;
     }
 
-    return { editor: deliveryEditor, section: deliverySection, invitationSection };
+    return { section: deliverySection, invitationSection, saveReady };
   }
   window.RSVP_ADMIN_DELIVERY_RECORD = Object.freeze({ create });
 })();

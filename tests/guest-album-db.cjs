@@ -68,31 +68,16 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
           require("./helpers/named-template.cjs").saveTemplate(db, { body: token + " {invitation_link}" }),
         /placeholder/,
       );
-    await q("SELECT public.admin_save_guest_title_visibility($1,$2)", [
-      { de: false, en: true },
-      {},
-    ]);
+    const titles = { de: false, en: true };
+    const saveTitles = (values, expected) =>
+      q("SELECT public.admin_save_guest_interface('wide',$1,$2)", [
+        { guest_title_visibility: values }, { guest_title_visibility: expected },
+      ]);
+    await saveTitles(titles, {});
+    await assert.rejects(() => saveTitles({ de: true }, {}), /changed/);
+    await assert.rejects(() => saveTitles({ de: "false" }, titles), /Invalid/);
     await assert.rejects(
-      () =>
-        q("SELECT public.admin_save_guest_title_visibility($1,$2)", [
-          { de: true },
-          {},
-        ]),
-      /changed/,
-    );
-    await assert.rejects(
-      () =>
-        q("SELECT public.admin_save_guest_title_visibility($1,$2)", [
-          { de: "false" },
-          { de: false, en: true },
-        ]),
-      /Invalid/,
-    );
-    await assert.rejects(
-      () =>
-        q(
-          "UPDATE public.event_settings SET guest_title_visibility='{}' WHERE id=1",
-        ),
+      () => q("UPDATE public.event_settings SET guest_interface_modes='{}' WHERE id=1"),
       /editor|permission/,
     );
     await db.exec("RESET ROLE");
@@ -102,7 +87,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
       undefined,
       "guest event must never include the shared album",
     );
-    assert.equal(event.event.guest_title_visibility.de, false);
+    assert.equal(event.event.guest_interface_modes.wide.guest_title_visibility.de, false);
     await db.exec("SET ROLE authenticated");
     const backup = await value("SELECT public.admin_export_backup() v");
     assert.deepEqual(
@@ -146,7 +131,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
         restored.settings.invitation_picture_album,
         withPicture.invitation_picture_album,
       );
-      assert.equal(restored.settings.guest_title_visibility.de, false);
+      assert.equal(restored.settings.guest_interface_modes.wide.guest_title_visibility.de, false);
       await destination.exec("RESET ROLE");
       const stored = (await destination.query("SELECT invitation_picture_album v FROM public.event_settings WHERE id=1")).rows[0].v;
       assert.deepEqual(stored, storedAlbum);
@@ -194,7 +179,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
       /permission|access/i,
     );
     await assert.rejects(
-      () => q("SELECT public.admin_save_guest_title_visibility('{}','{}')"),
+      () => saveTitles({}, titles),
       /permission|access/i,
     );
     await db.exec("RESET ROLE; SET ROLE anon");

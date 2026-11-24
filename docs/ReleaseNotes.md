@@ -1,5 +1,16 @@
 # Release notes
 
+## 0.9.0-beta.8
+
+- Main updates qualifying invitation visits, RSVP responses and food totals while you work. Active filters, selected households and open edits stay in place.
+- Invites uses a compact **View** menu and toggled **Search**. Keep working while **Mark sent** records confirmations in the open tab. **Retry** first checks whether a send was already recorded. **Delivery logs** keeps the details of previous sends.
+- When another administrator changes event data, the refresh prompt waits for open edits. Household, venue and session editors reject stale saves and keep the unsaved draft.
+- Open **Food access** to manage permissions in saved household order and review interest separately. The **Food** tab in **Sessions → Manage households** shows access and interest for invited households. Eligible guests can revisit their original link to see their RSVP, choose food and review confirmed contributions.
+- **Settings → Interface** groups theme, language, date and time, and Invites appearance preferences. **Overview appearance** has separate card order and visibility controls. The README and guides show the updated interface using a fictional event.
+- Automatic setup installs and repairs the administrator change tracking and guest Overview objects used by this release.
+
+Retained beta.7 installations need a reviewed, scoped database update before deploying the new website. Backup format 3 and the 44-table manifest carry forward. [Existing-installation instructions](../INSTALL.md#existing-installations)
+
 ## 0.9.0-beta.7
 
 - Guests review and submit RSVP and food interest together when both are due. The page checks each answer before advancing, keeps the comment below Food, and pins the review and submit controls on narrow screens. Invitation links open in the household's language and remember each guest's language choice for that invitation.

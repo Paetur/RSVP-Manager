@@ -10,7 +10,11 @@ A fictional event in Dark mode, shown at iPad landscape width.
 
 ### Invites
 
-![Invitation overview and grouped household list with Seen and Not seen counts, visit dates and copy buttons](docs/images/ipad-invites.png)
+![Invitation overview and grouped household list with Seen and Not seen counts, visit dates and compact View and Search controls](docs/images/ipad-invites.png)
+
+### Food access
+
+![Grouped household Food access dialog with food-interest responses and access checkboxes](docs/images/ipad-food-access.png)
 
 ### Templates
 
@@ -21,19 +25,20 @@ A fictional event in Dark mode, shown at iPad landscape width.
 - Organize households and individual guests in a nested list.
 - Invite different households or guests to different sessions and venues.
 - Review and confirm individual replies, then keep the confirmed list visible.
-- Collect food interest before opening category-based choices; Food Groups reserve every included item together without exceeding capacity.
+- Collect food interest and manage access in a grouped household dialog before opening category-based choices. Food Groups reserve every included item together without exceeding capacity.
 - Open shared read-only recipe dialogs with Print and Close, including printable PDFs.
 - Track practical jobs and things to bring in Other.
-- Filter households that need a draft and generate selected drafts from service/language-matched templates. Review drafts and move selected invitations between Draft and Ready. Copy recipients and invitations for manual sending, then mark the selected households Sent.
+- Filter households that need a draft and generate selected drafts from service/language-matched templates. Review drafts and move selected invitations between Draft and Ready. Copy recipients and invitations for manual sending, then mark the selected households Sent in the background.
+- Follow guest visits, replies and food activity in the Overview while you work. Receive a refresh notice when another administrator changes event data.
 - Manage event wording in multiple languages.
 - Give administrators Full, View only or Custom access.
 - Download Full or selected Partial backups, optionally protect them with password-based encryption, and restart planning on an unpublished installation with a Full safety backup.
 
 ## Downloads and installation
 
-Download **[0.9.0-beta.7](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-beta.7)** for the installation ZIP and checksum. [Installation instructions](INSTALL.md) describe the website, Supabase and administrator setup. Each installation starts unconfigured and has its own data.
+Download **[0.9.0-beta.8](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-beta.8)** for the installation ZIP and checksum. The release starts unconfigured, so each installation has its own data. [Installation instructions](INSTALL.md)
 
-Use the current installer for a fresh database. Beta.7 combines guest RSVP and food-interest confirmation, shows invitation visits in Invites, and separates language settings from translations. It retains backup format 3. For a retained installation, follow the [existing-installation instructions](INSTALL.md#existing-installations) for a reviewed update that preserves existing data and photos.
+Use the current installer for a fresh database. Beta.8 improves the organizer dashboard, invitations and food access while keeping backup format 3. For a retained installation, use a reviewed update that preserves existing data and photos. [Existing-installation instructions](INSTALL.md#existing-installations) · [Release notes](docs/ReleaseNotes.md)
 
 For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 

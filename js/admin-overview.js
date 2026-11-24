@@ -2,6 +2,32 @@
 // this module never caches event records, renders controls or performs writes.
 (function () {
   "use strict";
+  function withGuestOverview(store, snapshot) {
+    if (!snapshot) return store;
+    const householdActivity = new Map(snapshot.households.map(row => [row.id, row]));
+    const householdIds = new Set(store.households.map(row => row.id));
+    const guestDetails = new Map(store.guests.map(row => [row.id, row]));
+    const households = store.households.map(household => {
+      const activity = householdActivity.get(household.id);
+      if (!activity) return household;
+      const { visit_count, first_visited_at, last_visited_at } = household;
+      // A just-opened household can have a newer visit than a concurrent overview request.
+      return {
+        ...household, ...activity,
+        ...(Number(visit_count) > Number(activity.visit_count)
+          ? { visit_count, first_visited_at, last_visited_at } : {}),
+      };
+    });
+    return {
+      ...store, households,
+      guests: snapshot.guests.filter(row => householdIds.has(row.household_id))
+        .map(row => ({ ...guestDetails.get(row.id), ...row })),
+      responses: snapshot.responses,
+      guestSubmissionCount: snapshot.submissions,
+      claims: snapshot.claims,
+      overrides: snapshot.overrides,
+    };
+  }
   function foodInterestStatus(store, household) {
     if (
       household.archived_at ||
@@ -181,6 +207,7 @@
     };
   }
   window.RSVP_ADMIN_OVERVIEW = {
+    withGuestOverview,
     eventCounts,
     rsvpSessions,
     invitationOverview,

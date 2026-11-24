@@ -24,4 +24,4 @@ Choose the page that matches what you want to do.
 
 ## Existing installations
 
-Use the current baseline or generated installer for an empty application database. Beta.4 uses shared invitation snapshots and application backup format 3. For an existing installation, follow the [installation instructions](../INSTALL.md#existing-installations).
+Use the current baseline or generated installer for an empty application database. Beta.8 uses backup format 3. For an existing installation, follow the reviewed update process. [Installation instructions](../INSTALL.md#existing-installations)

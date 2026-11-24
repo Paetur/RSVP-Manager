@@ -1,6 +1,6 @@
 // Current-alpha contracts; every destructive rehearsal uses a disposable DB.
 const assert = require('node:assert/strict');
-const { createDatabase, signIn } = require('./helpers/alpha-database.cjs');
+const { withRecordRevision, createDatabase, signIn } = require('./helpers/alpha-database.cjs');
 (async () => {
  const db = await createDatabase();
  const v = async (sql,args=[]) => (await db.query(sql,args)).rows[0].v;
@@ -46,7 +46,7 @@ const { createDatabase, signIn } = require('./helpers/alpha-database.cjs');
   const safety=await v('SELECT public.admin_prepare_wipe($1,$2) v',[source,preview.destination_state]);
   assert.deepEqual(safety.safety_backup.payload.tables,before.payload.tables);
   await assert.rejects(db.query("SELECT public.admin_wipe_restore($1,'wrong',$2)",[source,safety.token]),/Type WIPE/);
-  await db.query('SELECT public.admin_save_venue($1,$2)',[venue,{name:'Concurrent edit',timezone:'UTC'}]);
+  await db.query('SELECT public.admin_save_venue($1,$2)',[venue, await withRecordRevision(db, "locations", venue, {name:'Concurrent edit',timezone:'UTC'})]);
   await assert.rejects(db.query('SELECT public.admin_wipe_restore($1,$2,$3)',[source,'WIPE '+preview.event_name,safety.token]),/Destination changed/);
   const next=await v('SELECT public.admin_preview_wipe($1) v',[source]);
   const token=await v('SELECT public.admin_prepare_wipe($1,$2) v',[source,next.destination_state]);

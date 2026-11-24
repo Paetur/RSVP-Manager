@@ -223,8 +223,10 @@
     get: key => open.get(key),
     reconcile(can) {
       for (const [key, dialog] of open) {
-        const section = dialog.dataset.assignmentSection;
-        if (section && (!can("venues", "edit") || !can(section, "edit"))) {
+        const section = dialog.dataset.assignmentSection, foodAccess = dialog.dataset.foodAccess;
+        if ((section && (!can("venues", "edit") || !can(section, "edit"))) ||
+            (foodAccess && !can("food", foodAccess)) ||
+            (dialog.dataset.requiresHouseholdsView === "true" && !can("households"))) {
           dialog.close();
           continue;
         }

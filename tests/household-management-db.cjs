@@ -1,4 +1,5 @@
 // Disposable PostgreSQL (PGlite). No network, production data or credentials.
+const { withRecordRevision } = require("./helpers/alpha-database.cjs");
 const {PGlite}=require('@electric-sql/pglite');
 const fs=require('node:fs');const assert=require('node:assert/strict');
 (async()=>{
@@ -22,26 +23,26 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
  const code=await scalar('select invite_code value from public.households where id=$1',[h1]);assert.match(code,/^[A-HJ-NP-Z2-9]{8}$/);checks++;
  await reject('select public.admin_create_guest($1,$2)',[h1,{first_name:''}],/first name/);
  assert.equal(await scalar('select count(*)::int value from public.guests'),1);checks++;
- await q('select public.admin_save_household($1,$2)',[h1,{...values,phone:'+298 123456',postal_address:'Test address',notes:'Note'}]);
+ await q('select public.admin_save_household($1,$2)',[h1, await withRecordRevision(db, "households", h1, {...values,phone:'+298 123456',postal_address:'Test address',notes:'Note'})]);
  assert.equal(await scalar('select invite_code value from public.households where id=$1',[h1]),code);checks++;
  assert.equal(await scalar('select phone value from public.households where id=$1',[h1]),'+298 123456');
  assert.equal(await scalar('select postal_address value from public.households where id=$1',[h1]),'Test address');checks+=2;
  const child=await create({household_name:'Child',parent_id:h1});
  await reject('select public.admin_set_household_parent($1,$2)',[h1,child],/cycle/);
- await reject('select public.admin_save_household($1,$2)',[h1,{...values,planning_group_id:'another_group'}],/child households/);
+ await reject('select public.admin_save_household($1,$2)',[h1, await withRecordRevision(db, "households", h1, {...values,planning_group_id:'another_group'})],/child households/);
  await q('select public.admin_set_household_parent($1,null)',[child]);
  const foVenue=await scalar('select public.admin_save_venue(null,$1) value',[{name:'Faroe venue',country_code:'FO',timezone:'Atlantic/Faroe',address:'Synthetic FO address'}]);
  const deVenue=await scalar('select public.admin_save_venue(null,$1) value',[{name:'German venue',country_code:'DE',timezone:'Europe/Berlin',address:'Synthetic DE address'}]);
  const sessionValues={session_key:'test-dinner',name:'Dinner',location_id:foVenue,starts_at:'2027-02-20T18:00:00Z',ends_at:'2027-02-20T21:00:00Z',is_active:true,requires_rsvp:true};
- await q('select public.admin_save_venue($1,$2)',[foVenue,{name:'Faroe venue',timezone:'Atlantic/Faroe',welcome_en:'Venue-specific hello'}]);
+ await q('select public.admin_save_venue($1,$2)',[foVenue, await withRecordRevision(db, "locations", foVenue, {name:'Faroe venue',timezone:'Atlantic/Faroe',welcome_en:'Venue-specific hello'})]);
  assert.equal(await scalar('select welcome_en value from public.event_locations where id=$1',[foVenue]),'Venue-specific hello');checks++;
- await q('select public.admin_save_venue($1,$2)',[foVenue,{name:'Faroe venue',timezone:'Atlantic/Faroe'}]);
+ await q('select public.admin_save_venue($1,$2)',[foVenue, await withRecordRevision(db, "locations", foVenue, {name:'Faroe venue',timezone:'Atlantic/Faroe'})]);
  assert.equal(await scalar('select welcome_en value from public.event_locations where id=$1',[foVenue]),'Venue-specific hello');checks++;
  const s1=await scalar('select public.admin_save_session(null,$1) value',[sessionValues]);
  const s2=await scalar('select public.admin_save_session(null,$1) value',[{session_key:'test-party',name:'Party',location_id:deVenue,starts_at:'2027-02-27T17:00:00Z'}]);
  checks+=4;
- await reject('select public.admin_save_venue($1,$2)',[foVenue,{name:'Faroe venue',timezone:'Atlantic/Faroe',archived:true}],/linked sessions/);
- await reject('select public.admin_save_session($1,$2)',[s1,{...sessionValues,ends_at:'2027-02-20T15:00:00Z'}],/End must follow/);
+ await reject('select public.admin_save_venue($1,$2)',[foVenue, await withRecordRevision(db, "locations", foVenue, {name:'Faroe venue',timezone:'Atlantic/Faroe',archived:true})],/linked sessions/);
+ await reject('select public.admin_save_session($1,$2)',[s1, await withRecordRevision(db, "sessions", s1, {...sessionValues,ends_at:'2027-02-20T15:00:00Z'})],/End must follow/);
  await reject('select public.admin_save_venue(null,$1)',[{name:'Bad venue',timezone:'Invalid/Timezone'}],/Invalid venue timezone/);
  await q('select public.admin_save_session_assignments($1,$2)',[h1,JSON.stringify([{session_id:s1,is_invited:true}])]);
  await q('select public.admin_save_session_assignments($1,$2)',[h2,JSON.stringify([{session_id:s2,is_invited:true}])]);
@@ -100,8 +101,8 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
  await reject('select public.admin_save_session_assignments($1,$2)',[h2,JSON.stringify([{session_id:s1,is_invited:false}])],/RSVP history/);
  await reject("select public.admin_set_archived('guests',$1,true)",[g],/submitted RSVPs/);
  await reject('select public.admin_create_guest($1,$2)',[h2,{first_name:'Late'}],/submitted RSVPs/);
- await reject('select public.admin_save_session($1,$2)',[s1,{...sessionValues,requires_rsvp:false}],/protected/);
- await q('select public.admin_save_session($1,$2)',[s1,{...sessionValues,name:'Updated dinner',starts_at:'2027-02-20T19:00:00Z'}]);checks++;
+ await reject('select public.admin_save_session($1,$2)',[s1, await withRecordRevision(db, "sessions", s1, {...sessionValues,requires_rsvp:false})],/protected/);
+ await q('select public.admin_save_session($1,$2)',[s1, await withRecordRevision(db, "sessions", s1, {...sessionValues,name:'Updated dinner',starts_at:'2027-02-20T19:00:00Z'})]);checks++;
  await q("select public.admin_reopen_household_rsvp($1,'Test reopen')",[h2]);
  await reject('select public.admin_move_guest($1,$2)',[g,h1],/RSVP history/);
  await q("select public.admin_update_guest($1,'Edited','Guest',null,null,null,false,null,'Updated')",[g]);checks++;
@@ -302,6 +303,18 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
    const clients=[new Client({connectionString:process.env.DATABASE_URL}),new Client({connectionString:process.env.DATABASE_URL})];
    await Promise.all(clients.map(async c=>{await c.connect();await c.query("SET request.jwt.claim.sub='11111111-1111-4111-8111-111111111111'");await c.query("SELECT set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:'11111111-1111-4111-8111-111111111111',session_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5'})]);}));
    try{
+     const editHousehold=await create({household_name:'Concurrent admin edits'});
+     const anotherHousehold=await create({household_name:'Independent admin edits'});
+     const editValues=(id)=>withRecordRevision(db,"households",id,
+       {...values,household_name:'Concurrent admin edits'});
+     const firstEdit=await editValues(editHousehold);
+     const independentEdit=await editValues(anotherHousehold);
+     const editRace=await Promise.allSettled(clients.map((client,index)=>
+       client.query('select public.admin_save_household($1,$2)',
+         [editHousehold,{...firstEdit,notes:'Concurrent editor '+index}])));
+     assert.equal(editRace.filter(result=>result.status==='fulfilled').length,1);
+     assert.match(editRace.find(result=>result.status==='rejected').reason.message,/This record changed since you opened it/);
+     await clients[1].query('select public.admin_save_household($1,$2)',[anotherHousehold,independentEdit]);checks++;
      const race=await create({household_name:'Concurrent RSVP'});
      await q('select public.admin_create_guest($1,$2)',[race,{first_name:'Concurrent'}]);
      const raceCode=await scalar('select invite_code value from public.households where id=$1',[race]);

@@ -2,7 +2,7 @@
 const assert = require("node:assert/strict");
 const { createHash } = require("node:crypto");
 const { readFileSync } = require("node:fs");
-const { dirname, join } = require("node:path");
+const { dirname, join, resolve } = require("node:path");
 const { chromium } = require("playwright");
 const { createGuestJourneyFixture } = require("./helpers/published-guest-journey.cjs");
 
@@ -12,7 +12,7 @@ const { version: sdkVersion } = require(sdkPackage);
 const sdkUrl = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@" + sdkVersion + "/dist/umd/supabase.min.js";
 const sdk = readFileSync(join(dirname(sdkPackage), "dist/umd/supabase.js"));
 const integrity = 'integrity="sha384-' + createHash("sha384").update(sdk).digest("base64") + '"';
-const site = join(__dirname, "..");
+const site = resolve(process.env.RSVP_TEST_SITE_ROOT || join(__dirname, ".."));
 const html = readFileSync(join(site, "index.html"), "utf8");
 const sdkScript = [...html.matchAll(/<script\b[^>]*>/g)].find(([tag]) =>
   tag.includes('src="' + sdkUrl + '"'),
@@ -241,10 +241,40 @@ async function main() {
     await openInvite(guest, primary);
     await openInvite(otherGuest, competing);
     const foodChoice = page => page.locator("#foodList button[data-item-id]");
+    async function assertReturningFood(page) {
+      await page.getByRole("heading", { name: "Choose food to bring", exact: true }).waitFor();
+      assert.equal(await page.locator("#rsvpReviewTitle").innerText(), "Your RSVP");
+      assert.equal(await page.locator("#foodInterestHost").isHidden(), true);
+    }
     for (const page of [guest, otherGuest]) {
-      await page.locator("#foodInterestHost button").first().click();
+      await page.locator("#foodInterestYes").click();
       await page.locator("#confirmFoodInterest").click();
+      await page.locator('.food-interest-choices[data-confirmed="true"] #foodInterestYes[aria-pressed="true"]:disabled').waitFor();
+      assert.equal(await page.locator("#foodList").isHidden(), true);
+      assert.equal(await page.locator("#confirmFood").isHidden(), true);
+    }
+    const returning = [[guest, primary, "Alex"], [otherGuest, competing, "Sam"]];
+    for (const [, person] of returning) {
+      const response = await fixture.responseState(person);
+      assert.equal(response.rsvp, "locked");
+      assert.equal(response.food, true);
+    }
+    assert.equal(calls("set_household_food_claim").length, 0);
+
+    await fixture.openFoodChoices();
+    await fixture.startNextVisit();
+    for (const [page, person, firstName] of returning) {
+      await openInvite(page, person);
+      await assertReturningFood(page);
       await foodChoice(page).waitFor();
+      const savedRsvp = page.locator("#rsvpReview");
+      assert.equal(await savedRsvp.isVisible(), true);
+      const attending = savedRsvp.locator("li").filter({ hasText: firstName }).first();
+      assert.equal(await attending.locator("strong").innerText(), "Attending");
+      assert.equal(await savedRsvp.evaluate(node => !!(
+        node.compareDocumentPosition(document.getElementById("foodCard")) & Node.DOCUMENT_POSITION_FOLLOWING
+      )), true, "the saved RSVP precedes the food menu");
+      assert.equal(await page.locator("#confirmRsvp").isVisible(), false);
     }
     // Both pages already display the last unit. Dispatch both clicks without a
     // focus change refreshing one page before it submits the competing claim.
@@ -268,7 +298,7 @@ async function main() {
 
     await winningGuest.locator("#confirmFood").click();
     assert.match(await winningGuest.locator("#foodReview .food-review-list").innerText(), /1 × Synthetic fruit basket/);
-    await winningGuest.locator("#foodReviewConfirm").click();
+    await winningGuest.getByRole("button", { name: "Confirm food choices", exact: true }).click();
     const confirmation = winningGuest.locator("#foodReview [role=status]");
     await confirmation.waitFor();
     assert.match(await confirmation.innerText(), /confirmed/i);
@@ -279,6 +309,10 @@ async function main() {
     await openInvite(winningGuest, winner);
     await confirmation.waitFor();
     assert.match(await confirmation.innerText(), /confirmed/i);
+    assert.match(await winningGuest.locator("#foodReview .food-review-list").innerText(), /1 × Synthetic fruit basket/);
+    assert.equal(await winningGuest.locator("#rsvpReview").isVisible(), true);
+    assert.equal(await winningGuest.locator("#foodReviewTitle").innerText(), "You’re bringing");
+    assert.equal(await winningGuest.locator("#foodList").isHidden(), true);
     assert.equal(await winningGuest.locator("#foodReviewConfirm").isVisible(), false);
 
     const final = await fixture.snapshot();
@@ -451,9 +485,15 @@ async function main() {
 
       await submit.click();
       await page.locator("#rsvpReviewHelp").filter({ hasText: "Your RSVP and food answer have been saved." }).waitFor();
-      await selectedFood.waitFor();
-      assert.equal(await selectedFood.getAttribute("aria-pressed"), "true");
-      assert.equal(await selectedFood.isDisabled(), true);
+      async function assertSavedFoodAnswer() {
+        if (foodInterest) await assertReturningFood(page);
+        else {
+          await selectedFood.waitFor();
+          assert.equal(await selectedFood.getAttribute("aria-pressed"), "true");
+          assert.equal(await selectedFood.isDisabled(), true);
+        }
+      }
+      await assertSavedFoodAnswer();
       assert.equal(await submit.isVisible(), false);
       assert.equal(await edit.isVisible(), false, "a submitted response has no Edit answers action");
       assert.equal(await page.locator("#rsvpReview").isVisible(), true);
@@ -486,9 +526,7 @@ async function main() {
       await page.locator("#inviteCode").fill(person.code);
       await page.locator("#codeForm button").click();
       await page.locator("#rsvpReview").waitFor();
-      await selectedFood.waitFor();
-      assert.equal(await selectedFood.isDisabled(), true);
-      assert.equal(await selectedFood.getAttribute("aria-pressed"), "true");
+      await assertSavedFoodAnswer();
       assert.equal(await review.isVisible(), false);
       assert.equal(await submit.isVisible(), false);
       assert.equal(await edit.isVisible(), false);
@@ -498,9 +536,23 @@ async function main() {
 
     const bringsFood = await guestPage(390);
     await checkCombinedResponse(bringsFood, bringingFood, true);
+    await fixture.denyFoodAccess(bringingFood);
+    await fixture.startNextVisit();
+    const deniedFood = bringsFood.waitForResponse(response =>
+      response.url() === origin + "/functions/v1/guest-gateway" &&
+      response.request().postDataJSON()?.action === "get_household_food",
+    );
+    await openInvite(bringsFood, bringingFood);
+    assert.equal(await (await deniedFood).json(), null);
+    await bringsFood.locator("#rsvpReviewRows li").first().waitFor();
+    assert.equal(await bringsFood.locator("#foodCard").isHidden(), true, "food access remains required after a saved Yes");
+    assert.equal(await bringsFood.locator("#rsvpReviewTitle").isHidden(), true);
+    assert.deepEqual(await fixture.responseState(bringingFood), { rsvp: "locked", food: true, submissions: 1 });
     await bringsFood.context().close();
     const noFood = await guestPage(1160);
     await checkCombinedResponse(noFood, decliningFood, false);
+    assert.equal(await noFood.locator("#foodList").isHidden(), true, "a saved No never opens the menu");
+    assert.equal(await noFood.locator("#confirmFood").isHidden(), true);
 
     await fixture.setPublished(false);
     await noFood.goto(invite(decliningFood));
@@ -509,7 +561,7 @@ async function main() {
     assert.deepEqual([...interceptedConfigs].sort(), ["/js/config.js", "/js/config.production.js"]);
     assert.deepEqual(errors, []);
     assert.deepEqual(fixture.bridgeErrors, []);
-    console.log("PASS published guest journey: RSVP-only and food-only flows, atomic combined response, edited and idempotent retries, reload, deadline and late window, competing food claims, confirmation and unpublication.");
+    console.log("PASS published guest journey: RSVP-only and food-only flows, atomic combined response, edited and idempotent retries, reload, deadline and late window, reopened food choices, competing claims, confirmed return visits and unpublication.");
   } catch (error) {
     if (errors.length) console.error(errors.join("\n"));
     if (fixture.bridgeErrors.length) console.error(fixture.bridgeErrors.join("\n"));

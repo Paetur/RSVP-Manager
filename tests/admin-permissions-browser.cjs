@@ -73,7 +73,19 @@ for(const power of ['exportBackup','restoreBackup']) {
   await tabs.first().press('ArrowRight');
   assert.equal(await tabs.first().getAttribute('aria-selected'),'true','keyboard cycles only through permitted tabs');
 }
-await page.evaluate(()=>window.__accessPermissions.restoreBackup=false);
+await page.evaluate(()=>window.__accessPermissions.exportBackup=true);
+await refreshFixture(page);
+await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
+const backupTab=page.locator('#databaseTabs [data-database-tab=backup]');
+const restoreTab=page.locator('#databaseTabs [data-database-tab=restore]');
+await backupTab.click();
+for(const [from,key,to] of [[backupTab,'End',restoreTab],[restoreTab,'ArrowRight',backupTab],[backupTab,'ArrowLeft',restoreTab],[restoreTab,'Home',backupTab]]) {
+  await from.focus();
+  await page.keyboard.press(key);
+  assert.equal(await to.getAttribute('aria-selected'),'true','keyboard activates the next available Database tab');
+  assert.equal(await page.evaluate(()=>document.activeElement?.id),await to.getAttribute('id'),key+' focuses the active Database tab');
+}
+await page.evaluate(()=>{window.__accessPermissions.exportBackup=false;window.__accessPermissions.restoreBackup=false;});
 // Settings access grants Events and Application independently from other work sections.
 await page.evaluate(()=>window.__accessPermissions.sections.settings='view');await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);await page.locator('#mainSectionToggle').click();await page.locator('[data-tab=events]').click();assert.equal(await page.locator('[data-panel=events]').isVisible(),true);assert.equal(await page.locator('[data-panel=events]').getAttribute('data-permission-edit'),'false');assert.equal(await page.locator('[data-panel=events] .settings-card-pencil:visible').count(),0);await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab=application]').click();assert.equal(await page.locator('[data-settings-panel=application]').isVisible(),true);assert.equal(await page.locator('[data-settings-panel=application] .publication-card').isVisible(),true);assert.equal(await page.locator('[data-settings-panel=application] .publication-actions').isVisible(),false);assert.equal(await page.locator('#launchChecklist').isVisible(),false,'launch checklist remains Full-administrator only');
 await page.evaluate(()=>window.__accessPermissions.sections.settings='edit');await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);await page.locator('#mainSectionToggle').click();await page.locator('[data-tab=events]').click();assert.equal(await page.locator('[data-panel=events]').getAttribute('data-permission-edit'),'true');assert.equal(await page.locator('[data-panel=events] .settings-card-pencil:visible').count(),3);await page.locator('#settingsToggle').click();assert.equal(await page.locator('[data-settings-panel=application] .publication-actions').isVisible(),true,'publication retains Settings edit permission');

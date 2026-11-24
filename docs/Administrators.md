@@ -30,6 +30,12 @@ Use the pencil beside a member to change their name or access. Save requires con
 
 ![A sample administrator’s View only access with per-section permissions](images/ipad-admin-access.png)
 
+## Working with another administrator
+
+When event data changes, a dialog offers **Refresh** and **Dismiss**. The app checks when you return to the tab and periodically while it is visible. The dialog waits while an editor is open. **Dismiss** acknowledges the current update. A later change can show a new dialog.
+
+If a household, venue or session changes while you are editing it, the app stops the older save and leaves your edits open. Note your changes before closing the editor. Refresh, reopen the record and apply your edits to the latest version.
+
 ## Add someone
 
 Enter a display name and email, then choose:
@@ -53,4 +59,4 @@ Use **Revoke session** to end that browser’s access on its next request. The s
 
 [All user guides](README.md)
 
-Settings first opens **Application**. Under **Interface**, the personal **Button hover appearance** preference uses three checkmarked choices that demonstrate Toolbar, Pencil or Create button styling across controls and is saved to your administrator account, like language, appearance and time format. **Invites appearance** is inside the Interface box with its own pencil and Save/Cancel for the grouped-invitation preference. Delete actions stay red: icon plus Delete on wide screens and Delete text on phones.
+Settings first opens **Application**. **Interface** groups your personal preferences under **Appearance**, **Date and time**, and **Invites appearance**. Its pencil opens all three sections. Save applies the choices to your administrator account. **Button hover appearance** offers Toolbar, Pencil and Create examples. Delete actions stay red, with an icon and label on wide screens and a label on phones.

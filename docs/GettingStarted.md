@@ -8,9 +8,11 @@ For a first installation, use the [trusted setup companion](AutomaticSetup.md) t
 
 ## Find your way around
 
-The three icons at the top open **Main**, **Languages** and **Settings**. On desktop, the release version appears under your name after sign-in.
+The three icons at the top open **Home**, **Languages** and **Settings**. On desktop, the release version appears under your name after sign-in.
 
-Main opens Invites. Its tabs are Invites, Events, Venues, Households, Food and Other. Invites contains event statistics, clickable invitation/Food filters and the Action box for generating drafts and manually marking selected households Sent. When Apple Shortcuts is enabled, its box appears between the statistics and invitation list. [Manage invitation drafts](HouseholdsAndInvites.md#make-and-send-bulk-invites). Your access determines which sections you see. The first Settings tab, Application, holds publication controls. Full administrators also see its launch checklist, with pending checks first and completed checks collapsed. The Publication card shows current access/delivery state; acknowledge the release checks and confirm explicitly before publishing. Personal preferences remain under Settings → Interface.
+Home opens **Main**, which contains Overview and Invites. The other tabs are **Events**, **Venues**, **Households**, **Food** and **Other**. Click Overview counts to filter Invites. Select households to see the draft, invitation and sending actions beside **View** and **Search**. When Apple Shortcuts is enabled, its box appears between Overview and Invites. [Manage invitation drafts](HouseholdsAndInvites.md#make-and-send-bulk-invites)
+
+Your access determines which sections you see. The first Settings tab, **Application**, holds publication controls. Full administrators also see its launch checklist, with pending checks first and completed checks collapsed. The Publication card shows current access and delivery state. Acknowledge the release checks and confirm explicitly before publishing.
 
 - Each record or settings box has its own pencil where you have permission.
 - Use a record’s pencil to open its editor. Save keeps your changes; Cancel discards the draft.
@@ -20,7 +22,17 @@ Use the **Search** icon in Households, Invites, Food or Logs to open that list's
 
 Editing one box does not open the others. Save closes that box after a successful update; Cancel discards its draft. Failed saves keep it open for retry. Someone with View only access cannot edit event records; personal Interface preferences remain available.
 
-The other top actions refresh the data, change appearance, open the sign-in-protected guest preview in another tab and sign out. Personal language, appearance, time-format and hover choices are the checkmarked buttons under Settings → Interface; duplicate dropdowns are not shown. Invites appearance is inside the Interface box. Its own pencil and Save/Cancel save **Group by → None / Relational group / Service** and separate **Default shown fields** for Rows 1 and Rows 2 across devices. Household, Service and Invitation remain visible. Rows 1 offers individual fields; Rows 2 pairs Service/Recipient, Invitation/Last sent and RSVP/RSVP info, with Food as a separate column. In Invites, **Rows → 1 / 2** switches between those layouts. Rows 2 restores its saved column defaults, initially All; Rows 1 restores your previous one-row selection or saved defaults. Current Shown choices stay with the current view. Choose your preferences, then use Save to apply them to your administrator account or Cancel to restore your saved choices. They load when you sign in on another device and are separate from event-wide guest settings. Failed saves keep your draft for retry. The top-bar appearance toggle still applies immediately.
+The top actions refresh the data, change appearance, open the sign-in-protected guest preview in another tab and sign out. **Settings → Interface** shows your saved **Appearance**, **Date and time**, and **Invites appearance** choices. Use its pencil to edit all three sections, then choose **Save** to apply them to your administrator account or **Cancel** to discard the draft. Saved choices load when you sign in on another device. The top-bar appearance toggle applies immediately.
+
+- **Appearance** contains the theme, interface language and button hover settings.
+- **Date and time** offers the language default, a short month name, a numeric date with dots, or year-month-day. Time can follow the language default or use a 12-hour or 24-hour clock. Pick a sample date to preview the format as you edit. The date picker itself follows your browser.
+- **Invites appearance** holds grouping, row counts for narrow and wide screens, and default fields for each row layout. Household, Service and Invitation remain visible. Use the **View** menu in Invites for adjustments to the current view.
+
+The neighboring **Overview appearance** panel has its own pencil. **Information** and **Invitation** show the saved card order and which cards are shown. Use the checkboxes to show or hide cards and the arrows to reorder within each group. **Reset to defaults** prepares a draft. Choose **Save** to apply it or **Cancel** to keep your saved layout.
+
+![The Interface and Overview appearance cards with saved appearance, date, rows and card order preferences](images/ipad-interface-settings.png)
+
+When another administrator changes event data, **Event data has changed** appears after open edits are resolved. Choose **Refresh** to load the latest data. If a household, venue or session changes while you are editing it, a stale save is rejected and your draft stays in the editor.
 
 ## Prepare the event
 
@@ -53,7 +65,7 @@ Ask a Full administrator to review your access. Some actions, such as sending in
 
 **Home → Events → Features** enables Food and Other without deleting their existing data. Guest food step chooses interest-only or detailed selection; changing it does not publish or send anything. Edit the food explanation and the reply after Yes under Languages globe → Guests.
 
-**Settings → Interface** holds your personal preferences. Event-wide customization is under **Settings → Invitations → Landing page → Invitation appearance** with independent Wide/Phone settings. Choose a mode to see its compact photo, colours, title, name and appearance summary; its pencil opens the existing editor. Replace/remove a private JPEG, crop and position it, adjust darkening and box opacity, and choose colors separately for Light/Dark. Open the single Preview to inspect the selected mode, including its unsaved changes. Save applies that mode, Cancel discards its draft, and Reset appearance restores the default treatment while keeping the photo. Photo dimensions, stored size and crop are available under Details. Choose whether guests see a light/dark toggle and their default Light, Dark or System appearance. Hiding the toggle enforces that default. System follows the device; guest choices are separate from administrator choices. Personal Time format offers language default, 12-hour or 24-hour without changing scheduled times.
+**Settings → Interface** holds your personal preferences. Event-wide customization is under **Settings → Invitations → Landing page → Invitation appearance** with independent Wide/Phone settings. Choose a mode to see its compact photo, colours, title, name and appearance summary; its pencil opens the existing editor. Replace/remove a private JPEG, crop and position it, adjust darkening and box opacity, and choose colors separately for Light/Dark. Open the single Preview to inspect the selected mode, including its unsaved changes. Save applies that mode, Cancel discards its draft, and Reset appearance restores the default treatment while keeping the photo. Photo dimensions, stored size and crop are available under Details. Choose whether guests see a light/dark toggle and their default Light, Dark or System appearance. Hiding the toggle enforces that default. System follows the device; guest choices are separate from administrator choices.
 
 Venue summaries include mini maps; edit the venue’s saved map URL in its editor. Guest sessions place the welcome beneath the session name, followed by address/time and map. Use authenticated Guest preview to check presentation while unpublished.
 

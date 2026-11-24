@@ -24,6 +24,9 @@ with tempfile.TemporaryDirectory(prefix='rsvp-publisher-') as tmp:
     }
     for name, text in public.items():
         put(source, name, text)
+    pilot_scripts = ['js/shortcut-device-runner.js', 'js/shortcuts-test-installer.js', 'js/shortcuts-test-page.js']
+    for name in pilot_scripts:
+        put(source, name, 'synthetic pilot script')
     for name in ['js/config.js', 'js/config.production.js']:
         put(source, name, 'unconfigured default')
     put(source, 'VERSION', '0.9.0-alpha.2\n')
@@ -45,6 +48,9 @@ with tempfile.TemporaryDirectory(prefix='rsvp-publisher-') as tmp:
     assert not (target / 'internal').exists()
     assert not (target / 'supabase/functions').exists()
     assert not (target / 'supabase/upgrades').exists()
+    for name in pilot_scripts:
+        assert not (target / name).exists(), name
+        assert (source / name).is_file(), name
     subprocess.run(command, check=True, capture_output=True)
     assert (target / 'js/config.production.js').read_text() == 'preserve runtime production defaults'
     outside = base / 'private.html'
@@ -52,4 +58,4 @@ with tempfile.TemporaryDirectory(prefix='rsvp-publisher-') as tmp:
     (source / 'docs/escape.html').symlink_to(outside)
     assert subprocess.run(command, capture_output=True).returncode != 0
     assert not (target / 'docs/escape.html').exists()
-print('PASS local web publisher: SQL/manifests/root installation guide/code assets, repeat publishing, config preservation and private-file/symlink exclusions.')
+print('PASS local web publisher: SQL/manifests/root installation guide/code assets, repeat publishing, config preservation and pilot-file/private-file/symlink exclusions.')

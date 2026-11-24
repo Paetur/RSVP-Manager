@@ -3,6 +3,7 @@
   const fields = {
     language: "rsvp_interface_language",
     appearance: "rsvp_interface_appearance",
+    date: "rsvp_interface_date_format",
     time: "rsvp_interface_time_format",
     hover: "rsvp_interface_button_hover",
     grouped: "rsvp_invites_grouped",
@@ -22,14 +23,15 @@
     ["recipient", "Recipient"],
     ["serviceInfo", "Service"],
     ["delivery", "Invitation"],
-    ["lastSent", "Last sent"],
+    // Keep the saved field key so existing one-row visibility choices apply to Seen.
+    ["lastSent", "Seen"],
     ["reply", "RSVP"],
     ["replyInfo", "RSVP info"],
     ["food", "Food"],
   ].map(field => Object.freeze(field)));
   const invitesColumnGroups = Object.freeze([
     ["serviceInfo", "Service", ["serviceInfo", "recipient"]],
-    ["delivery", "Invitation", ["delivery", "lastSent"]],
+    ["delivery", "Invitation", ["delivery"]],
     ["reply", "RSVP", ["reply", "replyInfo"]],
     ["food", "Food", ["food"]],
   ].map(([key, label, members]) => Object.freeze([key, label, Object.freeze(members)])));
@@ -46,37 +48,43 @@
   const controlIds = {
     language: "interfaceLanguage",
     appearance: "themePreference",
+    date: "dateFormat",
     time: "timeFormat",
     hover: "buttonHover",
   };
+  const dateFormats = ["locale", "short", "dots", "iso"];
+  const sampleDate = "2026-11-24";
+  const sampleDateBounds = { min: "0001-01-01", max: "9999-12-31" };
+  const datePickerSelector = "input[type=date],input[type=datetime-local],input[type=time]";
   let account = null,
     baseline = null,
     draft = null,
     busy = false,
     generation = 0,
     timePreference = "locale",
+    pickerPreviewId = 0,
     overviewCards = new Map(),
     draggedOverviewId = null;
   const T = (...args) => window.RSVP_I18N.t(...args);
   const element = (id) => document.getElementById(id);
   const form = () => element("personalPreferencesForm");
-  const invitesForm = () => element("invitesAppearanceForm");
   const overviewForm = () => element("overviewAppearanceForm");
-  const personalKinds = ["language", "appearance", "time", "hover"];
   const inviteWidths = [
     ["narrowRows", "Narrow screens (below 1024 px)", 1],
     ["wideRows", "Wide screens (1024 px and wider)", 2],
   ];
   const invitesKinds = ["grouped", "shownFields", "twoRowColumns", "narrowRows", "wideRows"];
+  const interfaceKinds = [...Object.keys(controlIds), ...invitesKinds];
   const overviewKinds = ["overviewLayout"];
-  const kindsFor = node => node === overviewForm() ? overviewKinds : node === invitesForm() ? invitesKinds : personalKinds;
-  const formFor = kind => kind === "overviewLayout" ? overviewForm() : invitesKinds.includes(kind) ? invitesForm() : form();
+  const kindsFor = node => node === overviewForm() ? overviewKinds : interfaceKinds;
+  const formFor = kind => kind === "overviewLayout" ? overviewForm() : form();
   function valid(kind, value) {
     if (kind === "overviewLayout") return Array.isArray(value);
     if (kind === "shownFields") return Array.isArray(value) && new Set(value).size === value.length && value.every(key => inviteFieldKeys.has(key));
     if (kind === "twoRowColumns") return Array.isArray(value) && new Set(value).size === value.length && value.every(key => inviteColumnKeys.has(key));
     if (kind === "grouped") return typeof value === "boolean" || value === "service";
     if (kind === "narrowRows" || kind === "wideRows") return value === 1 || value === 2;
+    if (kind === "date") return dateFormats.includes(value);
     return kind === "language"
       ? window.RSVP_I18N.enabled(value)
       : (kind === "appearance"
@@ -137,6 +145,7 @@
             : {
                 language: window.RSVP_I18N.defaultLanguage,
                 appearance: "system",
+                date: "locale",
                 time: "locale",
                 hover: "toolbar",
                 grouped: true,
@@ -175,20 +184,19 @@
       "themeToggle",
       "logout",
       "cancelPersonalPreferences",
-      "cancelInvitesAppearance",
       "cancelOverviewAppearance",
     ]) {
       const node = element(id);
       if (node) node.disabled = busy || !account;
     }
     const save = element("savePersonalPreferences");
-    if (save) save.disabled = busy || !account || !hasUnsaved(personalKinds);
-    const groupingSave = element("saveInvitesAppearance");
-    if (groupingSave) groupingSave.disabled = busy || !account || !hasUnsaved(invitesKinds);
+    if (save) save.disabled = busy || !account || !hasUnsaved(interfaceKinds);
+    const sample = element("interfaceSampleDate");
+    if (sample) sample.disabled = busy || !account;
     const overviewSave = element("saveOverviewAppearance"), reset = element("resetOverviewAppearance");
     if (overviewSave) overviewSave.disabled = busy || !account || !hasUnsaved(overviewKinds);
     if (reset) reset.disabled = busy || !account || !draft || sameValue("overviewLayout", draft.overviewLayout, normalizeOverviewLayout());
-    for (const node of [form(), invitesForm(), overviewForm()]) node?.setAttribute("aria-busy", String(busy));
+    for (const node of [form(), overviewForm()]) node?.setAttribute("aria-busy", String(busy));
     for (const button of overviewForm()?.querySelectorAll("#overviewCardOrder button,#overviewCardOrder input") || [])
       button.disabled = busy || !account || button.hasAttribute("data-overview-edge");
     for (const grip of overviewForm()?.querySelectorAll("[data-overview-grip]") || [])
@@ -198,6 +206,7 @@
       for (const input of host?.querySelectorAll("input") || []) input.disabled = busy || !account || input.hasAttribute("data-invite-fixed-field") || input.hasAttribute("data-invite-fixed-column");
   }
   function renderDraft() {
+    syncDateTimeControls();
     if (draft)
       for (const [kind, id] of Object.entries(controlIds)) {
         const node = element(id);
@@ -209,6 +218,7 @@
     renderOverviewLayout();
     updateControls();
     syncChoices();
+    renderDateTimeExample();
   }
   function canMoveOverviewCard(id, target) {
     return !busy && !!account && id !== target && overviewCards.has(id) && overviewCards.has(target) &&
@@ -229,19 +239,33 @@
   function clearOverviewDropHint(host) {
     host.querySelector("[data-overview-drop]")?.removeAttribute("data-overview-drop");
   }
-  function renderOverviewGroup(host, tab, name, layout) {
+  function renderOverviewGroup(host, tab, name, layout, editing) {
     const R = window.RSVP;
     const eligible = layout.filter(card => overviewCards.get(card.id)?.tab === tab);
     if (!eligible.length) return null;
     const group = R.dom("li", { class: "overview-card-setting-group" });
     group.dataset.overviewSettingTab = tab;
-    const heading = R.dom("h4", { id: "overviewCardGroup-" + tab }, T(name));
+    const heading = R.dom("h3", { id: (editing ? "overviewCardGroup-" : "overviewSavedCardGroup-") + tab }, T(name));
     const list = R.dom("ol", { class: "overview-card-settings" });
     list.setAttribute("aria-labelledby", heading.id);
     for (const [index, { id, shown }] of eligible.entries()) {
       const { label } = overviewCards.get(id);
       const row = R.dom("li", { class: "overview-card-setting" });
+      const cardLabel = R.dom("span", { class: "overview-card-label" }, label);
       row.dataset.overviewSetting = id;
+      if (!editing) {
+        const state = R.dom("span", { class: "overview-card-state" });
+        state.dataset.shown = String(shown);
+        if (shown) {
+          const check = R.dom("span", {}, "✓");
+          check.setAttribute("aria-hidden", "true");
+          state.append(check);
+        }
+        state.append(T(shown ? "Shown" : "Hidden"));
+        row.append(cardLabel, state);
+        list.append(row);
+        continue;
+      }
       const grip = R.dom("span", { class: "overview-card-grip", title: T("Drag to reorder") }, "⠿");
       grip.dataset.overviewGrip = "";
       grip.setAttribute("aria-hidden", "true");
@@ -278,13 +302,14 @@
         clearOverviewDropHint(host);
         moveOverviewCard(source, id, afterPointer(event));
       });
-      const choice = R.dom("label", { class: "checkbox-label" });
+      const choice = R.dom("label", { class: "checkbox-label overview-card-visibility" });
       const input = R.dom("input", { type: "checkbox" });
       input.checked = shown;
       input.disabled = busy || !account;
+      input.setAttribute("aria-label", label + " · " + T("Shown"));
       input.addEventListener("change", () => stage("overviewLayout", layout.map(card =>
         card.id === id ? { id, shown: input.checked } : card)));
-      choice.append(input, R.dom("span", {}, label));
+      choice.append(input, R.dom("span", { class: "overview-card-visibility-text" }, T("Shown")));
       const buttons = R.dom("div", { class: "overview-card-moves" });
       for (const [direction, offset, glyph, caption] of [["up", -1, "↑", "Move up"], ["down", 1, "↓", "Move down"]]) {
         const target = eligible[index + offset];
@@ -297,11 +322,17 @@
         button.disabled = busy || !account || !target;
         buttons.append(button);
       }
-      row.append(grip, choice, buttons);
+      const controls = R.dom("div", { class: "overview-card-controls" });
+      controls.append(choice, buttons);
+      row.append(grip, cardLabel, controls);
       list.append(row);
     }
     group.append(heading, list);
     return group;
+  }
+  function renderOverviewGroups(host, layout, editing) {
+    host.replaceChildren(...overviewGroups.map(([tab, name]) =>
+      renderOverviewGroup(host, tab, name, layout, editing)).filter(Boolean));
   }
   function renderOverviewLayout() {
     const host = element("overviewCardOrder");
@@ -312,7 +343,7 @@
     const activeMove = active?.dataset.overviewMove;
     const layout = draft?.overviewLayout || normalizeOverviewLayout();
     draggedOverviewId = null;
-    host.replaceChildren(...overviewGroups.map(([tab, name]) => renderOverviewGroup(host, tab, name, layout)).filter(Boolean));
+    renderOverviewGroups(host, layout, true);
     const replacement = activeId && host.querySelector('[data-overview-setting="' + activeId + '"]');
     if (replacement) {
       const sameControl = activeMove && replacement.querySelector('[data-overview-move="' + activeMove + '"]:enabled');
@@ -322,19 +353,9 @@
   }
   function renderOverviewSummary(host) {
     const R = window.RSVP, layout = baseline?.overviewLayout || normalizeOverviewLayout();
-    const groups = [];
-    for (const [tab, name] of overviewGroups) {
-      const list = R.dom("dl", { class: "record-read-grid compact-read-grid" });
-      for (const { id, shown } of layout) {
-        const card = overviewCards.get(id);
-        if (card?.tab === tab) list.append(R.dom("dt", {}, card.label), R.dom("dd", {}, T(shown ? "Shown" : "Hidden")));
-      }
-      if (!list.childElementCount) continue;
-      const group = R.dom("div", { class: "overview-card-setting-group" });
-      group.append(R.dom("h4", {}, T(name)), list);
-      groups.push(group);
-    }
-    host.replaceChildren(...groups);
+    const groups = R.dom("ol", { class: "overview-card-settings" });
+    renderOverviewGroups(groups, layout, false);
+    host.replaceChildren(groups);
   }
   function setOverviewCards(cards) {
     const available = new Map(cards.filter(({ id, tab }) => overviewCardTabs.has(id) && overviewCardTabs.get(id) === tab)
@@ -459,6 +480,102 @@
       input.disabled = fixed;
     }
   }
+  function formatDate(value, language, timezone, options = {}) {
+    return window.RSVP.formatDate(value, language || window.RSVP_I18N.language, timezone, {
+      ...options,
+      dateFormat: baseline?.date,
+      timeFormat: timePreference,
+    });
+  }
+  function formatClock(value, language) {
+    return window.RSVP.formatClock(value, language || window.RSVP_I18N.language, timePreference);
+  }
+  function dateTimeExample(values = baseline, day = sampleDate) {
+    if (!/^\d{4}-\d\d-\d\d$/.test(day) || day < sampleDateBounds.min || day > sampleDateBounds.max)
+      return "";
+    const instant = new Date(day + "T18:30:00Z");
+    if (!Number.isFinite(instant.getTime()) || !instant.toISOString().startsWith(day + "T")) return "";
+    return window.RSVP.formatDate(instant, values?.language || window.RSVP_I18N.language, "UTC", {
+      dateFormat: values?.date,
+      timeFormat: values?.time || "locale",
+      separator: " · ",
+    });
+  }
+  function renderDateTimeExample() {
+    const output = element("interfaceLiveExample");
+    if (output) output.textContent = dateTimeExample(draft, element("interfaceSampleDate").value);
+  }
+  function syncDateTimeControls() {
+    const date = element("dateFormat");
+    if (date)
+      for (const option of date.options) option.textContent = option.value === "locale"
+        ? T("Language default")
+        : window.RSVP.formatDate(sampleDate, window.RSVP_I18N.language, "UTC", { dateFormat: option.value });
+    const time = element("timeFormat");
+    if (time)
+      for (const option of time.options) option.textContent = T({
+        locale: "Language default", 12: "12-hour (AM/PM)", 24: "24-hour",
+      }[option.value]);
+    const sample = element("interfaceSampleDate");
+    if (sample) sample.previousElementSibling.textContent = T("Sample date");
+    const example = element("interfaceLiveExample");
+    if (example) example.previousElementSibling.textContent = T("Example");
+  }
+  function mountDateTimeControls() {
+    const R = window.RSVP;
+    const host = element("interfaceDateHost");
+    if (host) {
+      const select = R.dom("select", { id: "dateFormat" });
+      for (const value of dateFormats) select.append(R.dom("option", { value }));
+      select.addEventListener("change", () => stage("date", select.value));
+      const label = R.dom("label", {}, T("Date format"));
+      label.append(select);
+      host.append(label);
+    }
+    const example = element("interfaceDateExample");
+    if (example) {
+      const input = R.dom("input", { id: "interfaceSampleDate", type: "date", ...sampleDateBounds });
+      const label = R.dom("label");
+      const result = R.dom("div");
+      const output = R.dom("output", { id: "interfaceLiveExample", for: "dateFormat timeFormat interfaceSampleDate" });
+      input.value = sampleDate;
+      input.addEventListener("input", renderDateTimeExample);
+      label.append(R.dom("span"), input);
+      result.append(R.dom("span"), output);
+      example.append(label, result);
+    }
+    syncDateTimeControls();
+    renderDateTimeExample();
+  }
+  function formatPicker(input) {
+    if (!input.matches(datePickerSelector)) return null;
+    const value = input.value;
+    if (!value) return "";
+    if (input.type === "time") return formatClock(value);
+    // A native datetime-local value is already the requested wall time.
+    const date = input.type === "datetime-local" ? value + "Z" : value;
+    if (!/^\d{4}-/.test(date) || !Number.isFinite(Date.parse(date))) return value;
+    return formatDate(date, undefined, "UTC");
+  }
+  function refreshDatePicker(input) {
+    if (!input.matches?.(datePickerSelector) || input.id === "interfaceSampleDate") return;
+    let hint = input.nextElementSibling;
+    if (!hint?.classList.contains("admin-picker-preview")) {
+      hint = window.RSVP.dom("small", {
+        class: "muted admin-picker-preview", id: "admin-picker-preview-" + ++pickerPreviewId,
+        "aria-hidden": "true",
+      });
+      input.after(hint);
+      // Exclude the companion from the label's name and expose it as a description.
+      input.setAttribute("aria-describedby", [input.getAttribute("aria-describedby"), hint.id].filter(Boolean).join(" "));
+    }
+    const formatted = formatPicker(input);
+    hint.hidden = !formatted;
+    if (hint.textContent !== formatted) hint.textContent = formatted;
+  }
+  function refreshDatePickers(root = document) {
+    for (const input of root.querySelectorAll(datePickerSelector)) refreshDatePicker(input);
+  }
   function syncChoices() {
     if (!form()) return;
     for (const [kind, id] of Object.entries(controlIds)) {
@@ -467,9 +584,12 @@
       if (!group) {
         const R = window.RSVP;
         group = R.dom("fieldset", { class: "interface-choice-group" }); group.dataset.preferenceChoices = kind;
-        group.append(R.dom("legend", {}, T({ language:"Language", appearance:"Appearance", time:"Time format", hover:"Button hover appearance" }[kind])));
+        group.append(R.dom("legend"));
         select.closest("label").after(group); select.closest("label").hidden = true; select.closest("label").classList.add("hidden");
       }
+      group.querySelector("legend").textContent = T({
+        language: "Language", appearance: "Theme", date: "Date format", time: "Time format", hover: "Button hover appearance",
+      }[kind]);
       const signature = JSON.stringify([...select.options].map(o => [o.value, o.text]));
       if (group.dataset.options !== signature) {
         group.querySelectorAll("button").forEach(n => n.remove()); group.dataset.options = signature;
@@ -535,7 +655,7 @@
       draft = { ...draft, ...copyPreferences(patch) };
       await apply(baseline, ticket);
       if (ticket !== generation) return false;
-      if (Object.hasOwn(patch, "time"))
+      if (Object.hasOwn(patch, "date") || Object.hasOwn(patch, "time"))
         document.dispatchEvent(new Event("rsvp:time-format"));
       if (invitesKinds.some(kind => Object.hasOwn(patch, kind))) document.dispatchEvent(new Event("rsvp:invites-appearance"));
       if (Object.hasOwn(patch, "overviewLayout")) document.dispatchEvent(new Event("rsvp:overview-appearance"));
@@ -571,6 +691,8 @@
   function cancel(target = form()) {
     if (busy || !baseline) return;
     for (const kind of kindsFor(target)) draft[kind] = copyValue(kind, baseline[kind]);
+    const sample = element("interfaceSampleDate");
+    if (target === form() && sample) sample.value = sampleDate;
     window.RSVP_I18N.markClean(target);
     status("", "", target);
     renderDraft();
@@ -579,6 +701,12 @@
     get timeFormat() {
       return timePreference;
     },
+    dateTimeExample,
+    formatDate,
+    formatClock,
+    formatPicker,
+    refreshDatePicker,
+    refreshDatePickers,
     get invitesGrouped() { return baseline?.grouped !== false; },
     get invitesGrouping() { return groupingMode(baseline?.grouped); },
     get invitesFields() { return invitesFields; },
@@ -604,7 +732,7 @@
       await apply(baseline, ticket);
       if (ticket === generation) {
         busy = false;
-        status(); status("", "", invitesForm()); status("", "", overviewForm());
+        status(); status("", "", overviewForm());
         window.RSVP_I18N.markClean(overviewForm());
         renderDraft();
       }
@@ -617,7 +745,7 @@
       busy = false;
       timePreference = "locale";
       document.documentElement.dataset.buttonHover = "toolbar";
-      status(); status("", "", invitesForm()); status("", "", overviewForm());
+      status(); status("", "", overviewForm());
       window.RSVP_I18N.markClean(overviewForm());
       renderDraft();
       try {
@@ -644,8 +772,9 @@
       const select = R.dom("select", { id: "buttonHover" });
       for (const [value, text] of [["toolbar","Toolbar"],["pencil","Pencil"],["create","Create button"]]) select.append(R.dom("option", { value }, T(text)));
       label.append(R.dom("span", {}, T("Button hover appearance")), select);
-      form().querySelector(".form-grid").append(label);
+      element("interfaceHoverHost")?.append(label);
       select.addEventListener("change", () => stage("hover", select.value));
+      mountDateTimeControls();
       syncChoices();
     }
     form()?.addEventListener("submit", (event) => {
@@ -653,8 +782,6 @@
       submit();
     });
     element("cancelPersonalPreferences")?.addEventListener("click", () => cancel());
-    invitesForm()?.addEventListener("submit", event => { event.preventDefault(); submit(invitesForm()); });
-    element("cancelInvitesAppearance")?.addEventListener("click", () => cancel(invitesForm()));
     if (overviewForm()) overviewForm().renderReadSummary = renderOverviewSummary;
     overviewForm()?.addEventListener("submit", event => { event.preventDefault(); submit(overviewForm()); });
     element("cancelOverviewAppearance")?.addEventListener("click", () => cancel(overviewForm()));
@@ -666,5 +793,8 @@
     syncInviteRows();
     syncInviteDefaultFields();
     updateControls();
+    refreshDatePickers();
+    for (const name of ["input", "change"]) document.addEventListener(name, event => refreshDatePicker(event.target));
+    document.addEventListener("reset", event => queueMicrotask(() => refreshDatePickers(event.target)));
   });
 })();

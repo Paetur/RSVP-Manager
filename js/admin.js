@@ -8,6 +8,11 @@
   let authRecovery = null;
   let eventDataActor = null,
     eventLoadVersion = 0,
+    eventLoading = false,
+    manualSendsDuringLoad = null,
+    manualSendInvitesOpen = false,
+    guestOverview = null,
+    pendingManagementCalls = 0,
     signingOut = false;
   let db = null,
     user = null,
@@ -75,18 +80,18 @@
   }
   function resetEventLoad() {
     eventLoadVersion++;
+    eventLoading = false;
+    manualSendsDuringLoad = null;
+    manualSendInvitesOpen = false;
     eventDataActor = null;
+    guestOverview = null;
+    changeAlert.loaded(null);
+    guestLive.sync();
     showEventMenus(false);
   }
   const currentActor = (actor) =>
     !!actor && actor === user && !signingOut && !authRecovery?.blocksAccess();
 
-  const fmt = (value) =>
-    value
-      ? new Intl.DateTimeFormat(window.RSVP_I18N?.locale() || "en-GB", {
-          dateStyle: "medium",
-        }).format(new Date(value))
-      : "—";
   function stamp(datetime) {
     if (!datetime) return "";
     const d = new Date(datetime),
@@ -115,12 +120,6 @@
       });
     });
     return table;
-  }
-  function sessionName(id) {
-    return (
-      store.sessions.find((s) => s.id === id)?.name ||
-      T("interface.messages.session")
-    );
   }
   function settingsTab(name) {
     if (A.current && !A.settingsAllowed(name))
@@ -203,6 +202,11 @@
     if (name === "settings") settingsTab(activeSettingsTab);
     A.apply();
     if (name === "invites" && name !== previousTab) invitesView.refreshInvitationActivity();
+    if (previousTab === "invites" && name !== previousTab && manualSendInvitesOpen) {
+      manualSendInvitesOpen = false;
+      changeAlert.reconcile();
+    }
+    if (name !== previousTab) guestLive.sync();
     if (updateUrl || oldOverview) {
       const hash = "#" + name;
       const next = location.pathname + location.search + hash;
@@ -253,9 +257,6 @@
     }
   }
 
-  function toggleSettings() {
-    tab(activeTab === "settings" ? lastMainTab : "settings");
-  }
   function returnToInvitesAfterDatabaseChange(message) {
     window.RSVP_ADMIN_TOOLS.completeDatabaseChange();
     const url = new URL(location.href);
@@ -297,12 +298,56 @@
     closeRecord: closeReading,
   });
   window.RSVP_LOCAL_EDITORS = localEditors;
-  async function fetchTable(name, columns = "*", order) {
-    let q = db.from(name).select(columns);
-    if (order) q = q.order(order);
-    const { data, error } = await q;
-    if (error) throw new Error(`${name}: ${R.safeError(error)}`);
-    return data || [];
+  function hasOpenAdminWork() {
+    if (eventLoading || pendingManagementCalls || publicationBusy ||
+        qs('#adminApp [aria-busy="true"], dialog[open]:not(.admin-change-alert), .inline-editor-panel[open]')) return true;
+    const open = [
+      '#adminApp :is(.record-open, .local-editor-open, .household-detail-editing)',
+      '#adminApp :is(.guest-edit-form, .food-edit-form, .contact-editor, .guest-move-panel):not(.hidden)',
+      '#adminApp details[open] > :is(#newVenueForm, #newSessionEditor)',
+    ];
+    return localEditors.hasUnsaved() || [...document.querySelectorAll(open.join(", "))].some(node =>
+      !node.closest('[hidden], .hidden, details:not([open])') && node.getClientRects().length > 0);
+  }
+  const changeAlert = window.RSVP_ADMIN_CHANGE_ALERT.create({
+    R, T,
+    getActor: () => currentActor(eventDataActor) ? eventDataActor : null,
+    hasOpenWork: hasOpenAdminWork,
+    readMarker: () => R.adminRpc("admin_change_marker", {}, { notifyAccessLoss: false }),
+    refresh: refreshEventData,
+    preferInline: () => activeTab === "invites" && manualSendInvitesOpen,
+    setInline: showInvitesChangeNotice,
+  });
+  function showInvitesChangeNotice(visible) {
+    let notice = $("inviteEventChangeNotice");
+    if (!notice && visible) {
+      notice = R.dom("div", { id: "inviteEventChangeNotice", class: "bulk-invite-send-queue micro" });
+      const message = R.dom("span", {}, T("interface.messages.event_data_changed") + " " + T("interface.messages.refresh_to_see_latest"));
+      message.setAttribute("role", "status");
+      const refresh = R.dom("button", { type: "button", class: "btn secondary" }, T("interface.messages.refresh_action"));
+      refresh.addEventListener("click", () => $("refreshButton").click());
+      notice.append(message, refresh);
+      $("bulkInvitesHost").after(notice);
+    }
+    if (notice) notice.hidden = !visible;
+  }
+  const guestLive = window.RSVP_ADMIN_GUEST_LIVE.create({
+    getClient: () => db,
+    getContext: () => currentActor(eventDataActor) && !eventLoading && activeTab === "invites" &&
+      (can("invites") || can("food")) ? eventLoadVersion : null,
+    readSnapshot: () => R.adminRpc("admin_guest_overview", {}, { notifyAccessLoss: false }),
+    onSnapshot: applyGuestOverview,
+  });
+  function getOverviewStore() {
+    return window.RSVP_ADMIN_OVERVIEW.withGuestOverview(store, guestOverview);
+  }
+  function applyGuestOverview(snapshot) {
+    if (!snapshot || !["households", "guests", "responses", "claims", "overrides", "topics"]
+      .every(key => Array.isArray(snapshot[key])) || !Number.isSafeInteger(snapshot.submissions)) return;
+    if (!snapshot.topics.length && !guestOverview) return;
+    guestOverview = snapshot.topics.length ? snapshot : null;
+    statisticsView.refreshCounts();
+    invitesView.refreshOverviewCounts();
   }
   async function reload({ showFeedback = true } = {}) {
     const actor = user;
@@ -310,6 +355,9 @@
     const version = ++eventLoadVersion;
     const current = () => currentActor(actor) && version === eventLoadVersion;
     const opening = actor !== eventDataActor;
+    const recordedWhileLoading = new Map();
+    manualSendsDuringLoad = recordedWhileLoading;
+    eventLoading = true;
     if (opening) $("refreshButton").disabled = true;
     if (showFeedback) show(T("interface.messages.loading_event_data"), "info", !opening);
     try {
@@ -324,7 +372,7 @@
       if (loaded.error) throw loaded.error;
       if (!loaded.data?.settings)
         throw Error(T("Administrator permissions are unavailable."));
-      const { queuePictures, ...data } = loaded.data;
+      const { queuePictures, change_marker: marker, ...data } = loaded.data;
       if (Array.isArray(data.queue))
         data.queue = data.queue.map(row => {
           if (!Object.hasOwn(row, "message_image_key")) return row;
@@ -344,7 +392,9 @@
         ? await managementRpc("admin_list_invitations")
         : [];
       if (!current()) return false;
+      for (const result of recordedWhileLoading.values()) mergeManualSend(data, result);
       Object.assign(store, data, { admins, adminInvitations });
+      guestOverview = null;
       A.setFeatures(store.settings);
       invitationApiError = "";
       if (store.languages.length)
@@ -359,6 +409,8 @@
       showEventMenus(true);
       renderAll();
       eventDataActor = actor;
+      manualSendInvitesOpen = recordedWhileLoading.size > 0 && activeTab === "invites";
+      changeAlert.loaded(marker);
       if (opening && showFeedback) show("");
       return true;
     } catch (e) {
@@ -368,13 +420,34 @@
       }
       return false;
     } finally {
+      if (version === eventLoadVersion) {
+        eventLoading = false;
+        manualSendsDuringLoad = null;
+        guestLive.sync();
+      }
       if (opening && current()) $("refreshButton").disabled = false;
+    }
+  }
+  async function refreshEventData() {
+    const actor = user, button = $("refreshButton");
+    if (!currentActor(actor)) return false;
+    button.disabled = true;
+    button.classList.add("is-refreshing");
+    try {
+      if (!await reload()) return false;
+      if (activeTab === "settings" && activeSettingsTab === "logs")
+        await loadLogs(true);
+      if (currentActor(actor)) show(T("interface.messages.event_data_refreshed"), "success");
+      return true;
+    } finally {
+      button.classList.remove("is-refreshing");
+      if (currentActor(actor)) button.disabled = false;
     }
   }
   const statisticsView = window.RSVP_ADMIN_STATISTICS.create({
     R,
     T,
-    getStore: () => store,
+    getStore: getOverviewStore,
     can,
     planningLabel,
     planningConfiguration,
@@ -600,8 +673,7 @@
       });
   }
   async function rpcAction(name, params, success) {
-    const { error } = await R.adminRpc(name, params);
-    if (error) throw error;
+    await managementRpc(name, params);
     await reload();
     if (success) show(success, "success");
   }
@@ -609,12 +681,6 @@
     return (
       store.relationGroups.find((r) => r.id === h.relation_group_id)?.name ||
       T("interface.messages.ungrouped")
-    );
-  }
-  function sameGroup(a, b) {
-    return (
-      a.planning_group_id === b.planning_group_id &&
-      a.relation_group_id === b.relation_group_id
     );
   }
   function isDescendantOf(candidateId, ancestorId) {
@@ -968,9 +1034,72 @@
     return d;
   }
   async function managementRpc(name, args) {
-    const { data, error } = await R.adminRpc(name, args);
+    pendingManagementCalls++;
+    try {
+      const { data, error } = await R.adminRpc(name, args);
+      if (error) throw error;
+      return data;
+    } finally {
+      pendingManagementCalls--;
+    }
+  }
+  async function readManualSend(saved) {
+    const client = db;
+    const { data: queue, error } = await client.from("invitation_send_queue")
+      .select("id,household_id,status,revision,updated_at").eq("id", saved.id).maybeSingle();
     if (error) throw error;
-    return data;
+    if (queue?.status !== "sent") return { queue, delivery: null };
+    const { data: confirmation, error: confirmationError } = await client.from("invitation_deliveries")
+      .select("id,queue_id,confirmed_by,confirmed_at,delivery_note").eq("queue_id", saved.id).maybeSingle();
+    if (confirmationError || !confirmation) throw confirmationError || Error("Delivery confirmation is unavailable");
+    let snapshot = saved;
+    if (queue.revision !== saved.revision + 1) {
+      // Another administrator may have edited and recorded this queue item.
+      // Use that saved version only when it differs from our prepared copy.
+      const { data, error: snapshotError } = await client.from("invitation_send_queue")
+        .select("*").eq("id", saved.id).maybeSingle();
+      if (snapshotError || !data || data.revision !== queue.revision)
+        throw snapshotError || Error("Delivery snapshot is unavailable");
+      snapshot = data;
+    }
+    return {
+      queue: { ...snapshot, ...queue },
+      delivery: {
+        ...confirmation,
+        recipient_snapshot: snapshot.recipient_snapshot,
+        message_snapshot: {
+          channel: snapshot.channel,
+          subject: snapshot.message_subject,
+          body: snapshot.message_body,
+        },
+      },
+    };
+  }
+  function mergeManualSend(target, { queue, delivery }) {
+    const index = target.queue?.findIndex(item => item.id === queue.id) ?? -1;
+    if (index < 0 || target.queue[index].revision > queue.revision) return;
+    target.queue[index] = { ...target.queue[index], ...queue };
+    if (Array.isArray(target.deliveries) && !target.deliveries.some(item => item.queue_id === queue.id))
+      target.deliveries.push(delivery);
+  }
+  function applyManualSend(result) {
+    mergeManualSend(store, result);
+    manualSendsDuringLoad?.set(result.queue.id, result);
+    if (activeTab === "invites") manualSendInvitesOpen = true;
+  }
+  async function saveVersionedRecord(name, args, revision) {
+    // Older servers omit this projection. Existing revision-aware records must
+    // submit the exact value captured with the original form, even on retry.
+    if (args.p_id && typeof revision === "string" && revision)
+      args.p_values.expected_revision = revision;
+    try {
+      return await managementRpc(name, args);
+    } catch (error) {
+      if (error.code === "P0001" && error.message ===
+          "This record changed since you opened it. Refresh to review the latest version.")
+        throw Error(T("interface.messages.record_changed_edits_preserved"));
+      throw error;
+    }
   }
   function languages(current) {
     const list = store.languages.length
@@ -1012,6 +1141,7 @@
   }
   function householdForm(h, contactChoice = null) {
     const f = managementForm();
+    const revision = h.record_revision;
     f.dataset.formKey = "household:" + (h.id || "new");
     f.classList.add("household-details-form");
     const name = field(
@@ -1175,13 +1305,13 @@
         if (primaryChanged)
           Object.assign(args.p_values, JSON.parse(contactChoice.value.value));
         if (foodChanged || primaryChanged) {
-          return managementRpc("admin_save_household_with_food", {
+          return saveVersionedRecord("admin_save_household_with_food", {
             ...args,
             p_food: foodChanged ? allowFood.checked : null,
             p_expected_food: !!h.food,
-          });
+          }, revision);
         }
-        return managementRpc("admin_save_household", args);
+        return saveVersionedRecord("admin_save_household", args, revision);
       },
     );
   }
@@ -1905,8 +2035,7 @@
   };
   let logEntries = [],
     logCursor = null,
-    logGeneration = 0,
-    logsLoaded = false;
+    logGeneration = 0;
   function logDateBoundary(value, next = false) {
     if (!value) return null;
     let date = value;
@@ -1937,11 +2066,12 @@
       const time = R.dom(
         "time",
         { title: date.toISOString() },
-        new Intl.DateTimeFormat(window.RSVP_I18N?.locale() || "en-GB", {
-          dateStyle: "medium",
-          timeStyle: "medium",
-          ...R.timeOptions(),
-        }).format(date),
+        window.RSVP_ADMIN_PREFERENCES.formatDate(
+          date,
+          window.RSVP_I18N?.language || "en",
+          Intl.DateTimeFormat().resolvedOptions().timeZone,
+          { timeStyle: "medium" },
+        ),
       );
       time.dateTime = date.toISOString();
       const subject = R.dom("span", { class: "log-subject" });
@@ -2060,7 +2190,6 @@
       const incoming = data?.entries || [];
       logEntries = reset ? incoming : [...logEntries, ...incoming];
       logCursor = logEntries.at(-1) || null;
-      logsLoaded = true;
       renderLogs();
       const selected = $("logAction").value;
       $("logAction").replaceChildren(
@@ -2094,11 +2223,13 @@
   }
 
   document.addEventListener("rsvp:time-format", () => {
+    window.RSVP_ADMIN_PREFERENCES.refreshDatePickers($("adminApp"));
+    if (logEntries.length) renderLogs();
     if (!localEditors.hasUnsaved()) renderAll();
   });
   function adminTime(value) {
     return value
-      ? R.formatDate(
+      ? window.RSVP_ADMIN_PREFERENCES.formatDate(
           value,
           window.RSVP_I18N?.language || "en",
           store.settings?.timezone || "Atlantic/Faroe",
@@ -2322,7 +2453,7 @@
     }
     return d;
   }
-  const { draft: invitationDraft, choices: invitationTemplateChoices, render: renderInvitationTemplates } =
+  const { draft: invitationDraft, render: renderInvitationTemplates } =
     window.RSVP_ADMIN_INVITATION_TEMPLATES.create({
       R,
       T,
@@ -2340,9 +2471,9 @@
       reload,
     });
   const {
-    editor: deliveryEditor,
     section: deliverySection,
     invitationSection,
+    saveReady: saveReadyDelivery,
   } = window.RSVP_ADMIN_DELIVERY_RECORD.create({
     R,
     T,
@@ -2408,9 +2539,9 @@
       .filter(Boolean)
       .join(" · ");
   }
-  function invitationOverview(h, sessionId) {
+  function invitationOverview(h, sessionId, overviewStore = store) {
     const primary = householdPrimaryContact(h);
-    return window.RSVP_ADMIN_OVERVIEW.invitationOverview(store, h, {
+    return window.RSVP_ADMIN_OVERVIEW.invitationOverview(overviewStore, h, {
       primary,
       guest: householdPrimaryGuest(h),
       contactChannel: primary ? primaryContactChannel(primary) : null,
@@ -2448,16 +2579,18 @@
     R,
     T,
     getStore: () => store,
+    getOverviewStore,
     getActor: () => user?.id || null,
     getSelectionControl: id => bulkInvitesView.selectionControl(id),
     getSelectAllControl: () => bulkInvitesView.selectAllControl(),
+    getSentState: id => bulkInvitesView.sentState(id),
+    retrySent: id => bulkInvitesView.retrySent(id),
     onVisibleHouseholds: ids => { bulkInvitesView.syncVisible(ids); bulkInvitesView.render(); },
     ordered,
     invitationOverview,
     planningConfiguration,
     groupLabel,
     languages,
-    contactMethodLabel,
     canPreviewGuest: () => A.canPreviewGuest(),
     can,
     iconAction,
@@ -2466,11 +2599,7 @@
     rememberDisclosure: (key, open) => expandedGroups.set(key, open),
     deliverySection,
     invitationSection,
-    deliveryEditor,
-    invitationTemplateChoices,
-    invitationDraft,
     managementRpc,
-    reload,
     rsvpSection,
     householdFacts: h => shortcutsView.householdFacts(h),
     adminTime,
@@ -2498,8 +2627,11 @@
     confirm: (message, trigger) => window.RSVP_INLINE.confirm(message, { trigger }),
   });
   const bulkInvitesView = window.RSVP_ADMIN_BULK_INVITES.create({
-    R, T, getStore: () => store, getActor: () => user?.id || null, can, managementRpc,
+    R, T, getStore: () => store, getActor: () => signingOut ? null : user?.id || null, can, managementRpc,
+    saveReady: saveReadyDelivery,
     reload: () => reload({ showFeedback: false }),
+    readManualSend, applyManualSend,
+    onManualSendChange: (ids, options) => invitesView.refreshSentRows(ids, options),
     primaryContact: householdPrimaryContact, primaryGuest: householdPrimaryGuest, invitationDraft,
     getVisibleHouseholdIds: () => invitesView.getVisibleHouseholdIds(),
     onSelectionChange: () => invitesView.render(),
@@ -3293,10 +3425,13 @@
       select.append(R.dom("option", { value }, label));
     select.value = selected || "Piece(s)";
   }
-  function openFoodTypes(select) {
-    const dialog = R.inlinePanel({
+  function openFoodTypes(select, trigger) {
+    const key = "organizer-food:units";
+    if (!can("food", "edit") || window.RSVP_POPUPS.get(key)) return;
+    const dialog = window.RSVP_POPUPS.create(key, {
       class: "food-recipe-dialog food-type-manager",
-    });
+    }, trigger);
+    dialog.dataset.foodAccess = "edit";
     dialog.setAttribute("aria-label", T("interface.messages.manage_types"));
     dialog.append(
       R.dom("h2", {}, T("interface.messages.manage_types")),
@@ -3359,6 +3494,8 @@
       name.disabled = true;
       form.setAttribute("aria-busy", "true");
       try {
+        if (!can("food", "edit"))
+          throw Error(T("This action is not allowed by your administrator permissions."));
         if (
           foodTypeOptions().some(
             ([existing]) => existing.toLowerCase() === value.toLowerCase(),
@@ -3413,17 +3550,6 @@
     );
     close.addEventListener("click", () => dialog.close());
     dialog.append(close);
-    dialog.addEventListener("cancel", (event) => {
-      if (form.getAttribute("aria-busy") === "true") event.preventDefault();
-    });
-    dialog.addEventListener(
-      "close",
-      () => {
-        dialog.remove();
-        if (select?.isConnected) select.focus();
-      },
-      { once: true },
-    );
     close.addEventListener(
       "click",
       (event) => {
@@ -3689,15 +3815,14 @@
     type.name = "type";
     form.insertBefore(type.parentElement, form.children[2]);
     const typeTools = R.dom("span", { class: "food-type-tools" });
-    typeTools.append(
-      iconAction(
-        "edit",
-        T("interface.messages.manage_types"),
-        () => openFoodTypes(type),
-        false,
-        "edit-only",
-      ),
+    const manageTypes = iconAction(
+      "edit",
+      T("interface.messages.manage_types"),
+      () => openFoodTypes(type, manageTypes),
+      false,
+      "edit-only",
     );
+    typeTools.append(manageTypes);
     const unitLabel = type.parentElement,
       unitControl = R.dom("span", { class: "food-unit-control" });
     unitControl.append(type, typeTools);
@@ -3864,8 +3989,14 @@
     return form;
   }
   function openFoodRecipe(item, trigger, editing = false) {
+    if (!can("food")) return;
     const editable = can("food", "edit");
-    if (!editable || (!editing && item.recipe_text?.trim())) {
+    const reading = !editable || (!editing && item.recipe_text?.trim());
+    const key = `organizer-food:recipe:${item.id}:${reading ? "read" : "edit"}`;
+    if (window.RSVP_POPUPS.get(key)) return;
+    const dialog = window.RSVP_POPUPS.create(key, { class: "food-recipe-dialog" }, trigger);
+    dialog.dataset.foodAccess = reading ? "view" : "edit";
+    if (reading) {
       const view = R.openRecipeDialog(
         foodItemName(item),
         item.recipe_text,
@@ -3875,6 +4006,7 @@
             T("food.messages.allow_pop_ups_to_save_the_recipe_as_pdf"),
             "warning",
           ),
+        dialog,
       );
       if (editable) {
         const edit = iconAction(
@@ -3889,8 +4021,6 @@
       }
       return view;
     }
-    const dialog = R.inlinePanel({ class: "food-recipe-dialog" }, trigger);
-    dialog.dataset.permissionEdit = String(editable);
     dialog.setAttribute("aria-label", T("food.messages.recipe"));
     dialog.append(
       R.dom("h2", {}, T("food.messages.recipe") + " · " + foodItemName(item)),
@@ -3953,17 +4083,6 @@
       form.querySelector(".form-actions").append(preview);
       dialog.append(form);
     }
-    dialog.addEventListener("cancel", (event) => {
-      if (form.getAttribute("aria-busy") === "true") event.preventDefault();
-    });
-    dialog.addEventListener(
-      "close",
-      () => {
-        dialog.remove();
-        if (trigger?.isConnected) trigger.focus();
-      },
-      { once: true },
-    );
     $("adminApp").append(dialog);
     dialog.openInline();
     (recipe || dialog.querySelector("button"))?.focus();
@@ -4161,6 +4280,23 @@
     await reload();
     show(T("interface.messages.category_registered"), "success");
   }
+  const foodAccess = window.RSVP_ADMIN_FOOD_ACCESS.create({
+    R,
+    T,
+    getStore: () => store,
+    getActor: () => currentActor(user) ? user : null,
+    can,
+    ordered,
+    planningConfiguration,
+    groupLabel,
+    managementRpc,
+    reload,
+    show,
+    applySavedFoodAccess(id, enabled) {
+      const household = store.households.find(record => record.id === id);
+      if (household) household.food = enabled;
+    },
+  });
   const foodView = window.RSVP_ADMIN_FOOD.create({
     R,
     T,
@@ -4186,6 +4322,15 @@
     claimedQuantity,
     btn,
     rpcAction,
+    foodAccess,
+    async openFoodChoices(expectedStage) {
+      await managementRpc("admin_set_food_stage", {
+        p_stage: "selection",
+        p_expected_stage: expectedStage,
+      });
+      if (await reload()) show(T("interface.messages.food_stage_saved"), "success");
+    },
+    show,
     iconAction,
     deleteFoodCategory,
     registerFoodCategory,
@@ -4206,6 +4351,7 @@
   });
   function renderFood() {
     foodView.render();
+    foodAccess.reconcile();
   }
   async function sendAdminInvitation(values) {
     let result = await db.auth.getSession(),
@@ -4523,8 +4669,6 @@
     getStore: () => store,
     isEditing: () => true,
     can,
-    languages,
-    field,
     saveForm,
     managementRpc,
   });
@@ -4668,6 +4812,7 @@
     $("settingTimezone").value = e.timezone || "UTC";
     $("settingUrl").value = e.website_url || "";
     $("settingDeadline").value = stamp(e.rsvp_deadline);
+    window.RSVP_ADMIN_PREFERENCES.refreshDatePickers($("eventSettingsForm"));
     $("publicationState").textContent = e.is_published
       ? T(
           "interface.messages.event_is_published_invited_guests_can_access_rsvp_you_can_unpubli",
@@ -4683,6 +4828,7 @@
   }
   function venueForm(v) {
     const f = managementForm();
+    const revision = v.record_revision;
     f.dataset.formKey = "venue:" + (v.id || "new");
     const name = field(
       f,
@@ -4811,7 +4957,7 @@
         ? T("Save")
         : T("interface.messages.create_venue"),
       () =>
-        managementRpc("admin_save_venue_with_translations", {
+        saveVersionedRecord("admin_save_venue_with_translations", {
           p_id: v.id || null,
           p_values: {
             name: name.value.trim(),
@@ -4830,7 +4976,7 @@
                 ]),
               )
             : {},
-        }),
+        }, revision),
     );
     const footer = R.dom("div", { class: "venue-form-actions span-2" });
     footer.append(form.lastElementChild);
@@ -4853,6 +4999,7 @@
   }
   function sessionForm(s) {
     const f = managementForm();
+    const revision = s.record_revision;
     f.dataset.formKey = "session:" + (s.id || "new");
     const name = field(
       f,
@@ -4935,7 +5082,7 @@
         ? T("Save")
         : T("interface.messages.create_session"),
       () =>
-        managementRpc("admin_save_session", {
+        saveVersionedRecord("admin_save_session", {
           p_id: s.id || null,
           p_values: {
             name: name.value.trim(),
@@ -4946,8 +5093,14 @@
             requires_rsvp: rsvp.checked,
             is_active: active.checked,
           },
-        }),
+        }, revision),
     );
+  }
+  function recoverAssignmentFocus(trigger) {
+    const recordKey = trigger.closest("form")?.dataset.formKey;
+    if (!recordKey || trigger.isConnected || document.activeElement !== document.body) return;
+    const pencil = qs('[data-record-pencil="' + CSS.escape(recordKey) + '"]:not(:disabled)');
+    if (pencil?.getClientRects().length) pencil.focus({ preventScroll: true });
   }
   function assignmentDialog({
     key,
@@ -4958,13 +5111,13 @@
     empty,
     drawChoices,
     saveChanges,
+    foodHouseholds = null,
     trigger,
   }) {
     if (
       !trigger.isConnected || !trigger.getClientRects().length ||
       !can("venues", "edit") || !can(section, "edit") || window.RSVP_POPUPS.get(key)
     ) return;
-    const recordKey = trigger.closest("form")?.dataset.formKey;
     const label = title + " · " + name;
     const dialog = window.RSVP_POPUPS.create(key, {
       class: "venue-assignment-dialog",
@@ -4995,17 +5148,33 @@
       { class: "btn", type: "submit" },
       T("interface.messages.save"),
     );
-    cancel.addEventListener("click", () => dialog.close());
+    async function closeDialog(button, host) {
+      if (form.dataset.dirty === "true") {
+        const discard = await window.RSVP_INLINE.confirm(T("Discard unsaved changes?"), {
+          trigger: button, host, action: "Discard changes",
+        });
+        if (!discard) return;
+      }
+      dialog.close();
+    }
+    cancel.addEventListener("click", () => closeDialog(cancel, form));
     footer.append(save, cancel);
     form.append(selectAllLabel, list, status, footer);
+    const heading = R.dom("h2", { id: key + ":heading" }, label);
+    dialog.append(heading, form);
+    const updateFood = foodHouseholds
+      ? sessionFoodTab(dialog, heading, form, foodHouseholds, trigger, closeDialog)
+      : null;
     const assigned = new Set();
     const updateSelection = () => {
       const count = editable.filter((check) => check.checked).length;
+      const dirty = editable.some((check) => check.checked !== assigned.has(check.value));
+      const busy = form.getAttribute("aria-busy") === "true";
+      if (section === "invites") form.dataset.dirty = String(dirty);
       selectAll.checked = !!editable.length && count === editable.length;
       selectAll.indeterminate = count > 0 && count < editable.length;
-      save.disabled = !editable.some(
-        (check) => check.checked !== assigned.has(check.value),
-      );
+      save.disabled = busy || !dirty;
+      updateFood?.(dirty, busy);
     };
     const checks = [];
     drawChoices(
@@ -5048,15 +5217,13 @@
         .map((check) => check.value);
       save.disabled = cancel.disabled = true;
       form.setAttribute("aria-busy", "true");
+      updateSelection();
       status.textContent = "";
       try {
         await saveChanges(add, remove);
         dialog.close();
         await reload();
-        if (recordKey && !trigger.isConnected && document.activeElement === document.body) {
-          const pencil = qs('[data-record-pencil="' + CSS.escape(recordKey) + '"]:not(:disabled)');
-          if (pencil?.getClientRects().length) pencil.focus();
-        }
+        recoverAssignmentFocus(trigger);
         show(T("interface.messages.changes_saved"), "success");
       } catch (error) {
         status.textContent = R.safeError(error);
@@ -5066,9 +5233,75 @@
         updateSelection();
       }
     });
-    dialog.append(R.dom("h2", {}, label), form);
     dialog.openInline();
     (editable.length ? selectAll : cancel).focus();
+  }
+  function sessionFoodTab(dialog, heading, invitationForm, households, trigger, closeDialog) {
+    const key = dialog.dataset.popupKey;
+    const tabs = R.dom("div", { class: "translation-tabs venue-tabs" });
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-labelledby", heading.id);
+    const invitationTab = R.dom("button", { id: key + ":invitations", type: "button" }, T("Invitations"));
+    const foodTab = R.dom("button", { id: key + ":food", type: "button" }, T("Food"));
+    // Move the existing form into the first panel so its draft survives switching tabs.
+    const invitationPanel = R.dom("div", { id: key + ":invitation-panel" });
+    invitationPanel.append(invitationForm);
+    const foodPanel = R.dom("div", { id: key + ":food-panel" });
+    const panels = [[invitationTab, invitationPanel], [foodTab, foodPanel]];
+    function select(selected) {
+      for (const [button, panel] of panels) {
+        const active = button === selected;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", String(active));
+        button.tabIndex = active ? 0 : -1;
+        panel.hidden = !active;
+      }
+    }
+    for (const [button, panel] of panels) {
+      button.setAttribute("role", "tab");
+      button.setAttribute("aria-controls", panel.id);
+      button.addEventListener("click", () => select(button));
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-labelledby", button.id);
+      tabs.append(button);
+    }
+    foodPanel.tabIndex = 0;
+    select(invitationTab);
+    const tableWrap = R.dom("div", { class: "venue-assignment-list session-food-roster" });
+    const values = households.map((h) => {
+      const state = h.food ? "allowed" : "blocked";
+      const badge = R.dom("span", { class: "tag" }, T(`food.messages.food_access_${state}`));
+      badge.dataset.foodStatus = state;
+      return [R.householdName(h) || T("interface.messages.unnamed_household"), badge,
+        T(h.food_interest === true ? "Yes" : h.food_interest === false ? "No" : "Unanswered")];
+    });
+    foodPanel.append(R.dom("p", { class: "micro" }, T("food.messages.food_access_session_help")));
+    if (values.length) {
+      tableWrap.append(makeTable([T("Household"), T("Food access"), T("Food interest")], values));
+      foodPanel.append(tableWrap);
+    } else foodPanel.append(R.dom("p", { class: "small muted" }, T("food.messages.food_access_no_session_households")));
+    const notice = R.dom("p", { class: "micro" }, T("food.messages.food_access_scope"));
+    const pending = R.dom("p", { class: "micro" }, T("food.messages.food_access_finish_session_edits"));
+    const actions = R.dom("div", { class: "venue-assignment-footer session-food-actions" });
+    const manage = R.dom("button", { class: "text-button", type: "button" }, T("food.messages.manage_food_access"));
+    manage.setAttribute("aria-haspopup", "dialog");
+    manage.addEventListener("click", () => {
+      if (manage.disabled || !foodAccess.canView()) return;
+      dialog.close();
+      foodAccess.open(trigger, () => recoverAssignmentFocus(trigger));
+    });
+    const close = R.dom("button", { class: "btn secondary", type: "button" }, T("Close"));
+    close.addEventListener("click", () => closeDialog(close, foodPanel));
+    actions.append(manage, close);
+    foodPanel.append(notice, pending, actions);
+    dialog.dataset.foodAccess = "view";
+    dialog.dataset.requiresHouseholdsView = "true";
+    dialog.append(tabs, invitationPanel, foodPanel);
+    return (dirty, busy) => {
+      manage.disabled = dirty || busy;
+      foodTab.disabled = close.disabled = busy;
+      pending.hidden = !dirty;
+    };
   }
   function venueFoodDialog(venue, trigger) {
     assignmentDialog({
@@ -5128,10 +5361,10 @@
         .filter((d) => d.session_id === session.id && d.is_invited)
         .map((d) => d.household_id),
     );
-    const overrides = new Set(
+    const overrides = new Map(
       store.overrides
         .filter((o) => o.session_id === session.id)
-        .map((o) => o.guest_id),
+        .map((o) => [o.guest_id, o.is_invited]),
     );
     const tree = ordered(
       store.households.filter((h) => !h.archived_at),
@@ -5158,6 +5391,11 @@
         "interface.messages.checked_households_are_invited_to_this_session_individual_guest_e",
       ),
       empty: T("interface.messages.no_households_to_manage"),
+      // This roster uses saved assignments, with an individual exception winning over the household default.
+      foodHouseholds: foodAccess.canView()
+        ? tree.filter((h) => typeof h.food === "boolean" &&
+          guests.get(h.id)?.some((id) => overrides.get(id) ?? invited.has(h.id)))
+        : null,
       drawChoices(list, addCheck) {
         renderInvitationHierarchy(list, tree, visible, (h, parent) => {
           const members = guests.get(h.id);
@@ -5328,22 +5566,7 @@
       $("guestPreviewButton"),
       $("logout"),
     );
-    $("refreshButton").addEventListener("click", async () => {
-      const actor = user, button = $("refreshButton");
-      if (!currentActor(actor)) return;
-      button.disabled = true;
-      button.classList.add("is-refreshing");
-      try {
-        if (await reload()) {
-          if (activeTab === "settings" && activeSettingsTab === "logs")
-            await loadLogs(true);
-          if (currentActor(actor)) show(T("interface.messages.event_data_refreshed"), "success");
-        }
-      } finally {
-        button.classList.remove("is-refreshing");
-        if (currentActor(actor)) button.disabled = false;
-      }
-    });
+    $("refreshButton").addEventListener("click", refreshEventData);
     $("logout").addEventListener("click", async () => {
       const actor = user, button = $("logout");
       if (!currentActor(actor)) return;
@@ -5533,8 +5756,8 @@
     $("collapseFood").addEventListener("click", () =>
       setFoodDisclosure("details[data-tree-key], details[open]", false),
     );
-    $("addFoodType").addEventListener("click", () =>
-      openFoodTypes($("newFoodType")),
+    $("addFoodType").addEventListener("click", (event) =>
+      openFoodTypes($("newFoodType"), event.currentTarget),
     );
     $("foodSearch").addEventListener("input", renderFood);
     window.RSVP_ADMIN_SEARCH.enhance({
@@ -5629,7 +5852,7 @@
         "interface.messages.sending_invitation",
       );
       try {
-        const result = await sendAdminInvitation({
+        await sendAdminInvitation({
           email: $("newAdminEmail").value.trim(),
           name: $("newAdminName").value.trim(),
         });

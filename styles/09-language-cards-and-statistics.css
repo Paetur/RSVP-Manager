@@ -398,8 +398,7 @@
   gap: 2px;
 }
 #adminApp .stat-card .invite-stat-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -414,6 +413,11 @@
   text-align: start;
   cursor: pointer;
 }
+#adminApp .stat-card .invite-stat-row > span {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 #adminApp .stat-card .invite-stat-row span,
 #adminApp .stat-card .invite-stat-row b {
   color: inherit;
@@ -425,10 +429,25 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-#adminApp .stat-card .invite-stat-row.is-selected {
+#adminApp .stat-card .invite-stat-check {
+  flex: 0 0 1em;
+  color: currentColor;
+  font-size: .76rem;
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+  visibility: hidden;
+}
+#adminApp .stat-card .invite-stat-row[aria-pressed="true"] {
   border-color: var(--line);
   background: var(--light);
   color: var(--action-text);
+}
+#adminApp .stat-card .invite-stat-row[aria-pressed="true"] .invite-stat-check {
+  visibility: visible;
+}
+@media (hover: hover) and (pointer: fine) {
+  #adminApp .stat-card .invite-stat-row:hover { border-color: var(--action-text); }
 }
 #adminApp .stat-card .invite-stat-row:focus-visible {
   outline: 2px solid var(--teal);

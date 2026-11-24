@@ -4,6 +4,13 @@ import pathlib
 import shutil
 import sys
 
+# The separate Shortcuts test website copies these from source.
+SHORTCUTS_PILOT_SCRIPTS = {
+    'js/shortcut-device-runner.js',
+    'js/shortcuts-test-installer.js',
+    'js/shortcuts-test-page.js',
+}
+
 source, config, target = map(pathlib.Path, sys.argv[1:])
 source = source.resolve()
 files = [pathlib.Path(name) for name in [
@@ -16,7 +23,8 @@ for folder, suffixes in [
 ]:
     files.extend(p.relative_to(source) for p in (source / folder).rglob('*')
                  if p.is_file() and p.suffix in suffixes
-                 and not any(part.startswith('.') for part in p.relative_to(source).parts))
+                 and not any(part.startswith('.') for part in p.relative_to(source).parts)
+                 and p.relative_to(source).as_posix() not in SHORTCUTS_PILOT_SCRIPTS)
 for name in files:
     origin = (source / name).resolve()
     if not origin.is_relative_to(source):

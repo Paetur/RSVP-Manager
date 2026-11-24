@@ -1,6 +1,6 @@
 // Current schema only, with synthetic records in a disposable database.
 const assert = require("node:assert/strict");
-const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
+const { withRecordRevision, createDatabase, signIn } = require("./helpers/alpha-database.cjs");
 (async () => {
   const db = await createDatabase();
   const value = async (sql, args = []) => (await db.query(sql, args)).rows[0].v;
@@ -11,11 +11,11 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     const record = (table, id) => value(`SELECT to_jsonb(t) v FROM public.${table} t WHERE id=$1`, [id]);
     const first = await record("event_locations", venue);
     assert.ok(first.created_at && first.updated_at);
-    await db.query("SELECT public.admin_save_venue($1,$2)", [venue, venueValues]);
+    await db.query("SELECT public.admin_save_venue($1,$2)", [venue, await withRecordRevision(db, "locations", venue, venueValues)]);
     const unchanged = await record("event_locations", venue);
     assert.equal(unchanged.created_at, first.created_at);
     assert.equal(unchanged.updated_at, first.updated_at, "no-op save is not an edit");
-    await db.query("SELECT public.admin_save_venue($1,$2)", [venue, { ...venueValues, address: "Example road" }]);
+    await db.query("SELECT public.admin_save_venue($1,$2)", [venue, await withRecordRevision(db, "locations", venue, { ...venueValues, address: "Example road" })]);
     const edited = await record("event_locations", venue);
     assert.equal(edited.created_at, first.created_at);
     assert.ok(edited.updated_at > first.updated_at);
@@ -28,7 +28,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     const session = await value("SELECT public.admin_save_session(NULL,$1) v", [sessionValues]);
     const originalSession = await record("event_sessions", session);
     assert.ok(originalSession.created_at && originalSession.updated_at);
-    await db.query("SELECT public.admin_save_session($1,$2)", [session, { ...sessionValues, name: "Updated session" }]);
+    await db.query("SELECT public.admin_save_session($1,$2)", [session, await withRecordRevision(db, "sessions", session, { ...sessionValues, name: "Updated session" })]);
     const editedSession = await record("event_sessions", session);
     assert.equal(editedSession.created_at, originalSession.created_at);
     assert.ok(editedSession.updated_at > originalSession.updated_at);

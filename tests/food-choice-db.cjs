@@ -1,4 +1,5 @@
 // Synthetic PostgreSQL only. Never connects to a live project.
+const { withRecordRevision } = require("./helpers/alpha-database.cjs");
 const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=require('node:assert/strict');
 (async()=>{const db=new PGlite();try{
  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role BYPASSRLS;CREATE SCHEMA auth;CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz,encrypted_password text);CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,created_at timestamptz DEFAULT now());CREATE TABLE auth.audit_log_entries(id uuid PRIMARY KEY,payload json,created_at timestamptz DEFAULT now());CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;GRANT USAGE ON SCHEMA auth TO authenticated,anon;`);
@@ -78,7 +79,7 @@ const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=requ
  await db.query('SELECT public.admin_move_session($1,-1)',[newSession]);
  const afterMove=await sessionOrder();
  assert.equal(afterMove.at(-2),newSession);
- await db.query('SELECT public.admin_save_session($1,$2)',[newSession,{name:'Renamed session',session_key:'later-session'}]);
+ await db.query('SELECT public.admin_save_session($1,$2)',[newSession, await withRecordRevision(db, "sessions", newSession, {name:'Renamed session',session_key:'later-session'})]);
  assert.deepEqual(await sessionOrder(),afterMove);
  const saveTranslations='SELECT public.admin_save_food_translations($1,$2)';
  const nameKey='food:'+brownie+':name';
@@ -90,7 +91,7 @@ const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=requ
  await db.query('SELECT public.admin_set_food_selection($1,$2,2,0)',[selectedHousehold,brownie]);
  assert.equal(await value('SELECT quantity v FROM public.food_claims WHERE household_id=$1 AND food_item_id=$2',[selectedHousehold,brownie]),2);
  const householdDetails={household_name:'Should roll back',planning_group_id:'general',language:'en'};
- await assert.rejects(()=>db.query('SELECT public.admin_save_household_with_food($1,$2,false,true)',[selectedHousehold,householdDetails]),/commitments exist/);
+ await assert.rejects(async()=>db.query('SELECT public.admin_save_household_with_food($1,$2,false,true)',[selectedHousehold, await withRecordRevision(db, "households", selectedHousehold, householdDetails)]),/commitments exist/);
  assert.equal(await value('SELECT household_name v FROM public.households WHERE id=$1',[selectedHousehold]),'One');
  await assert.rejects(()=>db.query('SELECT public.admin_set_food_selection($1,$2,1,0)',[selectedHousehold,brownie]),/changed/);
  await assert.rejects(()=>db.query('SELECT public.admin_set_food_selection($1,$2,3,2)',[selectedHousehold,brownie]),/Insufficient/);

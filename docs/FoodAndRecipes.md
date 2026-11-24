@@ -2,7 +2,19 @@
 
 ## Choose when guests see food choices
 
-Under **Home → Events → Features**, enable Food and choose one of the **Guest food step** cards. **Collect interest** asks whether households can bring food while hiding the detailed menu. Guests save their Yes or No with **Submit responses** when they also owe an RSVP, or **Confirm food answer** when only the food question is outstanding. The saved answer is read-only. **Choose food** opens the menu to eligible households with a saved Yes. Save the setting when ready.
+Under **Home → Events → Features**, enable Food and start with **Collect interest**. Guests save their Yes or No with **Submit responses** when they also owe an RSVP, or **Confirm food answer** when only the food question is due.
+
+When the menu is ready, open **Home → Food**, select **Open food choices** and confirm. The status changes to **Choose food**. Send eligible households their original invitation link again when appropriate. A household with a saved RSVP and Yes sees who is attending and the available food choices on the same page. Confirmed items appear under **You’re bringing** on later visits.
+
+## Check which households have food access
+
+Open **Food access** in **Home → Food** to see who is allowed to choose food. Households follow the saved group order from **Home → Households**. The list starts on **Allowed**. Use **All**, **Blocked** or the household search to find other entries. **Food interest** shows the household’s saved Yes, No or Unanswered response. The dialog requires Food and Households view access. Administrators with Household Edit permission can change **Allow food** and save. Households with existing commitments keep their access. The same setting is available in **Home → Households → Household details**.
+
+![Food access dialog showing Allowed, All and Blocked, household groups, food interest and access checkboxes](images/ipad-food-access.png)
+
+In **Home → Venues → Sessions → Manage households**, **Invitations** controls who is invited to the session. The **Food** tab shows food access and saved interest for households with an invited guest. **Manage food access** opens the event-wide list for edits.
+
+![The Food tab in Manage households for a session, with household access, saved interest and a link to edit food access](images/ipad-session-food-access.png)
 
 Edit the guest explanation at **Languages globe → Guests → Food explanation**. Configure the response after a saved Yes at **Guests → Food Interest Reply**, including an optional RSVP-deadline date placeholder and missing-deadline fallback. See [Languages](Languages.md#guests-food-text). The detailed list stays hidden throughout Collect interest.
 
@@ -10,7 +22,7 @@ In **Invites**, click **Yes**, **No** or **Unanswered** under Food interest in t
 
 Changing the step does not publish the event or send invitations. Returning to interest hides the list while preserving commitments. Disabling Food hides its section and blocks guest food responses/reservations without deleting records. Other has its own enable switch.
 
-Food explanations and replies are event-specific text, separate from shared interface wording. Send private invitation links again manually when appropriate.
+Food explanations and replies are event-specific text, separate from shared interface wording.
 
 ## Categories, items and groups
 
@@ -40,9 +52,7 @@ Choose venues in the item editor. For bulk changes, use **Manage food** on a ven
 
 ## Guest flow
 
-Yes/No answers save immediately and independently of attendance. Yes reserves nothing by itself. In selection mode, guests click item/group boxes, review quantities and confirm. Back to edit retains reservations; confirmation locks them. No cannot clear existing commitments. Selected and confirmed lists include the note that more information follows after everyone replies.
-
-The former Food coordination box and its answer-summary panel have been removed. Guest food stage controls are in Settings.
+Guests confirm food interest alone or submit it with an outstanding RSVP. A saved Yes records interest without reserving an item. When choices open, eligible guests return through their original invitation link, see **Your RSVP**, and choose items or groups. **Back to edit** retains reservations, and confirmation locks them. Later visits show confirmed items and quantities under **You’re bringing**. An existing commitment stays in place if a guest needs help changing an answer.
 
 ## Recipes and translations
 

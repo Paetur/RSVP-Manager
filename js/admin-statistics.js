@@ -9,6 +9,25 @@
         { key: "invitation", button: $("overviewInvitationTab"), panel: $("overviewInvitationPanel"), label: "Invitation" },
       ];
       let activeTab = tabs[0];
+      const countNodes = new Map();
+      function currentCounts(store) {
+        const { invitedCount, children, available, full, hidden, contributingHouseholds } =
+          window.RSVP_ADMIN_OVERVIEW.eventCounts(store, false);
+        return {
+          households: store.households.filter(h => !h.archived_at).length,
+          guests: invitedCount,
+          peopleBreakdown: `${invitedCount - children} ${T("Adults")} · ${children} ${T("Children")}`,
+          submissions: store.guestSubmissionCount ?? store.submissions.length,
+          available, full, hidden, contributingHouseholds,
+        };
+      }
+      function refreshCounts() {
+        const counts = currentCounts(getStore());
+        for (const [key, node] of countNodes) {
+          const value = String(counts[key]);
+          if (node.isConnected && node.textContent !== value) node.textContent = value;
+        }
+      }
       function selectTab(tab) {
         activeTab = tab;
         for (const item of tabs) {
@@ -25,25 +44,28 @@
 
       function render() {
         const store = getStore();
-        const {
-          invitedCount,
-          children,
-          available,
-          full,
-          hidden,
-          contributingHouseholds,
-        } = window.RSVP_ADMIN_OVERVIEW.eventCounts(store, can("invites"));
+        const metrics = currentCounts(store);
+        countNodes.clear();
+        function metric(key, node) {
+          countNodes.set(key, node);
+          return node;
+        }
         const cards = new Map();
-        function card(tab, id, label, value, rows, footnote) {
+        function card(tab, id, label, value, rows, footnote, headingKey) {
           const node = R.dom("div", { class: "stat-card stat-card-compact" }),
             heading = R.dom("div", { class: "stat-heading" }),
             counts = R.dom("dl", { class: "stat-counts" });
           node.dataset.overviewCard = id;
           cards.set(id, { id, label, tab, node });
-          if (value !== undefined) heading.append(R.dom("b", {}, value));
+          if (value !== undefined) {
+            const total = R.dom("b", {}, value);
+            heading.append(headingKey ? metric(headingKey, total) : total);
+          }
           heading.append(R.dom("span", {}, label));
-          for (const [name, count] of rows)
-            counts.append(R.dom("dt", {}, name), R.dom("dd", {}, count));
+          for (const [name, count, key] of rows) {
+            const value = R.dom("dd", {}, count);
+            counts.append(R.dom("dt", {}, name), key ? metric(key, value) : value);
+          }
           node.append(heading, counts);
           if (footnote)
             node.append(R.dom("p", { class: "stat-footnote" }, footnote));
@@ -69,13 +91,12 @@
           const heading = people.querySelector(".stat-heading");
           if (showHouseholds) {
             const householdTotal = R.dom("span");
-            householdTotal.append(R.dom("b", {}, store.households.filter(h => !h.archived_at).length), " " + householdsLabel);
+            householdTotal.append(metric("households", R.dom("b", {}, metrics.households)), " " + householdsLabel);
             const guestTotal = R.dom("span");
-            guestTotal.append(R.dom("b", {}, invitedCount), " " + planningLabel("guests"));
+            guestTotal.append(metric("guests", R.dom("b", {}, metrics.guests)), " " + planningLabel("guests"));
             heading.classList.add("overview-people-totals");
             heading.replaceChildren(householdTotal, R.dom("span", {}, " / "), guestTotal);
-            heading.after(R.dom("p", { class: "overview-people-breakdown" },
-              `${invitedCount - children} ${T("Adults")} · ${children} ${T("Children")}`));
+            heading.after(metric("peopleBreakdown", R.dom("p", { class: "overview-people-breakdown" }, metrics.peopleBreakdown)));
           } else heading.remove();
           if (showInvites) {
             people.querySelector(".stat-counts")?.remove();
@@ -87,19 +108,20 @@
             "information",
             "rsvp",
             T("interface.messages.new_rsvp_submissions"),
-            store.submissions.length,
+            metrics.submissions,
             [],
             T("Attendance totals across sessions"),
+            "submissions",
           );
           rsvp.querySelector(".stat-counts").replaceWith(R.dom("div", { id: "inviteSessionTree" }),
             R.dom("div", { id: "inviteAttendanceCounts", class: "invite-stat-rows" }));
         }
         if (can("food")) {
           const food = card("information", "food", T("food.messages.food_items"), store.food.length, [
-            [T("interface.messages.available"), available],
-            [T("interface.messages.fully_assigned"), full],
-            [T("interface.messages.hidden_status"), hidden],
-            [T("Contributing households"), contributingHouseholds],
+            [T("interface.messages.available"), metrics.available, "available"],
+            [T("interface.messages.fully_assigned"), metrics.full, "full"],
+            [T("interface.messages.hidden_status"), metrics.hidden, "hidden"],
+            [T("Contributing households"), metrics.contributingHouseholds, "contributingHouseholds"],
           ]);
           if (store.settings?.food_enabled !== false) {
             const interest = R.dom("div", { class: "stat-interest", id: "inviteFoodInterest" });
@@ -149,7 +171,7 @@
           cards.size > 0,
         );
       }
-      return { render };
+      return { render, refreshCounts };
     },
   };
 })();

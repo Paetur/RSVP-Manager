@@ -10,14 +10,39 @@ const { root, out, server, mock, extra, stageExtra } =
 const overviewMock = String.raw`
 fixtures.event_settings[0].food_stage='interest';
 fixtures.guests.push({id:'99999999-9999-4999-8999-999999999999',household_id:h3,first_name:'Other',last_name:'Example'});
-fixtures.invitation_send_queue=[{id:'queue-sent',household_id:h2,channel:'email',status:'sent',message_body:'Sent example',created_at:'2026-11-10T12:00:00Z',updated_at:'2026-11-10T12:00:00Z',revision:2,recipient_snapshot:{contact_name:'Example recipient',contact_value:'example@example.invalid'}},{id:'queue-ready',household_id:h3,channel:'sms',status:'ready',message_body:'Ready example {invitation_link}',created_at:'2026-11-11T12:00:00Z',updated_at:'2026-11-11T12:00:00Z',revision:1,recipient_snapshot:{contact_name:'Other recipient',contact_value:'+298123456'}}];fixtures.invitation_deliveries=[{queue_id:'queue-sent',confirmed_at:'2026-11-10T12:00:00Z',confirmed_by:h1}];
+fixtures.invitation_send_queue=[{id:'queue-sent',household_id:h2,channel:'email',status:'sent',message_body:'Sent example',created_at:'2026-11-10T12:00:00Z',updated_at:'2026-11-10T12:00:00Z',revision:2,recipient_snapshot:{contact_name:'Example recipient',contact_value:'example@example.invalid'}},{id:'queue-ready',household_id:h3,channel:'sms',status:'ready',message_body:'Ready example {invitation_link}',created_at:'2026-11-11T12:00:00Z',updated_at:'2026-11-11T12:00:00Z',revision:1,recipient_snapshot:{contact_name:'Other recipient',contact_value:'+298123456'}}];fixtures.invitation_deliveries=[{queue_id:'queue-sent',confirmed_at:'2026-11-10T12:00:00Z',confirmed_by:h1,message_snapshot:{channel:'email',subject:'Sent subject',body:'Sent example'},recipient_snapshot:{contact_name:'Example recipient'}}];
 const overviewTemplate={
   id:'overview-template', revision:'overview-revision', name:'Synthetic invitation',
   channels:['email'], language_tags:['en','fo'],
   versions:{en:{language_code:'en',subject:'Synthetic subject',body:'Draft message {invitation_link}',options:['subject','message']}}
 };
+window.__readScopedFixture=({table,fields,key,value})=>{
+  (window.__sentReads??=[]).push({table,fields,key,value});
+  if(window.__failSentRead===value){
+    window.__failSentRead=null;
+    return {error:{message:'Synthetic confirmation read failure'}};
+  }
+};
 const overviewRpc=client.rpc;
+const guestChannels = window.__guestOverviewChannels = new Map();
+client.channel = (topic, options) => {
+  const record = { options, listener: null, channel: {
+    on(type, filter, listener) { record.type = type; record.filter = filter; record.listener = listener; return this; },
+    subscribe(listener) { listener("SUBSCRIBED"); return this; },
+  } };
+  guestChannels.set(topic, record);
+  return record.channel;
+};
+client.removeChannel = channel => {
+  for (const [topic, record] of guestChannels) if (record.channel === channel) guestChannels.delete(topic);
+};
 client.rpc=async(name,a)=>{
+  if (name === "admin_guest_overview") {
+    const state = window.__guestOverviewFixture;
+    if (!state) return { error: { code: "PGRST202", message: "Synthetic previous backend" } };
+    state.reads++;
+    return { data: structuredClone(state.snapshot) };
+  }
   if(name==='admin_invitation_activity'){
     const household=fixtures.households.find(item=>item.id===a.p_household_id);
     if(!household)return {data:null};
@@ -90,12 +115,19 @@ client.rpc=async(name,a)=>{
     if(window.__failSent===a.p_queue_id){window.__failSent=null;return {error:{message:'Synthetic Sent failure'}};}
     if(!item||!household||household.archived_at||item.invitation_code_snapshot!==household.invite_code||!item.message_body||!item.recipient_snapshot?.contact_value)return {error:{message:'Synthetic stale invitation'}};
     (window.__sentWrites??=[]).push(a);
-    if(item.status==='sent')return {data:item.id};
+    if(item.status==='sent')return {data:fixtures.invitation_deliveries.find(delivery=>delivery.queue_id===item.id)?.id};
     if(item.status!=='ready'||item.revision!==a.p_expected_revision)return {error:{message:'Synthetic stale revision'}};
-    fixtures.invitation_deliveries.push({queue_id:item.id,confirmed_at:'2026-11-20T12:00:00Z',confirmed_by:h1});
-    item.status='sent';item.sent_at='2026-11-20T12:00:00Z';item.revision++;
-    return {data:item.id};
+    const id=crypto.randomUUID();
+    fixtures.invitation_deliveries.push({id,queue_id:item.id,confirmed_at:'2026-11-20T12:00:00Z',confirmed_by:h1});
+    item.status='sent';item.sent_at=item.updated_at='2026-11-20T12:00:00Z';item.revision++;
+    if(window.__loseSentResponse===a.p_queue_id){
+      window.__loseSentResponse=null;
+      window.__failSentRead=a.p_queue_id;
+      return {error:{message:'Synthetic connection failure after confirmation'}};
+    }
+    return {data:id};
   }
+  if(name==='admin_change_marker'&&window.__manualSendMarker)return {data:window.__manualSendMarker};
   if(name==='admin_load_data'){
     if(window.__holdBulkReload){
       window.__holdBulkReload=false;
@@ -107,9 +139,115 @@ client.rpc=async(name,a)=>{
     }
   }
   const result=await overviewRpc(name,a);
-  if(name==='admin_load_data')result.data.invitationTemplates=[overviewTemplate,...(window.__bulkTemplates||[])];
+  if(name==='admin_load_data'){
+    result.data.invitationTemplates=[overviewTemplate,...(window.__bulkTemplates||[])];
+    if(window.__manualSendMarker)result.data.change_marker=window.__manualSendMarker;
+  }
   return result;
 };`;
+
+async function checkLiveGuestOverview(page) {
+  const ids = await page.evaluate(() => {
+    const topic = "rsvp:guest-overview:invites";
+    const ready = fixtures.invitation_send_queue.find(item => item.id === "queue-ready");
+    const defaults = structuredClone(fixtures.household_session_defaults);
+    const activeGuests = fixtures.guests.filter(guest => guest.household_id === h2);
+    const state = window.__guestOverviewFixture = {
+      reads: 0, defaults, originalRecord: structuredClone(ready),
+      snapshot: {
+        realtime: true, topics: [topic, "rsvp:guest-overview:food"],
+        households: fixtures.households.map(({ id, rsvp_state }) => ({ id, rsvp_state, visit_count: 0, food_interest: null })),
+        guests: fixtures.guests.map(({ id, household_id, is_child }) => ({ id, household_id, is_child: Boolean(is_child) })),
+        responses: [], claims: [], overrides: [], submissions: 0,
+      },
+    };
+    fixtures.household_session_defaults.push({ household_id: h2, session_id: s1, is_invited: true });
+    Object.assign(ready, { status: "draft", channel: "manual", invitation_code_snapshot: fixtures.households.find(row => row.id === h3).invite_code });
+    return { seen: h2, draft: h3, guest: activeGuests[0].id, session: s1, topic,
+      guests: state.snapshot.guests.length, replies: activeGuests.length };
+  });
+  await refreshFixture(page);
+  await page.waitForFunction(() => window.__guestOverviewFixture.reads >= 2);
+  assert.deepEqual(await page.evaluate(() => [...window.__guestOverviewChannels].map(([topic, entry]) =>
+    [topic, entry.options.config.private, entry.type, entry.filter.event])), [
+    ["rsvp:guest-overview:invites", true, "broadcast", "changed"],
+    ["rsvp:guest-overview:food", true, "broadcast", "changed"],
+  ]);
+  const loads = () => page.evaluate(() => window.__fetchCount);
+  const reads = () => page.evaluate(() => window.__guestOverviewFixture.reads);
+  const beforeLoads = await loads();
+  await chooseInviteFilter(page, "inviteLanguageFilter", ["de", "fo"]);
+  const draft = page.locator('[data-invite-household="' + ids.draft + '"]');
+  await draft.locator("[data-bulk-select]").check();
+  await draft.getByRole("button", { name: /^Review/ }).click();
+  const record = draft.locator("[data-primary-delivery]");
+  await record.getByText("Edit delivery", { exact: true }).click();
+  const form = record.locator("form.delivery-review-form");
+  await form.locator(".delivery-customize").evaluate(node => { node.open = true; });
+  const draftMessage = form.getByRole("textbox", { name: "Message text", exact: true });
+  const unsaved = "Synthetic unsaved invitation {invitation_link}";
+  await draftMessage.fill(unsaved);
+  const seen = page.locator('#inviteOverviewCounts [data-invite-filter="seen"]');
+  await seen.focus();
+  const nodes = [await seen.elementHandle(), await draft.elementHandle(), await form.elementHandle()];
+  const beforeReads = await reads();
+  await page.evaluate(({ topic, seen, guest, session }) => {
+    const snapshot = window.__guestOverviewFixture.snapshot;
+    Object.assign(snapshot.households.find(row => row.id === seen), {
+      visit_count: 1, first_visited_at: "2026-11-24T12:00:00Z", last_visited_at: "2026-11-24T12:00:00Z",
+      food_interest: true, rsvp_state: "locked",
+    });
+    snapshot.guests.push({ id: crypto.randomUUID(), household_id: seen, is_child: true });
+    snapshot.submissions = 1;
+    snapshot.responses.push({ guest_id: guest, session_id: session, rsvp_status: "attending" });
+    const item = fixtures.food_items[0];
+    snapshot.claims.push({ household_id: seen, food_item_id: item.id, quantity: item.quantity_needed });
+    const notice = { event: "changed", payload: {} };
+    window.__guestOverviewChannels.get(topic).listener(notice);
+    window.__guestOverviewChannels.get("rsvp:guest-overview:food").listener(notice);
+  }, ids);
+  await seen.locator("b").filter({ hasText: /^1$/ }).waitFor();
+  assert.equal(await reads(), beforeReads + 1, "a burst of guest events reads one scoped snapshot");
+  assert.equal(await loads(), beforeLoads, "guest activity does not reload the administrator store");
+  assert.ok(await page.evaluate(([button, row, editor]) => button.isConnected && document.activeElement === button &&
+    row.isConnected && row.open && editor.isConnected, nodes));
+  assert.equal(await draftMessage.inputValue(), unsaved);
+  assert.ok(await draft.locator("[data-bulk-select]").isChecked());
+  assert.equal(await page.locator('#inviteLanguageFilter [aria-pressed="true"]').count(), 2);
+  assert.equal(await page.locator('#inviteOverviewCounts [data-invite-filter="replied"] b').textContent(), "1");
+  assert.equal(await page.locator("#inviteSeenSummary").textContent(), "1 sent · 0 not seen · 1 seen");
+  assert.equal(await page.locator('[data-overview-card="households"] .stat-heading b').last().textContent(), String(ids.guests + 1));
+  assert.equal(await page.locator('[data-overview-card="rsvp"] .stat-heading b').textContent(), "1");
+  assert.equal(await page.locator('[data-invite-attendance-filter="attending"] b').textContent(), "1");
+  assert.equal(await page.locator('[data-invite-attendance-filter="pending"] b').textContent(), String(ids.replies));
+  assert.equal(await page.locator('[data-invite-food-filter="yes"] b').textContent(), "1");
+  assert.equal(await page.locator('[data-overview-card="food"] .stat-counts dd').nth(1).textContent(), "1");
+  assert.equal(await page.locator('[data-overview-card="food"] .stat-counts dd').last().textContent(), "1");
+  assert.equal(await page.evaluate(() => window.__invitesStore.responses.length), 0, "the report baseline is untouched");
+  await page.evaluate(id => {
+    const snapshot = window.__guestOverviewFixture.snapshot;
+    snapshot.households.find(row => row.id === id).food_interest = false;
+    window.__guestOverviewChannels.get("rsvp:guest-overview:food").listener({ event: "changed", payload: {} });
+  }, ids.draft);
+  // The Food card is in the inactive Overview tab, so read the connected count directly.
+  await page.locator('[data-invite-food-filter="no"] b').filter({ hasText: /^1$/ }).waitFor({ state: "attached" });
+  assert.equal(await reads(), beforeReads + 2);
+  assert.equal(await draftMessage.inputValue(), unsaved);
+  await seen.click();
+  assert.deepEqual(await page.locator("[data-invite-household]").evaluateAll(rows => rows.map(row => row.dataset.inviteHousehold)), [ids.seen],
+    "the same filter button uses the fresh projection after a deliberate click");
+  await seen.click();
+  await chooseInviteFilter(page, "inviteLanguageFilter");
+  await page.evaluate(() => {
+    const fixture = window.__guestOverviewFixture;
+    fixtures.household_session_defaults = fixture.defaults;
+    fixtures.invitation_send_queue = fixtures.invitation_send_queue.map(item =>
+      item.id === fixture.originalRecord.id ? fixture.originalRecord : item);
+    delete window.__guestOverviewFixture;
+  });
+  await refreshFixture(page);
+  await page.waitForFunction(() => !document.querySelector("#refreshButton").disabled && !window.__guestOverviewChannels.size);
+}
 
 async function chooseInviteFilter(page, id, selected = []) {
   await selectOverviewTab(page, "invitation");
@@ -144,24 +282,21 @@ async function checkInvitationActivity(page) {
   const lastVisitedAt = "2026-11-22T22:25:44.125Z";
   const row = id => page.locator('[data-invite-household="' + id + '"]');
   const fact = (id, name) => row(id).locator('[data-shortcut-fact="' + name + '"]');
-  const badge = (id, state) => row(id).locator('.invite-overview-delivery [data-invite-seen="' + state + '"]');
+  const badge = (id, state) => row(id).locator('.invite-overview-visit-status [data-invite-seen="' + state + '"]');
   const toggle = id => row(id).locator(":scope > summary .invite-compact-name").click();
   const statusCounts = () => Promise.all(["sent", "unseen", "seen"].map(state =>
     page.locator('#inviteOverviewCounts [data-invite-filter="' + state + '"] b').textContent()));
-  const expectVisit = async (id, count, latestVisitAt) => {
+  const expectVisit = async (id, count) => {
     await fact(id, "visits").filter({ hasText: new RegExp("^" + count + "$") }).waitFor();
     const firstVisit = await fact(id, "first_visit").textContent();
     const lastVisit = await fact(id, "last_visit").textContent();
     assert.match(firstVisit, /2026/);
     assert.match(lastVisit, /2026/);
-    const seen = badge(id, "seen");
-    assert.equal(await visibleSeenText(seen), lastVisit, "a seen row shows only the visit date");
-    assert.equal(await seen.locator("time").getAttribute("datetime"), latestVisitAt);
-    assert.equal((await seen.locator(".sr-only").textContent()).trim(), "Seen");
+    assert.equal(await badge(id, "seen").textContent(), "Yes", "the one-row Seen cell updates without a date");
     return { firstVisit, lastVisit };
   };
 
-  assert.equal(await badge(readyId, "unseen").textContent(), "Not seen", "a Ready invitation shows its visit status before Marked sent");
+  assert.equal(await badge(readyId, "unseen").textContent(), "No", "a Ready invitation shows its visit status before Marked sent");
   if (!await row(sentId).evaluate(node => node.open)) await toggle(sentId);
   assert.equal(await fact(sentId, "visits").textContent(), "0");
   const submenus = row(sentId).locator(".invite-household-submenus");
@@ -197,12 +332,14 @@ async function checkInvitationActivity(page) {
   await page.locator("#mainSectionToggle").click();
   await page.waitForFunction(previous => window.__activityReads.length > previous, readsBeforeRaw);
   assert.deepEqual(await row(sentId).locator("[data-shortcut-fact]").evaluateAll(nodes =>
-    nodes.map(node => node.dataset.shortcutFact)), ["first_visit", "last_visit", "visits", "rsvp"],
-  "the expanded household has a single set of visit fields and an RSVP status");
+    nodes.map(node => node.dataset.shortcutFact)), ["last_sent", "first_visit", "last_visit", "visits", "rsvp"],
+  "Last sent is above the single set of visit fields and RSVP status");
+  const lastSent = await fact(sentId, "last_sent").textContent();
+  assert.match(lastSent, /2026/);
   assert.equal(await fact(sentId, "first_visit").textContent(), "Not yet");
   assert.equal(await fact(sentId, "last_visit").textContent(), "Not yet");
   assert.equal(await fact(sentId, "visits").textContent(), "0", "a raw link load is not a qualified visit");
-  assert.equal(await badge(sentId, "unseen").textContent(), "Not seen");
+  assert.equal(await badge(sentId, "unseen").textContent(), "No");
   assert.deepEqual(await statusCounts(), ["1", "2", "0"], "Not seen covers both Ready and sent rows that have no visit");
 
   await page.locator("#settingsToggle").click();
@@ -212,14 +349,15 @@ async function checkInvitationActivity(page) {
     });
   }, { sentId, firstVisitedAt, lastVisitedAt });
   await page.locator("#mainSectionToggle").click();
-  const { firstVisit, lastVisit } = await expectVisit(sentId, 2, lastVisitedAt);
-  assert.notEqual(lastVisit, firstVisit, "the badge uses the latest qualifying visit");
+  const { firstVisit, lastVisit } = await expectVisit(sentId, 2);
+  assert.notEqual(lastVisit, firstVisit, "the expanded facts show the latest qualifying visit");
   await page.evaluate(async () => {
     window.__releaseActivityRead();
     delete window.__releaseActivityRead;
     await new Promise(resolve => requestAnimationFrame(resolve));
   });
   assert.equal(await fact(sentId, "last_visit").textContent(), lastVisit, "an older lookup cannot replace the latest visit");
+  assert.equal(await fact(sentId, "last_sent").textContent(), lastSent, "a visit leaves the recorded send time alone");
   assert.equal(await fact(sentId, "rsvp").textContent(), "Awaiting reply");
   assert.deepEqual(await statusCounts(), ["1", "1", "1"], "a fresh sent visit moves it from Not seen to Seen");
   const summary = page.locator("#inviteSeenSummary");
@@ -230,6 +368,7 @@ async function checkInvitationActivity(page) {
   await readyFilter.click();
   if (!await row(readyId).evaluate(node => node.open)) await toggle(readyId);
   assert.equal(await fact(readyId, "visits").textContent(), "0");
+  assert.equal(await fact(readyId, "last_sent").textContent(), "Not yet");
   const current = row(readyId).locator('[data-invite-delivery-submenu="current"]');
   const currentWasOpen = await current.evaluate(node => node.open);
   if (!currentWasOpen) await current.locator(":scope > summary").click();
@@ -240,7 +379,7 @@ async function checkInvitationActivity(page) {
     };
     window.__invitesTestView.refreshInvitationActivity();
   }, { readyId, firstVisitedAt });
-  await expectVisit(readyId, 1, firstVisitedAt);
+  await expectVisit(readyId, 1);
   assert.deepEqual(await statusCounts(), ["1", "0", "2"], "a Ready visit moves to Seen without increasing Sent");
   assert.equal(await summary.textContent(), "0 sent · 0 not seen · 1 seen", "the summary updates for the current Ready filter");
   assert.equal(await readyFilter.getAttribute("aria-pressed"), "true");
@@ -309,7 +448,7 @@ async function checkBulkDraftGeneration(page) {
   const householdInput = id => list.locator('[data-bulk-select="' + id + '"]');
   const householdRow = id => list.locator('[data-invite-household="' + id + '"]');
   assert.equal(await bulk.locator('.bulk-invite-list,.bulk-invite-row').count(),0,'Action uses the shared Invites list');
-  assert.equal(await generate.isVisible(),true);
+  assert.equal(await generate.isVisible(),false,"empty selection hides the action buttons");
   assert.match(await list.locator("#inviteSelectionCount").innerText(), /^0\/[0-9]+$/);
   assert.equal(await list.locator("[data-bulk-select]:checked").count(),0);
   const publicationHint=status.getByText("Publish the event to activate sending.",{exact:true});
@@ -322,7 +461,7 @@ async function checkBulkDraftGeneration(page) {
   await refreshFixture(page);
   await page.waitForFunction(() => !document.querySelector("#refreshButton").disabled);
   await clearSelection();
-  assert.equal(await generate.isDisabled(), true, "empty selection cannot generate");
+  assert.equal(await generate.isVisible(), false, "empty selection hides the action buttons");
   await householdInput(ids[0]).check();
   assert.match(await list.locator("#inviteSelectionCount").innerText(), /^1\/[0-9]+$/);
   await page.evaluate(id => {
@@ -331,15 +470,15 @@ async function checkBulkDraftGeneration(page) {
   }, ids[0]);
   await generate.click();
   await page.waitForFunction(() => typeof window.__resumeDraft === "function");
-  const feedback = status.getByRole("status"), spinner = feedback.locator(".bulk-invite-spinner");
+  const feedback = status.locator("#bulkInviteFeedback"), spinner = feedback.locator(".bulk-invite-spinner");
   const pending = "Please wait while drafts are updated…";
   assert.equal(await feedback.innerText(), pending);
   assert.equal(await spinner.isVisible(), true);
   assert.equal(await spinner.getAttribute("aria-hidden"), "true");
-  assert.equal(await bulk.getAttribute("aria-busy"), "true");
+  assert.equal(await bulk.locator("#bulkInviteContent").getAttribute("aria-busy"), "true");
   assert.equal(await bulk.getByRole("button").evaluateAll(buttons => buttons.every(button => button.disabled)), true);
   assert.equal(await publicationHint.isVisible(), true, "draft creation retains the unpublished event guidance");
-  const [buttonsBox, hintBox, feedbackBox] = await Promise.all([action.boundingBox(), publicationHint.boundingBox(), feedback.boundingBox()]);
+  const [buttonsBox, hintBox, feedbackBox] = await Promise.all([action.locator(".bulk-invite-actions").boundingBox(), publicationHint.boundingBox(), feedback.boundingBox()]);
   assert.ok(hintBox.y >= buttonsBox.y + buttonsBox.height && feedbackBox.y >= hintBox.y + hintBox.height,
     "publication guidance and progress have separate lines beneath the action buttons");
   assert.ok(Math.abs(feedbackBox.x + feedbackBox.width - buttonsBox.x - buttonsBox.width) <= 1,
@@ -352,7 +491,7 @@ async function checkBulkDraftGeneration(page) {
   assert.equal(await generate.isDisabled(), true);
   await page.evaluate(() => window.__resumeBulkReload());
   await feedback.getByText("1 draft created", { exact: true }).waitFor();
-  assert.equal(await bulk.getAttribute("aria-busy"), "false");
+  assert.equal(await bulk.locator("#bulkInviteContent").getAttribute("aria-busy"), "false");
   assert.equal(await spinner.count(), 0);
   assert.deepEqual(await page.evaluate(() => window.__draftWrites.map(write => write.p_household_id)), [ids[0]]);
   assert.equal(await page.evaluate(id=>fixtures.invitation_send_queue.find(q=>q.household_id===id)?.template_id,ids[0]),"overview-template");
@@ -393,7 +532,7 @@ async function checkBulkDraftGeneration(page) {
   await page.evaluate(() => { window.__failBulkReload = true; });
   await generate.click();
   await feedback.getByText("1 draft created · Bulk invites could not be refreshed.", { exact: true }).waitFor();
-  assert.equal(await bulk.getAttribute("aria-busy"), "false");
+  assert.equal(await bulk.locator("#bulkInviteContent").getAttribute("aria-busy"), "false");
   assert.equal(await spinner.count(), 0);
   assert.equal(await page.evaluate(id=>fixtures.invitation_send_queue.find(q=>q.household_id===id)?.template_id,ids[4]),"overview-template");
   assert.doesNotMatch(await page.locator("#adminMessage").textContent(), /Synthetic invite refresh failure/);
@@ -492,7 +631,7 @@ async function checkMobileDraftSelection(page, published) {
   assert.equal(await row(hidden.id).count(), 0);
   assert.equal(await row(sent.id).isVisible(), true);
   assert.equal(await select(sent.id).isDisabled(), true);
-  assert.equal(await generate.isDisabled(), true);
+  assert.equal(await generate.isVisible(), false);
   assert.equal(await list.locator("#inviteSelectionCount").innerText(), "0/" + phones.length);
   await select(phones[0].id).check();
   assert.equal(await selectAll.evaluate(node => node.indeterminate), true);
@@ -503,7 +642,7 @@ async function checkMobileDraftSelection(page, published) {
   assert.equal(await list.locator("#inviteSelectionCount").innerText(), phones.length + "/" + phones.length);
   await selectAll.click();
   assert.deepEqual(await checked(), [], "pressing the checked header clears the visible selection");
-  assert.equal(await generate.isDisabled(), true);
+  assert.equal(await generate.isVisible(), false);
   await selectAll.focus();
   await page.keyboard.press("Space");
   assert.deepEqual(await checked(), allPhones);
@@ -578,7 +717,7 @@ async function checkMobileDraftSelection(page, published) {
       attempts: window.__sentAttempts,
       newDeliveries: fixtures.invitation_deliveries.filter(d => d.queue_id !== "mobile-already-sent").length,
     }));
-    assert.equal(result.loads, before + 1, "the Ready-only Sent batch reloads the dashboard once");
+    assert.equal(result.loads, before, "the Ready-only Sent batch updates its rows without a dashboard reload");
     assert.equal(result.newDeliveries, 12);
     assert.equal(result.attempts.length, 12);
     assert.ok(result.attempts.every(a => a.p_expected_revision === 2));
@@ -614,7 +753,7 @@ async function checkReadyGenerationBoundaries(page) {
   await refresh();
   const generate = page.locator("#bulkInvitesHost").getByRole("button", { name: "Make draft(s)", exact: true });
   const prepare = page.locator("#bulkInvitesHost").getByRole("button", { name: "Make invitation(s)", exact: true });
-  const feedback = page.locator("#bulkInviteStatus [role=status]");
+  const feedback = page.locator("#bulkInviteFeedback");
   const select = id => page.locator('#inviteRows [data-bulk-select="' + id + '"]');
   const statuses = () => page.evaluate(ids => ids.map(({ id }) => fixtures.invitation_send_queue.find(q => q.household_id === id)?.status), ids);
   const mixed = [...ids.slice(0, 3), ids[5]];
@@ -799,6 +938,18 @@ async function checkSeenPresentation(page) {
   assert.equal(new Set(offsets).size, 1, "Sent, Not seen and Seen are peer rows with aligned labels");
   const delivery = row(seed.unsentSeen).locator(".invite-overview-delivery");
   assert.equal(await delivery.locator(".invite-copy-options").innerText(), "Not sent");
+  const visitStatus = id => row(id).locator(".invite-overview-visit-status .invite-overview-seen");
+  assert.equal(await visitStatus(seed.readySeen).textContent(), "Yes");
+  assert.equal(await visitStatus(seed.unsentSeen).textContent(), "Yes");
+  assert.equal(await visitStatus(seed.readyUnseen).textContent(), "No");
+  assert.equal(await visitStatus(seed.sentUnseen).textContent(), "No");
+  assert.equal(await visitStatus(seed.unprepared).textContent(), "No");
+  assert.equal(await page.locator("#inviteRows .invite-overview-delivery [data-invite-seen]").count(), 0,
+    "one row keeps Seen out of the Invitation cell");
+
+  await setFixtureInviteRows(page, 2);
+  assert.equal(await page.locator("#inviteRows .invite-overview-visit-status").count(), 0,
+    "two rows puts the visit date in Invitation without a separate Seen column");
   const seen = delivery.locator('[data-invite-seen="seen"]');
   const visitTime = delivery.locator("time");
   assert.equal(await visitTime.getAttribute("datetime"), seed.visitAt);
@@ -830,6 +981,7 @@ async function checkSeenPresentation(page) {
   assert.deepEqual(await rows(), [seed.sentUnseen, seed.unsentSeen].sort());
   assert.equal(await summary.innerText(), "1 sent · 1 not seen · 1 seen", "summary reflects the current language filter");
   await chooseInviteFilter(page, "inviteLanguageFilter");
+  await setFixtureInviteRows(page, 1);
   await page.evaluate(prior => {
     Object.assign(window.__invitesStore, prior);
     window.__invitesTestView.render();
@@ -860,14 +1012,14 @@ async function checkRowsPresentation(page) {
   const before=await state();
   const heading=()=>page.locator('#inviteRows .invite-overview-heading > span:not(.invite-overview-select)').allTextContents();
   assert.equal(await page.locator('#inviteRows').getAttribute('data-rows'),'1');
-  assert.deepEqual(await heading(),['Household','Household info','Recipient','Service','Invitation','Last sent','RSVP','RSVP info','Food interest','Actions'],'one row keeps all secondary details in separate columns');
-  assert.equal(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta,#inviteRows .invite-overview-recipient small,#inviteRows .invite-overview-delivery small:not([data-invite-seen]),#inviteRows .invite-overview-reply small').count(),0,'one row has no nested optional details');
-  assert.match((await page.locator('#inviteRows .invite-overview-last-sent').allTextContents()).join(' '),/2026/);
+  assert.deepEqual(await heading(),['Household','Household info','Recipient','Service','Invitation','Seen','RSVP','RSVP info','Food','Actions'],'one row keeps all secondary details in separate columns');
+  assert.equal(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta,#inviteRows .invite-overview-recipient small,#inviteRows .invite-overview-delivery small,#inviteRows .invite-overview-reply small').count(),0,'one row has no nested optional details');
+  assert.equal(await fields.locator('button[data-value="lastSent"]').getAttribute('aria-label'),'Seen','the saved Last sent field key keeps its show/hide preference for Seen');
   assert.match((await page.locator('#inviteRows .invite-overview-reply-info').allTextContents()).join(' '),/0 \/ [1-9]\d* responses/);
   for(const text of await page.locator('#inviteRows .invite-copy-recipient .invite-copy-pill').allTextContents())assert.match(text,/^(Messages|Email|WhatsApp|SMS|None)$/,'one-row service info omits numbers and email addresses');
   await toggle('lastSent');await page.keyboard.press('Escape');
-  assert.equal(await page.locator('#inviteRows .invite-overview-last-sent').count(),0,'Last sent has its own independent Shown choice');
-  assert.ok(await page.locator('#inviteRows .invite-overview-delivery').count()>0,'hiding dates preserves invitation status');
+  assert.equal(await page.locator('#inviteRows .invite-overview-visit-status').count(),0,'Seen has its own independent Shown choice');
+  assert.ok(await page.locator('#inviteRows .invite-overview-delivery').count()>0,'hiding Seen preserves invitation status');
   await toggle('lastSent');await toggle('replyInfo');await page.keyboard.press('Escape');
   assert.equal(await page.locator('#inviteRows .invite-overview-reply-info').count(),0,'response counts have their own independent Shown choice');
   assert.ok(await page.locator('#inviteRows .invite-overview-reply').count()>0,'hiding response counts preserves RSVP status');
@@ -876,11 +1028,12 @@ async function checkRowsPresentation(page) {
   await toggle('lastSent');await page.keyboard.press('Escape');
   const oneRowBefore=await state();
   await setFixtureInviteRows(page,2);
-  assert.deepEqual(await heading(),['Household','Service','Invitation','RSVP','Food interest','Actions'],'two rows removes secondary column headings');
-  assert.equal(await page.locator('#inviteRows .invite-household > summary > .invite-overview-household-info,#inviteRows .invite-household > summary > .invite-overview-recipient,#inviteRows .invite-household > summary > .invite-overview-last-sent,#inviteRows .invite-household > summary > .invite-overview-reply-info').count(),0,'secondary details move beneath their primary cells');
+  assert.deepEqual(await heading(),['Household','Service','Invitation','RSVP','Food','Actions'],'two rows removes secondary column headings');
+  assert.equal(await page.locator('#inviteRows .invite-household > summary > .invite-overview-household-info,#inviteRows .invite-household > summary > .invite-overview-recipient,#inviteRows .invite-household > summary > .invite-overview-visit-status,#inviteRows .invite-household > summary > .invite-overview-reply-info').count(),0,'secondary details move beneath their primary cells');
   assert.ok(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta').count()>0);
   for(const text of await page.locator('#inviteRows .invite-copy-recipient .invite-copy-pill').allTextContents())assert.match(text,/^(Messages|Email|WhatsApp|SMS|None)$/,'two-row service detail also omits number/email');
-  assert.match((await page.locator('#inviteRows .invite-overview-delivery small').allTextContents()).join(' '),/Last sent/);
+  assert.match((await page.locator('#inviteRows .invite-overview-delivery small').allTextContents()).join(' '),/Not seen/);
+  assert.doesNotMatch((await page.locator('#inviteRows .invite-overview-delivery').allTextContents()).join(' '),/Last sent/);
   assert.match((await page.locator('#inviteRows .invite-overview-reply small').allTextContents()).join(' '),/0 \/ [1-9]\d* responses/);
   const twoState=await state();
   assert.deepEqual(twoState.shown,['reply','food'],'two rows starts with both optional paired columns');
@@ -1223,6 +1376,62 @@ async function checkInvitesCopyAndFilters(page) {
   await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);
 }
 
+async function checkOverviewFilterFeedback(page, touch) {
+  await selectOverviewTab(page, "invitation");
+  const filter = page.locator('[data-invite-filter="ready"]');
+  const mark = filter.locator('.invite-stat-check[aria-hidden="true"]');
+  const appearance = control => control.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.backgroundColor, style.borderTopColor, style.color];
+  });
+  const idle = await appearance(filter);
+  const countRight = await filter.locator("b").evaluate(node => node.getBoundingClientRect().right);
+  assert.equal(await mark.count(), 1, "the decorative checkmark is hidden from assistive technology");
+  assert.equal(await mark.isVisible(), false);
+  if (touch) {
+    assert.equal(await page.evaluate(() => matchMedia("(hover: none) and (pointer: coarse)").matches), true);
+    await filter.tap();
+    assert.equal(await filter.getAttribute("aria-pressed"), "true");
+    assert.equal(await mark.isVisible(), true);
+    assert.equal(await filter.locator("b").evaluate(node => node.getBoundingClientRect().right), countRight);
+    await filter.tap();
+    assert.equal(await filter.getAttribute("aria-pressed"), "false");
+    assert.equal(await mark.isVisible(), false);
+    assert.deepEqual(await appearance(filter), idle, "the last tap leaves no selection-like colors");
+  } else {
+    await filter.hover();
+    const hover = await appearance(filter);
+    assert.equal(hover[0], idle[0], "mouse hover does not fill the row like a selection");
+    assert.notEqual(hover[1], idle[1], "mouse hover keeps its own border");
+    assert.equal(await mark.isVisible(), false);
+    await page.locator('[data-invite-filter="review"]').focus();
+    await page.keyboard.press("Tab");
+    assert.equal(await filter.evaluate(node => node.matches(":focus-visible")), true);
+    assert.equal(await filter.evaluate(node => getComputedStyle(node).outlineStyle), "solid");
+    await page.keyboard.press("Space");
+    assert.equal(await filter.getAttribute("aria-pressed"), "true");
+    assert.equal(await filter.evaluate(node => node === document.activeElement), true);
+    assert.equal(await mark.isVisible(), true);
+    await page.keyboard.press("Space");
+    assert.equal(await filter.getAttribute("aria-pressed"), "false");
+    assert.equal(await mark.isVisible(), false);
+  }
+  await selectOverviewTab(page, "information");
+  if (touch) {
+    const sessions = page.locator("#inviteSessionTree details");
+    await sessions.locator("summary").tap();
+    const session = sessions.locator("[data-invite-session]").first();
+    const sessionMark = session.locator('.invite-stat-check[aria-hidden="true"]');
+    await session.tap();
+    assert.equal(await session.getAttribute("aria-pressed"), "true");
+    assert.equal(await sessionMark.isVisible(), true, "a selected filter without a count still has a checkmark");
+    await session.tap();
+    assert.equal(await session.getAttribute("aria-pressed"), "false");
+    assert.equal(await sessionMark.isVisible(), false);
+    await sessions.locator("summary").tap();
+  }
+}
+
 async function checkManualInvitations(page) {
   const ids = await page.evaluate(() => {
     window.__draftWrites = []; window.__sentWrites = []; window.__copied = []; window.__opened = [];
@@ -1274,7 +1483,7 @@ async function checkManualInvitations(page) {
   await input(ids[0].id).check();await chooseInviteFilter(page,'inviteChannelFilter',['email']);
   assert.equal(await page.locator('#inviteRows [data-bulk-select]:checked').count(),0,'a hidden selected household is removed from the shared selection');
   assert.match(await page.locator('#inviteSelectionCount').innerText(),/^0\/[0-9]+$/,'hidden selection clears the header counter');
-  assert.equal(await mark.isDisabled(),true,'hidden selection leaves Mark Sent disabled');
+  assert.equal(await mark.isVisible(),false,'hidden selection removes the action toolbar');
   await chooseInviteFilter(page,'inviteChannelFilter');
   for(const item of ids.slice(0,10))await input(item.id).check();
   assert.equal(await page.locator('#inviteRows [data-bulk-select]:checked').count(),10);
@@ -1308,8 +1517,8 @@ async function checkManualInvitations(page) {
   assert.equal(await mark.isDisabled(),true,"a published Draft must be reviewed before Mark Sent");
   const review=row(ids[0].id).getByRole("button",{name:/^Review/});
   await review.click();
-  const current=row(ids[0].id).locator(".current-invitation > [data-delivery-id]");
-  assert.equal(await current.evaluate(n=>n.open),true,"Review opens the household's current draft");
+  const current=row(ids[0].id).locator("[data-primary-delivery]");
+  assert.equal(await current.locator(":scope > .delivery-message").isVisible(),true,"Review opens the household's current draft");
   await current.locator("[data-mark-delivery-ready]").click();
   await row(ids[0].id).locator(".invite-copy-invitation").waitFor();
   assert.equal(await mark.isDisabled(),true,"a mixed Ready/Draft selection still cannot be marked Sent");
@@ -1359,21 +1568,83 @@ async function checkManualInvitations(page) {
     assert.equal(write.p_expected_revision,beforeDemotion[index].revision);
   }
   assert.equal(await sentCount(),3,'changing readiness performs no additional send confirmations');
-  // Stop accurately after one successful Sent and one server failure.
-  await page.evaluate(items=>{for(const item of items){const q=fixtures.invitation_send_queue.find(q=>q.id===item.queue);q.status='ready';q.message_body='Partial ready\n'+item.link;}window.__failSent=items[1].queue;},[ids[7],ids[8]]); await refresh();
-  await select([ids[7],ids[8]]); await mark.click(); await message('Marking sent stopped.');
-  assert.match(await status.locator('[role=status]').last().innerText(),/1 invitation marked sent\./);
-  assert.deepEqual(await page.evaluate(items=>items.map(item=>fixtures.invitation_send_queue.find(q=>q.id===item.queue).status),[ids[7],ids[8]]),['sent','ready']);
-  const firstWrites=await page.evaluate(id=>window.__sentWrites.filter(w=>w.p_queue_id===id).length,ids[7].queue);
-  await mark.click(); await message('1 invitation marked sent.');
-  assert.equal(await page.evaluate(id=>window.__sentWrites.filter(w=>w.p_queue_id===id).length,ids[7].queue),firstWrites,'retry cannot repeat the already Sent member');
+  // Delay a write while the operator searches, copies and queues another household.
+  const [first, failed, next] = [ids[7], ids[8], ids[11]];
+  await page.evaluate(([first, failed, next]) => {
+    for (const item of [first, failed, next]) {
+      const queue = fixtures.invitation_send_queue.find(q => q.id === item.queue);
+      queue.status = "ready";
+      queue.message_body = "Queued example\n" + item.link;
+    }
+    window.__holdSent = first.queue;
+    window.__failSent = failed.queue;
+    window.__manualSendMarker = "manual-send-start";
+  }, [first, failed, next]);
+  await refresh();
+  const beforeBackgroundLoads = await page.evaluate(() => window.__fetchCount);
+  await select([first, failed]);
+  await mark.click();
+  await page.waitForFunction(() => typeof window.__resumeSent === "function");
+  await row(first.id).locator('[data-invite-send-state="pending"]').waitFor();
+  assert.match(await row(first.id).locator('[data-invite-send-state="pending"]').innerText(), /Recording/);
+  await row(failed.id).locator('[data-invite-send-state="pending"]').waitFor();
+  await message("2 recording");
+  const search = page.locator("#inviteSearch");
+  if (!await search.isVisible()) await page.locator("#inviteSearchToggle").click();
+  await search.fill("Manual 12");
+  assert.equal(await row(first.id).count(), 0, "search may hide a row whose save is in progress");
+  const copiesBefore = await page.evaluate(() => window.__copied.length);
+  await row(next.id).locator(".invite-copy-text").click();
+  await page.waitForFunction(before => window.__copied.length === before + 1, copiesBefore);
+  await input(next.id).check();
+  await mark.click();
+  await message("3 recording");
+  await row(next.id).locator(":scope > summary .invite-compact-name").click();
+  await search.focus();
+  await page.evaluate(() => window.__resumeSent());
+  await row(next.id).locator(".invite-overview-delivery").getByText("Marked sent", { exact: true }).waitFor();
+  await message("1 needs retry");
+  assert.equal(await search.inputValue(), "Manual 12");
+  assert.equal(await search.evaluate(node => node === document.activeElement), true, "confirmation leaves keyboard focus in the search field");
+  assert.equal(await row(next.id).evaluate(node => node.open), true, "confirmation preserves the open household");
+  assert.equal(await page.evaluate(() => window.__fetchCount), beforeBackgroundLoads);
+  assert.deepEqual(await page.evaluate(items => items.map(item =>
+    fixtures.invitation_send_queue.find(q => q.id === item.queue).status), [first, failed, next]), ["sent", "ready", "sent"]);
+  await page.evaluate(() => {
+    window.__manualSendMarker = "manual-send-latest";
+    window.dispatchEvent(new Event("focus"));
+  });
+  await page.locator("#inviteEventChangeNotice").waitFor();
+  assert.equal(await page.locator("dialog.admin-change-alert").count(),0,"returning from a messaging app keeps the change alert inline");
+  assert.equal(await search.evaluate(node => node === document.activeElement), true);
+
+  // A saved record whose initial write response and read-back fail is reconciled
+  // by the retry action without a second write or another delivery log entry.
+  await page.evaluate(id => { window.__loseSentResponse = id; }, failed.queue);
+  await status.locator("[data-retry-all-mark-sent]").click();
+  await page.waitForFunction(id => fixtures.invitation_deliveries.some(delivery => delivery.queue_id === id), failed.queue);
+  await message("1 needs retry");
+  const attempts = () => page.evaluate(id => window.__sentAttempts.filter(write => write.p_queue_id === id).length, failed.queue);
+  const attemptsBeforeReconcile = await attempts();
+  const readsBeforeReconcile = await page.evaluate(() => window.__sentReads.length);
+  await page.locator("#inviteSearchClose").click();
+  await row(failed.id).locator('[data-invite-send-state="retry"]').waitFor();
+  await row(failed.id).locator("[data-retry-mark-sent]").click();
+  await row(failed.id).locator(".invite-overview-delivery").getByText("Marked sent", { exact: true }).waitFor();
+  assert.equal(await attempts(), attemptsBeforeReconcile, "retry checks the record before submitting another confirmation");
+  assert.deepEqual(await page.evaluate(before => window.__sentReads.slice(before).map(({table,key,value}) => [table,key,value]), readsBeforeReconcile),
+    [["invitation_send_queue","id",failed.queue],["invitation_deliveries","queue_id",failed.queue]], "retry reads only the exact saved delivery");
+  assert.equal(await page.evaluate(id => fixtures.invitation_deliveries.filter(delivery => delivery.queue_id === id).length, failed.queue), 1);
+  assert.equal(await page.evaluate(() => window.__fetchCount), beforeBackgroundLoads);
+
   // A stale revision is rejected by the existing Sent RPC, leaving Ready intact.
-  await page.evaluate(item=>{const q=fixtures.invitation_send_queue.find(q=>q.id===item.queue);q.status='ready';q.message_body='Stale revision\n'+item.link;window.__holdSent=q.id;},ids[3]); await refresh();
+  await page.evaluate(item=>{delete window.__manualSendMarker;const q=fixtures.invitation_send_queue.find(q=>q.id===item.queue);q.status='ready';q.message_body='Stale revision\n'+item.link;window.__holdSent=q.id;},ids[3]); await refresh();
   await select([ids[3]]); const beforeStale=await page.evaluate(()=>fixtures.invitation_deliveries.length); await mark.click();
   await page.waitForFunction(()=>typeof window.__resumeSent==='function');
-  assert.equal(await status.getByRole('status').innerText(),'Please wait while invitations are marked sent…');
+  await row(ids[3].id).locator('[data-invite-send-state="pending"]').waitFor();
   await page.evaluate(id=>{fixtures.invitation_send_queue.find(q=>q.id===id).revision++;window.__resumeSent();},ids[3].queue);
-  await message('Marking sent stopped.'); assert.equal(await page.evaluate(()=>fixtures.invitation_deliveries.length),beforeStale);
+  await row(ids[3].id).locator('[data-invite-send-state="retry"]').waitFor();
+  assert.equal(await page.evaluate(()=>fixtures.invitation_deliveries.length),beforeStale);
 
 }
 
@@ -1382,7 +1653,7 @@ async function checkManualInvitations(page) {
   const browser = await chromium.launch();
   try {
     for (const width of [320, 390, 1024, 1440]) {
-      const page = await browser.newPage({ viewport: { width, height: 1100 } }),
+      const page = await browser.newPage({ viewport: { width, height: 1100 }, hasTouch: width === 390 }),
         errors = [];
       page.setDefaultTimeout(8000);
       page.on("pageerror", (e) => errors.push(e.message));
@@ -1460,6 +1731,7 @@ async function checkManualInvitations(page) {
       await selectOverviewTab(page,'invitation');
       assert.deepEqual(await overview.locator('[data-overview-card]:visible').evaluateAll(cards=>cards.map(card=>card.dataset.overviewCard)),['invites','services','language']);
       await selectOverviewTab(page,'information');
+      if (width === 390 || width === 1440) await checkOverviewFilterFeedback(page, width === 390);
       if(width===1440)assert.equal(await page.evaluate(()=>location.hash),'#invites','legacy Overview bookmark is replaced by Invites');
       assert.equal(
         await page.locator('#inviteGroupBy [data-invite-grouping="relational"]').isChecked(),
@@ -1469,6 +1741,13 @@ async function checkManualInvitations(page) {
       assert.ok(
         (await page.locator("#inviteRows .invite-overview-group").count()) > 0,
       );
+      const readyActions = page.locator(".invite-copy-options:has(.invite-copy-text)");
+      assert.ok(await readyActions.evaluate(node => {
+        const bounds = node.parentElement.getBoundingClientRect();
+        const [invitation, text] = [...node.children].map(chip => chip.getBoundingClientRect());
+        return Math.abs(invitation.top - text.top) < 1 &&
+          invitation.right <= text.left && text.right <= bounds.right + 1;
+      }), "Invitation and Text stay on one line at " + width + "px");
       const geometry = await page.locator(".invite-household > summary").first().evaluate((summary) => {
         const identity = summary.querySelector('.invite-overview-identity'), name = identity.querySelector('strong');
         const reply=summary.querySelector('.invite-overview-reply').getBoundingClientRect(), food=summary.querySelector('.invite-overview-interest').getBoundingClientRect();
@@ -1480,7 +1759,7 @@ async function checkManualInvitations(page) {
       assert.ok(geometry.foodDomAfterReply,'Food follows RSVP in the logical column order');
       if(width>1000)assert.equal(geometry.foodAfterReply,true,'Food follows RSVP horizontally in the wide view');
       assert.equal(geometry.overflow,false,'summary stays within its width');
-      assert.deepEqual(await page.locator('.invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Recipient','Service','Invitation','Last sent','RSVP','Food interest','Actions']);
+      assert.deepEqual(await page.locator('.invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Recipient','Service','Invitation','Seen','RSVP','Food','Actions']);
       if (width > 1000) {
         assert.equal(await page.evaluate(() => {
           const labels=[...document.querySelectorAll('.invite-overview-heading > span')], cells=[...document.querySelector('.invite-household > summary').children];
@@ -1499,6 +1778,7 @@ async function checkManualInvitations(page) {
       }
       if(process.env.RSVP_INVITE_PREVIEW_DIR){fs.mkdirSync(process.env.RSVP_INVITE_PREVIEW_DIR,{recursive:true});await page.locator('#inviteRows').screenshot({path:path.join(process.env.RSVP_INVITE_PREVIEW_DIR,`invites-${width}.png`)});}
       if (width === 1440) {
+        await checkLiveGuestOverview(page);
         await checkInvitationActivity(page);
         await checkOverviewFilters(page);
         await checkSeenPresentation(page);
@@ -1597,14 +1877,17 @@ async function checkManualInvitations(page) {
         await page.locator("#inviteRows .invite-overview-group").count(),
         0,
       );
-      await page.locator("[data-invite-filter=ready]").click();
       await page.locator("#inviteSearchToggle").click();
+      await page.locator("#inviteSearch").fill("refreshed recipient");
+      assert.equal(await page.locator("#inviteRows .invite-household").count(),1);
       await page.locator("#inviteSearch").fill("example@example.invalid");
-      assert.equal(
-        await page.locator("#inviteRows .invite-household").count(),
-        1,
-      );
-      await page.locator("#inviteSearch").fill("");
+      assert.equal(await page.locator("#inviteRows .invite-household").count(),0,"Search combines with the active Ready filter");
+      await page.locator("#inviteSearchClose").click();
+      assert.equal(await page.locator("#inviteSearchPanel").isVisible(),false);
+      assert.equal(await page.locator("#inviteSearch").inputValue(),"");
+      assert.equal(await page.locator("[data-invite-filter=ready]").getAttribute("aria-pressed"),"true","closing Search preserves the invitation filter");
+      assert.equal(await page.locator("#inviteRows .invite-household").count(),1);
+      await page.locator("[data-invite-filter=ready]").click();
       await chooseInviteFilter(page,"inviteLanguageFilter",["de"]);
       assert.equal(
         await page.locator("#inviteRows .invite-household").count(),
@@ -1640,8 +1923,9 @@ async function checkManualInvitations(page) {
       await sent.evaluate(node=>{node.open=true;node.dispatchEvent(new Event('toggle'));});
       assert.equal(await sent.getByRole("button", { name: "Record as sent", exact: true }).count(), 0);
       await sent.locator("details[id^=invite-delivery-]").evaluate(node => { node.open = true; });
-      await sent.locator("[data-delivery-id=queue-sent]").evaluate(node => { node.open = true; });
-      assert.match(await sent.innerText(), /Manually recorded as sent/);
+      const sentLog = sent.locator("[data-delivery-log-queue-id=queue-sent]");
+      await sentLog.evaluate(node => { node.open = true; });
+      assert.match(await sentLog.innerText(), /Recorded sent · Email · Sent subject/);
       const draft = sent.locator('[data-delivery-id="' + draftId + '"]');
       await sent.locator('[data-invite-delivery-submenu="drafts"]').evaluate(node => { node.open = true; });
       await draft.evaluate(node => { node.open = true; });
@@ -1673,9 +1957,9 @@ async function checkManualInvitations(page) {
       assert.equal(await sent.getByRole("button", { name: "Create", exact: true }).count(), 0, "view-only invitation access cannot create drafts");
       await sent.evaluate(node => { node.open = true; node.dispatchEvent(new Event("toggle")); });
       await sent.locator("details[id^=invite-delivery-]").evaluate(node => { node.open = true; });
-      await sent.locator("[data-delivery-id=queue-sent]").evaluate(node => { node.open = true; });
-      assert.match(await sent.innerText(), /Sent example/);
-      assert.match(await sent.innerText(), /Manually recorded as sent/);
+      await sentLog.evaluate(node => { node.open = true; });
+      assert.match(await sentLog.innerText(), /Sent example/);
+      assert.match(await sentLog.innerText(), /Recorded sent · Email · Sent subject/);
       assert.equal(await sent.getByText("Edit delivery", { exact: true }).count(), 0, "view-only access keeps delivery records read-only");
       assert.equal(await sent.locator("form.delivery-review-form").count(), 0);
       assert.equal(await page.evaluate(() => window.__draftWrites.length), 1);
@@ -1689,7 +1973,7 @@ async function checkManualInvitations(page) {
       await refreshFixture(page);
       await page.waitForFunction(() => !document.querySelector('#refreshButton').disabled);
       assert.equal(await page.locator('.invite-overview-interest').count(),0,'food column follows Food permission');
-      assert.deepEqual(await page.locator('.invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Recipient','Service','Invitation','Last sent','RSVP','Actions'],'Food permission removes only the Food column');
+      assert.deepEqual(await page.locator('.invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Recipient','Service','Invitation','Seen','RSVP','Actions'],'Food permission removes only the Food column');
       if (width === 320 || width === 1440) await checkBulkDraftGeneration(page);
       if (width === 1440) { await checkInvitesCopyAndFilters(page); await checkManualInvitations(page); await checkReadyGenerationBoundaries(page); }
       if (width === 320 || width === 1440) {

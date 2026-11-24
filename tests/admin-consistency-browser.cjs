@@ -27,13 +27,206 @@ if(name==='admin_move_other_category'){const rows=[...fixtures.other_categories]
 if(name==='admin_delete_other_category'){window.__categoryDeletes=(window.__categoryDeletes||0)+1;fixtures.other_categories=fixtures.other_categories.filter(row=>row.id!==args.p_category_id);return {data:null,error:null};}
 if(name==='admin_save_other_category'){const row=fixtures.other_categories.find(row=>row.id===args.p_id);row.name=args.p_name;row.updated_at='2026-11-07T13:00:00Z';return {data:row,error:null};}
 if(name==='admin_save_translation'){window.__wordingSaves=(window.__wordingSaves||0)+1;fixtures.event_content=fixtures.event_content.filter(row=>row.content_key!==args.p_key||row.language_code!==args.p_language);if(args.p_value)fixtures.event_content.push({content_key:args.p_key,language_code:args.p_language,content_value:args.p_value});return {data:null,error:null};}if(name==='admin_save_other'){window.__otherSaves=(window.__otherSaves||0)+1;const row={id:args.p_id,...args.p_values,updated_at:'2026-11-07T12:01:00Z'};const existing=fixtures.other_items.find(item=>item.id===args.p_id);if(existing)Object.assign(existing,row);else fixtures.other_items.push(row);return {data:row,error:null};}return original(name,args);};`;
+const changeFixture = `
+const changes = window.__eventChanges = { marker: "event-1", reads: 0, writes: [], legacy: false };
+fixtures.households[1].record_revision = "household-1";
+fixtures.event_locations[0].record_revision = "venue-1";
+fixtures.event_sessions[0].record_revision = "session-1";
+const records = {
+  admin_save_household: fixtures.households,
+  admin_save_household_with_food: fixtures.households,
+  admin_save_venue_with_translations: fixtures.event_locations,
+  admin_save_session: fixtures.event_sessions,
+};
+const beforeChanges = client.rpc;
+client.rpc = async (name, args) => {
+  if (name === "admin_change_marker") {
+    changes.reads++;
+    return { data: changes.marker };
+  }
+  if (name === "admin_load_data") {
+    if (changes.holdRefresh) {
+      await new Promise(resolve => { changes.finishRefresh = resolve; });
+      changes.holdRefresh = false;
+      return { error: { message: "Synthetic refresh failure" } };
+    }
+    const result = await beforeChanges(name, args);
+    if (changes.legacy) {
+      for (const key of ["households", "locations", "sessions"])
+        result.data[key] = result.data[key].map(({ record_revision, ...record }) => record);
+    } else result.data.change_marker = changes.marker;
+    return result;
+  }
+  if (records[name]) {
+    changes.writes.push({ name, args });
+    const record = records[name].find(row => row.id === args.p_id);
+    if (!changes.legacy && record && args.p_values.expected_revision !== record.record_revision)
+      return { error: { code: "P0001", message: "This record changed since you opened it. Refresh to review the latest version." } };
+    if (changes.legacy && Object.hasOwn(args.p_values, "expected_revision"))
+      return { error: { message: "Legacy backend has no expected revision" } };
+    if (record) Object.assign(record, args.p_values);
+    return { data: args.p_id };
+  }
+  return beforeChanges(name, args);
+};`;
+
+async function checkAdminChanges(page) {
+  const dialog = page.getByRole("dialog", { name: "Event data has changed.", exact: true });
+  const refresh = dialog.getByRole("button", { name: "Refresh", exact: true });
+  const dismiss = dialog.getByRole("button", { name: "Dismiss", exact: true });
+  const check = (source = "focus") => page.evaluate(async source => {
+    if (source === "timer") window.__checkAdminChanges();
+    else if (source === "visibilitychange") document.dispatchEvent(new Event(source));
+    else window.dispatchEvent(new Event(source));
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }, source);
+  const reads = () => page.evaluate(() => window.__eventChanges.reads);
+  const loads = () => page.evaluate(() => window.__fetchCount);
+  const firstLoad = await loads();
+  await check();
+  assert.equal(await dialog.count(), 0, "the baseline does not prompt");
+  await page.evaluate(() => {
+    window.__eventChanges.marker = "event-2";
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+  });
+  const beforeHidden = await reads();
+  await check("timer");
+  assert.equal(await reads(), beforeHidden, "the periodic check makes no request while hidden");
+  const initialViewport = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => { delete document.hidden; document.querySelector("#mainSectionToggle").focus(); });
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "mainSectionToggle");
+  await check("visibilitychange");
+  await dialog.waitFor();
+  assert.equal(await dialog.getByText("Refresh to see the latest.", { exact: true }).count(), 1);
+  assert.ok(await dialog.evaluate(node => node.matches(":modal") &&
+    Math.abs(node.getBoundingClientRect().left + node.getBoundingClientRect().width / 2 - innerWidth / 2) <= 1));
+  assert.deepEqual(await dialog.getByRole("button").allTextContents(), ["Dismiss", "Refresh"]);
+  assert.ok(await dismiss.evaluate(node => document.activeElement === node));
+  assert.equal(await loads(), firstLoad, "the marker check does not reload event data");
+  await dismiss.click();
+  await dialog.waitFor({ state: "detached" });
+  await page.waitForFunction(() => document.activeElement?.id === "mainSectionToggle", null, { timeout: 5000 });
+  await check("timer");
+  assert.equal(await dialog.count(), 0, "a repeated dismissed marker does not reopen the dialog");
+
+  await page.evaluate(() => {
+    window.__eventChanges.marker = "event-3";
+    window.__eventChanges.holdRefresh = true;
+  });
+  await check("timer");
+  await dialog.waitFor();
+  await refresh.click();
+  await page.waitForFunction(() => typeof window.__eventChanges.finishRefresh === "function");
+  assert.ok(await refresh.isDisabled());
+  await page.keyboard.press("Escape");
+  assert.ok(await dialog.isVisible(), "the prompt remains while refresh is in progress");
+  await page.evaluate(() => window.__eventChanges.finishRefresh());
+  await dialog.getByText("Could not refresh event data. Try again.", { exact: true }).waitFor();
+  await refresh.click();
+  await dialog.waitFor({ state: "detached" });
+  assert.equal(await loads(), firstLoad + 1, "a successful retry reloads data once");
+  await check();
+  assert.equal(await dialog.count(), 0, "a successful refresh adopts the new baseline");
+  await page.setViewportSize(initialViewport);
+
+  const expectConflict = async ({ editor, input, save, name, revision, value }) => {
+    await input.fill(value);
+    const requestCount = await reads();
+    await check();
+    assert.equal(await reads(), requestCount, "dirty editors defer the background check");
+    assert.equal(await dialog.count(), 0);
+    const loadCount = await loads();
+    await save.click();
+    await editor.getByText(/This record changed since you opened it\. Your edits are still here\./).waitFor();
+    assert.equal(await input.inputValue(), value);
+    assert.ok(await save.isEnabled(), "rejected saves leave the original editor usable");
+    const sent = await page.evaluate(() => window.__eventChanges.writes.at(-1));
+    assert.equal(sent.name, name);
+    assert.equal(sent.args.p_values.expected_revision, revision);
+    assert.equal(await loads(), loadCount, "a rejected save does not reload over unsaved input");
+  };
+
+  await selectWorkTab(page, "venues");
+  const venue = page.locator("#venueList > details").first();
+  await venue.locator('[data-record-pencil="venue:venue"]').click();
+  const venueForm = venue.locator('form[data-form-key="venue:venue"]');
+  await page.evaluate(() => {
+    window.__eventChanges.marker = "event-4";
+    fixtures.event_locations[0].record_revision = "venue-2";
+  });
+  const beforeEditing = await reads();
+  await check();
+  assert.equal(await reads(), beforeEditing, "a clean but open editor defers the alert");
+  await expectConflict({
+    editor: venueForm, input: venueForm.getByLabel("Venue name", { exact: true }),
+    save: venueForm.getByRole("button", { name: "Save", exact: true }),
+    name: "admin_save_venue_with_translations", revision: "venue-1", value: "Unsaved local venue",
+  });
+  await venueForm.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  await page.locator('[data-venue-tab="sessions"]').click();
+  const session = page.locator("#sessionsList > details").first();
+  await session.locator("[data-record-pencil]").click();
+  const sessionForm = session.locator("form.management-form");
+  await page.evaluate(() => { fixtures.event_sessions[0].record_revision = "session-2"; });
+  await expectConflict({
+    editor: sessionForm, input: sessionForm.getByLabel("Session name", { exact: true }),
+    save: sessionForm.getByRole("button", { name: "Save", exact: true }),
+    name: "admin_save_session", revision: "session-1", value: "Unsaved local session",
+  });
+  await sessionForm.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.locator('[data-venue-tab="venues"]').click();
+
+  await selectWorkTab(page, "households");
+  await page.locator("#expandHouseholds").click();
+  const household = page.locator('[data-tree-key="household:22222222-2222-4222-8222-222222222222"]');
+  const editHousehold = household.locator(":scope > summary").getByRole("button", { name: /^Edit household:/ });
+  await editHousehold.click();
+  const householdEditor = household.locator(":scope > .household-expanded > .household-inline-editor");
+  const householdNote = householdEditor.getByLabel("Household notes", { exact: true });
+  const householdSave = householdEditor.locator(".household-form-footer button[type=submit]");
+  const householdEdit = { editor: householdEditor, input: householdNote, save: householdSave, revision: "household-1" };
+  await page.evaluate(() => { fixtures.households[1].record_revision = "household-2"; });
+  await expectConflict({ ...householdEdit, name: "admin_save_household", value: "Unsaved household note" });
+  const allowFood = householdEditor.getByLabel("Allow food", { exact: true });
+  await allowFood.setChecked(!await allowFood.isChecked());
+  const workingFood = await allowFood.isChecked();
+  await expectConflict({ ...householdEdit, name: "admin_save_household_with_food", value: "Unsaved note and food choice" });
+  assert.equal(await allowFood.isChecked(), workingFood);
+  await householdEditor.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  await page.evaluate(() => { window.__eventChanges.legacy = true; });
+  await refreshFixture(page);
+  await page.waitForFunction(() => !document.querySelector("#refreshButton").disabled);
+  const legacyReads = await reads();
+  await check("timer");
+  assert.equal(await reads(), legacyReads, "old data payloads do not enable polling");
+  await editHousehold.click();
+  await householdNote.fill("Legacy save works");
+  await householdSave.click();
+  await householdEditor.getByText("Legacy save works", { exact: true }).waitFor();
+  const legacyWrite = await page.evaluate(() => window.__eventChanges.writes.at(-1));
+  assert.equal(legacyWrite.name, "admin_save_household");
+  assert.ok(!Object.hasOwn(legacyWrite.args.p_values, "expected_revision"));
+  await selectWorkTab(page, "invites");
+}
+
 async function run(type){const browser=await type.launch({headless:true});try{
  const page=await browser.newPage({viewport:{width:1024,height:900},hasTouch:true}),errors=[];page.on('pageerror',error=>errors.push(error.message));
- await page.addInitScript(()=>localStorage.setItem('rsvp-interface-language','en'));
+ await page.addInitScript(()=>{
+  localStorage.setItem('rsvp-interface-language','en');
+  const start = window.setInterval.bind(window);
+  window.setInterval = (callback, delay, ...args) => {
+   if (delay === 30000) window.__checkAdminChanges = () => callback(...args);
+   return start(callback, delay, ...args);
+  };
+ });
  // Keep provider scripts outside this synthetic UI test; real map links are checked separately.
  await page.route('**maps.google.com/**',route=>route.fulfill({contentType:'text/html',body:'<p>Map fixture</p>'}));
- await page.route('**/supabase.min.js',route=>route.fulfill({contentType:'text/javascript',body:mock+'\n'+extra}));
+ await page.route('**/supabase.min.js',route=>route.fulfill({contentType:'text/javascript',body:mock+'\n'+extra+'\n'+changeFixture}));
  await page.goto('http://127.0.0.1:'+server.address().port+'/admin/');await page.locator('#adminApp:not(.hidden)').waitFor();
+ await checkAdminChanges(page);
  assert.equal(await page.locator('.topbar .admin-section-menu').count(),1);assert.equal(await page.locator('.topbar .brand,#adminApp .admin-section-menu').count(),0);
  assert.deepEqual(await page.locator('.admin-section-menu > button').evaluateAll(buttons=>buttons.map(button=>button.id)),['mainSectionToggle','contentLanguagesToggle','settingsToggle']);
  assert.deepEqual(await page.locator('#adminTopActions > *').evaluateAll(buttons=>buttons.map(button=>button.id)),['refreshButton','themeToggle','guestPreviewButton','logout']);
@@ -146,7 +339,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  if(preview&&type.name()==='webkit')await popup.screenshot({path:preview+'/food-language-popup.png'});
  await popup.getByRole('button',{name:'Cancel',exact:true}).click();
  if(preview&&type.name()==='webkit')await page.locator('[data-panel="food"]').screenshot({path:preview+'/food-header-actions.png'});
- await page.locator('#addFoodType').click();const typeManager=page.getByRole("region",{name:'Manage units',exact:true});
+ await page.locator('#addFoodType').click();const typeManager=page.getByRole("dialog",{name:'Manage units',exact:true});
  assert.equal(await typeManager.locator('.type-manager-row').count(),6);
  await typeManager.getByLabel('New food unit',{exact:true}).fill('Basket(s)');
  await typeManager.getByRole('button',{name:'Add unit',exact:true}).click();await typeManager.getByText('Unit added',{exact:true}).waitFor();

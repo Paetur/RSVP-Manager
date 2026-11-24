@@ -101,11 +101,11 @@
     );
     return client;
   }
-  async function adminRpc(name, args = {}) {
+  async function adminRpc(name, args = {}, { notifyAccessLoss = true } = {}) {
     try {
       const result = await sendAdminRpc(name, args);
       if (
-        ["PT401", "AUTH_SESSION_MISSING"].includes(result.error?.code) &&
+        notifyAccessLoss && ["PT401", "AUTH_SESSION_MISSING"].includes(result.error?.code) &&
         typeof document.dispatchEvent === "function"
       )
         document.dispatchEvent(new Event("rsvp:admin-access-lost"));
@@ -334,11 +334,12 @@
       return "en-GB";
     }
   }
-  function timeOptions() {
+  function timeOptions(preference) {
     try {
       const value =
-        window.RSVP_ADMIN_PREFERENCES?.timeFormat ||
-        localStorage.getItem("rsvp-time-format");
+        preference ??
+        (window.RSVP_ADMIN_PREFERENCES?.timeFormat ||
+          localStorage.getItem("rsvp-time-format"));
       return value === "12"
         ? { hour12: true }
         : value === "24"
@@ -348,22 +349,48 @@
       return {};
     }
   }
-  function formatDate(date, lang = "en", tz) {
+  function formatDate(date, lang = "en", tz, options = {}) {
     if (!date) return "";
     // YYYY-MM-DD must not shift a calendar day when the browser's timezone differs.
-    if (/^\d{4}-\d\d-\d\d$/.test(date)) {
-      const [y, m, d] = date.split("-").map(Number);
-      return new Intl.DateTimeFormat(dateLocale(lang), {
-        dateStyle: "long",
-        timeZone: "UTC",
-      }).format(new Date(Date.UTC(y, m - 1, d)));
+    const calendarDate = /^\d{4}-\d\d-\d\d$/.test(date);
+    const locale = dateLocale(lang);
+    const timeZone = calendarDate ? "UTC" : tz || "UTC";
+    const instant = new Date(calendarDate ? date + "T00:00:00Z" : date);
+    const dateStyle = options.dateStyle || (calendarDate ? "long" : "medium");
+    const time = calendarDate ? {} : {
+      timeStyle: options.timeStyle || "short",
+      ...timeOptions(options.timeFormat),
+    };
+    const dateFormat = options.dateFormat || "locale";
+    if (dateFormat === "locale" && !options.separator)
+      return new Intl.DateTimeFormat(locale, { dateStyle, timeZone, ...time }).format(instant);
+
+    let formatted;
+    if (dateFormat === "dots" || dateFormat === "iso") {
+      const formatter = new Intl.DateTimeFormat("en-CA", {
+        year: "numeric", month: "2-digit", day: "2-digit", timeZone,
+      });
+      const parts = Object.fromEntries(formatter.formatToParts(instant).map(part => [part.type, part.value]));
+      const year = parts.year.padStart(4, "0");
+      formatted = dateFormat === "dots"
+        ? [parts.day, parts.month, year].join(".")
+        : [year, parts.month, parts.day].join("-");
+    } else {
+      const parts = dateFormat === "short"
+        ? { year: "numeric", month: "short", day: "numeric" }
+        : { dateStyle };
+      formatted = new Intl.DateTimeFormat(locale, { ...parts, timeZone }).format(instant);
     }
+    if (calendarDate) return formatted;
+    return formatted + (options.separator || " · ") +
+      new Intl.DateTimeFormat(locale, { ...time, timeZone }).format(instant);
+  }
+  function formatClock(time, lang = "en", preference) {
+    if (!/^\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(time)) return time || "";
+    const instant = new Date("2000-01-01T" + time + "Z");
     return new Intl.DateTimeFormat(dateLocale(lang), {
-      dateStyle: "medium",
-      timeStyle: "short",
-      timeZone: tz || "UTC",
-      ...timeOptions(),
-    }).format(new Date(date));
+      hour: "2-digit", minute: "2-digit", timeZone: "UTC", ...timeOptions(preference),
+    }).format(instant);
   }
 
   function zonedInput(value, timezone) {
@@ -468,7 +495,7 @@
       document.body.append(menu);
       menu.classList.remove("hidden");
       button.setAttribute("aria-expanded", "true");
-      activePopup = { wrap, button, menu };
+      activePopup = { wrap, button, menu, scrollX: window.scrollX, scrollY: window.scrollY };
       const rect = button.getBoundingClientRect(),
         size = menu.getBoundingClientRect();
       menu.style.left =
@@ -509,14 +536,18 @@
     document.addEventListener(
       "scroll",
       (e) => {
-        if (activePopup && !activePopup.menu.contains(e.target)) closePopups();
+        if (!activePopup || activePopup.menu.contains(e.target)) return;
+        // A scroll queued before the opener was clicked has already positioned the menu.
+        if (e.target === document && activePopup.scrollX === window.scrollX &&
+            activePopup.scrollY === window.scrollY) return;
+        closePopups();
       },
       { capture: true, passive: true },
     );
   }
-  function openRecipeDialog(label, text, trigger, onPrintBlocked) {
+  function openRecipeDialog(label, text, trigger, onPrintBlocked, popup) {
     closePopups();
-    const dialog = inlinePanel({ class: "food-recipe-dialog" }, trigger);
+    const dialog = popup || inlinePanel({ class: "food-recipe-dialog" }, trigger);
     dialog.dataset.permissionEdit = "false";
     dialog.setAttribute("aria-label", T("food.messages.recipe"));
     dialog.append(dom("h2", {}, T("food.messages.recipe") + " · " + label));
@@ -544,14 +575,15 @@
     close.addEventListener("click", () => dialog.close());
     footer.append(print, close);
     dialog.append(footer);
-    dialog.addEventListener(
-      "close",
-      () => {
-        dialog.remove();
-        if (trigger?.isConnected) trigger.focus({ preventScroll: true });
-      },
-      { once: true },
-    );
+    if (!popup)
+      dialog.addEventListener(
+        "close",
+        () => {
+          dialog.remove();
+          if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+        },
+        { once: true },
+      );
     (byId("adminApp") || document.body).append(dialog);
     dialog.openInline();
     (print.disabled ? close : print).focus();
@@ -711,6 +743,7 @@
     byId,
     showStatus,
     formatDate,
+    formatClock,
     timeOptions,
     zonedInput,
     zonedInstant,

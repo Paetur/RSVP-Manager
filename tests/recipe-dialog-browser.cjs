@@ -47,7 +47,8 @@ const { root, out, server, mock, extra, stageExtra } =
           .locator(".food-item-links button")
           .filter({ hasText: "Recipe" });
       await trigger.click();
-      let dialog = page.getByRole("region", { name: "Recipe", exact: true });
+      let dialog = page.getByRole("dialog", { name: "Recipe", exact: true });
+      assert.equal(await dialog.evaluate((node) => node.matches(":modal")), true);
       assert.equal(await dialog.locator("input,textarea").count(), 0);
       assert.equal(await dialog.getByRole("button").count(), 3);
       assert.equal(
@@ -66,9 +67,10 @@ const { root, out, server, mock, extra, stageExtra } =
       );
 
       await trigger.click();
-      dialog = page.getByRole("region", { name: "Recipe", exact: true });
+      dialog = page.getByRole("dialog", { name: "Recipe", exact: true });
       await dialog.getByRole("button", { name: /^Edit/ }).click();
-      dialog = page.getByRole("region", { name: "Recipe", exact: true });
+      dialog = page.getByRole("dialog", { name: "Recipe", exact: true });
+      assert.equal(await dialog.evaluate((node) => node.matches(":modal")), true);
       assert.equal(await dialog.locator("textarea").count(), 1);
       assert.equal(
         await dialog
@@ -86,7 +88,7 @@ const { root, out, server, mock, extra, stageExtra } =
         () => !document.querySelector("#refreshButton").disabled,
       );
       await trigger.click();
-      dialog = page.getByRole("region", { name: "Recipe", exact: true });
+      dialog = page.getByRole("dialog", { name: "Recipe", exact: true });
       assert.equal(await dialog.locator("textarea").count(), 0);
       assert.equal(
         await dialog

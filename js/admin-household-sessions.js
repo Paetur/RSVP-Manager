@@ -154,53 +154,5 @@
       }),
     };
   }
-  function reading(h, { R, T, getStore, ordered, can }) {
-    const host = R.dom("section", { class: "household-session-selection" });
-    if (!can("invites")) return host;
-    const store = getStore();
-    host.append(R.dom("h4", {}, T("interface.messages.session_invitations")));
-    for (const session of ordered(store.sessions, "name")) {
-      const invited = !!store.defaults.find(
-        (d) => d.household_id === h.id && d.session_id === session.id,
-      )?.is_invited;
-      host.append(
-        R.dom(
-          "p",
-          { class: "micro" },
-          session.name +
-            ": " +
-            T(
-              invited
-                ? "interface.messages.household_invited"
-                : "interface.messages.household_not_invited",
-            ),
-        ),
-      );
-    }
-    for (const entry of store.overrides) {
-      const guest = store.guests.find(
-        (g) =>
-          g.id === entry.guest_id && g.household_id === h.id && !g.archived_at,
-      );
-      if (guest)
-        host.append(
-          R.dom(
-            "p",
-            { class: "micro" },
-            [guest.first_name, guest.last_name].filter(Boolean).join(" ") +
-              " — " +
-              (store.sessions.find((s) => s.id === entry.session_id)?.name ||
-                "") +
-              ": " +
-              T(
-                entry.is_invited
-                  ? "interface.messages.invited"
-                  : "interface.messages.not_invited",
-              ),
-          ),
-        );
-    }
-    return host;
-  }
-  window.RSVP_ADMIN_HOUSEHOLD_SESSIONS = Object.freeze({ append, reading });
+  window.RSVP_ADMIN_HOUSEHOLD_SESSIONS = Object.freeze({ append });
 })();

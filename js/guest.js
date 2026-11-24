@@ -132,6 +132,10 @@
   function combinedResponseAvailable() {
     return canReviewRsvp() && foodState != null && foodState.interest == null;
   }
+  function returningForFood() {
+    return invitation?.household?.rsvp_state === "locked" &&
+      foodState?.stage === "selection" && foodState.interest === true;
+  }
   function foodInterestLabel(value) {
     return t(value ? "interface.messages.food_interest_yes" : "interface.messages.food_interest_no");
   }
@@ -175,6 +179,12 @@
     const editing = canReviewRsvp() && !reviewing;
     const canProceed = editing && !checking;
     const showFood = foodState != null && reviewFoodInterest === undefined;
+    const returning = returningForFood();
+    const reviewTitle = $("rsvpReviewTitle");
+    reviewTitle.textContent = t(returning ? "interface.messages.your_rsvp" :
+      reviewFoodInterest !== undefined ? "interface.messages.review_responses" : "Review RSVP");
+    reviewTitle.classList.toggle("hidden", !returning && reviewFoodInterest === undefined);
+    $("rsvpReviewHelp").classList.toggle("hidden", returning && !combinedResponseSaved);
     $("saveRsvp").classList.toggle("hidden", !canProceed || combined);
     $("reviewResponses").classList.toggle("hidden", !canProceed || !combined);
     $("confirmRsvp").classList.toggle("hidden", !reviewing || !canReviewRsvp());
@@ -736,9 +746,6 @@
     const locked = invitation?.household?.rsvp_state === "locked",
       reviewing = locked || !!reviewResponses,
       combined = reviewFoodInterest !== undefined;
-    const title = $("rsvpReviewTitle");
-    title.classList.toggle("hidden", !combined);
-    title.textContent = t(combined ? "interface.messages.review_responses" : "Review RSVP");
     $("confirmRsvp").textContent = t(combined ? "interface.messages.submit_responses" : "Confirm RSVP");
     $("editRsvp").textContent = t(combined ? "interface.messages.edit_answers" : "Back to edit");
     const foodPreview = $("foodInterestPreview");
@@ -1280,14 +1287,15 @@
   function renderFoodContent() {
     if (!foodState) return;
     const interestOnly = foodState.stage === "interest",
-      showSelection = !interestOnly && foodState.interest === true;
-    $("foodCard").querySelector("h2").textContent = t("food");
-    $("foodCard").querySelector("p").textContent =
-      wording(window.RSVP_I18N.resolve(
-        eventData?.event?.food_introduction || {},
-        language,
-      ) || t("interface.messages.food_interest_help"));
-    renderFoodInterest();
+      showSelection = !interestOnly && foodState.interest === true,
+      returning = returningForFood();
+    const intro = $("foodCard").querySelector("p");
+    const customIntro = window.RSVP_I18N.resolve(eventData?.event?.food_introduction || {}, language);
+    $("foodCard").querySelector("h2").textContent = t(returning ? "interface.messages.choose_food_to_bring" : "food");
+    intro.textContent = wording(customIntro || (returning ? "" : t("interface.messages.food_interest_help")));
+    intro.classList.toggle("hidden", !intro.textContent);
+    if (returning) $("foodInterestHost").replaceChildren();
+    else renderFoodInterest();
     let prompt = $("foodSelectionPrompt");
     if (!prompt) {
       prompt = R.dom("p", {
@@ -1764,7 +1772,8 @@
       foodReviewSignature = null;
       status(t("interface.messages.food_review_changed"), "warning");
     }
-    const confirmed = !!foodState?.confirmed,
+    const returning = returningForFood(),
+      confirmed = !!foodState?.confirmed,
       show = confirmed || !!foodReviewSignature;
     let followup = $("foodFollowup");
     if (!followup) {
@@ -1775,10 +1784,11 @@
       $("foodNext").before(followup);
     }
     followup.textContent = t("interface.messages.food_followup");
-    followup.classList.toggle("hidden", !foodState?.claims?.length);
+    followup.classList.toggle("hidden", returning || !foodState?.claims?.length);
     review.classList.toggle("hidden", !show);
     $("foodCard").classList.toggle("food-reviewing", show);
-    $("foodInterestHost").classList.toggle("hidden", show);
+    $("foodCard").querySelector("h2").classList.toggle("hidden", returning && confirmed);
+    $("foodInterestHost").classList.toggle("hidden", returning || show);
     $("foodList").classList.toggle(
       "hidden",
       show || foodState?.stage === "interest" || foodState?.interest !== true,
@@ -1804,6 +1814,7 @@
       foodSelectionSignature(),
       language,
       confirmed,
+      returning,
       foodConfirmSaving,
       (foodState.items || []).map((i) => [i.id, i.name_en, i.recipe_text]),
     ]);
@@ -1814,7 +1825,7 @@
     const title = R.dom(
       "h3",
       { id: "foodReviewTitle" },
-      t("interface.messages.food_review"),
+      t(returning && confirmed ? "interface.messages.you_are_bringing" : "interface.messages.food_review"),
     );
     title.tabIndex = -1;
     const summary = R.dom("section", {
@@ -1872,7 +1883,7 @@
         confirm = R.dom(
           "button",
           { id: "foodReviewConfirm", type: "button", class: "btn" },
-          t("confirmFood"),
+          t(returning ? "interface.messages.confirm_food_choices" : "confirmFood"),
         ),
         back = R.dom(
           "button",
@@ -1932,6 +1943,7 @@
     } finally {
       foodConfirmSaving = false;
       renderFoodReview();
+      if (returningForFood() && foodState.confirmed) $("foodReviewTitle")?.focus({ preventScroll: true });
     }
   }
   async function openPreview() {

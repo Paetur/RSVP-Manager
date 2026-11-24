@@ -114,22 +114,27 @@ const { PGlite } = require("@electric-sql/pglite"),
       ),
       false,
     );
+    const fallback = {
+      admin: { preset: "all", types: [] },
+      guest: { preset: "errors", types: ["error"] },
+    };
+    await q(
+      "UPDATE public.event_settings SET notification_preferences=$1 WHERE id=1",
+      [fallback],
+    );
     await db.exec("SET ROLE authenticated");
-    await q("SELECT public.admin_save_notification_preferences($1,null)", [
-      prefs,
-    ]);
+    const save = (values, expected) =>
+      q("SELECT public.admin_save_guest_interface('wide',$1,$2)", [
+        { notification_preferences: values },
+        { notification_preferences: expected },
+      ]);
+    await save(prefs, fallback);
     assert.deepEqual(
       (await v("SELECT public.admin_load_data() v")).settings
-        .notification_preferences,
+        .guest_interface_modes.wide.notification_preferences,
       prefs,
     );
-    await assert.rejects(
-      () =>
-        q("SELECT public.admin_save_notification_preferences($1,null)", [
-          prefs,
-        ]),
-      /changed/,
-    );
+    await assert.rejects(() => save(prefs, fallback), /changed/);
     for (const bad of [
       { ...prefs, extra: true },
       { ...prefs, guest: { preset: "unknown", types: [] } },
@@ -139,14 +144,7 @@ const { PGlite } = require("@electric-sql/pglite"),
       { ...prefs, guest: { preset: "custom", types: [], extra: true } },
       {},
     ])
-      await assert.rejects(
-        () =>
-          q("SELECT public.admin_save_notification_preferences($1,$2)", [
-            bad,
-            prefs,
-          ]),
-        /Invalid/,
-      );
+      await assert.rejects(() => save(bad, prefs), /Invalid/);
     await assert.rejects(
       () =>
         q(
@@ -155,7 +153,7 @@ const { PGlite } = require("@electric-sql/pglite"),
       /editor|permission denied/,
     );
     const preview = await v("SELECT public.admin_guest_preview(null,true) v");
-    assert.deepEqual(preview.eventData.event.notification_preferences, {
+    assert.deepEqual(preview.eventData.event.guest_interface_modes.wide.notification_preferences, {
       guest: prefs.guest,
     });
     assert.equal(
@@ -166,9 +164,10 @@ const { PGlite } = require("@electric-sql/pglite"),
     const payload = await v("SELECT app_private.backup_payload() v");
     assert.equal(payload.schema_version, "20261114034908");
     assert.deepEqual(
-      payload.tables["public.event_settings"][0].notification_preferences,
+      payload.tables["public.event_settings"][0].guest_interface_modes.wide.notification_preferences,
       prefs,
     );
+    assert.deepEqual(payload.tables["public.event_settings"][0].notification_preferences, fallback);
     const envelope = { format: "rsvp-application-backup", version: 3, payload };
     envelope.checksum = await v(
       "SELECT encode(sha256(convert_to($1::jsonb::text,'UTF8')),'hex') v",
@@ -183,25 +182,13 @@ const { PGlite } = require("@electric-sql/pglite"),
     assert.deepEqual(
       (await v("SELECT public.admin_load_data() v")).settings
         .notification_preferences,
-      { admin: prefs.admin },
+      { admin: fallback.admin },
     );
-    await assert.rejects(
-      () =>
-        q("SELECT public.admin_save_notification_preferences(null,$1)", [
-          prefs,
-        ]),
-      /permissions/,
-    );
+    await assert.rejects(() => save(null, prefs), /permissions/);
     await db.exec(
       "RESET ROLE;SELECT set_config('request.jwt.claim.sub','',false);SET ROLE anon",
     );
-    await assert.rejects(
-      () =>
-        q("SELECT public.admin_save_notification_preferences($1,null)", [
-          prefs,
-        ]),
-      /permission denied/,
-    );
+    await assert.rejects(() => save(prefs, fallback), /permission denied/);
     assert.equal(await v("SELECT public.get_public_event_v2() v"), null);
     await assert.rejects(
       () => q("SELECT notification_preferences FROM public.event_settings"),

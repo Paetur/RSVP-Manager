@@ -28,7 +28,7 @@ fixtures.invitation_send_queue=[deliveryRow('sent',deliveryHouseholds[0],12),del
 const readySample=fixtures.invitation_send_queue.find(row=>row.id==='view-ready');
 readySample.channel='whatsapp';
 readySample.recipient_snapshot={contact_name:'Example recipient',contact_type:'phone',contact_value:'+12025550111'};
-fixtures.invitation_deliveries=[{queue_id:'view-sent',confirmed_at:'2026-11-12T12:00:00Z',confirmed_by:h1,delivery_note:'Synthetic delivery note'}];
+fixtures.invitation_deliveries=[{queue_id:'view-sent',confirmed_at:'2026-11-12T12:00:00Z',confirmed_by:h1,delivery_note:'Synthetic delivery note',recipient_snapshot:{contact_name:'Frozen recipient'},message_snapshot:{channel:'email',subject:'Frozen subject',body:'Original frozen invitation',template_snapshot_ref:'synthetic-template'}}];
 const reviewDraft=fixtures.invitation_send_queue.find(row=>row.id==='view-draft');
 reviewDraft.message_body='Synthetic invitation {invitation_link}';
 reviewDraft.message_subject='RSVP {invitation_link}';
@@ -67,15 +67,20 @@ client.rpc=async(name,args)=>{
     const current = invitation.locator(".current-invitation");
     await menu.waitFor();
     assert.deepEqual(await menu.locator("[data-invite-delivery-submenu] > summary").allTextContents(),
-      ["Delivery logs", "Drafts", "Current invitation(s)"]);
+      ["Current invitation(s)", "Drafts", "Delivery logs · 2"]);
+    assert.equal(await history.evaluate(node => node.open), false, "Delivery logs starts collapsed");
     assert.equal(await menu.evaluate(node => node.previousElementSibling.id.startsWith("invite-rsvp-")), true);
     if (!await invitation.evaluate(node => node.open)) await invitation.locator(":scope > summary").click();
     await current.waitFor();
     assert.equal(await history.locator(".current-invitation").count(), 0, "Delivery logs are independent of the current invitation");
-    assert.deepEqual(await recordIds(current), ["view-ready"], "newest cancelled row belongs to history");
-    assert.deepEqual(await recordIds(history), ["view-cancelled", "view-failed", "view-sent"]);
+    assert.deepEqual(await recordIds(current), ["view-ready", "view-sent"], "ready and last sent for this invitation stay available");
+    assert.deepEqual(await recordIds(history), ["view-cancelled"], "a cancellation keeps its own historical status");
+    assert.deepEqual(await recordIds(menu.locator('[data-invite-delivery-submenu="drafts"]')), ["view-failed"]);
     const ready = current.locator('[data-delivery-id="view-ready"]');
+    assert.match(await ready.locator(":scope > summary").textContent(), /WhatsApp · Ready/);
+    await ready.locator(":scope > summary").click();
     await ready.locator(".delivery-message").first().waitFor();
+    assert.equal(await current.getByRole("heading", { name: "Current invitation", exact: true }).count(), 0);
     assert.ok(await ready.getByText("Edit delivery", { exact: true }).isVisible());
     assert.ok(await ready.getByRole("button", { name: "Change to Draft", exact: true }).isVisible());
     assert.equal(await ready.locator("a[href^='https://wa.me/'], .invitation-send-form").count(), 0);
@@ -83,11 +88,19 @@ client.rpc=async(name,args)=>{
       assert.equal(await ready.getByRole("button", { name, exact: true }).count(), 0, name + " belongs outside Current invitation");
     assert.equal(await ready.getByLabel("Sent note", { exact: true }).count(), 0);
     if (!await history.evaluate(node => node.open)) await history.locator(":scope > summary").click();
-    const sent = history.locator('[data-delivery-id="view-sent"]');
+    const currentSent = current.locator('[data-delivery-id="view-sent"]');
+    await currentSent.locator(":scope > summary").click();
+    assert.ok(await currentSent.getByText("Synthetic sent invitation", { exact: true }).isVisible());
+    assert.ok(await currentSent.getByText("Prepare reminder", { exact: true }).isVisible());
+    assert.equal(await currentSent.locator(".notice.success").count(), 0, "sent detail lives in Delivery logs");
+    const sent = history.locator('[data-delivery-log-queue-id="view-sent"]');
+    assert.match(await sent.locator(":scope > summary").textContent(), /^Recorded sent · Email · Frozen subject · .+ · .+/);
     await sent.locator(":scope > summary").click();
-    assert.ok(await sent.getByText("Synthetic sent invitation", { exact: true }).isVisible());
+    assert.ok(await sent.getByText("Original frozen invitation", { exact: true }).isVisible());
+    assert.ok(await sent.getByText("To: Frozen recipient", { exact: true }).isVisible());
     assert.match(await sent.innerText(), /Synthetic delivery note/);
-    assert.equal(await sent.getByText("Edit delivery", { exact: true }).count(), 0);
+    assert.equal(await sent.getByText("Synthetic sent invitation", { exact: true }).count(), 0, "history uses the stored snapshot");
+    assert.equal(await sent.locator("button, a, form").count(), 0, "history cannot edit, hand off or re-send a message");
     await second.locator(":scope > summary .invite-compact-name").click();
     await second.locator(".current-invitation").waitFor({ state: "attached" });
     assert.deepEqual(await recordIds(second), ["view-draft"], "records stay scoped to their own household");
@@ -135,7 +148,8 @@ client.rpc=async(name,args)=>{
     await second.locator(":scope > summary .invite-copy-invitation").waitFor();
     const secondInvitation = second.locator('[data-invite-delivery-submenu="current"]');
     if (!await secondInvitation.evaluate(node => node.open)) await secondInvitation.locator(":scope > summary").click();
-    await draft.locator(":scope > summary").getByText(/Ready/).waitFor();
+    await draft.locator(":scope > .delivery-message").waitFor();
+    assert.equal(await draft.locator(":scope > summary").count(), 0, "opening one current invitation reveals its preview directly");
     assert.equal(await markReady.count(), 0);
     const attempt = await page.evaluate(() => window.__readyAttempts.at(-1));
     assert.equal(attempt.p_expected_revision, 1);
@@ -206,7 +220,10 @@ client.rpc=async(name,args)=>{
         confirmed_by: h1, delivery_note: "Synthetic current confirmation" }];
     });
     await refreshFixture(page);
-    await history.getByText(/Synthetic current confirmation/).waitFor();
+    const confirmation = history.locator('[data-delivery-log-queue-id="view-refreshed"]');
+    await confirmation.getByText(/Synthetic current confirmation/).waitFor();
+    assert.match(await confirmation.innerText(), /^Recorded sent · WhatsApp · Example/);
+    assert.equal(await confirmation.locator("summary, .delivery-message").count(), 0, "a confirmation without a stored message has no fabricated preview");
     assert.equal(await history.locator("[data-delivery-id]").count(), 0, "the confirmation avoids duplicating the current record");
     assert.deepEqual(errors, []);
     console.log(

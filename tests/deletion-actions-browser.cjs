@@ -52,7 +52,9 @@ const earlierDeleteRpc=client.rpc;client.rpc=async(name,args)=>{
     await record.evaluate(node => { for (let current = node; current; current = current.parentElement) if (current.tagName === "DETAILS") current.open = true; });
     const directDelete = record.locator(":scope > .delivery-read-actions [data-delete-draft]"), edit = record.locator("details").first(), form = edit.locator("form");
     assert.equal(await directDelete.isVisible(), true, "reading view exposes Delete without Edit delivery");
-    assert.equal(await record.locator(":scope > .delivery-read-actions > .invite-text-action").innerText(), "Copy message");
+    assert.ok(await record.evaluate(node => node.closest('[data-invite-delivery-submenu="drafts"]')));
+    assert.equal(await record.locator(":scope > .delivery-read-actions > .invite-text-action").count(), 0,
+      "the Drafts submenu leaves copying to the invitation row workflow");
     assert.equal(await edit.evaluate(node => node.open), false);
     for (const id of ["draft-protected", "ready-protected", "sent-protected"])
       assert.equal(await page.locator("#inviteRows [data-delivery-id=" + id + "] [data-delete-draft]").count(), 0, "protected record: " + id);

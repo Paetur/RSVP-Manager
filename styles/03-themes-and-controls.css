@@ -882,20 +882,20 @@ html[data-theme="dark"] code {
 
 
 /* Account-selected hover treatment shared by ordinary and icon actions. */
-:root:not([data-button-hover="pencil"]):not([data-button-hover="create"]) :is(button,a.btn):not(.delete-action):hover:not(:disabled) {
+:root:not([data-button-hover="pencil"]):not([data-button-hover="create"]) :is(button,a.btn):not(.delete-action, .invite-stat-row):hover:not(:disabled) {
   background: var(--light) !important;
   border-color: var(--teal) !important;
   color: var(--action-text) !important;
   transform: none !important;
 }
-:root[data-button-hover="pencil"] :is(button,a.btn):not(.delete-action):hover:not(:disabled) {
+:root[data-button-hover="pencil"] :is(button,a.btn):not(.delete-action, .invite-stat-row):hover:not(:disabled) {
   background: var(--pencil-hover-background, var(--light)) !important;
   border-color: var(--pencil-hover-border, #aecabd) !important;
   color: var(--action-text) !important;
   transform: none !important;
 }
 :root[data-theme="dark"] { --pencil-hover-background: #345043; --pencil-hover-border: #5d947a; }
-:root[data-button-hover="create"] :is(button,a.btn):not(.delete-action):hover:not(:disabled) {
+:root[data-button-hover="create"] :is(button,a.btn):not(.delete-action, .invite-stat-row):hover:not(:disabled) {
   background: var(--teal-dark) !important;
   border-color: var(--teal) !important;
   color: var(--paper) !important;
@@ -933,6 +933,10 @@ html[data-theme="dark"] code {
   padding: 20px;
 }
 .record-popup::backdrop { background: rgb(0 0 0 / 55%); }
+.admin-change-alert { width: min(28rem, calc(100vw - 24px)); text-align: center; }
+.admin-change-alert p { margin: .5rem 0 1rem; color: var(--muted); }
+.admin-change-alert .form-actions { justify-content: center; }
+.admin-change-alert .form-actions > button { min-height: 44px; }
 .template-choice-popup { width: min(380px, calc(100vw - 24px)); }
 .template-choice-popup > button { display: block; margin: 10px 0; width: 100%; }
 .destructive-actions { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 12px; }

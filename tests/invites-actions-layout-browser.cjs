@@ -5,7 +5,17 @@ const { chromium } = require("playwright");
 const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
 const { refreshFixture, toggleFixtureTheme, setFixtureInviteRows } = require("./helpers/admin-toolbar.cjs");
 const { server, mock, extra, cleanup } = createPublicFoodHarness("invites-actions-layout");
-const seed = `fixtures.event_settings[0].food_enabled=true;fixtures.event_settings[0].food_stage='interest';`;
+const seed = `
+ fixtures.event_settings[0].food_enabled=true;
+ fixtures.event_settings[0].food_stage='interest';
+ const readyHousehold=fixtures.households.find(h=>h.id===h2);
+ fixtures.invitation_send_queue.push({
+  id:'action-layout-ready',household_id:readyHousehold.id,channel:'manual',status:'ready',
+  revision:1,created_at:'2026-11-15T12:00:00Z',updated_at:'2026-11-15T12:00:00Z',
+  invitation_code_snapshot:readyHousehold.invite_code,message_body:'Synthetic ready invitation',
+  recipient_snapshot:{contact_name:'Example',contact_type:'manual',contact_value:'Example'},
+ });
+`;
 
 async function refresh(page) {
  await refreshFixture(page);
@@ -45,51 +55,51 @@ async function geometry(page, count) {
 }
 
 async function toolbarGeometry(page, width) {
+ const heading=page.locator('.invite-box-heading'), selection=heading.locator('#bulkInviteContent');
+ const status=heading.locator('#bulkInviteStatus'), hint=status.locator('#bulkInviteHint');
+ const select=page.locator('#inviteRows [data-bulk-select]:enabled').first();
+ assert.equal(await selection.isVisible(),false,'the action strip is hidden while browsing');
+ assert.equal(await hint.isVisible(),true,'unpublished guidance remains visible without a selection');
+ assert.equal(await heading.locator('#inviteSearchPanel').isVisible(),false,'the Search field starts collapsed');
+ await select.check();
+ assert.equal(await selection.locator('.bulk-invite-count').innerText(),'1 selected');
+ assert.deepEqual(await selection.locator('.bulk-invite-actions button').allTextContents(),['Make draft(s)','Make invitation(s)','Mark sent']);
  const result=await page.locator('[data-panel=invites]').evaluate(host=>{
-  const heading=host.querySelector('.invite-box-heading'),action=host.querySelector('#bulkInvitesHost');
+  const heading=host.querySelector('.invite-box-heading'),toolbar=host.querySelector('.invite-heading-toolbar');
   const stats=host.querySelector('#statsGrid'),overview=host.querySelector('#overviewPanel');
-  const buttons=[...action.querySelectorAll('.bulk-invite-actions > button')];
-  const shown=host.querySelector('#inviteShownFieldsHost'),search=host.querySelector('#inviteSearchToggle');
-  const box=node=>node.getBoundingClientRect(),h=box(heading),s=box(search);
-  const title=box(heading.querySelector('.invite-heading-title')),field=box(shown);
-  const actionBoxes=[...buttons,search].map(box);
-  const buttonsInOrder=actionBoxes.every((current,index)=>!index||
-   current.top>=actionBoxes[index-1].bottom-1||
-   (current.left>=actionBoxes[index-1].right-1&&Math.abs(current.top-actionBoxes[index-1].top)<2));
-  const center=rect=>rect.top+rect.height/2;
-  return {adminContainsRows:document.getElementById('adminApp').contains(host.querySelector('#inviteRows')),actionInHeader:heading.contains(action),rightAligned:Math.abs(s.right-h.right)<2,
+  const overviewControls=['#inviteGroupTrees','#inviteSessionTree','#inviteLanguageFilter','#inviteChannelFilter'];
+  const box=node=>node.getBoundingClientRect(), h=box(heading), title=box(host.querySelector('.invite-heading-title'));
+  const view=box(host.querySelector('#inviteShownFieldsHost summary')), action=box(host.querySelector('#bulkInvitesHost'));
+  const icon=box(host.querySelector('#inviteSearchToggle')), rows=box(host.querySelector('#inviteRows'));
+  const status=box(host.querySelector('#bulkInviteStatus'));
+  return {
+   adminContainsRows:document.getElementById('adminApp').contains(host.querySelector('#inviteRows')),
    statsBeforeInvites:box(overview).bottom<=h.top+1&&overview.contains(stats)&&!host.querySelector('.invite-sorting'),
-   shownInHeader:heading.contains(shown)&&!shown.querySelector(':scope > fieldset'),
-   desktopShown:field.left>=title.right-1&&field.right<=actionBoxes[0].left+1,
-   phoneShown:field.top>=title.bottom-1&&field.bottom<=actionBoxes[0].top+1,
-   actionUnframed:!action.querySelector('fieldset')&&parseFloat(getComputedStyle(action).borderTopWidth)===0,
-   searchInHeader:heading.contains(search),buttonsInOrder,
-   buttonNames:buttons.map(button=>button.textContent),
-   desktopSameLine:actionBoxes.every(current=>Math.abs(center(current)-center(s))<1),
-   overviewControls:['#inviteGroupTrees','#inviteSessionTree','#inviteLanguageFilter','#inviteChannelFilter']
-    .every(selector=>stats.contains(host.querySelector(selector)))};
+   desktop:title.right<=view.left+1&&Math.abs(box(toolbar).top+box(toolbar).height/2-title.top-title.height/2)<2,
+   narrow:title.bottom<=view.top+1,
+   compact:Math.abs(icon.top-view.top)<2&&icon.left>=view.right-1&&icon.left-view.right<=12,
+   rightAligned:Math.abs(icon.right-h.right)<2&&icon.right<=innerWidth+1,
+   actionBelow:Math.abs(action.left-h.left)<2&&Math.abs(action.right-h.right)<2&&action.top>=box(toolbar).bottom-1&&rows.top>=action.bottom-1,
+   statusBelow:status.top>=box(host.querySelector('.bulk-invite-actions')).bottom-1,
+   overviewControls:overviewControls.every(selector=>stats.contains(host.querySelector(selector))),
+  };
  });
- assert.equal(result.adminContainsRows,true,'Invites rows stay inside the administrator root');
- assert.equal(result.actionInHeader,true,'Action belongs to the top Invites header');
- assert.equal(result.rightAligned,true,'Search aligns to the right header edge');
- assert.equal(result.statsBeforeInvites,true,'the boxed Overview is above the Invites toolbar');
- assert.equal(result.shownInHeader,true,'Shown fields is in the Invites header');
- assert.equal(width>750?result.desktopShown:result.phoneShown,true,'Shown fields fits between the title and actions at '+width+'px');
- assert.equal(result.actionUnframed,true,'the action buttons have no group outline');
- assert.equal(result.searchInHeader,true,'Search stays in the Invites header');
- assert.deepEqual(result.buttonNames,['Make draft(s)','Make invitation(s)','Mark sent']);
- assert.equal(result.buttonsInOrder,true,'action and Search positions follow toolbar order at '+width+'px');
- if(width>1000)assert.equal(result.desktopSameLine,true,'the desktop toolbar stays on one row');
- assert.equal(result.overviewControls,true,'groups, sessions, languages and services are part of the Overview');
- const heading=page.locator('.invite-box-heading');
+ assert.deepEqual(result,{adminContainsRows:true,statsBeforeInvites:true,desktop:width>750,narrow:width<=750,compact:true,rightAligned:true,actionBelow:true,statusBelow:true,overviewControls:true});
+ const calls=await page.evaluate(()=>window.__calls.filter(({name})=>name!=='admin_guest_overview').length);
+ await selection.getByRole('button',{name:'Clear',exact:true}).press('Enter');
+ assert.equal(await selection.isVisible(),false,'clearing the selection closes the action strip');
+ assert.match(await page.locator('#inviteSelectionCount').innerText(),/^0\//);
+ assert.equal(await page.locator('#inviteRows [data-bulk-select-all]').evaluate(node=>node===document.activeElement),true);
+ assert.equal(await page.evaluate(()=>window.__calls.filter(({name})=>name!=='admin_guest_overview').length),calls,'clearing the selection makes no write');
  const headerGeometry=()=>heading.evaluate(node=>{
   const box=node.getBoundingClientRect();
   const rows=document.querySelector('#inviteRows').getBoundingClientRect();
   return { height:box.height, gap:rows.top-box.bottom };
  });
  const menu=page.locator('#inviteShownFieldsHost details'),overlay=menu.locator('.template-choice-menu');
- const before=await headerGeometry();
- await menu.locator('summary').press('Enter');
+ const summary=menu.locator('summary'), before=await headerGeometry();
+ assert.equal(await summary.innerText(),'View');
+ await summary.press('Enter');
  assert.equal(await overlay.evaluate(node=>getComputedStyle(node).position),'absolute');
  assert.deepEqual(await headerGeometry(),before,'the open menu overlays the page without changing the layout');
  assert.ok(await overlay.evaluate(node=>{const b=node.getBoundingClientRect();return b.left>=0&&b.right<=innerWidth+1;}),'overlay fits the page width');
@@ -97,22 +107,73 @@ async function toolbarGeometry(page, width) {
  await page.keyboard.press('Escape');
  assert.equal(await menu.evaluate(node=>node.open),false);
  assert.equal(await overlay.evaluate(node=>getComputedStyle(node).display),'none','closing removes the overlay from painting and hit testing');
- assert.equal(await menu.locator('summary').evaluate(node=>node===document.activeElement),true);
- await page.locator('#inviteSearchToggle').click();
- assert.equal(await page.locator('#inviteSearch').evaluate(node=>node===document.activeElement),true);
- assert.equal(await page.locator('#inviteSearch').evaluate(node=>{const b=node.getBoundingClientRect();return b.left>=0&&b.right<=innerWidth+1&&b.width>0;}),true,'expanded Search input fits the viewport');
- assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'expanded Search causes no horizontal overflow');
- await page.locator('#inviteSearchClose').click();
- assert.equal(await page.locator('#inviteSearchToggle').evaluate(node=>node===document.activeElement),true,'closing Search restores focus to its toolbar control');
+ assert.equal(await summary.evaluate(node=>node===document.activeElement),true);
+}
+
+async function searchDisclosure(page, width) {
+ const heading=page.locator('.invite-box-heading'), toggle=heading.locator('#inviteSearchToggle');
+ const panel=heading.locator('#inviteSearchPanel'), search=panel.locator('#inviteSearch');
+ const close=panel.getByRole('button',{name:'Close',exact:true});
+ const rows=page.locator('#inviteRows .invite-household'), original=await rows.count();
+ const measure=()=>heading.evaluate(node=>{
+  const rects=[node,node.querySelector('#inviteShownFieldsHost summary'),node.querySelector('#inviteSearchToggle'),
+   node.querySelector('#inviteSearch'),node.querySelector('#inviteSearchClose')].map(el=>el.getBoundingClientRect());
+  const [header,view,icon,field,closeButton]=rects;
+  return {
+   height:header.height, left:view.left, compact:icon.left-view.right<=12&&icon.left>=view.right-1,
+   rightAligned:Math.abs((field.width?closeButton:icon).right-header.right)<2,
+   fieldWidth:field.width, hiddenWidth:node.querySelector('#inviteSearchPanel').getBoundingClientRect().width,
+   inline:[view,icon,field,closeButton].every((item,i,items)=>Math.abs(item.top-view.top)<2&&(!i||item.left>=items[i-1].right-1)),
+   viewport:document.documentElement.scrollWidth<=innerWidth+1,
+  };
+ });
+ assert.equal(await toggle.getAttribute('aria-controls'),'inviteSearchPanel');
+ assert.equal(await toggle.getAttribute('aria-expanded'),'false');
+ assert.equal(await panel.isVisible(),false);
+ const collapsed=await measure();
+ assert.equal(collapsed.hiddenWidth,0,'collapsed Search reserves no input space');
+ assert.equal(collapsed.compact,true,'Search icon sits next to View');
+ assert.equal(collapsed.rightAligned,true,'the closed toolbar aligns to the right');
+ await toggle.click();
+ assert.equal(await search.evaluate(node=>node===document.activeElement),true);
+ assert.equal(await toggle.getAttribute('aria-expanded'),'true');
+ const opened=await measure();
+ assert.ok(opened.fieldWidth>0&&opened.inline&&opened.viewport&&opened.rightAligned,
+  'View, Search, field and × fit inline at '+width+'px: '+JSON.stringify(opened));
+ assert.ok(opened.left<collapsed.left,'opening Search grows the toolbar into available space');
+ if(width>750)assert.equal(opened.height,collapsed.height,'opening Search does not add a row on wide screens');
+ const view=heading.locator('#inviteShownFieldsHost summary');
+ await view.press('Enter');
+ const overlay=heading.locator('#inviteShownFieldsHost .template-choice-menu');
+ assert.ok(await overlay.evaluate(node=>{const b=node.getBoundingClientRect();return b.width>0&&b.left>=0&&b.right<=innerWidth+1;}),
+  'the View menu fits while Search is open at '+width+'px');
+ await view.press('Escape');
+ assert.equal(await panel.isVisible(),true,'closing View leaves the Search disclosure open');
+ const filter=async()=>{
+  await search.fill('synthetic no match');
+  assert.equal(await rows.count(),0);
+ };
+ const expectClosed=async()=>{
+  assert.equal(await toggle.getAttribute('aria-expanded'),'false');
+  assert.equal(await search.inputValue(),'');
+  assert.equal(await panel.isVisible(),false);
+  assert.equal(await toggle.evaluate(node=>node===document.activeElement),true,'closing Search restores icon focus');
+  assert.equal(await rows.count(),original,'closing Search restores the original rows');
+  assert.deepEqual(await measure(),collapsed,'closing Search restores compact geometry');
+ };
+ await filter(); await close.click(); await expectClosed();
+ await toggle.press('Enter'); await filter(); await search.press('Escape'); await expectClosed();
+ await toggle.click(); await filter(); await toggle.click(); await expectClosed();
 }
 
 async function rowsGeometry(page) {
  const rows=page.locator('#inviteRows');
  assert.equal(await rows.getAttribute('data-rows'),'1','fixture selects the one-row presentation');
+ // Live guest counts can refresh independently of these layout controls.
  const state=()=>page.evaluate(()=>({
   shown:[...document.querySelectorAll('#inviteShownFieldsHost [aria-pressed="true"]')].map(n=>n.dataset.value),
   selected:[...document.querySelectorAll('#inviteRows [data-bulk-select]:checked')].map(n=>n.dataset.bulkSelect),
-  calls:window.__calls.length,
+  calls:window.__calls.filter(({name})=>name!=='admin_guest_overview').length,
  }));
  const fields=page.locator('#inviteShownFieldsHost .invite-shown-fields');
  const toggle=async key=>{if(!await fields.evaluate(node=>node.open))await fields.locator('summary').click();await fields.locator('[data-value="'+key+'"]').click();await page.keyboard.press('Escape');};
@@ -125,7 +186,7 @@ async function rowsGeometry(page) {
   const row=host.querySelector('.invite-household > summary'),primary=row.querySelector('.invite-overview-identity'),name=primary.querySelector('.invite-compact-name'),meta=primary.querySelector('.invite-household-meta'),serviceCell=row.querySelector('.invite-overview-service-info'),recipient=serviceCell.querySelector('.invite-overview-recipient'),service=serviceCell.querySelector('.invite-copy-pill');
   const labels=[...host.querySelectorAll('.invite-overview-heading > span')].map(n=>n.textContent);
   return {inline:!!meta&&!!service&&!!recipient,below:!!meta&&meta.getBoundingClientRect().top>=name.getBoundingClientRect().bottom-1,
-   extraColumns:[...row.children].filter(n=>n.matches('.invite-overview-household-info,.invite-overview-recipient,.invite-overview-last-sent,.invite-overview-reply-info')).length,
+   extraColumns:[...row.children].filter(n=>n.matches('.invite-overview-household-info,.invite-overview-recipient,.invite-overview-visit-status,.invite-overview-reply-info')).length,
    headings:labels,service:service?.textContent,pageFits:document.documentElement.scrollWidth<=innerWidth+1,
    fontMatches:getComputedStyle(row.querySelector('.invite-overview-reply')).fontSize===getComputedStyle(name).fontSize};
  });
@@ -160,6 +221,13 @@ async function rowsGeometry(page) {
  await setFixtureInviteRows(page,1);
  assert.deepEqual((await state()).shown,before.shown,'repeated layout switches retain the one-row choices');
  await toggle('lastSent');
+ const copy = page.locator('#inviteRows .invite-copy-options').filter({ has: page.locator('.invite-copy-text') }).first();
+ assert.ok(await copy.evaluate(cell => {
+  const a = cell.querySelector('.invite-copy-invitation .invite-copy-pill').getBoundingClientRect();
+  const b = cell.querySelector('.invite-copy-text .invite-copy-pill').getBoundingClientRect();
+  return Math.abs(a.top - b.top) < 1 && a.right <= b.left &&
+   b.right <= cell.getBoundingClientRect().right + 1;
+ }), 'one-row Invitation and Text remain side by side inside their cell');
  assert.ok(await page.locator('#inviteRows .invite-household > summary > .invite-overview-household-info').count()>0,'one row restores enabled info columns');
  assert.equal(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta,#inviteRows .invite-overview-recipient small').count(),0);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'one-row presentation remains within the viewport');
@@ -242,6 +310,15 @@ async function mergedInvitesGeometry(page) {
    }
    await setFixtureInviteRows(page,1);
    await toolbarGeometry(page,width);
+   await searchDisclosure(page,width);
+   if(width===1366){
+    const theme=await page.locator('html').getAttribute('data-theme');
+    await toggleFixtureTheme(page);
+    await page.waitForFunction(previous=>document.documentElement.dataset.theme!==previous,theme);
+    await searchDisclosure(page,width);
+    await toggleFixtureTheme(page);
+    await page.waitForFunction(previous=>document.documentElement.dataset.theme===previous,theme);
+   }
    const fields=page.locator('#inviteShownFieldsHost .invite-shown-fields');
    const summary=fields.locator('summary'), selection=summary.locator('.filter-choice-selection');
    const field=key=>fields.locator('button[data-value='+key+']');
@@ -259,27 +336,27 @@ async function mergedInvitesGeometry(page) {
    assert.equal(await fields.evaluate(node=>node.open),true);
    await field('food').press('Space');await geometry(page,2);
    assert.equal(await field('food').getAttribute('aria-pressed'),'false');
-   assert.equal(await page.locator('#inviteRows .invite-overview-heading').getByText('Food interest',{exact:true}).count(),0);
+   assert.equal(await page.locator('#inviteRows .invite-overview-heading').getByText('Food',{exact:true}).count(),0);
    await page.keyboard.press('Escape');
    assert.equal(await fields.evaluate(node=>node.open),false);
    assert.equal(await summary.evaluate(node=>document.activeElement===node),true);
    await refresh(page);
    assert.doesNotMatch(await selection.innerText(),/Food/);
    await toggleField('food',true);await geometry(page,2);
-   assert.equal(await page.locator('#inviteRows .invite-overview-heading').getByText('Food interest',{exact:true}).count(),1);
+   assert.equal(await page.locator('#inviteRows .invite-overview-heading').getByText('Food',{exact:true}).count(),1);
    for(const key of ['recipient','reply']){
     await toggleField(key,false);await geometry(page,2);
     await toggleField(key,true);await geometry(page,2);
    }
    for(const key of ['recipient','lastSent','reply','replyInfo','food'])await toggleField(key,false);
-   assert.equal(await selection.innerText(),'None selected');
+   assert.equal(await fields.locator('button[aria-pressed=true]').count(),0);
    assert.deepEqual(await page.locator('#inviteRows .invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Service','Invitation','Actions']);
    assert.equal(await page.locator('#inviteRows .invite-overview-heading > span').count(),5,'required Household, Service, Invitation, Actions and selection remain');
    for(const key of ['recipient','lastSent','reply','replyInfo','food'])await toggleField(key,true);
    assert.doesNotMatch(await selection.innerText(),/Household info/);
    await toggleField('householdInfo',true);
-   assert.equal(await selection.innerText(),'All');
-   assert.deepEqual(await page.locator('#inviteRows .invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Household info','Recipient','Service','Invitation','RSVP','Food interest','Actions']);
+   assert.equal(await fields.locator('button[aria-pressed=false]').count(),0);
+   assert.deepEqual(await page.locator('#inviteRows .invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Household info','Recipient','Service','Invitation','Seen','RSVP','Food','Actions']);
    const detailCells=await page.locator('#inviteRows .invite-household > summary').first().evaluate(row=>({household:row.querySelector('.invite-overview-household-info')?.textContent,service:row.querySelector('.invite-overview-service-info')?.textContent,order:[...row.children].map(node=>node.className)}));
    assert.match(detailCells.household,/guests?.*[A-Z]{2}/,'household details moved into their own cell');
    assert.ok(detailCells.service,'service details are represented independently');
@@ -291,7 +368,7 @@ async function mergedInvitesGeometry(page) {
    assert.equal(await fields.evaluate(node=>node.open),false);
    await page.evaluate(()=>{fixtures.event_settings[0].food_stage='selection';});
    await refresh(page);await geometry(page,2);
-   assert.equal(await page.locator('#inviteRows .invite-overview-heading').getByText('Food items',{exact:true}).count(),1);
+   assert.equal(await page.locator('#inviteRows .invite-overview-heading').getByText('Food',{exact:true}).count(),1);
    await toggleField('food',false);await geometry(page,2);await toggleField('food',true);await geometry(page,2);
    await page.evaluate(()=>{
     fixtures.event_settings[0].is_published=true;
@@ -304,8 +381,8 @@ async function mergedInvitesGeometry(page) {
    const draft=review.locator('xpath=ancestor::details[@data-invite-household]');
    assert.equal(await draft.locator(':scope > summary [data-invite-copy="invitation"], :scope > summary [data-invite-copy="message"]').count(),0);
    await review.press('Enter');
-   const current=draft.locator('.current-invitation [data-delivery-id="action-layout-draft"]');
-   assert.ok(await current.evaluate(record=>record.open&&record.closest('[data-invite-household]').open));
+   const current=draft.locator('[data-invite-delivery-submenu="drafts"] [data-delivery-id="action-layout-draft"]');
+   assert.ok(await current.locator(':scope > .delivery-message').isVisible());
    const ready=current.locator('[data-mark-delivery-ready]');
    assert.equal(await ready.evaluate(node=>node===document.activeElement),true,'Review opens the current draft and focuses Make invitation(s)');
    assert.equal(await current.getByRole('button',{name:'Copy message',exact:true}).count(),0);
@@ -351,7 +428,8 @@ async function mergedInvitesGeometry(page) {
    });
    await refresh(page);
    await page.locator('[data-tab=invites]').click();
-   await page.locator('#bulkInviteContent > .bulk-invite-actions').waitFor();
+   const manualSelection=page.locator('#inviteRows [data-bulk-select="'+manualHousehold+'"]');
+   await manualSelection.check();
    await mergedInvitesGeometry(page);
    if(process.env.RSVP_MANUAL_LAYOUT_SCREENSHOT_DIR&&[390,820,1366,1440].includes(width)){
     fs.mkdirSync(process.env.RSVP_MANUAL_LAYOUT_SCREENSHOT_DIR,{recursive:true,mode:0o700});
@@ -366,7 +444,7 @@ async function mergedInvitesGeometry(page) {
      return id;
     });
     await refresh(page);
-    const bulk=page.locator('#bulkInvitesHost'),action=bulk.getByRole('group',{name:'Action',exact:true});
+    const action=page.locator('#bulkInvitesHost');
     const ready=page.locator('#inviteRows [data-bulk-select="'+manualHousehold+'"]');
     const missing=page.locator('#inviteRows [data-bulk-select="'+missingHousehold+'"]');
     const generate=action.getByRole('button',{name:'Make draft(s)',exact:true}),mark=action.getByRole('button',{name:'Mark sent',exact:true});
@@ -376,8 +454,11 @@ async function mergedInvitesGeometry(page) {
      for(const state of ['disabled','generate','mark-sent']){
       await missing.setChecked(state==='generate');
       await ready.setChecked(state==='mark-sent');
-      assert.equal(await generate.isEnabled(),state==='generate','selected missing draft controls Generate availability');
-      assert.equal(await mark.isEnabled(),state==='mark-sent','selected ready draft controls Mark Sent availability');
+      if(state==='disabled') assert.equal(await action.isVisible(),false);
+      else {
+       assert.equal(await generate.isEnabled(),state==='generate','selected missing draft controls Generate availability');
+       assert.equal(await mark.isEnabled(),state==='mark-sent','selected ready draft controls Mark Sent availability');
+      }
       await page.locator('[data-panel=invites]').screenshot({path:path.join(process.env.RSVP_MANUAL_LAYOUT_SCREENSHOT_DIR,'manual-action-'+width+'-'+theme+'-'+state+'.png')});
      }
     }
@@ -385,6 +466,6 @@ async function mergedInvitesGeometry(page) {
    assert.deepEqual(errors,[]);
    await page.close();
   }
-  console.log('PASS Invites Overview, toolbar and Review: responsive Shown fields and overlay dismissal, Overview cards, current-draft keyboard focus, publication gates, chip-sized copy targets, independent 44px selection/Rows controls and no overflow at 320/390/820/1024/1100/1160/1366/1440.');
+  console.log('PASS Invites Overview, toolbar and Review: responsive View and Search disclosure, Overview cards, current-draft keyboard focus, publication gates, chip-sized copy targets, independent 44px selection/Rows controls and no overflow at 320/390/820/1024/1100/1160/1366/1440.');
  } finally {await browser.close();await new Promise(resolve=>server.close(resolve));cleanup();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

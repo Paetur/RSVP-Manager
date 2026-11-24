@@ -1,9 +1,11 @@
 const assert = require("node:assert/strict");
-const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
+const { createDatabase, signIn, withRecordRevision } = require("./helpers/alpha-database.cjs");
 (async () => {
   const db = await createDatabase(),
     q = (sql, args = []) => db.query(sql, args);
   const value = async (sql, args) => (await q(sql, args)).rows[0].v;
+  const save = async (sql, [id, values, ...rest]) =>
+    q(sql, [id, await withRecordRevision(db, "households", id, values), ...rest]);
   try {
     await signIn(db);
     await db.exec("RESET ROLE");
@@ -30,7 +32,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     };
     await assert.rejects(() => q("SELECT app_private.household_session_snapshot($1)", [id]), /permission denied/);
     const old = await snapshot();
-    await q("SELECT public.admin_save_household($1,$2)", [
+    await save("SELECT public.admin_save_household($1,$2)", [
       id,
       {
         ...initial,
@@ -52,7 +54,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     );
     await assert.rejects(
       () =>
-        q("SELECT public.admin_save_household($1,$2)", [
+        save("SELECT public.admin_save_household($1,$2)", [
           id,
           {
             ...initial,
@@ -78,7 +80,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     ).guests.find((g) => g.household_id === id).id;
     for (const invited of [true, null]) {
       const expected = await snapshot();
-      await q("SELECT public.admin_save_household($1,$2)", [
+      await save("SELECT public.admin_save_household($1,$2)", [
         id,
         {
           ...initial,
@@ -100,7 +102,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     ).households.find((h) => h.id === id).food;
     await assert.rejects(
       () =>
-        q("SELECT public.admin_save_household_with_food($1,$2,$3,$4)", [
+        save("SELECT public.admin_save_household_with_food($1,$2,$3,$4)", [
           id,
           {
             ...initial,
@@ -128,7 +130,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     await db.exec("SET ROLE authenticated");
     await assert.rejects(
       () =>
-        q("SELECT public.admin_save_household($1,$2)", [
+        save("SELECT public.admin_save_household($1,$2)", [
           id,
           {
             ...initial,
@@ -146,7 +148,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
       ).household_name,
       "Changed together",
     );
-    await q("SELECT public.admin_save_household($1,$2)", [
+    await save("SELECT public.admin_save_household($1,$2)", [
       id,
       { ...initial, household_name: "Details still editable" },
     ]);
@@ -157,7 +159,7 @@ const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
     );
     await assert.rejects(
       () =>
-        q("SELECT public.admin_save_household($1,$2)", [
+        save("SELECT public.admin_save_household($1,$2)", [
           id,
           {
             ...initial,

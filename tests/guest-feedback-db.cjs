@@ -47,7 +47,7 @@ async function setup(){const db=new PGlite();await db.exec(`CREATE ROLE anon;CRE
  await assert.rejects(()=>db.query('SELECT public.admin_delete_food_group($1,$2)',[group,stamp]),/commitments/);
  const backup=await value('SELECT public.admin_export_backup() v');assert.equal(backup.payload.schema_version,'20261114034908');assert.equal(backup.payload.tables['public.food_groups'][0].id,group);
  await db.exec('RESET ROLE');
- const template=await value("SELECT app_private.backup_as_template($1,ARRAY['food']) v",[backup]);assert.equal(template.payload.tables['public.food_groups'].length,1);assert.equal(template.payload.tables['public.food_claims'].length,0);
+ const template=await value("SELECT app_private.project_backup($1,'template',ARRAY['food'],false) v",[backup]);assert.equal(template.payload.tables['public.food_groups'].length,1);assert.equal(template.payload.tables['public.food_claims'].length,0);
  await dst.query("SELECT set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)",[admin,JSON.stringify({sub:admin,session_id:session})]);await dst.exec('SET ROLE authenticated');
  await dst.query('SELECT public.admin_preview_backup($1)',[backup]);
  const name=backup.payload.tables['public.event_settings'][0].event_name;

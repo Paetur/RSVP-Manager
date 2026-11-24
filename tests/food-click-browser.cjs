@@ -85,7 +85,8 @@ const { root, out, server, mock, extra, stageExtra } =
       assert.ok(pairRects[1].left > pairRects[0].left);
       for (const tile of await pair.locator(":scope>button").all())
         assert.ok((await tile.boundingBox()).height >= 44);
-      assert.equal(await no.isDisabled(), true, "a confirmed answer cannot be switched");
+      assert.equal(await host.isHidden(), true, "returning guests go directly to food choices");
+      assert.equal(await no.count(), 0, "a confirmed answer cannot be switched");
       const group = page.locator(".guest-food-group").first(),
         pick = group.locator(":scope>button");
       await pick.waitFor();
@@ -118,8 +119,12 @@ const { root, out, server, mock, extra, stageExtra } =
         false,
         "Selection does not expand the disclosure",
       );
-      assert.equal(await no.isDisabled(), true);
-      assert.equal(await yes.getAttribute("aria-pressed"), "true");
+      assert.equal(await yes.count(), 0, "the answer buttons stay hidden after selecting food");
+      assert.deepEqual(
+        await page.evaluate(() => ({ answer: window.__foodAnswer, writes: window.__interestWrites })),
+        { answer: true, writes: 1 },
+        "food selections keep the saved Yes without writing a second answer",
+      );
       assert.equal(
         await page.evaluate(() => window.__fixtures.food_claims.length),
         2,
@@ -192,7 +197,7 @@ const { root, out, server, mock, extra, stageExtra } =
       await page.close();
     }
     console.log(
-      "PASS food click flow: confirmed yes/no, conditional list, full-card group selection, error/retry, toggle-off selection and separate details, protected commitments and phone/desktop bounds.",
+      "PASS food click flow: confirmed interest, returning guest menu, full-card group selection, error/retry, toggle-off selection and separate details, protected commitments and phone/desktop bounds.",
     );
   } finally {
     await browser.close();

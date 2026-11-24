@@ -281,7 +281,7 @@
         host.append(section);
       }
     }
-    return { draft, choices, render };
+    return { draft, render };
   }
   window.RSVP_ADMIN_INVITATION_TEMPLATES = Object.freeze({ create });
 })();

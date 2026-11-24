@@ -24,7 +24,19 @@ if(action==='confirm_household_food'){window.__foodConfirmed=true;return {data:n
 `;
 
 const stageExtra = `fixtures.event_settings[0].food_stage='interest';window.__foodAnswer=null;const originalGuest=client.functions.invoke;client.functions.invoke=async(name,request)=>{const {action,args}=request.body;if(action==='get_household_food'){if(fixtures.event_settings[0].food_stage==='interest')return {data:{stage:'interest',interest:window.__foodAnswer,items:[],groups:[],categories:[],claims:[],confirmed:false}};const r=await originalGuest(name,request);r.data.stage='selection';r.data.interest=window.__foodAnswer;return r;}if(action==='set_household_food_interest'){window.__interestRequests=(window.__interestRequests||0)+1;if(window.__failInterest){window.__failInterest=false;return {error:{message:'Synthetic save failure'}};}if(window.__foodAnswer!=null&&window.__foodAnswer!==args.p_interest)return {error:{message:'Food answer already confirmed'}};if(window.__foodAnswer==null){window.__foodAnswer=args.p_interest;window.__interestWrites=(window.__interestWrites||0)+1;}return client.functions.invoke(name,{body:{action:'get_household_food',args:{p_code:args.p_code}}});}return originalGuest(name,request);};
-const stageRpc=client.rpc;client.rpc=async(name,args)=>{if(name==='admin_save_features'){window.__stageWrites=(window.__stageWrites||0)+1;fixtures.event_settings[0].food_stage=args.p_stage;fixtures.event_settings[0].food_enabled=args.p_food;fixtures.event_settings[0].other_enabled=args.p_other;fixtures.event_settings[0].food_introduction=args.p_introduction;return {data:null};}const result=await stageRpc(name,args);if(name==='get_public_event_v2'&&result.data?.event)result.data.event.food_introduction={de:'Deutsche Erklärung',en:'English explanation',fo:'Føroysk frágreiðing'};return result;};`;
+const stageRpc=client.rpc;client.rpc=async(name,args)=>{
+  if(name==='admin_save_features'){window.__stageWrites=(window.__stageWrites||0)+1;fixtures.event_settings[0].food_stage=args.p_stage;fixtures.event_settings[0].food_enabled=args.p_food;fixtures.event_settings[0].other_enabled=args.p_other;fixtures.event_settings[0].food_introduction=args.p_introduction;return {data:null};}
+  if(name==='admin_set_food_stage'){
+    (window.__openStageCalls ||= []).push(args);
+    const settings=fixtures.event_settings[0];
+    if(args.p_expected_stage!==settings.food_stage) return {error:{message:'Food stage changed; refresh before saving'}};
+    settings.food_stage=args.p_stage;
+    return {data:null};
+  }
+  const result=await stageRpc(name,args);
+  if(name==='get_public_event_v2'&&result.data?.event)result.data.event.food_introduction={de:'Deutsche Erklärung',en:'English explanation',fo:'Føroysk frágreiðing'};
+  return result;
+};`;
 
 // Each suite owns its server and artifact directory; fixtures are synthetic only.
 function createFoodHarness(artifactName = "food-interest", options = {}) {

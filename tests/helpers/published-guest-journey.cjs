@@ -127,7 +127,7 @@ async function createGuestJourneyFixture(origin) {
       "INSERT INTO public.food_items(name_en,quantity_needed) VALUES('Synthetic fruit basket',1) RETURNING id v",
     );
     await db.exec(
-      "UPDATE public.event_settings SET event_name='Synthetic celebration', event_date=current_date+14, rsvp_deadline=now()+interval '1 day', food_stage='selection', food_enabled=false WHERE id=1",
+      "UPDATE public.event_settings SET event_name='Synthetic celebration', event_date=current_date+14, rsvp_deadline=now()+interval '1 day', food_stage='interest', food_enabled=false WHERE id=1",
     );
 
     await signIn(db);
@@ -178,6 +178,8 @@ async function createGuestJourneyFixture(origin) {
         [person.id],
       ),
       enableFood: () => db.exec("UPDATE public.event_settings SET food_enabled=true WHERE id=1"),
+      openFoodChoices: () => organizer("SELECT public.admin_set_food_stage('selection','interest') v"),
+      denyFoodAccess: person => organizer("SELECT public.admin_set_food_access($1,false,true,'Synthetic permission check') v", [person.id]),
       resetDeadline: () => db.exec("UPDATE public.event_settings SET rsvp_deadline=now()+interval '1 day' WHERE id=1"),
       responseState: person => get(`
         SELECT jsonb_build_object('rsvp', h.rsvp_state, 'food', h.food_interest, 'submissions',

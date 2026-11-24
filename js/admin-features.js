@@ -7,8 +7,6 @@
       getStore,
       isEditing,
       can,
-      languages,
-      field,
       saveForm,
       managementRpc,
     }) {

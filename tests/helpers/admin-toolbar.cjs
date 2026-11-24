@@ -47,19 +47,19 @@ async function autoConfirmInline(page) {
 }
 module.exports.autoConfirmInline = autoConfirmInline;
 
-// Grouping is now an account preference with its own per-card Save/Cancel.
+// Grouping is saved with the other account preferences in Interface.
 async function setInvitesGrouping(page, grouped) {
   if (!await page.locator('#adminApp').evaluate(node => node.classList.contains('showing-settings')))
     await page.locator('#settingsToggle').click();
   await page.locator('[data-settings-tab=checklist]').click();
-  await require('./local-edit-ui.cjs').openBox(page, 'invites-appearance');
+  await require('./local-edit-ui.cjs').openBox(page, 'personal-preferences');
   const mode = typeof grouped === 'boolean' ? (grouped ? 'relational' : 'none') : grouped;
   await page.locator('#inviteGroupBy input[data-invite-grouping="'+mode+'"]').check();
-  const save = page.locator('#saveInvitesAppearance');
+  const save = page.locator('#savePersonalPreferences');
   if (await save.isEnabled()) {
     await save.click();
     await page.waitForFunction(expected => window.RSVP_ADMIN_PREFERENCES.invitesGrouping === expected, mode);
-    await page.waitForFunction(() => document.getElementById('invitesAppearanceForm').getAttribute('aria-busy') !== 'true');
+    await page.waitForFunction(() => document.getElementById('personalPreferencesForm').getAttribute('aria-busy') !== 'true');
   }
   await page.locator('#mainSectionToggle').click();
   await page.locator('[data-tab=invites]').click();

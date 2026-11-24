@@ -23,6 +23,36 @@ async function assertAssignmentModal(dialog, workspace, originalHeight) {
  });
  assert.deepEqual(presentation,{modal:true,bodyOwned:true,focusInside:true,fitsViewport:true});
  if(originalHeight!==undefined)assert.equal(await workspace.evaluate(node=>node.offsetHeight),originalHeight,'opening the assignment popup does not resize the venue workspace');
+ if (originalHeight === undefined) return;
+ const contrast = await dialog.evaluate(node => {
+   const root = document.documentElement;
+   const previousTheme = root.getAttribute('data-theme');
+   const luminance = color => {
+     const channels = color.match(/[\d.]+/g).slice(0, 3).map(value => {
+       const channel = Number(value) / 255;
+       return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+     });
+     return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+   };
+   try {
+     root.dataset.theme = 'dark';
+     const labels = [...node.querySelectorAll('.venue-assignment-list :is(summary, legend, label, .muted)')]
+       .filter(label => label.getClientRects().length);
+     return Math.min(...labels.map(label => {
+       let surface = label;
+       while (getComputedStyle(surface).backgroundColor === 'rgba(0, 0, 0, 0)')
+         surface = surface.parentElement;
+       const text = luminance(getComputedStyle(label).color);
+       const background = luminance(getComputedStyle(surface).backgroundColor);
+       return (Math.max(text, background) + .05) / (Math.min(text, background) + .05);
+     }));
+   } finally {
+     if (previousTheme === null) root.removeAttribute('data-theme');
+     else root.setAttribute('data-theme', previousTheme);
+   }
+ });
+ assert.ok(Number.isFinite(contrast) && contrast >= 4.5,
+   `assignment labels meet 4.5:1 contrast in dark mode (observed ${contrast})`);
 }
 async function run(type){const browser=await type.launch({headless:true});try{
  const page=await browser.newPage({viewport:{width:820,height:1180}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -116,17 +146,17 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await food.getByRole('button',{name:'Cancel',exact:true}).click();
  const recipeText='Melt:\n - 360g dark chocolate\n - 300g butter\n\nStir well';
  await food.getByRole('button',{name:'+ Recipe',exact:true}).click();
- const recipeDialog=page.getByRole("region",{name:'Recipe'});
+ const recipeDialog=page.getByRole("dialog",{name:'Recipe'});
  await recipeDialog.getByLabel('Recipe',{exact:true}).fill(recipeText);
  if(process.env.FOOD_PREVIEW&&type.name()==='chromium')await recipeDialog.screenshot({path:process.env.FOOD_PREVIEW+'/food-recipe-popup.png'});
  await recipeDialog.getByRole('button',{name:'Save',exact:true}).click();
  const recipeLink=food.getByRole('button',{name:'Recipe',exact:true});
  await recipeLink.waitFor();
  await page.evaluate(()=>{window.print=()=>{window.__recipePrint=document.querySelector('.recipe-print-view').textContent;window.dispatchEvent(new Event('afterprint'));};});
- await recipeLink.click();await page.getByRole("region",{name:'Recipe',exact:true}).getByRole('button',{name:/^Edit/}).click();await page.getByRole("region",{name:'Recipe',exact:true}).getByRole('button',{name:'Preview',exact:true}).click();
+ await recipeLink.click();await page.getByRole("dialog",{name:'Recipe',exact:true}).getByRole('button',{name:/^Edit/}).click();await page.getByRole("dialog",{name:'Recipe',exact:true}).getByRole('button',{name:'Preview',exact:true}).click();
  assert.match(await page.evaluate(()=>window.__recipePrint),/^Sample dishMelt:/);
  assert.equal(await food.evaluate(n=>n.open),true);
- assert.equal(await page.evaluate(()=>window.__savedFood.recipe_text),recipeText);await page.getByRole("region",{name:'Recipe',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.__savedFood.recipe_text),recipeText);await page.getByRole("dialog",{name:'Recipe',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();
  const itemSelection=food.locator('.food-selection-editor');
  await itemSelection.locator('summary').click();
  await itemSelection.getByLabel('Household',{exact:true}).selectOption({label:'Example child'});
@@ -164,11 +194,14 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await page.evaluate(()=>window.__fixtures.food_items.forEach(f=>{f.description_en=null;f.admin_comment=null;}));await refreshFixture(page);await page.waitForFunction(()=>!document.querySelector('#refreshButton').disabled);assert.equal(await page.locator('.food-comment-grid').count(),0,'empty read-only comments are omitted');
  await page.locator('.food-category-heading').first().getByRole('button',{name:'Add item or sub-category',exact:true}).click();await page.getByRole("dialog",{name:'Add item or sub-category',exact:true}).getByRole('button',{name:'Add item',exact:true}).click();
  await page.locator('#addFoodType').click();
- const typesDialog=page.getByRole("region",{name:'Manage units',exact:true});
+ const typesDialog=page.getByRole("dialog",{name:'Manage units',exact:true});
+ assert.equal(await typesDialog.evaluate(dialog=>dialog.matches(':modal')),true,'unit management opens above the Food workspace');
  await typesDialog.getByLabel('New food unit',{exact:true}).fill('Basket(s)');
  await typesDialog.getByRole('button',{name:'Add unit',exact:true}).click();
  await typesDialog.getByText('Unit added',{exact:true}).waitFor();
  await typesDialog.getByRole('button',{name:'Close',exact:true}).click();
+ await typesDialog.waitFor({state:'detached'});
+ assert.equal(await page.locator('#addFoodType').evaluate(button=>button===document.activeElement),true);
  assert.equal(await page.locator('#newFoodType').inputValue(),'Basket(s)');
  if(process.env.FOOD_SETTINGS_PREVIEW&&type.name()==='chromium')await page.locator('#addFoodForm').screenshot({path:process.env.FOOD_SETTINGS_PREVIEW+'/food-add-type.png'});
  await page.evaluate(()=>{

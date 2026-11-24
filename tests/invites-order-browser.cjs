@@ -103,7 +103,7 @@ for(const h of fixtures.households.filter(h=>h.id!==h1&&!fixtures.guests.some(g=
       await page.locator("#inviteSearchToggle").click();
       await page.locator("#inviteSearch").fill("Child");
       await compare();
-      await page.locator("#inviteSearch").fill("");
+      await page.locator("#inviteSearchClose").click();
       await setInvitesGrouping(page, false);
       const flat = await page
         .locator("#inviteRows [data-invite-household]")
@@ -133,7 +133,8 @@ for(const h of fixtures.households.filter(h=>h.id!==h1&&!fixtures.guests.some(g=
       for(const item of expectedServices)assert.ok(serviceGroups.find(group=>group.service===item.service).ids.includes(item.id),'household belongs to its service group: '+item.service);
       const groupedIds=serviceGroups.flatMap(group=>group.ids);assert.equal(new Set(groupedIds).size,groupedIds.length,'service grouping has no duplicate households');
       assert.ok(serviceGroups.every(group=>group.outlined),'every service has its own outline box');
-      if(await page.locator('#inviteSearchToggle').getAttribute('aria-expanded')!=='true')await page.locator('#inviteSearchToggle').click();await page.locator('#inviteSearch').fill('Service scope email');
+      await page.locator('#inviteSearchToggle').click();
+      await page.locator('#inviteSearch').fill('Service scope email');
       assert.equal(await page.locator('#inviteRows .invite-overview-group').count(),1,'search omits empty service boxes');
       assert.equal(await page.locator('#inviteRows .invite-overview-group').getAttribute('data-invite-service'),'email');
       await refreshFixture(page);await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);

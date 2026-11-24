@@ -197,7 +197,7 @@ export function schemaPlan(installer: string) {
       });
     } else if (
       (match = sql.match(
-        new RegExp(`^CREATE TRIGGER (${identifier})\\s+[^]*?\\s+ON\\s+${qualified}\\s`),
+        new RegExp(`^CREATE (?:CONSTRAINT )?TRIGGER (${identifier})\\s+[^]*?\\s+ON\\s+${qualified}\\s`),
       ))
     ) {
       objects.push({
@@ -262,13 +262,14 @@ export function schemaPlan(installer: string) {
         missing: `EXISTS (SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid=to_regclass(${quote(match[1])}) AND attname=${quote(match[2])} AND attidentity='')`,
       });
     } else if (
-      /^(GRANT |REVOKE |NOTIFY pgrst|ALTER TABLE \S+ ENABLE ROW LEVEL SECURITY)/.test(
+      /^(GRANT |REVOKE |NOTIFY pgrst|ALTER TABLE \S+ ENABLE ROW LEVEL SECURITY|DO \$(?:admin_change_triggers|guest_overview_access)\$)/.test(
         sql,
       )
     ) {
       permissions.push(sql);
     } else if (
       /^INSERT INTO public\.(event_languages|event_settings) /.test(sql) ||
+      sql === "INSERT INTO app_private.admin_change_clock DEFAULT VALUES" ||
       /^INSERT INTO app_private\.(backup_origin|shortcut_runtime|guest_visit_scope)\(singleton\) VALUES\(true\)$/.test(sql)
     ) {
       seeds.push(sql + " ON CONFLICT DO NOTHING");

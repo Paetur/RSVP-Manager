@@ -268,22 +268,18 @@
 
 /* Saved event cards use their compact facts; fuller guidance stays in the editor. */
 #eventFeaturesHost:not(.settings-card-editing) > p.muted,
-#adminApp [data-settings-card="event-settings"]:not(.settings-card-editing) > p.muted,
-#adminApp [data-settings-card="personal-preferences"]:not(.settings-card-editing) > p.muted {
+#adminApp [data-settings-card="event-settings"]:not(.settings-card-editing) > p.muted {
   display: none;
 }
-#adminApp [data-panel="events"] .compact-saved-view,
-#adminApp [data-settings-card="personal-preferences"] .compact-saved-view {
+#adminApp [data-panel="events"] .compact-saved-view {
   min-width: 0;
 }
-#adminApp [data-panel="events"] .form-reading,
-#adminApp [data-settings-card="personal-preferences"] .local-editor-summary {
+#adminApp [data-panel="events"] .form-reading {
   margin-top: 0;
 }
 
 /* Long translated headings wrap before their stable header pencil. */
-#adminApp [data-panel="events"] .settings-card-heading > :is(h2, h3),
-#adminApp [data-settings-card="personal-preferences"] .settings-card-heading > :is(h2, h3) {
+#adminApp [data-panel="events"] .settings-card-heading > :is(h2, h3) {
   min-width: 0;
   overflow-wrap: anywhere;
 }

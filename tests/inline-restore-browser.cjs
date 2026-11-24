@@ -54,9 +54,12 @@ const inlineRpc=client.rpc;client.rpc=async(name,args)=>{
    await p.locator('[data-tab="food"]').click();
    await p.evaluate(()=>{window.__decision=null;window.RSVP_INLINE.confirm('Delete the synthetic record?',{action:'Delete',trigger:document.getElementById('addFoodType')}).then(v=>window.__decision=v)});
    const decision=p.locator('.inline-confirmation');await decision.getByRole('button',{name:'Cancel',exact:true}).click();assert.equal(await p.evaluate(()=>window.__decision),false);
-   await p.locator('#addFoodType').click();const units=p.locator('.inline-editor-panel').last();await units.waitFor();
-   assert.equal(await units.evaluate(n=>n.tagName),'SECTION');assert.equal(await units.evaluate(n=>!!n.closest('[data-panel="food"]')),true,'units stay within Food');
+   const manageUnits=p.locator('#addFoodType');await manageUnits.click();
+   const units=p.getByRole('dialog',{name:'Manage units',exact:true});await units.waitFor();
+   assert.ok(await units.evaluate(n=>n.matches(':modal')),'units open above the workspace');
    await units.getByRole('button',{name:'Close',exact:true}).click();
+   await units.waitFor({state:'detached'});
+   await p.waitForFunction(()=>document.activeElement?.id==='addFoodType');
    await p.locator('#settingsToggle').click();await p.locator('[data-settings-tab="placeholders"]').click();
    assert.equal(await p.locator('#placeholderReference').getByText('{rsvp_deadline}',{exact:true}).isVisible(),true);assert.equal(await p.locator('#placeholderReference').getByText('{organizer_email}',{exact:true}).isVisible(),true);
    await p.locator('[data-settings-tab="backups"]').click();

@@ -325,7 +325,7 @@ async function setup() {
     );
     await db.exec("RESET ROLE");
     const template = await v(
-      "SELECT app_private.backup_as_template($1,ARRAY['food']) v",
+      "SELECT app_private.project_backup($1,'template',ARRAY['food'],false) v",
       [backup],
     );
     assert.equal(

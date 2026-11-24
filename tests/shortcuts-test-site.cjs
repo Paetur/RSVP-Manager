@@ -5,6 +5,7 @@ const assert = require("node:assert/strict"), fs = require("node:fs"), os = requ
 const tool = require("../tools/shortcuts-test-site.cjs");
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "rsvp-test-site-check-"));
 const connection = { supabaseUrl: "https://abcdefghijklmnopqrst.supabase.co", supabaseKey: "sb_publishable_synthetic" };
+const pilotScripts = ["js/shortcut-device-runner.js", "js/shortcuts-test-installer.js", "js/shortcuts-test-page.js"];
 const put = (root, name, value) => {
   const target = path.join(root, name);
   fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -16,6 +17,8 @@ function fixture(name) {
     put(source, file, "synthetic public " + file);
   for (const file of ["js/core.js", "css/app.css", "locales/en/interface.json", "docs/Guide.md", "docs/Guide.html", "docs/Guide.js", "supabase/studio/guest.ts"])
     put(source, file, "synthetic selected file");
+  for (const file of pilotScripts)
+    put(source, file, "synthetic pilot script");
   // Even a contaminated source connection must never become preview configuration.
   put(source, "js/config.js", "sb_secret_" + "never_copy_this_configuration");
   put(source, "js/config.production.js", "sb_secret_" + "never_copy_production_configuration");
@@ -80,6 +83,8 @@ function request(protocol, options) {
       assert.equal(fs.existsSync(path.join(site, file)), false, file);
     for (const file of ["index.html", "admin/index.html", "docs/Guide.md", "supabase/install.sql", "supabase/studio/guest.ts"])
       assert.equal(fs.existsSync(path.join(site, file)), true, file);
+    for (const file of pilotScripts)
+      assert.equal(fs.readFileSync(path.join(site, file), "utf8"), "synthetic pilot script", file);
     assert.equal(fs.existsSync(path.join(site, "supabase/upgrades")), false);
     assert.equal(fs.readFileSync(path.join(site, "shortcuts-test.html"), "utf8"), "<title>Synthetic Shortcuts helper</title>");
     assert.match(fs.readFileSync(path.join(site, "js/config.js"), "utf8"), /sb_publishable_synthetic/);

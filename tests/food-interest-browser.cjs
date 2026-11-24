@@ -252,6 +252,49 @@ client.functions.invoke=async(name,request)=>{
         .evaluate((n) => n.classList.contains("permission-hidden")),
       false,
     );
+    await openBox(page, 'event-features');
+    await stage.locator("input[value=interest]").check();
+    await stage.locator("button[type=submit]").click();
+    await page.waitForFunction(() => window.__stageWrites === 4);
+    await page.locator("[data-tab=food]").click();
+    const openStage = page.getByRole("button", { name: "Open food choices", exact: true });
+    const stageStatus = page.locator("#adminFoodStageStatus");
+    const decision = page.locator(".inline-confirmation");
+    await openStage.waitFor();
+    assert.equal(await stageStatus.innerText(), "Collect interest");
+    await page.evaluate(() => {
+      window.__accessPermissions.preset = "custom";
+      window.__accessPermissions.sections.food = "view";
+    });
+    await page.locator("#refreshButton").click();
+    await openStage.waitFor({ state: "hidden" });
+    assert.equal(await stageStatus.innerText(), "Collect interest", "read-only Food access still shows the stage");
+    await page.evaluate(() => {
+      window.__accessPermissions.sections.food = "edit";
+      window.__accessPermissions.sections.settings = "view";
+    });
+    await page.locator("#refreshButton").click();
+    await openStage.click();
+    await decision.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.waitForFunction(() => document.activeElement.id === "adminOpenFoodChoices");
+    assert.equal(await page.evaluate(() => window.__openStageCalls?.length ?? 0), 0);
+    await openStage.click();
+    await page.evaluate(() => (fixtures.event_settings[0].food_stage = "selection"));
+    await decision.getByRole("button", { name: "Open food choices", exact: true }).click();
+    await page.locator("#adminMessage").getByText("Food stage changed; refresh before saving").waitFor();
+    await page.evaluate(() => (fixtures.event_settings[0].food_stage = "interest"));
+    await page.locator("#refreshButton").click();
+    await openStage.click();
+    await decision.getByRole("button", { name: "Open food choices", exact: true }).click();
+    await openStage.waitFor({ state: "hidden" });
+    assert.equal(await stageStatus.innerText(), "Choose food");
+    assert.equal(await stageStatus.evaluate((node) => node === document.activeElement), true);
+    assert.deepEqual(await page.evaluate(() => window.__openStageCalls), [
+      { p_stage: "selection", p_expected_stage: "interest" },
+      { p_stage: "selection", p_expected_stage: "interest" },
+    ]);
+    assert.equal(await page.evaluate(() => fixtures.event_settings[0].is_published), false);
+    assert.equal(await page.evaluate(() => window.__stageWrites), 4, "the Food shortcut changes only the food stage");
     assert.deepEqual(errors, []);
     console.log(
       "PASS food interest UI: explicit confirmation, failed-save retry and conflict recovery, translated locked answers after reload, hidden menu, admin layout and stage switch",

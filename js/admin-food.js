@@ -18,6 +18,9 @@
     claimedQuantity,
     btn,
     rpcAction,
+    openFoodChoices,
+    foodAccess,
+    show,
     iconAction,
     deleteFoodCategory,
     registerFoodCategory,
@@ -32,8 +35,46 @@
     foodSelections,
   }) {
     const $ = R.byId;
+    const stageStatus = $("adminFoodStageStatus"),
+      stageAccess = $("adminFoodAccess"),
+      stageOpen = $("adminOpenFoodChoices");
+    let openingChoices = false;
+    function renderStage(settings) {
+      const isOpen = settings?.food_stage === "selection";
+      stageStatus.textContent = T(isOpen
+        ? "interface.messages.food_stage_selection"
+        : "interface.messages.food_stage_interest");
+      stageAccess.textContent = T("food.messages.food_access");
+      stageAccess.classList.toggle("hidden", !foodAccess.canView());
+      stageOpen.textContent = T("interface.messages.food_stage_open");
+      stageOpen.classList.toggle("hidden", isOpen || !settings ||
+        settings.food_enabled === false || !can("food", "edit"));
+      stageOpen.disabled = openingChoices;
+    }
+    stageAccess.addEventListener("click", () => foodAccess.open(stageAccess));
+    stageOpen.addEventListener("click", async () => {
+      if (openingChoices || stageOpen.classList.contains("hidden")) return;
+      const expectedStage = getStore().settings?.food_stage || "interest";
+      openingChoices = stageOpen.disabled = true;
+      try {
+        const open = await window.RSVP_INLINE.confirm(
+          T("interface.messages.food_stage_confirm"),
+          { action: "interface.messages.food_stage_open", trigger: stageOpen },
+        );
+        if (open && can("food", "edit") && getStore().settings?.food_enabled !== false)
+          await openFoodChoices(expectedStage);
+      } catch (error) {
+        show(R.safeError(error), "error");
+      } finally {
+        openingChoices = false;
+        renderStage(getStore().settings);
+        if (stageOpen.classList.contains("hidden") && stageStatus.getClientRects().length)
+          stageStatus.focus({ preventScroll: true });
+      }
+    });
     function render() {
       const store = getStore();
+      renderStage(store.settings);
       R.closePopups();
       const creation = $("addFoodForm"),
         savedCategory = $("newFoodCategory").value,

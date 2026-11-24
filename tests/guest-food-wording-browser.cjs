@@ -3,11 +3,16 @@ const fs = require("node:fs"),
   path = require("node:path");
 const previews = process.env.FOOD_INTEREST_PREVIEW_DIR;
 if (previews) fs.mkdirSync(previews, { recursive: true });
-const { chromium } = require("playwright");
+const { chromium, webkit } = require("playwright");
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
 const { openBox } = require("./helpers/local-edit-ui.cjs");
 const { server, mock, extra, stageExtra } =
   createFoodHarness("guest-food-wording");
+const reportingState = () => ({
+  // Main can refresh guest counts while the report filter is in use.
+  calls: window.__wordingRpcCalls.filter(name => name !== "admin_guest_overview"),
+  fixtures: JSON.stringify(window.__fixtures),
+});
 const additions = String.raw`
 window.__invite.household.rsvp_state='locked';
 fixtures.event_settings[0].rsvp_deadline='2027-03-27T23:30:00Z';fixtures.event_settings[0].timezone='Europe/Berlin';fixtures.event_settings[0].food_introduction={en:'Original explanation',de:'Erklärung'};
@@ -25,7 +30,7 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
 `;
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
-  const browser = await chromium.launch();
+  const browser = await (process.env.RSVP_TEST_BROWSER === "webkit" ? webkit : chromium).launch();
   try {
     const base = "http://127.0.0.1:" + server.address().port;
     for (const width of [390, 1160]) {
@@ -100,9 +105,7 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
       );
       const rows = page.locator("#inviteRows [data-invite-household]");
       const allHouseholdIds = await rows.evaluateAll(nodes => nodes.map(node => node.dataset.inviteHousehold));
-      const beforeFilters = await page.evaluate(() => ({
-        calls: window.__wordingRpcCalls.slice(), fixtures: JSON.stringify(window.__fixtures),
-      }));
+      const beforeFilters = await page.evaluate(reportingState);
       for (const state of ["yes", "no", "unanswered"]) {
         const filter = page.locator('[data-invite-food-filter="' + state + '"]');
         await filter.click();
@@ -124,9 +127,8 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
       await page.locator('[data-invite-food-filter="unanswered"]').click();
       assert.deepEqual(await rows.evaluateAll(nodes => nodes.map(node => node.dataset.inviteHousehold)), allHouseholdIds, "repeating the Food option clears that filter");
       assert.deepEqual(await page.locator("[data-invite-food-filter]").evaluateAll(nodes => nodes.map(node => node.getAttribute("aria-pressed"))), ["false", "false", "false"]);
-      assert.deepEqual(await page.evaluate(() => ({
-        calls: window.__wordingRpcCalls.slice(), fixtures: JSON.stringify(window.__fixtures),
-      })), beforeFilters, "report filters perform no RPC or application-data write");
+      assert.deepEqual(await page.evaluate(reportingState), beforeFilters,
+        "report filters leave application data and other RPCs unchanged");
       if (previews)
         await page
           .locator("[data-panel=invites]")

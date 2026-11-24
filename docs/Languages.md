@@ -9,7 +9,7 @@ There are three different language choices.
 | Enable and order languages or choose defaults | Settings → Language → Languages |
 | Edit shared interface wording | Settings → Language → Translations |
 
-Choose your personal administrator interface language under Settings → Interface and press Save. Cancel restores the saved choices. Language, appearance and time format are saved to your account and loaded when you sign in on another device. It does not translate the event text for everyone else.
+Open the **Settings → Interface** pencil to change your personal administrator language under **Appearance**. Save applies the choice to your account so it loads on other devices. Event wording is managed separately under **Translations**.
 
 ## Event content
 
@@ -66,4 +66,4 @@ CSV export downloads version 2 shared wording for the selected language (`rsvp-l
 
 ## Time display
 
-Settings → Interface includes a personal **Time format** preference: language default, 12-hour (AM/PM), or 24-hour. It is saved to your administrator account and affects displayed times across devices after sign-in or a page reload. Session timezones and scheduled times stay the same.
+**Settings → Interface → Date and time** offers personal date and clock formats with a live sample. Save applies the formats to dates and times displayed in the administrator interface. Sessions still use their venue time zones and scheduled times.

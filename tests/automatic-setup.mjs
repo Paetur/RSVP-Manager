@@ -237,8 +237,12 @@ try {
      DROP FUNCTION public.guest_gateway_allow_request(text,text,text);
      DROP POLICY section_update ON public.venue_translations;
      DROP TRIGGER IF EXISTS food_claim_audit ON public.food_claims;
+     DROP TRIGGER guest_overview_visit ON public.households;
+     DROP TRIGGER track_admin_change ON public.households;
+     DROP TRIGGER commit_admin_change ON app_private.admin_change_pending;
      ALTER TABLE public.invitation_send_queue DROP COLUMN handed_to_shortcuts_at;
      ALTER TABLE public.households DROP CONSTRAINT households_visit_order, DROP COLUMN visit_count;
+     DELETE FROM app_private.admin_change_clock WHERE singleton;
      DELETE FROM app_private.guest_visit_scope WHERE singleton;`,
   );
   const install = await connection(partial);
@@ -258,6 +262,14 @@ try {
   assert.ok((await partial.db.query(
     "SELECT generation FROM app_private.guest_visit_scope WHERE singleton",
   )).rows[0]?.generation, "repair seeds the missing guest visit singleton");
+  assert.ok((await partial.db.query(
+    "SELECT revisions->>'reset' AS revision FROM app_private.admin_change_clock WHERE singleton",
+  )).rows[0]?.revision, "repair seeds the administrator change clock");
+  assert.equal((await partial.db.query(`
+    SELECT count(*)::int AS count FROM pg_trigger
+    WHERE (tgrelid='public.households'::regclass AND tgname IN ('guest_overview_visit','track_admin_change'))
+       OR (tgrelid='app_private.admin_change_pending'::regclass AND tgname='commit_admin_change' AND tginitdeferred)
+  `)).rows[0].count, 3, "repair restores the guest and administrator change triggers");
   const gateway = (await partial.db.query(`
     SELECT public.guest_gateway_allow_request(repeat('a',64),'ABCDEFGH','acknowledge_household_visit') AS visits_allowed,
            has_function_privilege('anon','public.guest_gateway_allow_request(text,text,text)','EXECUTE') AS anon,

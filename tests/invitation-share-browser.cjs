@@ -3,6 +3,19 @@ const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
 const { server, mock, extra } = createFoodHarness("invitation-share");
+async function openHouseholdDelivery(page, household) {
+  await page.locator('[data-tab="households"]').click();
+  const profile = page.locator('[data-tree-key="household:' + household + '"]');
+  await profile.evaluate(node => {
+    for (let parent = node; parent; parent = parent.parentElement) {
+      if (parent.matches("details")) parent.open = true;
+    }
+  });
+  const delivery = profile.locator(":scope > .household-expanded > .feature-section")
+    .filter({ has: page.locator(".invitation-delivery-sections") });
+  await delivery.evaluate(node => node.open = true);
+  return delivery;
+}
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const browser = await chromium.launch();
@@ -67,22 +80,19 @@ const { server, mock, extra } = createFoodHarness("invitation-share");
       await row.locator(":scope > summary .invite-compact-name").click();
       const logs = row.locator('[data-invite-delivery-submenu="logs"]');
       await logs.locator(":scope > summary").click();
-      const ready = logs.locator("[data-delivery-id=share-ready]"),
+      assert.equal(await logs.getByRole("button", { name: "Share invitation", exact: true }).count(), 0);
+      assert.equal(await row.locator('[data-invite-delivery-submenu="current"]')
+        .getByRole("button", { name: "Share invitation", exact: true }).count(), 0);
+      const delivery = await openHouseholdDelivery(page, household);
+      const ready = delivery.locator("[data-delivery-id=share-ready]"),
         trigger = ready.getByRole("button", {
           name: "Share invitation",
           exact: true,
         });
       await ready.locator(":scope > summary").click();
       await trigger.waitFor();
-      assert.equal(await page.locator("#inviteRows .current-invitation")
+      assert.equal(await delivery.locator("[data-delivery-id=share-stale]")
         .getByRole("button", { name: "Share invitation", exact: true }).count(), 0);
-      assert.equal(
-        await page
-          .locator("#inviteRows [data-delivery-id=share-stale]")
-          .getByRole("button", { name: "Share invitation", exact: true })
-          .count(),
-        0,
-      );
       await trigger.click();
       const dialog = page.getByRole("region", {
         name: "Share invitation",
@@ -267,19 +277,10 @@ const { server, mock, extra } = createFoodHarness("invitation-share");
         await restricted.waitForFunction(
           () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
         );
-        await restricted.locator("[data-tab=invites]").click();
-        await restricted
-          .locator("#inviteRows details.invite-household")
-          .evaluateAll((ns) => ns.forEach((n) => (n.open = true)));
-        await restricted.waitForFunction(() =>
-          document.querySelector("#inviteRows [data-delivery-id=share-ready]"),
-        );
-        assert.equal(
-          await restricted
-            .getByRole("button", { name: "Share invitation", exact: true })
-            .count(),
-          0,
-        );
+        const restrictedDelivery = await openHouseholdDelivery(restricted, household);
+        await restrictedDelivery.locator("[data-delivery-id=share-ready]").waitFor({ state: "attached" });
+        assert.equal(await restrictedDelivery
+          .getByRole("button", { name: "Share invitation", exact: true }).count(), 0);
         await restricted.close();
       }
       console.log(

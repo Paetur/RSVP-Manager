@@ -1,4 +1,5 @@
 // Disposable databases; no hosted records or real contact details.
+const { withRecordRevision } = require("./helpers/alpha-database.cjs");
 const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=require('node:assert/strict');
 const admin='11111111-1111-4111-8111-111111111111',session='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const files=fs.readdirSync('supabase/migrations').filter(f=>f.endsWith('.sql')).sort();
@@ -17,7 +18,7 @@ const checkSum=async(db,b)=>{b.checksum=await value(db,"SELECT encode(sha256(con
  await assert.rejects(()=>db.query('SELECT public.admin_set_household_primary_guest($1,$2)',[household,child]),/non-child guest/);
  await assert.rejects(()=>db.query('SELECT public.admin_set_household_primary_guest($1,$2)',[household,outsider]),/Matching contact details required/);
  const householdProfile={household_name:'Updated example family',planning_group_id:'general',language:'en',phone:'+298 111111',postal_address:'Synthetic address'};
- const saveHousehold=(primary,p_food=null,p_expected_food=false)=>value(db,'SELECT public.admin_save_household_with_food($1,$2,$3,$4) value',[household,{...householdProfile,primary_guest_id:primary},p_food,p_expected_food]);
+ const saveHousehold=async(primary,p_food=null,p_expected_food=false)=>value(db,'SELECT public.admin_save_household_with_food($1,$2,$3,$4) value',[household, await withRecordRevision(db, "households", household, {...householdProfile,primary_guest_id:primary}),p_food,p_expected_food]);
  await assert.rejects(()=>saveHousehold(child,true),/non-child guest/);
  assert.equal(await value(db,'SELECT household_name value FROM public.households WHERE id=$1',[household]),'Example family','invalid primary rolls back the profile save');
  assert.equal(await saveHousehold(guest),household);
@@ -26,10 +27,10 @@ const checkSum=async(db,b)=>{b.checksum=await value(db,"SELECT encode(sha256(con
  assert.equal(await value(db,'SELECT primary_guest_id value FROM public.households WHERE id=$1',[household]),null);
  await saveHousehold(guest,true);
  assert.equal(await value(db,'SELECT food value FROM public.households WHERE id=$1',[household]),true);
- await assert.rejects(()=>value(db,'SELECT public.admin_save_household_with_food($1,$2,null,null) value',[household,{...householdProfile,primary_contact:{contact_type:'phone',contact_name:'Invalid primary',contact_value:'+298 123456',preferred_method:'email'}}]),/Matching contact details required/);
+ await assert.rejects(async()=>value(db,'SELECT public.admin_save_household_with_food($1,$2,null,null) value',[household, await withRecordRevision(db, "households", household, {...householdProfile,primary_contact:{contact_type:'phone',contact_name:'Invalid primary',contact_value:'+298 123456',preferred_method:'email'}})]),/Matching contact details required/);
  assert.equal(await value(db,"SELECT count(*)::int value FROM public.household_contacts WHERE contact_name='Invalid primary'"),0);
  const contactProfile={contact_type:'email',contact_name:'Outside contact',contact_value:'outside@example.invalid',preferred_method:'email',guest_id:outsider};
- await value(db,'SELECT public.admin_save_household_with_food($1,$2,null,null) value',[household,{...householdProfile,primary_contact:contactProfile}]);
+ await value(db,'SELECT public.admin_save_household_with_food($1,$2,null,null) value',[household, await withRecordRevision(db, "households", household, {...householdProfile,primary_contact:contactProfile})]);
  const contactId=await value(db,'SELECT id value FROM public.household_contacts WHERE household_id=$1 AND is_household_primary',[household]);
  assert.ok(contactId);assert.equal(await value(db,'SELECT primary_guest_id value FROM public.households WHERE id=$1',[household]),null);
  assert.equal(await value(db,'SELECT invite_code value FROM public.households WHERE id=$1',[household]),null);
@@ -92,7 +93,7 @@ const checkSum=async(db,b)=>{b.checksum=await value(db,"SELECT encode(sha256(con
  await assert.rejects(()=>db.query('SELECT public.admin_order_guest($1,0)',[young]),/direction/);
  const alpha=await value(db,'SELECT public.admin_save_household(null,$1) value',[{household_name:'Alpha',planning_group_id:'general',language:'en',parent_id:household}]),zulu=await value(db,'SELECT public.admin_save_household(null,$1) value',[{household_name:'Zulu',planning_group_id:'general',language:'en',parent_id:household}]);await db.query('SELECT public.admin_move_household($1,-1)',[zulu]);assert.equal(await value(db,'SELECT sort_order value FROM public.households WHERE id=$1',[zulu]),1);assert.equal(await value(db,'SELECT sort_order value FROM public.households WHERE id=$1',[alpha]),2);
  const accented=await save(null,other,{first_name:'Åke',is_child:false});await db.query('SELECT public.admin_order_guest($1,-1,$2)',[accented,[outsider,accented]]);assert.equal(await value(db,'SELECT sort_order value FROM public.guests WHERE id=$1',[accented]),1,'new adults append, then manual movement honors the displayed order');await assert.rejects(()=>db.query('SELECT public.admin_order_guest($1,-1,$2)',[accented,[outsider,accented]]),/order changed/);
- await value(db,'SELECT public.admin_save_household_with_food($1,$2,null,null) value',[other,{household_name:'Other family',planning_group_id:'general',language:'en',primary_contact:{contact_type:'email',contact_name:'Standalone contact',contact_value:'standalone@example.invalid',preferred_method:'email'}}]);
+ await value(db,'SELECT public.admin_save_household_with_food($1,$2,null,null) value',[other, await withRecordRevision(db, "households", other, {household_name:'Other family',planning_group_id:'general',language:'en',primary_contact:{contact_type:'email',contact_name:'Standalone contact',contact_value:'standalone@example.invalid',preferred_method:'email'}})]);
  await saveHousehold(outsider);
  const empty=await value(db,'SELECT public.admin_save_household(null,$1) value',[{household_name:'Unused archived household',planning_group_id:'general',language:'en'}]);
  await db.query("SELECT public.admin_delete_archived_record('households',$1)",[empty]);

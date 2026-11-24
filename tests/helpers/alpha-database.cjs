@@ -40,4 +40,12 @@ async function signIn(db) {
   );
   await db.exec("SET ROLE authenticated");
 }
-module.exports = { auth, createDatabase, signIn };
+async function withRecordRevision(db, collection, id, values) {
+  const { rows } = await db.query(
+    "SELECT row->>'record_revision' revision FROM jsonb_array_elements(public.admin_load_data(true)->$1::text) row WHERE row->>'id'=$2",
+    [collection, id],
+  );
+  if (!rows[0]?.revision) throw new Error("Expected a visible editor revision for " + collection);
+  return { ...values, expected_revision: rows[0].revision };
+}
+module.exports = { auth, createDatabase, signIn, withRecordRevision };

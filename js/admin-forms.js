@@ -56,19 +56,7 @@
       window.RSVP_I18N.markClean(form);
       formFeedback(form);
       form.cleanSaveUpdate?.();
-      const key = form.dataset.recordEditor;
-      if (key) {
-        recordEditors.delete(key);
-        form
-          .closest("[data-settings-card]")
-          ?.classList.remove("settings-card-editing");
-        form.classList.remove("record-open");
-        for (const view of form.parentElement.querySelectorAll(
-          "[data-reading-for]",
-        ))
-          if (view.dataset.readingFor === key)
-            view.classList.remove("editing-open");
-      }
+      closeReading(form);
     }
     function formActions(form, save, cancel) {
       const row =
@@ -174,7 +162,7 @@
               ? T(control.checked ? "Enabled" : "Disabled")
               : control.tagName === "SELECT"
                 ? control.selectedOptions[0]?.textContent
-                : control.value;
+                : window.RSVP_ADMIN_PREFERENCES.formatPicker(control) ?? control.value;
           if (text && value) {
             list.append(R.dom("dt", {}, text), R.dom("dd", {}, value));
           }
@@ -285,6 +273,7 @@
         wrap.classList.add("checkbox-label");
         wrap.prepend(input);
       } else wrap.append(input);
+      window.RSVP_ADMIN_PREFERENCES.refreshDatePicker(input);
       form.append(wrap);
       return input;
     }

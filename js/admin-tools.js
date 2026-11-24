@@ -148,7 +148,6 @@
   }
   function renderFoodTranslations(search) {
     const R = ctx.R,
-      s = ctx.getStore(),
       host = $("foodTranslationGrid");
     host.replaceChildren();
     const categories = ctx.foodMenuCategories();
@@ -255,8 +254,7 @@
       readOnly,
     );
   }
-  async function openFoodTranslations(item, trigger) {
-    const popupKey = "food-language:" + item.id;
+  async function openFoodTranslationPopup({ popupKey, name, trigger, renderFields, captureDraft }) {
     const existing = window.RSVP_POPUPS.get(popupKey);
     if (existing) { existing.querySelector("input,button")?.focus(); return; }
     const readOnly =
@@ -267,145 +265,119 @@
     } finally {
       trigger.disabled = false;
     }
-    if (!trigger.isConnected) return;
-    if (window.RSVP_POPUPS.get(popupKey)) return;
-    const editor = trigger
-      .closest(".food-compact-item")
-      .querySelector(".food-edit-form");
-    const editorOpen = editor && !editor.classList.contains("hidden");
-    const drafts = Array.from(
-      editor?.querySelectorAll("input,select,textarea") || [],
-    )
-      .map((control, index) => ({
-        index,
-        value:
-          control.type === "checkbox" ? String(control.checked) : control.value,
-        original: control.dataset.foodOriginal,
-      }))
-      .filter((draft) => draft.value !== draft.original);
-    const R = ctx.R,
-      dialog = window.RSVP_POPUPS.create(popupKey, {
-        class: "food-recipe-dialog food-language-dialog",
-      }, trigger);
-    dialog.dataset.permissionEdit = String(!readOnly);
-    const title =
-      T("interface.messages.language") + " · " + (item.name_en || "");
-    dialog.setAttribute("aria-label", title);
-    dialog.append(R.dom("h2", {}, title));
-    const host = R.dom("div");
-    dialog.append(host);
-    renderFoodItemTranslations(host, item, () => dialog.close(), readOnly);
-    const form = host.querySelector("form");
-    const cancel = Array.from(form.querySelectorAll("button")).find(
-      (button) => button.textContent === T(readOnly ? "Close" : "Cancel"),
-    );
-    cancel.addEventListener("click", () => dialog.close());
-    dialog.addEventListener("cancel", (event) => {
-      if (form.getAttribute("aria-busy") === "true") event.preventDefault();
-    });
-    dialog.addEventListener(
-      "close",
-      () => {
-        dialog.remove();
-        const button = Array.from(
-          document.querySelectorAll("[data-food-language]"),
-        ).find((button) => button.dataset.foodLanguage === item.id);
-        if (button && editor && !editor.isConnected) {
-          const updatedEditor = button
-            .closest(".food-compact-item")
-            .querySelector(".food-edit-form");
-          const controls = updatedEditor.querySelectorAll(
-            "input,select,textarea",
-          );
-          for (const draft of drafts) {
-            const control = controls[draft.index];
-            if (control.type === "checkbox")
-              control.checked = draft.value === "true";
-            else control.value = draft.value;
-          }
-          if (editorOpen) updatedEditor.classList.remove("hidden");
-          updatedEditor.cleanSaveUpdate?.();
-        }
-        requestAnimationFrame(() => {
-          if ((button || trigger)?.isConnected) (button || trigger).focus();
-        });
-      },
-      { once: true },
-    );
-    $("adminApp").append(dialog);
-    dialog.openInline();
-    host.querySelector("input")?.focus();
-  }
-  async function openFoodCategoryTranslations(category, trigger) {
-    const popupKey = "food-category-language:" + category.id;
-    const existing = window.RSVP_POPUPS.get(popupKey);
-    if (existing) { existing.querySelector("input,button")?.focus(); return; }
-    const readOnly =
-      !ctx.isEditing() || !window.RSVP_ADMIN_ACCESS.can("languages", "edit");
-    trigger.disabled = true;
-    try {
-      await I.loadCatalogs(enabled().map((l) => l.language_code));
-    } finally {
-      trigger.disabled = false;
-    }
-    if (!trigger.isConnected) return;
-    if (window.RSVP_POPUPS.get(popupKey)) return;
-    const R = ctx.R,
-      editor = trigger.closest(".food-category-name-form"),
-      draft = editor.querySelector("input").value,
-      wasOpen = !editor.classList.contains("hidden");
+    if (!trigger.isConnected || window.RSVP_POPUPS.get(popupKey)) return;
+
+    const restoreDraft = captureDraft();
+    const R = ctx.R;
     const dialog = window.RSVP_POPUPS.create(popupKey, {
       class: "food-recipe-dialog food-language-dialog",
     }, trigger);
     dialog.dataset.permissionEdit = String(!readOnly);
-    dialog.setAttribute(
-      "aria-label",
-      T("interface.messages.language") + " · " + category.name,
-    );
-    dialog.append(
-      R.dom("h2", {}, T("interface.messages.language") + " · " + category.name),
-    );
+    const title = T("interface.messages.language") + " · " + name;
+    dialog.setAttribute("aria-label", title);
+    dialog.append(R.dom("h2", {}, title));
     const host = R.dom("div");
     dialog.append(host);
-    renderTranslationRows(
-      host,
-      [["Name", "food-category:" + category.id + ":name"]],
-      (key, lang) => (lang === "en" ? category.name : ""),
-      saveTranslationRows,
-      false,
-      () => dialog.close(),
-      readOnly,
-    );
-    window.RSVP_INLINE.languages(host);
+    const close = () => dialog.close();
+    renderFields(host, close, readOnly);
     const form = host.querySelector("form");
-    Array.from(form.querySelectorAll("button"))
-      .find((b) => b.textContent === T(readOnly ? "Close" : "Cancel"))
-      .addEventListener("click", () => dialog.close());
-    dialog.addEventListener("cancel", (e) => {
-      if (form.getAttribute("aria-busy") === "true") e.preventDefault();
-    });
-    dialog.addEventListener(
-      "close",
-      () => {
-        dialog.remove();
-        const section = Array.from(
-            document.querySelectorAll("[data-food-category-id]"),
-          ).find((n) => n.dataset.foodCategoryId === category.id),
-          current = section?.querySelector(".food-category-name-form");
-        if (current) {
-          if (draft !== category.name)
-            current.querySelector("input").value = draft;
-          current.classList.toggle("hidden", !wasOpen);
-          if (wasOpen) section.open = true;
-          current.cleanSaveUpdate?.();
-          current.querySelector(".food-language-action")?.focus();
-        }
-      },
-      { once: true },
+    const cancel = Array.from(form.querySelectorAll("button")).find(
+      (button) => button.textContent === T(readOnly ? "Close" : "Cancel"),
     );
+    cancel.addEventListener("click", close);
+    dialog.addEventListener("close", restoreDraft, { once: true });
     $("adminApp").append(dialog);
     dialog.openInline();
     host.querySelector("input")?.focus();
+  }
+
+  function openFoodTranslations(item, trigger) {
+    return openFoodTranslationPopup({
+      popupKey: "food-language:" + item.id,
+      name: item.name_en || "",
+      trigger,
+      renderFields: (host, close, readOnly) =>
+        renderFoodItemTranslations(host, item, close, readOnly),
+      captureDraft() {
+        const editor = trigger
+          .closest(".food-compact-item")
+          .querySelector(".food-edit-form");
+        const editorOpen = editor && !editor.classList.contains("hidden");
+        const drafts = Array.from(
+          editor?.querySelectorAll("input,select,textarea") || [],
+        )
+          .map((control, index) => ({
+            index,
+            value:
+              control.type === "checkbox" ? String(control.checked) : control.value,
+            original: control.dataset.foodOriginal,
+          }))
+          .filter((draft) => draft.value !== draft.original);
+
+        return () => {
+          const button = Array.from(
+            document.querySelectorAll("[data-food-language]"),
+          ).find((button) => button.dataset.foodLanguage === item.id);
+          if (button && editor && !editor.isConnected) {
+            const updatedEditor = button
+              .closest(".food-compact-item")
+              .querySelector(".food-edit-form");
+            const controls = updatedEditor.querySelectorAll("input,select,textarea");
+            for (const draft of drafts) {
+              const control = controls[draft.index];
+              if (control.type === "checkbox")
+                control.checked = draft.value === "true";
+              else control.value = draft.value;
+            }
+            if (editorOpen) updatedEditor.classList.remove("hidden");
+            updatedEditor.cleanSaveUpdate?.();
+          }
+          requestAnimationFrame(() => {
+            if ((button || trigger)?.isConnected) (button || trigger).focus();
+          });
+        };
+      },
+    });
+  }
+
+  function openFoodCategoryTranslations(category, trigger) {
+    return openFoodTranslationPopup({
+      popupKey: "food-category-language:" + category.id,
+      name: category.name,
+      trigger,
+      renderFields(host, close, readOnly) {
+        renderTranslationRows(
+          host,
+          [["Name", "food-category:" + category.id + ":name"]],
+          (_key, lang) => (lang === "en" ? category.name : ""),
+          saveTranslationRows,
+          false,
+          close,
+          readOnly,
+        );
+        window.RSVP_INLINE.languages(host);
+      },
+      captureDraft() {
+        const editor = trigger.closest(".food-category-name-form");
+        const draft = editor.querySelector("input").value;
+        const wasOpen = !editor.classList.contains("hidden");
+
+        return () => {
+          const section = Array.from(
+            document.querySelectorAll("[data-food-category-id]"),
+          ).find((node) => node.dataset.foodCategoryId === category.id);
+          const current = section?.querySelector(".food-category-name-form");
+          if (current) {
+            if (draft !== category.name)
+              current.querySelector("input").value = draft;
+            current.classList.toggle("hidden", !wasOpen);
+            if (wasOpen) section.open = true;
+            current.cleanSaveUpdate?.();
+            current.querySelector(".food-language-action")?.focus();
+          }
+        };
+      },
+    });
   }
   function renderFoodTypeTranslations(search) {
     const R = ctx.R,

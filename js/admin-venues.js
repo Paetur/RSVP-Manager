@@ -109,39 +109,28 @@
       }
       return times;
     }
+    function orderActions(index, count, { up, down }, move) {
+      const actions = R.dom("span", { class: "session-order-actions edit-only" });
+      actions.append(
+        btn("↑", T(up), () => move(-1), index === 0),
+        btn("↓", T(down), () => move(1), index === count - 1),
+      );
+      return actions;
+    }
     function render() {
       const store = getStore();
       const venues = $("venueList");
       venues.replaceChildren();
       const orderedVenues = ordered(store.locations, "name");
       for (const [index, v] of orderedVenues.entries()) {
-        const actions = R.dom("span", {
-          class: "session-order-actions edit-only",
-        });
-        actions.append(
-          btn(
-            "↑",
-            T("Move venue up"),
-            () =>
-              rpcAction(
-                "admin_move_venue",
-                { p_venue_id: v.id, p_direction: -1 },
-                T("Venue order saved"),
-              ),
-            index === 0,
-          ),
-          btn(
-            "↓",
-            T("Move venue down"),
-            () =>
-              rpcAction(
-                "admin_move_venue",
-                { p_venue_id: v.id, p_direction: 1 },
-                T("Venue order saved"),
-              ),
-            index === orderedVenues.length - 1,
-          ),
-        );
+        const actions = orderActions(index, orderedVenues.length, {
+          up: "Move venue up",
+          down: "Move venue down",
+        }, (direction) => rpcAction(
+          "admin_move_venue",
+          { p_venue_id: v.id, p_direction: direction },
+          T("Venue order saved"),
+        ));
         const venue = venueSummaryRow(
           v.name,
           [v.address, v.country_code, v.timezone].filter(Boolean).join(" · "),
@@ -162,7 +151,7 @@
         const metadata = [
           v?.name,
           s.starts_at
-            ? R.formatDate(
+            ? window.RSVP_ADMIN_PREFERENCES.formatDate(
                 s.starts_at,
                 getLanguage(),
                 v?.timezone || store.settings?.timezone,
@@ -175,33 +164,14 @@
         ]
           .filter(Boolean)
           .join(" · ");
-        const actions = R.dom("span", {
-          class: "session-order-actions edit-only",
-        });
-        actions.append(
-          btn(
-            "↑",
-            T("interface.messages.move_session_up"),
-            () =>
-              rpcAction(
-                "admin_move_session",
-                { p_session_id: s.id, p_direction: -1 },
-                T("interface.messages.session_order_saved"),
-              ),
-            index === 0,
-          ),
-          btn(
-            "↓",
-            T("interface.messages.move_session_down"),
-            () =>
-              rpcAction(
-                "admin_move_session",
-                { p_session_id: s.id, p_direction: 1 },
-                T("interface.messages.session_order_saved"),
-              ),
-            index === sessions.length - 1,
-          ),
-        );
+        const actions = orderActions(index, sessions.length, {
+          up: "interface.messages.move_session_up",
+          down: "interface.messages.move_session_down",
+        }, (direction) => rpcAction(
+          "admin_move_session",
+          { p_session_id: s.id, p_direction: direction },
+          T("interface.messages.session_order_saved"),
+        ));
         const d = venueSummaryRow(
           s.name + (s.is_active ? "" : T("interface.messages.inactive")),
           metadata,

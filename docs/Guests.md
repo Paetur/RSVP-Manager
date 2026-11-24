@@ -22,16 +22,16 @@ Each session shows its welcome message, address and local time. The map thumbnai
 
 ## Food
 
-If offered, choose **I can bring food** or **I can’t bring food**. When RSVP is due too, include both answers in **Submit responses**. When only the food question needs an answer, select **Confirm food answer**. You can change your choice before saving. The saved answer stays visible and read-only. Yes signals interest. Food access and item reservations are handled separately.
+If offered, choose **I can bring food** or **I can’t bring food**. When RSVP is due too, include both answers in **Submit responses**. When only the food question needs an answer, select **Confirm food answer**. You can change your choice before saving. The saved answer records your household’s interest.
 
-While the organizer is collecting interest, the detailed list stays hidden. Once selection is open, eligible households who answer Yes see choices under category and sub-category headings.
+When the organizer opens food choices, use your original invitation link. If your household has food access, has confirmed attendance and answered Yes, **Your RSVP** shows who is attending each session above **Choose food to bring**. The menu groups available items by category.
 
 - Check the item’s guest note, total need and remaining availability. Set the quantity, then click its box to reserve that quantity; click again to remove it while editing is allowed. Changing the quantity of a selected item updates its reservation immediately.
 - A **Food Group** reserves one unit of **every listed member** together. If any member is unavailable, the group cannot be selected.
 - Guest notes appear beside the quantity information. Open details for recipes. An unavailable item may no longer appear.
-- Choose **Review food selections**, check names and quantities, then confirm. **Back to edit** keeps your reservations so you can adjust them.
+- Choose **Review food selections**, check names and quantities, then select **Confirm food choices**. **Back to edit** keeps your reservations so you can adjust them.
 
-Confirmed selections stay visible as a read-only list with any inline **Recipe** links. Recipes open with **Print** and **Close**; printing does not change your selection. The page explains that more food information will follow after everyone replies.
+Reopen the same invitation link to see the confirmed items and quantities under **You’re bringing**. The summary includes any available **Recipe** links, with **Print** and **Close** controls.
 
 Choosing No cannot remove existing commitments. If your attendance or food choices are locked, contact the organizer for help changing them.
 

@@ -36,16 +36,6 @@
       const button = event.target.closest("[data-database-tab]");
       if (button && availableTabs().includes(button)) showTab(button.dataset.databaseTab);
     });
-    tabList?.addEventListener("keydown", event => {
-      const available = availableTabs(), index = available.indexOf(event.target);
-      if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-      event.preventDefault();
-      const next = event.key === "Home" ? 0 : event.key === "End" ? available.length - 1 :
-        (index + (event.key === "ArrowRight" ? 1 : -1) + available.length) % available.length;
-      const target = available[next];
-      showTab(target.dataset.databaseTab);
-      target.focus();
-    });
     function invalidate() { preview = null; receipt = null; }
     function clear() {
       generation++; actor = getActor(); keep = true; busy = false; cleared = false;

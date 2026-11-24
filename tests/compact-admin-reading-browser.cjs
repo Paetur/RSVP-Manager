@@ -74,16 +74,19 @@ async function paired(list) {
       await page.locator("#settingsToggle").click();
       await page.locator('[data-settings-tab="checklist"]').click();
       const personal = page.locator('[data-editor-key="personal-preferences"] .local-editor-summary');
-      assert.deepEqual(await personal.locator(".compact-read-grid > dt").allTextContents(), ["Language", "Appearance", "Time format", "Button hover appearance"].map(tr));
-      await paired(personal.locator(".compact-read-grid"));
-      const grouping = page.locator('[data-editor-key="invites-appearance"] .local-editor-summary');
-      assert.deepEqual(await grouping.locator(".compact-read-grid > dt").allTextContents(), ["Grouping"].map(tr));
+      const groups = personal.locator(".interface-preference-group");
+      assert.deepEqual(await groups.locator("h3").allTextContents(), ["Appearance", "Date and time", "Invites appearance"].map(tr));
+      assert.deepEqual(await groups.nth(0).locator("dt").allTextContents(), ["Theme", "Language", "Button hover appearance"].map(tr));
+      assert.deepEqual(await groups.nth(1).locator("dt").allTextContents(), ["Date format", "Time format", "Example"].map(tr));
+      assert.deepEqual((await groups.nth(2).locator("dt").allTextContents()).slice(0, 3),
+        ["Group by", "Narrow screens (below 1024 px)", "Wide screens (1024 px and wider)"].map(tr));
+      for (const group of await groups.all()) await paired(group.locator(".compact-read-grid"));
       await openBox(page, "personal-preferences");
       const alternate = theme === "light" ? "dark" : "light";
       await page.locator('[data-preference-choices="appearance"] [data-preference-choice="' + alternate + '"]').click();
       await page.locator("#savePersonalPreferences").click();
       await page.waitForFunction(() => document.getElementById("personalPreferencesForm").getAttribute("aria-busy") !== "true");
-      assert.equal(await personal.locator("dd").nth(1).innerText(), tr(alternate === "light" ? "Light" : "Dark"));
+      assert.equal(await groups.nth(0).locator("dd").first().innerText(), tr(alternate === "light" ? "Light" : "Dark"));
       await openBox(page, "personal-preferences");
       await page.locator('[data-preference-choices="time"] [data-preference-choice="12"]').click();
       await page.locator("#cancelPersonalPreferences").click();

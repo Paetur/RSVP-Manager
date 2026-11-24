@@ -1,7 +1,7 @@
 // Destructive operations run exclusively in disposable synthetic databases.
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
-const { createDatabase, signIn } = require("./helpers/alpha-database.cjs");
+const { withRecordRevision, createDatabase, signIn } = require("./helpers/alpha-database.cjs");
 const { saveTemplate } = require("./helpers/named-template.cjs");
 
 const scalar = async (db, sql, args = []) => (await db.query(sql, args)).rows[0].v;
@@ -138,7 +138,7 @@ async function testPlanningRestart(db, { venue, household, queue }) {
   assert.equal(first.counts[codeRegistry], 0, "Restart never imports reservations from the source");
 
   const stale = await prepare(source.partial, first);
-  await db.query("SELECT public.admin_save_venue($1,$2)", [venue, { name: "Concurrent planning edit", timezone: "UTC" }]);
+  await db.query("SELECT public.admin_save_venue($1,$2)", [venue, await withRecordRevision(db, "locations", venue, { name: "Concurrent planning edit", timezone: "UTC" })]);
   await assert.rejects(() => restart(source.partial, first, stale.token), /destination changed/i);
   await assert.rejects(() => prepare(source.partial, first), /destination changed/i);
 
@@ -241,12 +241,17 @@ async function testPlanningRestart(db, { venue, household, queue }) {
     const backup = await v("SELECT public.admin_export_backup() v");
     assert.ok(backup.payload.installation_id);
     const code = backup.payload.tables["public.households"][0].invite_code;
-    await db.query("SELECT public.admin_save_venue($1,$2)",[venue,{name:"Changed venue",timezone:"UTC"}]);
+    await db.query("SELECT public.admin_save_venue($1,$2)",[venue, await withRecordRevision(db, "locations", venue, {name:"Changed venue",timezone:"UTC"})]);
     const current = await v("SELECT public.admin_export_backup() v");
+    const editorBeforeRestore = await withRecordRevision(db, "households", household, {
+      household_name: "Pending stale edit", language: "en", planning_group_id: group,
+    });
+    const markerBeforeRestore = await v("SELECT public.admin_change_marker() v");
     const clean = await v("SELECT public.admin_preview_backup($1) v",[backup]);
     assert.equal(clean.can_restore,false,"clean recovery still refuses populated destinations");
     const preview = await v("SELECT public.admin_preview_event_replacement($1) v",[backup]);
     assert.equal(preview.can_restore,true,preview.reason);
+    assert.equal(await v("SELECT public.admin_change_marker() v"),markerBeforeRestore,"dry run leaves the marker unchanged");
     assert.deepEqual((await v("SELECT public.admin_export_backup() v")).payload.tables,current.payload.tables,"preview rolls all changes back");
     await db.exec("RESET ROLE");
     assert.deepEqual(await v("SELECT jsonb_build_array((SELECT generation FROM app_private.shortcut_runtime),(SELECT generation FROM app_private.guest_visit_scope)) v"),scopes,"preview restores operational generations");
@@ -257,6 +262,9 @@ async function testPlanningRestart(db, { venue, household, queue }) {
     await assert.rejects(db.query("SELECT public.admin_replace_event_data($1,'wrong',$2)",[backup,safety.token]),/Type REPLACE/);
     const result = await v("SELECT public.admin_replace_event_data($1,$2,$3) v",[backup,"REPLACE "+preview.event_name,safety.token]);
     assert.equal(result.current_access_preserved,true);
+    assert.notEqual(await v("SELECT public.admin_change_marker() v"),markerBeforeRestore);
+    await assert.rejects(db.query("SELECT public.admin_save_household($1,$2)",[household,editorBeforeRestore]),
+      /This record changed since you opened it/,"legacy timestamps in restored profiles do not validate a pre-restore edit");
     const restored = await v("SELECT public.admin_export_backup() v");
     assert.equal(restored.payload.tables["public.event_locations"][0].name,"Original venue");
     assert.equal(restored.payload.tables["public.households"][0].invite_code,code);
@@ -274,7 +282,7 @@ async function testPlanningRestart(db, { venue, household, queue }) {
     await assert.rejects(db.query("SELECT public.admin_replace_event_data($1,$2,$3)",[backup,"REPLACE "+preview.event_name,safety.token]),/fresh safety backup/);
     const next = await v("SELECT public.admin_preview_event_replacement($1) v",[backup]);
     const staleSafety = await v("SELECT public.admin_prepare_event_replacement($1,$2) v",[backup,next.destination_state]);
-    await db.query("SELECT public.admin_save_venue($1,$2)",[venue,{name:"Concurrent edit",timezone:"UTC"}]);
+    await db.query("SELECT public.admin_save_venue($1,$2)",[venue, await withRecordRevision(db, "locations", venue, {name:"Concurrent edit",timezone:"UTC"})]);
     await assert.rejects(db.query("SELECT public.admin_replace_event_data($1,$2,$3)",[backup,"REPLACE "+preview.event_name,staleSafety.token]),/Destination changed/);
     const foreign = copy(backup);foreign.payload.installation_id="99999999-9999-4999-8999-999999999999";
     await assert.rejects(db.query("SELECT public.admin_preview_event_replacement($1)",[await seal(foreign)]),/this installation/);

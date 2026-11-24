@@ -159,6 +159,130 @@
 #foodCategoriesSection {
   margin-top: 14px;
 }
+#adminApp .food-stage-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+}
+#adminApp .food-stage-heading h2 {
+  margin: 0 0 4px;
+}
+#adminFoodStageStatus {
+  margin: 0;
+}
+.food-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+.food-access-dialog {
+  width: min(44rem, calc(100vw - 24px));
+}
+.food-access-dialog > h2 {
+  margin-block: 0 4px;
+}
+.food-access-dialog > p {
+  margin-block: 0 14px;
+}
+.food-access-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.food-access-form > input {
+  width: 100%;
+  min-width: 0;
+}
+.food-access-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.food-access-dialog .food-access-filters > .btn[aria-pressed="true"] {
+  background: var(--light);
+  color: var(--ink);
+  border-color: var(--teal);
+}
+.food-access-roster {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  max-height: min(46dvh, 26rem);
+  overflow: auto;
+}
+.food-access-empty {
+  margin: 4px;
+}
+.food-access-group > legend {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.food-access-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.food-access-table th,
+.food-access-table td {
+  text-align: start;
+  border-bottom: 1px solid var(--line);
+  padding: 4px 10px;
+  overflow-wrap: anywhere;
+}
+.food-access-table thead th {
+  padding-block: 6px;
+}
+.food-access-table thead :nth-child(2),
+.food-access-table thead :nth-child(3) {
+  width: 25%;
+}
+.food-access-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.food-access-table :last-child:is(th, td):not([colspan]) {
+  text-align: center;
+}
+.food-access-table .food-access-relational-heading th {
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding-block: 7px 2px;
+}
+.food-access-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+.food-access-toggle > input {
+  margin: 0;
+}
+.food-access-form > p,
+.food-access-form > .form-actions {
+  margin: 0;
+}
+.food-access-form > .form-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+  .food-access-dialog {
+    padding: 14px;
+  }
+  .food-access-roster {
+    padding: 4px;
+  }
+  .food-access-group.venue-assignment-category {
+    padding-inline: 4px;
+  }
+  .food-access-table th,
+  .food-access-table td {
+    padding-inline: 6px;
+  }
+}
 
 #adminApp .food-edit-form input:not([type="checkbox"]),
 #adminApp .food-edit-form select {

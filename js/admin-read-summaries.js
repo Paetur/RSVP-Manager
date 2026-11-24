@@ -4,22 +4,17 @@
   function create({ R, T, getStore, adminTime, planningName }) {
     const $ = R.byId;
     let contactOpen = false;
-    const locale = () => window.RSVP_I18N?.locale?.() || "en-GB";
     const language = () => window.RSVP_I18N?.language || "en";
     const value = input => input === null || input === undefined || input === "" ? "—" : String(input);
     function date(input) {
       if (!input) return "";
-      try { return R.formatDate(input, language(), getStore().settings?.timezone); }
+      try { return window.RSVP_ADMIN_PREFERENCES.formatDate(input, language(), getStore().settings?.timezone); }
       catch (_) { return value(input); }
     }
     function clock(input) {
       if (!input) return "";
-      const match = /^(\d{2}):(\d{2})(?::\d{2})?$/.exec(input);
-      if (!match) return value(input);
-      try {
-        return new Intl.DateTimeFormat(locale(), { hour: "2-digit", minute: "2-digit", timeZone: "UTC", ...R.timeOptions() })
-          .format(new Date(Date.UTC(2000, 0, 1, Number(match[1]), Number(match[2]))));
-      } catch (_) { return value(input); }
+      try { return window.RSVP_ADMIN_PREFERENCES.formatClock(input, language()); }
+      catch (_) { return value(input); }
     }
     function stamp(input) {
       if (!input) return "—";
@@ -60,28 +55,41 @@
       const control = $(id);
       return control?.selectedOptions?.[0]?.textContent || control?.value || "—";
     }
+    function preferenceGroup(host, title, entries) {
+      const group = R.dom("section", { class: "interface-preference-group" });
+      group.append(R.dom("h3", {}, T(title)));
+      rows(group, entries);
+      host.append(group);
+    }
     function personal(host) {
-      host.classList.add("compact-saved-view");
-      rows(host, [
+      host.classList.add("compact-saved-view", "interface-preference-summary");
+      preferenceGroup(host, "Appearance", [
+        ["Theme", selected("themePreference")],
         ["Language", T({ en: "English", de: "German", fo: "Faroese" }[$("interfaceLanguage")?.value] || selected("interfaceLanguage"))],
-        ["Appearance", selected("themePreference")],
-        ["Time format", selected("timeFormat")],
         ["Button hover appearance", selected("buttonHover")],
       ]);
+      preferenceGroup(host, "Date and time", [
+        ["Date format", selected("dateFormat")],
+        ["Time format", selected("timeFormat")],
+        ["Example", window.RSVP_ADMIN_PREFERENCES.dateTimeExample()],
+      ]);
+      preferenceGroup(host, "Invites appearance", invitesAppearance());
     }
-    function grouping(host) {
-      host.classList.add("compact-saved-view");
+    function invitesAppearance() {
       const grouping = $("inviteGroupBy")?.querySelector("input:checked")?.value || "relational";
       const labels = { none: "None", relational: "Relational group", service: "Service" };
+      const rowModes = [...($("inviteRowsPreference")?.querySelectorAll("[data-invite-width]") || [])]
+        .map(group => [group.querySelector("legend").textContent, group.querySelector("input:checked")?.nextElementSibling.textContent]);
       const shown = [...($("inviteDefaultFields")?.querySelectorAll("[data-invite-default-field]:checked") || [])]
         .map(input => input.nextElementSibling?.textContent).filter(Boolean);
       const columns = [...($("inviteDefaultFields")?.querySelectorAll('[data-invite-default-layout="2"] input:checked') || [])]
         .map(input => [...input.nextElementSibling.children].map(node => node.textContent).join(" / ")).filter(Boolean);
-      rows(host, [
+      return [
         ["Group by", T(labels[grouping])],
+        ...rowModes,
         [T("Default shown fields") + " · " + T("Rows") + " 1", shown.join(" · ") || T("None selected")],
         [T("Default shown fields") + " · " + T("Rows") + " 2", columns.join(" · ")],
-      ]);
+      ];
     }
     function planning(host) {
       const settings = getStore().settings || {}, config = settings.planning_config || {};
@@ -106,7 +114,6 @@
       const callbacks = [
         [$("eventSettingsForm"), event],
         [$("personalPreferencesForm"), personal],
-        [$("invitesAppearanceForm"), grouping],
         [$("planningConfigHost")?.querySelector("form"), planning],
         [$("eventFeaturesHost")?.querySelector("form"), features],
       ];

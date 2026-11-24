@@ -12,6 +12,8 @@ spec = importlib.util.spec_from_file_location('pages', Path(__file__).resolve().
 pages = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pages)
 
+PILOT_SCRIPTS = ['js/shortcut-device-runner.js', 'js/shortcuts-test-installer.js', 'js/shortcuts-test-page.js']
+
 class DeploymentTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -21,6 +23,7 @@ class DeploymentTests(unittest.TestCase):
 
     def archive(self, change=None, extra=None):
         files = {name: b'fixture' for name in ['index.html', 'setup.html', 'admin/index.html', 'js/core.js', 'js/config.js', 'css/style.css', 'supabase/install.sql', 'supabase/upgrades/legacy.sql', 'supabase/functions/private.ts', 'tests/private.cjs']}
+        files.update({name: b'synthetic pilot script' for name in PILOT_SCRIPTS})
         manifest = {'version': self.version, 'sourceCommit': 'synthetic', 'files': {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}}
         files['release-manifest.json'] = json.dumps(manifest).encode()
         files['SHA256SUMS'] = b'synthetic checksums; manifest hashes are independently checked'
@@ -48,6 +51,9 @@ class DeploymentTests(unittest.TestCase):
         self.assertFalse((output / 'marriage/supabase/functions').exists())
         self.assertIn('"supabaseUrl": ""', (output / 'marriage/js/config.js').read_text())
         manifest = json.loads((output / 'marriage/deployment-manifest.json').read_text())
+        for name in PILOT_SCRIPTS:
+            self.assertFalse((output / 'marriage' / name).exists(), name)
+            self.assertNotIn(name, manifest['files'])
         for name, digest in manifest['files'].items():
             self.assertEqual(hashlib.sha256((output / 'marriage' / name).read_bytes()).hexdigest(), digest)
         self.assertEqual(before, archive.read_bytes())

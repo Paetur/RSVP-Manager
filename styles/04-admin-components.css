@@ -175,54 +175,6 @@
   padding: 0 12px 12px;
 }
 
-.task-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.tasks-sheet-scroll {
-  overflow-x: auto;
-}
-.tasks-sheet {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-.tasks-sheet th,
-.tasks-sheet td {
-  border: 1px solid var(--line);
-  padding: 0;
-  text-align: left;
-}
-.tasks-sheet th {
-  padding: 8px 10px;
-  font-size: 0.8rem;
-  background: var(--light);
-}
-.tasks-sheet th:first-child {
-  width: 50%;
-}
-.tasks-sheet th:nth-child(2) {
-  width: 28%;
-}
-.tasks-sheet th:last-child {
-  width: 22%;
-}
-.tasks-sheet input,
-.tasks-sheet select {
-  width: 100%;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent;
-  padding: 10px;
-  min-height: 42px;
-}
-.tasks-sheet input:disabled,
-.tasks-sheet select:disabled {
-  opacity: 1;
-  color: var(--ink);
-  -webkit-text-fill-color: var(--ink);
-}
 .food-compact-item > summary.food-manage-main {
   list-style: none;
 }
@@ -238,19 +190,6 @@
 }
 .food-compact-item[open] > summary.food-manage-main::before {
   content: "⌄";
-}
-
-.tasks-sheet th:first-child {
-  width: 28%;
-}
-.tasks-sheet th:nth-child(2) {
-  width: 34%;
-}
-.tasks-sheet th:nth-child(3) {
-  width: 22%;
-}
-.tasks-sheet th:last-child {
-  width: 16%;
 }
 
 .recipe-existing {
@@ -821,12 +760,44 @@
   padding: 4px 8px;
   margin: 4px 0;
 }
+html[data-theme="dark"] .venue-assignment-list :is(.hierarchy-section, .hierarchy-group) {
+  background: transparent;
+}
 .venue-assignment-list .tree-children {
   min-width: 0;
 }
 .venue-assignment-list label small {
   margin-inline-start: auto;
   text-align: end;
+}
+.session-food-roster {
+  padding: 0;
+}
+.session-food-roster .data-table th,
+.session-food-roster .data-table td {
+  padding: 8px;
+  border-color: var(--line);
+}
+.session-food-roster .data-table thead {
+  background: var(--light);
+}
+.session-food-roster .data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.session-food-roster .tag {
+  display: inline-block;
+}
+.session-food-roster [data-food-status="allowed"] {
+  background: var(--light);
+  color: var(--action-text);
+}
+.session-food-actions {
+  justify-content: space-between;
+  align-items: center;
+}
+.session-food-actions .text-button {
+  min-height: 44px;
+  text-decoration: underline;
 }
 
 .food-language-dialog {

@@ -12,7 +12,6 @@
         "Interface",
         "personal",
       ],
-      ["#invitesAppearanceForm", "invites-appearance", "Invites appearance", "personal"],
       ["#overviewAppearanceForm", "overview-appearance", "Overview appearance", "personal"],
       ["#transportProtocols", "transport-security", "HTTP/SSL", "settings"],
       ["#shortcutExperimentalForm", "experimental-shortcuts", "Apple Shortcuts", "settings"],
@@ -226,11 +225,10 @@
         opened.add(key);
         box.classList.add("local-editor-open");
         card?.classList.add("settings-card-editing");
-        form
-          .querySelector(
-            "input:not([type=hidden]):not(:disabled),select:not(:disabled),textarea:not(:disabled)",
-          )
-          ?.focus();
+        const focusable = form.querySelectorAll(
+          "input:not([type=hidden]):enabled,select:enabled,textarea:enabled,button[data-preference-choice]:enabled",
+        );
+        [...focusable].find(control => control.getClientRects().length)?.focus();
       });
       if (form.dataset.editorAction) {
         button.className = "btn secondary edit-only settings-card-action";
