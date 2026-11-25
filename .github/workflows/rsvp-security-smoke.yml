@@ -1,0 +1,225 @@
+name: RSVP full verification
+on:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: full-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  household-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: test-only
+          POSTGRES_DB: rsvp_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Test household lifecycle and concurrent operations in disposable PostgreSQL
+        env:
+          DATABASE_URL: postgres://postgres:test-only@localhost:5432/rsvp_test
+        run: |
+          node tools/build-install-sql.cjs --check
+          node tests/fresh-install-db.cjs
+          node tests/backup-column-order-db.cjs
+          node tests/event-replacement-db.cjs
+          node tests/venue-session-timestamps-db.cjs
+          node tests/admin-change-db.cjs
+          node tests/guest-overview-db.cjs
+          node tests/guest-names-db.cjs
+          node tests/household-display-db.cjs
+          node tests/text-placeholders.cjs
+          node tests/household-name.cjs
+          node node_modules/typescript/bin/tsc --noEmit --target ES2023 --module NodeNext --moduleResolution NodeNext --allowImportingTsExtensions --skipLibCheck setup-service/*.ts
+          node --experimental-strip-types tests/automatic-setup.mjs
+          node --experimental-strip-types tests/automatic-setup-http.mjs
+          node --experimental-strip-types tests/local-administrator-setup.mjs
+          node --experimental-strip-types tests/automatic-setup-live-acceptance.mjs
+          node tools/build-css.cjs --check
+          node tests/css-build.cjs
+          node tests/admin-overview.cjs
+          node tools/build-backup-crypto.cjs --check
+          node tests/backup-files.cjs
+          node tests/backup-encryption.cjs
+          node tests/subdirectory.cjs
+          node tools/build-studio-functions.cjs --check
+          node tests/studio-functions.cjs
+          python3 tests/full-ci-deployment.py
+          python3 tests/pages-deployment.py
+          python3 tests/local-web-publish.py
+          node tests/invitation-templates.cjs
+          node tests/invitation-picture-db.cjs
+          node tests/guest-album-db.cjs
+          node tests/household-sessions-db.cjs
+          node tests/notification-preferences-db.cjs
+          node tests/translation-registry-db.cjs
+          node tests/template-options-db.cjs
+          node tests/canonical-locales-db.cjs
+          node tests/security-regressions.cjs
+          node tests/admin-invitations.cjs
+          node tests/admin-auth.cjs
+          node tests/admin-permissions-db.cjs
+          node tests/timezones.cjs
+          node tests/food-interest-reply.cjs
+          node tests/guest-food-wording-db.cjs
+          node tests/food-interest-db.cjs
+          node tests/private-guest-event-db.cjs
+          node tests/guest-feedback-db.cjs
+          node tests/guest-rsvp-food-db.cjs
+          node tests/item-lifecycle-db.cjs
+          node tests/invitation-customization-db.cjs
+          node tests/guest-feedback-gateway.cjs
+          node tests/normalized-translations.cjs && node tests/languages-backup-db.cjs && node tests/food-choice-db.cjs && node tests/other-db.cjs
+          node tests/household-management-db.cjs
+          node tests/guest-contacts-db.cjs
+          node tests/guest-order-db.cjs
+          node tests/share-handoff-db.cjs
+      - name: Test current database controls and Shortcuts permissions
+        run: |
+          node tests/queued-settings-db.cjs
+          node tests/database-experiment-db.cjs
+          node tests/household-visits-db.cjs
+  guest-feedback-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: test-only
+          POSTGRES_DB: rsvp_guest_feedback_disposable
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Test concurrent food groups and household guest additions in a fresh cluster
+        env:
+          RSVP_GROUP_TEST_DATABASE_URL: postgres://postgres:test-only@localhost:5432/rsvp_guest_feedback_disposable
+          RSVP_GROUP_TEST_DISPOSABLE: 'yes'
+        run: node tests/guest-feedback-concurrency.cjs
+  browser-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.57.0-noble@sha256:3bed4b1a12f2338642f3d8cba28e291deef3c66bd4a964bbeb3e57bbff511dbd
+      options: --ipc=host
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install pinned project dependencies
+        run: npm ci
+      - name: Test Local and Cloud setup choices and installer download
+        run: node tests/setup-browser.cjs
+      - name: Test trusted automatic setup companion
+        run: |
+          node --experimental-strip-types tests/automatic-setup-browser.mjs
+          node --experimental-strip-types tests/local-administrator-setup-browser.mjs
+      - name: Test release-matching Studio guide
+        run: node tests/studio-guide-browser.cjs
+      - name: Validate admin JavaScript
+        run: |
+          node tools/validate-locales.cjs
+          node tests/locale-csv.cjs
+          node tests/local-install.cjs
+          node --check js/i18n.js
+          for script in js/admin*.js; do node --check "$script"; done
+          node --check tests/admin-layout.cjs
+      - name: Test subdirectory guest, administrator and setup flows
+        run: node tests/subdirectory-browser.cjs
+      - name: Test administrator credentials with real SDK in Chromium and WebKit
+        run: node tests/admin-auth-browser.cjs
+      - name: Test FO/EN/DE interfaces and customization in Chromium and WebKit
+        run: node tests/interface-localization.cjs
+      - name: Test collapsed disclosure geometry in Chromium and WebKit
+        run: node tests/disclosure-layout.cjs
+      - name: Test language management and backup/import UI
+        run: |
+          node tests/languages-backup-browser.cjs
+          node tests/backup-encryption-browser.cjs
+          node tests/backup-compression-browser.cjs
+          node tests/admin-database-browser.cjs
+          node tests/experimental-interface-browser.cjs
+          node tests/invites-order-browser.cjs
+      - name: Test local task edits, food expansion and icon pop-ups
+        run: |
+          node tests/admin-controls-browser.cjs
+          node tests/admin-helper-contracts-browser.cjs
+          node tests/admin-personal-preferences-browser.cjs
+          node tests/admin-auth-recovery-browser.cjs
+          node tests/admin-local-editors-browser.cjs
+          node tests/settings-card-layout-browser.cjs
+          node tests/wide-card-layout-browser.cjs
+          node tests/invites-actions-layout-browser.cjs
+          node tests/admin-planning-browser.cjs
+          node tests/admin-ui-cleanup-browser.cjs
+      - name: Test compact food, language categories and task sheet
+        run: node tests/food-language-tasks-browser.cjs
+      - name: Test household food access and session invitation tabs
+        run: node tests/food-access-browser.cjs
+      - name: Test Food recipe links and editor translation globes
+        run: node tests/food-popups-browser.cjs
+      - name: Test guest contacts, primary contact validation and ordering
+        run: node tests/guest-contacts-browser.cjs
+      - name: Test administrator consistency and language CSV export
+        run: node tests/admin-consistency-browser.cjs && node tests/admin-venue-map-browser.cjs
+      - name: Test real administrator permissions and revoked-session UI
+        run: node tests/admin-permissions-browser.cjs
+      - name: Test device delivery handoffs and reminder drafts
+        run: node tests/device-delivery.cjs && node tests/device-delivery-browser.cjs && node tests/admin-delivery-views-browser.cjs && node tests/admin-delivery-editor-browser.cjs && node tests/invitation-share-browser.cjs && node tests/invitation-picture-browser.cjs && node tests/invitation-clipboard-browser.cjs && node tests/guest-titles-placeholders-browser.cjs && node tests/household-sessions-browser.cjs
+      - name: Test draft and template deletion safeguards
+        run: node tests/deletion-actions-browser.cjs
+      - name: Test reviewed settings, templates and placeholders
+        run: |
+          node tests/review-interface-status-browser.cjs
+          node tests/template-review-browser.cjs
+          node tests/application-placeholders-browser.cjs
+      - name: Test food interest answers and hidden menu UI
+        run: node tests/languages-layout-browser.cjs && node tests/guest-food-wording-browser.cjs && node tests/food-interest-browser.cjs && node tests/food-click-browser.cjs && node tests/food-scroll-browser.cjs && node tests/food-review-browser.cjs && node tests/recipe-dialog-browser.cjs && node tests/private-guest-event-browser.cjs && node tests/guest-order-browser.cjs && node tests/admin-guest-order-browser.cjs && node tests/rsvp-confirmed-list-browser.cjs && node tests/venue-lines-browser.cjs && node tests/guest-background-browser.cjs && node tests/guest-appearance-browser.cjs
+      - name: Test Food editing, category dropdowns and translation draft retention
+        run: node tests/invitation-customization-browser.cjs && node tests/invites-overview-browser.cjs && node tests/food-groups-browser.cjs && node tests/food-list-state-browser.cjs && node tests/notification-preferences-browser.cjs && node tests/food-editing-browser.cjs && node tests/item-controls-browser.cjs && node tests/group-controls-browser.cjs
+      - name: Test guest companions, food groups, categories and time preferences
+        run: node tests/guest-feedback-browser.cjs && node tests/guest-rsvp-food-browser.cjs
+      - name: Test the published guest journey with a disposable database
+        run: node --experimental-strip-types tests/published-guest-journey-browser.cjs
+      - name: Test inline restore, delivery navigation and guest interface
+        run: node tests/inline-restore-browser.cjs && node tests/admin-design-flow-browser.cjs && node tests/guest-interface-browser.cjs
+      - name: Test compact admin layout with mocked data
+        run: node tests/admin-layout.cjs
+      - name: Upload light and dark browser previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-design-browser-preview
+          path: artifacts/**/*.png
+          if-no-files-found: warn
+          retention-days: 14

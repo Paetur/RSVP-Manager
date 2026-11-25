@@ -1,0 +1,2701 @@
+/* Compact invitation rows with inline details. */
+#adminApp [data-panel="invites"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.invite-compact-list {
+  margin-top: 8px;
+}
+.invite-compact-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+  padding: 3px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.invite-compact-name {
+  flex: 1 1 110px;
+  min-width: 0;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.invite-rsvp-state {
+  font-size: 0.7rem;
+  font-weight: 400;
+  margin-inline-start: 8px;
+}
+#adminApp .invite-household > summary {
+  list-style: none;
+  cursor: pointer;
+}
+#adminApp .invite-household > summary::marker {
+  content: "";
+}
+#adminApp .invite-household > summary::-webkit-details-marker {
+  display: none;
+}
+.invite-household .invite-compact-name::before {
+  content: "›";
+  color: var(--action-text);
+  margin-inline-end: 6px;
+}
+.invite-household[open] .invite-compact-name::before {
+  content: "⌄";
+}
+#adminApp .invite-household > summary:focus-visible {
+  outline: 2px solid var(--action-text);
+  outline-offset: -2px;
+}
+.invite-household-content {
+  padding-inline-start: 12px;
+  border-inline-start: 1px solid var(--line);
+}
+#adminApp .invite-household-content > .admin-management {
+  margin: 6px 0;
+}
+.invite-household-content .rsvp-current-responses {
+  table-layout: fixed;
+  overflow-wrap: anywhere;
+}
+
+#inviteRows .invite-compact-list .tree-children {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+#inviteRows .invite-compact-list .hierarchy-section,
+#inviteRows .invite-compact-list .hierarchy-group {
+  margin-bottom: 6px;
+}
+
+/* Dense navigation and single-line food disclosures. */
+#adminApp .admin-main-tabs button {
+  font-size: 0.82rem !important;
+  padding: 8px 12px !important;
+  min-height: 38px;
+}
+#adminApp .admin-main-tabs {
+  gap: 4px;
+}
+.food-compact-item {
+  border-bottom: 1px solid var(--line);
+  padding: 0 !important;
+}
+#adminApp .food-compact-item > summary.food-manage-main {
+  display: list-item;
+  list-style-position: inside;
+  cursor: pointer;
+  padding: 9px 4px;
+  min-height: 42px;
+}
+.food-compact-item .food-item-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: calc(100% - 25px);
+  vertical-align: middle;
+  flex-direction: row;
+}
+.food-compact-item .food-item-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.food-compact-item .food-item-info small {
+  white-space: nowrap;
+  font-size: 0.72rem;
+}
+.food-expanded {
+  padding: 8px 12px;
+}
+.food-expanded .food-item-actions {
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.food-edit-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.language-row {
+  display: grid;
+  grid-template-columns: 38px minmax(100px, 1fr) 62px 90px auto;
+  gap: 8px;
+  padding: 6px 0;
+  align-items: center;
+}
+.language-row input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  min-height: 34px;
+}
+.language-row .btn {
+  font-size: 0.76rem;
+  padding: 7px 10px;
+  min-height: 34px;
+}
+.language-enabled {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.76rem;
+}
+.language-enabled input {
+  width: auto;
+}
+@media (max-width: 600px) {
+  .language-row {
+    grid-template-columns: 32px minmax(80px, 1fr) 48px 70px;
+  }
+  .language-row button {
+    grid-column: 2/-1;
+    justify-self: end;
+  }
+  .food-compact-item .food-item-info {
+    gap: 8px;
+  }
+  .food-compact-item .food-item-info small {
+    font-size: 0.65rem;
+  }
+}
+
+.guest-food-disclosure {
+  display: block !important;
+  padding: 0 !important;
+}
+.guest-food-disclosure > summary {
+  padding: 12px;
+  cursor: pointer;
+}
+.guest-food-disclosure > summary .tag {
+  margin-left: 12px;
+}
+.guest-food-details {
+  padding: 0 12px 12px;
+}
+
+.food-compact-item > summary.food-manage-main {
+  list-style: none;
+}
+.food-compact-item > summary.food-manage-main::-webkit-details-marker {
+  display: none;
+}
+.food-compact-item > summary.food-manage-main::before {
+  content: "›";
+  display: inline-block;
+  width: 20px;
+  color: var(--teal);
+  font-weight: 700;
+}
+.food-compact-item[open] > summary.food-manage-main::before {
+  content: "⌄";
+}
+
+.recipe-existing {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.recipe-existing label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  margin: 6px 0;
+}
+.recipe-existing input {
+  width: auto;
+}
+.recipe-new-item {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 8px 0;
+}
+.food-recipe {
+  margin: 6px 0;
+}
+.food-recipe-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.guest-food-disclosure > summary strong {
+  display: inline;
+}
+
+.icon-popup-control {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.icon-popup-menu {
+  position: fixed;
+  z-index: 2000;
+  width: 230px;
+  max-width: calc(100vw - 16px);
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--white);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.icon-popup-menu label {
+  display: grid;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.icon-popup-menu select {
+  width: 100%;
+  max-width: none;
+  font-size: 0.85rem;
+}
+.icon-popup-menu .interface-language {
+  max-width: none;
+  width: 100%;
+}
+
+.food-comment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.food-comment-grid p {
+  overflow-wrap: anywhere;
+}
+.other-add-controls {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  margin: 12px 0;
+}
+.other-add-controls label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+.other-category {
+  margin: 10px 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.other-category > summary {
+  padding: 8px 12px;
+  cursor: pointer;
+  background: var(--light);
+  font-weight: 700;
+}
+.other-category-body {
+  padding: 8px;
+}
+.other-line {
+  display: grid;
+  grid-template-columns:
+    minmax(100px, 1.2fr) minmax(100px, 1.3fr) minmax(90px, 1fr)
+    minmax(90px, 0.75fr) 34px;
+  gap: 8px;
+  align-items: start;
+  padding: 6px 0;
+}
+.other-line input,
+.other-line select {
+  width: 100%;
+  padding: 8px;
+  min-height: 40px;
+}
+.other-line input:disabled,
+.other-line select:disabled {
+  opacity: 1;
+  color: var(--ink);
+  -webkit-text-fill-color: var(--ink);
+}
+.other-line button {
+  margin-top: 3px;
+}
+.other-line label {
+  display: grid;
+  font-size: 0.68rem;
+  gap: 3px;
+}
+.other-line .other-row-status {
+  grid-column: 1/-1;
+  color: var(--danger);
+  font-size: 0.75rem;
+}
+@media (max-width: 600px) {
+  .food-comment-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .other-category-body {
+    overflow-x: auto;
+  }
+  .other-line {
+    min-width: 600px;
+  }
+}
+
+.food-comment-grid p:only-child {
+  grid-column: 1/-1;
+}
+.other-line > button {
+  margin-top: 20px;
+}
+.other-line-category {
+  grid-column: 1/-1;
+  max-width: 260px;
+}
+#otherRows {
+  min-width: 0;
+  max-width: 100%;
+}
+.other-category {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.other-category-body {
+  min-width: 0;
+  max-width: 100%;
+}
+.other-line label,
+.other-line input,
+.other-line select {
+  min-width: 0;
+}
+[data-panel="other"] > .panel {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+#adminApp .other-line input,
+#adminApp .other-line select {
+  height: 40px;
+  min-height: 40px;
+  font-size: 0.8rem;
+}
+#adminApp .other-line select {
+  appearance: none;
+  -webkit-appearance: none;
+  line-height: normal;
+  padding: 8px 24px 8px 8px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 17px,
+    calc(100% - 10px) 17px;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+}
+
+.food-item-recipe {
+  margin: 0.5rem 0;
+  min-width: 0;
+}
+.food-item-recipe > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.food-item-recipe .recipe-content {
+  margin: 0.6rem 0;
+  overflow-wrap: anywhere;
+}
+.recipe-content h4,
+.recipe-content p,
+.recipe-content ul {
+  margin: 0 0 0.3em;
+}
+.recipe-content ul {
+  padding-inline-start: 1.4em;
+}
+.recipe-break {
+  height: 0.7em;
+}
+
+.food-claim-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 3px 0 0 20px;
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+.food-selections:not(:empty) {
+  margin: 0 0 10px;
+}
+.food-selection-actions {
+  display: flex;
+  gap: 4px;
+}
+.food-selection-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: end;
+  margin: 4px 0;
+}
+.food-selection-form label {
+  display: grid;
+  gap: 2px;
+  font-size: 0.72rem;
+}
+.food-selection-form input {
+  width: 5em;
+}
+.food-selection-form .btn {
+  padding: 0.35rem 0.6rem;
+}
+.food-selection-editor > summary {
+  cursor: pointer;
+  width: max-content;
+  padding: 4px 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.food-recipe-dialog {
+  width: min(36rem, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  color: var(--ink);
+}
+.food-recipe-dialog::backdrop {
+  background: #0008;
+}
+.food-recipe-dialog label {
+  grid-column: 1/-1;
+}
+.food-recipe-dialog textarea {
+  width: 100%;
+  resize: vertical;
+}
+.food-selections .data-table {
+  width: 100%;
+  margin: 0;
+}
+.food-selections .data-table th,
+.food-selections .data-table td {
+  padding: 4px 8px;
+}
+.food-selections .data-table th:nth-child(2) {
+  width: 25%;
+}
+.food-selections .data-table th:last-child {
+  width: 6rem;
+}
+.food-selections .food-selection-editor {
+  border: 0;
+  padding: 0;
+  margin: 4px 8px;
+  background: transparent;
+}
+.food-selections .food-selection-editor:not([open]) {
+  width: max-content;
+}
+
+#adminApp .food-edit-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+#adminApp .food-edit-form > label {
+  grid-column: auto;
+}
+
+#adminApp .food-edit-form > .span-2,
+#adminApp .food-edit-form > .food-edit-buttons {
+  grid-column: 1/-1;
+}
+.food-venue-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 12px 10px;
+  min-width: 0;
+}
+.food-venue-options label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.food-venue-options input[type="checkbox"] {
+  width: auto;
+}
+
+#translationForm.food-matrix-active > :nth-child(n + 3) {
+  display: none !important;
+}
+.food-translation-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.food-translation-picker label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.food-translation-picker select {
+  width: 100%;
+}
+[data-panel="language"] > .panel {
+  min-width: 0;
+}
+.food-translation-grid {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.food-translation-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.65fr) repeat(
+      var(--translation-columns, 3),
+      minmax(120px, 1fr)
+    );
+  gap: 8px;
+  align-items: start;
+  min-width: 485px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.food-translation-row label {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-self: start;
+  gap: 3px;
+  font-size: 0.75rem;
+  min-width: 0;
+}
+.food-translation-row input {
+  width: 100%;
+  min-width: 0;
+}
+.food-translation-grid > button {
+  margin-top: 10px;
+}
+
+.food-type-translation-row {
+  grid-template-columns: minmax(85px, 0.65fr) minmax(0, 1fr);
+  min-width: 0;
+  max-width: 35rem;
+}
+
+#translationForm.settings-matrix-active > :nth-child(n + 4) {
+  display: none !important;
+}
+.food-translation-row textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+}
+.venue-summary-layout {
+  display: inline-flex;
+  width: calc(100% - 24px);
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  vertical-align: middle;
+}
+.venue-summary-details {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.venue-summary-details small {
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.venue-map-link {
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-underline-offset: 2px;
+}
+
+.venue-form-actions,
+.venue-assignment-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0;
+}
+.venue-assignment-footer {
+  justify-content: flex-end;
+}
+.venue-assignment-dialog {
+  width: min(36rem, calc(100vw - 32px));
+  overflow-wrap: anywhere;
+}
+.venue-assignment-list {
+  max-height: 38vh;
+  overflow: auto;
+  margin: 6px 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.venue-assignment-dialog label.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.venue-assignment-dialog input[type="checkbox"] {
+  width: auto;
+}
+
+#languagePreferences {
+  max-width: 38rem;
+}
+#languagePreferences select {
+  width: 100%;
+  min-height: 34px;
+}
+
+.language-row {
+  grid-template-columns: 38px minmax(80px, 1fr) auto 78px auto;
+}
+.language-order {
+  display: flex;
+  gap: 4px;
+}
+@media (max-width: 600px) {
+  .language-row {
+    grid-template-columns: 28px minmax(55px, 1fr) auto auto;
+  }
+  .language-row > button {
+    grid-column: 2/-1;
+  }
+}
+
+.admin-member > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+.admin-member-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.admin-member-rename {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.admin-member-rename label {
+  display: grid;
+  gap: 3px;
+  flex: 0 1 18rem;
+  min-width: 0;
+  font-size: 0.8rem;
+}
+.admin-member-rename input {
+  width: 100%;
+  min-width: 0;
+}
+
+.venue-form-actions,
+.venue-summary-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.venue-summary-links {
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.venue-form-actions .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.venue-form-actions input[type="checkbox"] {
+  width: auto;
+}
+
+.session-order-actions {
+  display: inline-flex;
+  gap: 4px;
+  align-self: flex-start;
+}
+
+.session-edit-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.session-edit-form label {
+  min-width: 0;
+}
+#adminApp .session-edit-form :is(input:not([type="hidden"], [type="checkbox"]), select) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+}
+.session-schedule {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--light);
+}
+.session-time-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px 12px;
+}
+.session-schedule > p {
+  overflow-wrap: anywhere;
+}
+.session-options {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 0 20px;
+}
+#adminApp .session-edit-form > .form-actions {
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+#adminApp .session-edit-form .session-manage-households {
+  margin-inline-start: auto;
+}
+.session-record-details {
+  max-width: 760px;
+  margin: 0 12px 4px;
+  color: var(--muted);
+}
+.session-record-details > summary {
+  align-content: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.session-record-details > .record-timestamps {
+  margin: 0 0 8px;
+}
+@media (max-width: 660px) {
+  .session-edit-form,
+  .session-time-range {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.venue-assignment-category {
+  min-width: 0;
+  margin: 0 0 8px;
+  padding: 4px 10px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.venue-assignment-category:last-child {
+  margin-bottom: 0;
+}
+.venue-assignment-category legend {
+  padding: 0 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.venue-assignment-category .checkbox-label {
+  margin-inline-start: 6px;
+}
+
+.venue-assignment-list .hierarchy-section,
+.venue-assignment-list .hierarchy-group {
+  padding: 4px 8px;
+  margin: 4px 0;
+}
+html[data-theme="dark"] .venue-assignment-list :is(.hierarchy-section, .hierarchy-group) {
+  background: transparent;
+}
+.venue-assignment-list .tree-children {
+  min-width: 0;
+}
+.venue-assignment-list label small {
+  margin-inline-start: auto;
+  text-align: end;
+}
+.session-food-roster {
+  padding: 0;
+}
+.session-food-roster .data-table th,
+.session-food-roster .data-table td {
+  padding: 8px;
+  border-color: var(--line);
+}
+.session-food-roster .data-table thead {
+  background: var(--light);
+}
+.session-food-roster .data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.session-food-roster .tag {
+  display: inline-block;
+}
+.session-food-roster [data-food-status="allowed"] {
+  background: var(--light);
+  color: var(--action-text);
+}
+.session-food-actions {
+  justify-content: space-between;
+  align-items: center;
+}
+.session-food-actions .text-button {
+  min-height: 44px;
+  text-decoration: underline;
+}
+
+.food-language-dialog {
+  width: min(64rem, calc(100vw - 32px));
+}
+.food-language-dialog .food-translation-row label {
+  grid-column: auto;
+}
+.food-language-dialog form > button ~ button {
+  margin-inline-start: 8px;
+}
+#adminApp .food-language-dialog .btn.secondary {
+  background: var(--white);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+/* Shared navigation and compact, explicit-edit lists. */
+.translation-tabs {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  margin: 0 0 14px;
+}
+.translation-tabs button,
+html[data-theme] #adminApp .settings-page .settings-tabs button {
+  position: relative;
+  flex: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 10px 8px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.translation-tabs button.active,
+html[data-theme] #adminApp .settings-page .settings-tabs button.active {
+  background: transparent;
+  color: var(--action-text);
+}
+.translation-tabs button.active::after,
+#adminApp .settings-page .settings-tabs button.active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--teal);
+}
+.translation-tabs button:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: -2px;
+}
+:is(.settings-language-tabs, .settings-interface-tabs) {
+  margin-bottom: 0;
+}
+:is(.database-tabs, .venue-tabs, .settings-language-tabs, .settings-interface-tabs, .interface-edit-tabs) button {
+  min-height: 44px;
+  padding-inline: 14px;
+  border-radius: 7px 7px 0 0;
+}
+:is(.database-tabs, .venue-tabs, .interface-edit-tabs) button.active {
+  background: var(--light);
+  color: var(--action-text);
+}
+.translation-search {
+  display: grid;
+  gap: 4px;
+  max-width: 28rem;
+  margin-bottom: 12px;
+}
+.wording-pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+.wording-pagination label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.wording-pagination select {
+  width: 5rem;
+}
+.wording-row {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+.wording-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px;
+  gap: 14px;
+  align-items: start;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.wording-edit-form {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-top: 10px;
+  background: var(--white);
+}
+.wording-edit-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+.wording-edit-form textarea {
+  width: 100%;
+  min-width: 0;
+}
+.wording-edit-form button {
+  margin-top: 8px;
+}
+.wording-edit-form button + button {
+  margin-inline-start: 8px;
+}
+.wording-edit-form [role="alert"] {
+  margin: 8px 0 0;
+}
+.language-row {
+  grid-template-columns: 36px minmax(100px, 1fr) auto auto;
+  align-items: center;
+}
+.language-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+.language-row-actions .language-order {
+  display: flex;
+  gap: 5px;
+}
+.other-line {
+  display: block;
+  min-width: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+.other-line-summary {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.2fr) minmax(0, 1.3fr) minmax(0, 1fr)
+    minmax(0, 0.75fr) 32px;
+  gap: 12px;
+  align-items: start;
+}
+.other-line-value {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+.other-line-value small {
+  font-size: 0.68rem;
+}
+.other-line-summary > button {
+  margin: 0;
+}
+.other-edit-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-top: 10px;
+  background: var(--white);
+}
+.other-edit-form label {
+  min-width: 0;
+}
+.other-edit-form textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+}
+.other-edit-actions {
+  grid-column: 1/-1;
+  display: flex;
+  gap: 8px;
+}
+.other-edit-actions button {
+  margin: 0;
+}
+#adminApp .food-compact-item .food-item-info {
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+#adminApp .food-compact-item .food-item-info > strong {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.food-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  margin-inline-start: auto;
+}
+#adminApp .food-header-actions .food-item-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+  gap: 5px;
+}
+@media (max-width: 600px) {
+  .language-row {
+    grid-template-columns: 30px minmax(80px, 1fr) auto;
+    gap: 7px;
+  }
+  .language-row-actions {
+    grid-column: 2/-1;
+  }
+  .language-row button {
+    grid-column: auto;
+    justify-self: auto;
+  }
+  .other-line {
+    min-width: 0;
+  }
+  .other-line-summary {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 30px;
+  }
+  .other-line-summary > .other-line-value:nth-child(3) {
+    grid-column: 1;
+  }
+  .other-line-summary > .other-line-value:nth-child(4) {
+    grid-column: 2;
+  }
+  .other-line-summary > button {
+    grid-column: 3;
+    grid-row: 1/3;
+  }
+  .other-edit-form {
+    grid-template-columns: 1fr;
+  }
+  .wording-summary {
+    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
+  }
+  .food-header-actions {
+    width: 100%;
+  }
+}
+.content-translation-editor > h2 {
+  display: none;
+}
+.wording-summary > span,
+.other-line-value > span {
+  white-space: pre-wrap;
+}
+/* Consistent reading rows, roomy welcome text, and tablet tap targets. */
+.wording-heading {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.other-column-heading {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+@media (min-width: 651px) {
+  .other-line-value > small {
+    display: none;
+  }
+}
+@media (max-width: 650px) {
+  .other-column-heading {
+    display: none;
+  }
+}
+.content-translation-editor .food-type-translation-row {
+  max-width: none;
+}
+@media (pointer: coarse) {
+  #adminApp .admin-row-icon,
+  #adminApp .small-tool,
+  #adminApp .language-row-actions button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  #adminApp .food-item-actions,
+  #adminApp .language-row-actions {
+    gap: 6px;
+  }
+  .wording-summary {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+  }
+  .other-line-summary {
+    grid-template-columns:
+      minmax(0, 1.2fr) minmax(0, 1.3fr) minmax(0, 1fr)
+      minmax(0, 0.75fr) 44px;
+  }
+}
+@media (pointer: coarse) and (max-width: 650px) {
+  .other-line-summary {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+  }
+}
+#adminApp #addFoodForm {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+#adminApp #addFoodForm > label {
+  grid-column: span 2;
+}
+#adminApp #addFoodForm > label:nth-child(4),
+#adminApp #addFoodForm > label:nth-child(5) {
+  grid-column: span 3;
+}
+#adminApp #addFoodForm > .span-2 {
+  grid-column: 1/-1;
+}
+@media (max-width: 600px) {
+  #adminApp #addFoodForm > label {
+    grid-column: span 3;
+  }
+}
+
+.other-category > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+}
+.other-category > summary::-webkit-details-marker {
+  display: none;
+}
+.other-category > summary::before {
+  content: "›";
+  color: var(--teal);
+}
+.other-category[open] > summary::before {
+  content: "⌄";
+}
+.other-category-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.other-category-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.other-category-name-form {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+.other-category-name-form label {
+  display: grid;
+  gap: 4px;
+}
+.other-category-name-form .other-edit-actions {
+  margin-top: 10px;
+}
+.food-type-manager .type-manager-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.food-type-manager .type-manager-add {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.food-type-manager .type-manager-add label {
+  display: grid;
+  gap: 4px;
+}
+.food-type-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+@media (max-width: 600px) {
+  .other-category-actions {
+    gap: 3px;
+  }
+  .food-type-manager .type-manager-add {
+    grid-template-columns: 1fr;
+  }
+}
+.food-compact-item > summary .food-comment-grid {
+  margin: 4px 0 0 20px;
+  gap: 4px 16px;
+  white-space: pre-wrap;
+  color: var(--muted);
+  text-align: start;
+}
+.food-compact-item > summary .food-comment-grid > .small {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.food-compact-item > summary .food-comment-grid > .small:only-child {
+  grid-column: 1/-1;
+}
+/* Shared touch targets, category editing and compact visible comment previews. */
+@media (pointer: coarse) {
+  .topbar .admin-icon-btn,
+  #adminApp .admin-icon-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex-basis: 44px;
+  }
+}
+@media (pointer: coarse) and (max-width: 600px) {
+  .topbar-inner {
+    flex-wrap: wrap;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .topbar .admin-topbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .topbar .admin-icon-btn {
+    padding: 8px;
+  }
+  .topbar .admin-identity {
+    display: none;
+  }
+}
+.food-category-name-form {
+  margin: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.food-category-name-form label {
+  display: grid;
+  gap: 4px;
+}
+.food-category-name-form .other-edit-actions {
+  margin-top: 10px;
+}
+.category-feedback {
+  margin: 8px 12px;
+}
+.food-comment-grid.comment-preview > .small {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.comment-more {
+  margin-left: 20px;
+  font-size: 0.72rem;
+  min-height: 32px;
+}
+#adminApp .admin-main-tabs {
+  scroll-behavior: smooth;
+  scroll-padding-inline: 12px;
+  background:
+    linear-gradient(to right, var(--paper), transparent 16px),
+    linear-gradient(to left, var(--paper), transparent 16px);
+  background-attachment: local;
+}
+.wording-category-tabs {
+  gap: 5px;
+  flex-wrap: wrap;
+  overflow-x: visible;
+  margin-top: -4px;
+}
+.wording-category-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.77rem;
+  padding: 8px 10px;
+}
+.wording-category-count {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--light);
+  border-radius: 8px;
+  padding: 0 5px;
+}
+@media (pointer: coarse) {
+  .wording-category-tabs button {
+    min-height: 44px;
+  }
+}
+/* Main / content Languages / Settings share the event header. */
+.admin-section-menu {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 5px 0 8px;
+}
+.topbar .admin-section-menu .admin-icon-btn {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  padding: 10px;
+}
+.topbar .admin-section-menu .admin-icon-btn[aria-pressed="true"] {
+  border-bottom-color: var(--teal);
+  background: var(--light);
+  color: var(--action-text);
+}
+.admin-section-description {
+  font-size: 0.82rem;
+  margin-bottom: 14px;
+}
+#adminApp.showing-language .admin-main-tabs {
+  display: none;
+}
+#interfaceLanguageHost label,
+#interfaceAppearanceHost label {
+  display: grid;
+  gap: 5px;
+}
+.other-line[data-new-item="true"] > .other-line-summary {
+  display: none;
+}
+.other-line[data-new-item="true"] {
+  border: 0;
+  padding: 0;
+  margin-bottom: 12px;
+}
+.food-inline-create {
+  margin: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.food-inline-create .btn {
+  margin-right: 6px;
+}
+@media (max-width: 600px) {
+  .food-inline-create {
+    margin: 8px;
+    padding: 10px;
+  }
+}
+
+.topbar .admin-section-menu {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* Shared editor/read states and navigation rhythm. */
+.form-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  grid-column: 1/-1;
+  margin-top: 10px;
+}
+.form-actions > .btn {
+  margin: 0;
+}
+.form-actions > .form-feedback {
+  flex-basis: 100%;
+  margin: 0;
+}
+.form-feedback[data-state="saving"] {
+  color: var(--muted);
+}
+.form-feedback[data-state="saved"] {
+  color: var(--teal);
+}
+.form-feedback[data-state="error"] {
+  color: var(--danger, #b85248);
+}
+.venue-workspace {
+  min-width: 0;
+}
+.venue-workspace > [role="tabpanel"][hidden] {
+  display: none;
+}
+
+.record-read-grid {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.35fr) minmax(0, 1fr);
+  gap: 5px 16px;
+  margin: 8px 0 14px;
+  font-size: 0.82rem;
+}
+.record-read-grid dt {
+  color: var(--muted);
+}
+.record-read-grid dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#adminApp .reading-editor {
+  display: none !important;
+}
+#adminApp .reading-editor.record-open {
+  display: grid !important;
+}
+#adminApp .form-reading.editing-open {
+  display: none;
+}
+.record-pencil {
+  margin: 8px 0;
+}
+#adminApp .translation-field + .translation-reading {
+  display: none !important;
+}
+.translation-reading {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.84rem;
+  padding: 5px 0;
+}
+.topbar .section-icon-label {
+  display: none;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+.topbar .admin-section-menu .admin-icon-btn.section-current {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: auto;
+  flex-basis: auto;
+  min-width: 44px;
+}
+.topbar .section-current .section-icon-label {
+  display: inline;
+}
+.topbar .section-current svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+@media (max-width: 600px) {
+  .record-read-grid {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .record-read-grid dd {
+    margin-bottom: 8px;
+  }
+}
+
+/* Action symbols belong to the interface, outside translated wording. */
+
+/* Administrator access editors and server-backed section visibility. */
+.permission-summary {
+  margin-top: 5px !important;
+  color: var(--muted);
+}
+.access-pencil {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.access-pencil svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.permission-editor {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px;
+  margin: 0 0 16px;
+  background: var(--panel);
+}
+.permission-editor h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.permission-presets {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 15px 0;
+}
+#adminApp .permission-presets button[aria-pressed="true"] {
+  border-color: var(--teal);
+  color: #fff;
+  background: var(--teal);
+}
+.permission-grid {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) repeat(3, 76px);
+  align-items: center;
+}
+.permission-grid > * {
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--line);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.permission-grid .permission-cell {
+  justify-content: center;
+}
+.permission-grid input {
+  margin: 0;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--teal);
+}
+.permission-grid .permission-head {
+  font-size: 0.73rem;
+  color: var(--muted);
+  justify-content: center;
+  font-weight: 600;
+}
+.permission-group {
+  grid-column: 1/-1;
+  min-height: 32px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface);
+}
+.permission-label {
+  font-size: 0.84rem;
+}
+.permission-extras {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 22px;
+  padding: 16px 0;
+}
+.permission-extras label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 0.83rem;
+}
+.permission-extras input {
+  margin-top: 3px;
+  accent-color: var(--teal);
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.permission-help {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+.permission-editor .form-actions {
+  margin-top: 18px;
+}
+.permission-editor fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.permission-editor legend {
+  font-weight: 600;
+  font-size: 0.83rem;
+  padding-top: 16px;
+}
+.permission-message {
+  font-size: 0.8rem;
+  color: var(--teal);
+}
+.permission-message:empty {
+  display: none;
+}
+.access-simulator .demo-selectors {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.demo-selectors label {
+  min-width: 180px;
+  flex: 1;
+}
+.demo-selectors select {
+  width: 100%;
+  margin-top: 6px;
+}
+.demo-summary {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+}
+.demo-summary .form-actions {
+  margin-top: 12px;
+}
+.permission-warning {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 12px;
+}
+.permission-editor [data-preset],
+.permission-editor .btn {
+  min-height: 44px;
+}
+@media (max-width: 650px) {
+  .permission-editor {
+    padding: 12px;
+  }
+  .permission-grid {
+    grid-template-columns: minmax(120px, 1fr) repeat(3, 48px);
+  }
+  .permission-extras {
+    grid-template-columns: 1fr;
+  }
+  .permission-presets {
+    gap: 5px;
+  }
+  .permission-presets button {
+    font-size: 0.75rem;
+    padding: 7px 9px;
+  }
+  .permission-grid .permission-head {
+    font-size: 0.67rem;
+  }
+  .permission-label {
+    font-size: 0.79rem;
+  }
+  .demo-selectors label {
+    min-width: 130px;
+  }
+}
+
+.permission-hidden {
+  display: none !important;
+}
+#adminApp [data-permission-edit="false"] .edit-only {
+  display: none !important;
+}
+#adminApp [data-permission-edit="false"] form.reading-editor.record-open,
+#adminApp [data-permission-edit="false"] .translation-field {
+  display: none !important;
+}
+#adminApp [data-permission-edit="false"] .translation-reading,
+#adminApp [data-permission-edit="false"] .view-only {
+  display: revert !important;
+}
+#adminApp [data-permission-edit="false"] .form-reading.editing-open {
+  display: block !important;
+}
+.admin-sessions-panel {
+  margin-top: 20px;
+}
+#adminSessions .admin-member {
+  align-items: center;
+}
+.permission-editor > label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.83rem;
+  margin-top: 12px;
+}
+
+.admin-invitation-card {
+  flex-wrap: wrap;
+}
+.admin-invitation-card > .permission-editor {
+  flex-basis: 100%;
+  width: 100%;
+}
+
+#adminApp .permission-editor .btn.secondary {
+  background: var(--light);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.permission-grid > .permission-head:first-child {
+  justify-content: flex-start;
+}
+
+.admin-access-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+.admin-access-two > .panel {
+  margin: 0;
+  min-width: 0;
+}
+.admin-access-two:has(> .permission-hidden) {
+  grid-template-columns: 1fr;
+}
+@media (max-width: 700px) {
+  .admin-access-two {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Record links stay available outside the editing toolbar. */
+.food-item-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+html[data-theme] #adminApp .food-item-links button.food-inline-link,
+html[data-theme] #adminApp button.household-contact-link {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  min-height: 44px;
+  padding: 6px 0;
+  color: var(--action-text);
+}
+#adminApp .food-item-links .food-inline-link:focus-visible,
+#adminApp .household-contact-link:focus-visible,
+#adminApp .invite-text-action:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 3px;
+}
+/* Invitation actions own their final sizes; touch targets are extended below. */
+html[data-theme] #adminApp .invite-text-action {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: var(--action-text);
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  max-width: 100%;
+  padding: 4px 0;
+  margin: 0;
+  white-space: normal;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+html[data-theme] #adminApp .invite-text-action:hover {
+  color: var(--ink);
+}
+#adminApp .invite-text-action + a.invite-text-action {
+  margin-inline-start: 8px;
+}
+@media (pointer: coarse) {
+  html[data-theme] #adminApp .invite-text-action {
+    min-height: 44px;
+  }
+}
+#adminApp .food-recipe-dialog .btn.secondary {
+  background: var(--white);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.recipe-reading {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 4px 0 12px;
+}
+.food-language-dialog .translation-reading {
+  white-space: pre-wrap;
+}
+
+html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
+  background: transparent;
+  color: var(--ink);
+}
+
+#adminApp .household-inline-editor > summary .household-contact-summary {
+  display: block;
+  margin: 3px 0 0 14px;
+  overflow-wrap: anywhere;
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+#adminApp .household-inline-editor > summary .primary-contact-summary {
+  display: inline;
+  margin-inline-start: 8px;
+  font-size: 0.7rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+#adminApp
+  .household-inline-editor:has(.reading-editor.record-open)
+  > summary
+  .household-contact-summary {
+  display: none;
+}
+
+.permission-grid .permission-manage-members {
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+.permission-manage-members small {
+  font-size: 0.65rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.language-row > .form-feedback {
+  grid-column: 1/-1;
+  margin: 0;
+}
+
+.food-header-actions {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.food-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 10px;
+  max-width: 100%;
+  min-width: 0;
+}
+#adminApp .food-header-meta > small {
+  white-space: normal;
+  text-align: end;
+}
+
+/* Align Food titles and actions on one row, with details directly below. */
+#adminApp .food-compact-item > summary.food-manage-main {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  column-gap: 4px;
+  row-gap: 0;
+  align-items: center;
+}
+#adminApp .food-compact-item > summary.food-manage-main::before {
+  grid-column: 1;
+  grid-row: 1;
+}
+#adminApp .food-compact-item .food-item-info,
+#adminApp .food-compact-item .food-header-actions {
+  display: contents;
+}
+#adminApp .food-compact-item .food-item-info > strong {
+  grid-column: 2;
+  grid-row: 1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding-right: 12px;
+}
+#adminApp .food-compact-item .food-header-actions > .food-item-actions {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+#adminApp .food-compact-item .food-header-meta {
+  grid-column: 3;
+  grid-row: 2;
+  justify-self: end;
+}
+#adminApp .food-compact-item > summary > .food-claim-summary {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 0 12px 0 0;
+}
+#adminApp .food-compact-item > summary > .food-comment-grid {
+  grid-column: 2/-1;
+  grid-row: 3;
+  margin: 2px 0 0;
+}
+#adminApp .food-compact-item > summary > .comment-more {
+  grid-column: 2/-1;
+  grid-row: 4;
+  justify-self: start;
+}
+@media (max-width: 600px) {
+  #adminApp .food-compact-item > summary.food-manage-main {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+  #adminApp .food-compact-item .food-header-actions > .food-item-actions {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  #adminApp .food-compact-item .food-header-meta {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  #adminApp .food-compact-item > summary > .food-claim-summary {
+    grid-column: 2;
+    grid-row: 4;
+  }
+  #adminApp .food-compact-item > summary > .food-comment-grid {
+    grid-column: 2;
+    grid-row: 5;
+  }
+  #adminApp .food-compact-item > summary > .comment-more {
+    grid-column: 2;
+    grid-row: 6;
+  }
+}
+@media (min-width: 601px) {
+  #adminApp
+    .food-compact-item
+    > summary:not(:has(> .food-claim-summary))
+    > .food-comment-grid {
+    grid-column: 2;
+    grid-row: 2;
+    margin: 0 12px 0 0;
+  }
+}
+
+#adminApp .compact-household-profile {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 18px;
+  margin: 8px 0 12px;
+  padding: 0 8px;
+}
+.household-profile-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: start;
+  gap: 2px 7px;
+  min-width: 0;
+}
+.household-profile-field dt {
+  font-size: 0.72rem;
+}
+.household-profile-field dd {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.household-profile-field.profile-wide {
+  grid-column: 1/-1;
+}
+.household-profile-field.profile-wide dd {
+  font-weight: 400;
+}
+@media (max-width: 650px) {
+  #adminApp .compact-household-profile {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 14px;
+  }
+}
+@media (max-width: 380px) {
+  #adminApp .compact-household-profile {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+#adminApp .stat-card .stat-detail {
+  display: block;
+  font-size: 0.72rem;
+  margin-top: 4px;
+}
+#adminApp .food-compact-item .food-item-status {
+  font-weight: 400;
+  font-size: 0.72rem;
+  white-space: normal;
+}
+#adminApp .food-compact-item .food-quantity-summary {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: start;
+  text-align: start;
+  white-space: normal;
+}
+#adminApp .food-compact-item > summary > .food-claim-summary {
+  grid-row: 3;
+}
+#adminApp .food-compact-item > summary > .food-comment-grid {
+  grid-row: 4;
+}
+#adminApp .food-compact-item > summary > .comment-more {
+  grid-row: 5;
+}
+@media (min-width: 601px) {
+  #adminApp
+    .food-compact-item
+    > summary:not(:has(> .food-claim-summary))
+    > .food-comment-grid {
+    grid-row: 3;
+  }
+}
+@media (max-width: 600px) {
+  #adminApp .food-compact-item .food-header-actions > .food-item-actions {
+    grid-row: 3;
+  }
+  #adminApp .food-compact-item .food-header-meta {
+    grid-row: 4;
+  }
+  #adminApp .food-compact-item > summary > .food-claim-summary {
+    grid-row: 5;
+  }
+  #adminApp .food-compact-item > summary > .food-comment-grid {
+    grid-row: 6;
+  }
+  #adminApp .food-compact-item > summary > .comment-more {
+    grid-row: 7;
+  }
+}
+#adminApp .food-compact-item .food-item-status {
+  display: inline;
+}
+
+#adminApp .household-guest-info .guest-contact-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+.guest-contact-summary > span {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#adminApp .household-guest-row {
+  flex-wrap: wrap;
+}
+.guest-order-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+#adminApp .household-guest-info {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.guest-order-actions button {
+  margin: 0;
+}
+#adminApp .food-compact-item > summary .food-quantity-summary,
+#adminApp .food-compact-item > summary .food-claim-summary,
+#adminApp .food-compact-item > summary .food-comment-grid > .small {
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+  #adminApp .household-node-main {
+    flex-wrap: wrap;
+  }
+  #adminApp .household-actions {
+    margin-inline-start: auto;
+    justify-content: flex-end;
+    max-width: 100%;
+    gap: 4px;
+  }
+  #adminApp .household-node-name {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+}
+
+#adminApp .food-compact-item .food-item-title {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  min-width: 0;
+  padding-right: 12px;
+}
+#adminApp .food-compact-item .food-item-title > strong {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+#adminApp .food-compact-item .food-item-title > .food-quantity-summary {
+  display: block;
+  margin-top: 1px;
+}
+#adminApp .food-compact-item > summary > .food-claim-summary {
+  grid-row: 2;
+}
+#adminApp .food-compact-item > summary > .food-comment-grid {
+  grid-row: 3;
+}
+#adminApp .food-compact-item > summary > .comment-more {
+  grid-row: 4;
+}
+@media (min-width: 601px) {
+  #adminApp
+    .food-compact-item
+    > summary:not(:has(> .food-claim-summary))
+    > .food-comment-grid {
+    grid-row: 2;
+  }
+}
+@media (max-width: 600px) {
+  #adminApp .food-compact-item .food-header-actions > .food-item-actions {
+    grid-row: 2;
+  }
+  #adminApp .food-compact-item .food-header-meta {
+    grid-row: 3;
+  }
+  #adminApp .food-compact-item > summary > .food-claim-summary {
+    grid-row: 4;
+  }
+  #adminApp .food-compact-item > summary > .food-comment-grid {
+    grid-row: 5;
+  }
+  #adminApp .food-compact-item > summary > .comment-more {
+    grid-row: 6;
+  }
+}
+
+#adminApp .household-primary-contact {
+  margin: 0 12px 10px;
+}
+#adminApp .household-primary-contact > small,
+#adminApp .household-primary-contact > strong {
+  display: block;
+  font-size: 0.78rem;
+}
+#adminApp .household-primary-contact > .compact-household-profile {
+  padding: 0;
+  margin-bottom: 0;
+}
+#adminApp .household-primary-contact > dl:empty {
+  display: none;
+}
+#adminApp .household-contact-row {
+  grid-column: 1/-1;
+}
+#adminApp .household-contact-row > strong {
+  font-size: 0.82rem;
+}
+#adminApp .household-primary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 4px;
+}
+#adminApp .household-primary-actions > span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+#adminApp .household-contact-link {
+  margin: 0;
+}
+#adminApp .management-form > .household-food-toggle {
+  display: flex;
+  align-items: center;
+  justify-self: start;
+  align-self: end;
+  min-height: 44px;
+  margin: 0;
+  gap: 8px;
+}
+#adminApp .household-food-toggle input {
+  margin: 0;
+}
+#adminApp .household-form-footer {
+  margin: 10px 13px 12px;
+}
+
+#adminApp .household-primary-actions > .btn {
+  margin: 0;
+}
+#adminApp
+  .household-inline-editor:has(> .household-primary-picker:not(.hidden))
+  > form {
+  margin-bottom: 4px;
+  padding-bottom: 0;
+}
+#adminApp .household-primary-picker {
+  margin: 0 13px 12px;
+}
+#adminApp .household-primary-picker > .primary-picker-section {
+  margin: 4px 0 !important;
+}
+#adminApp .household-primary-picker .contact-form {
+  padding: 8px 12px 12px;
+}
+#adminApp .household-primary-picker .contact-guest-option:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+#guestPreviewLabel {
+  font-size: 0.78em;
+  font-weight: 400;
+}
+.backup-template-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  align-items: start;
+  gap: 8px 16px;
+  margin: 10px 0;
+}
+.backup-template-sections p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.backup-template-sections label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-height: 36px;
+}
+.backup-template-sections label:has(> input[value="drafts"]:disabled) {
+  color: var(--muted);
+}
+.backup-invitation-options,
+.backup-invitation-children {
+  display: grid;
+}
+.backup-invitation-children {
+  margin-inline-start: 0.55rem;
+  padding-inline-start: 0.85rem;
+  border-inline-start: 1px solid var(--line);
+}
+.backup-template-sections .backup-drafts-help {
+  margin-block-end: 0.4rem;
+}
+
+#adminApp .admin-row-icon.session-revoke-action {
+  width: auto;
+  padding-inline: 9px;
+  gap: 5px;
+  white-space: nowrap;
+}
+#adminApp .household-contact-link:has(svg),
+.food-guest-visibility > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.household-contact-link svg,
+.food-guest-visibility svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rsvp-session h3,
+.rsvp-review-session h4 {
+  margin: 0 0 5px;
+}
+.rsvp-bulk {
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.rsvp-bulk p,
+.rsvp-bulk .response-options {
+  margin: 4px 0 0;
+}
+.rsvp-guest {
+  min-width: 0;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+.rsvp-guest legend {
+  padding: 0;
+  font-weight: 600;
+}
+.rsvp-guest .response-options {
+  margin-top: 4px;
+}
+.rsvp-review-session ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.rsvp-review-session li {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 5px 0;
+}
+.rsvp-review-session li + li {
+  border-top: 1px solid var(--line);
+}
+
+/* Shared category-panel help; empty status regions consume no space. */
+#adminApp .admin-section-hint {
+  font-size: 0.86rem;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+#otherStatus:empty {
+  display: none;
+}
+
+/* Food category branches follow the existing household tree treatment. */
+.food-subcategories:not(:empty) {
+  margin: 12px 0 0 14px;
+  padding-inline-start: 12px;
+  border-inline-start: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+}
+/* Category metadata and editors follow the household row arrangement. */
+#adminApp .food-category-heading > .tree-count {
+  margin-left: 0;
+  white-space: normal;
+}
+#adminApp .food-heading-actions {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+}
+.food-category-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+.food-category-fields > label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+}
+.food-category-create {
+  display: grid;
+  gap: 12px;
+}
+.food-category-create > button {
+  justify-self: start;
+}
+.food-category-add-options {
+  display: grid;
+  gap: 8px;
+}
+.food-category-add-options button {
+  width: 100%;
+  text-align: start;
+}
+@media (max-width: 600px) {
+  .food-category-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .food-subcategories:not(:empty) {
+    margin-inline-start: 6px;
+    padding-inline-start: 6px;
+  }
+}
+
+/* Backup choices use the same inline checkbox alignment as other settings. */
+.backup-log-option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+.backup-log-option input {
+  width: auto;
+  margin: 0;
+}
+.backup-selection-help {
+  margin-block: 0.65rem;
+}
+
+@media (max-width: 700px) {
+  .backup-template-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Backup modes are mutually exclusive checkmark choices. */
+.backup-mode-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  border: 0;
+  padding: 0;
+  margin: 0 0 12px;
+}
+.backup-mode-choices legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+.backup-mode-choices label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  gap: 8px;
+  margin: 0;
+}
+.backup-mode-choices input {
+  width: auto;
+  margin: 0;
+}
+@media (pointer: coarse) {
+  .backup-mode-choices label {
+    min-height: 44px;
+  }
+}
+
+/* Session choices use the same checkbox fieldset as food-item venue choices. */
+.household-session-selection { border-top: 1px solid var(--line); padding-top: 16px; }
+.household-session-choices .checkbox-label { align-items: flex-start; }
+.household-session-choices .checkbox-label > span > small { display: block; font-weight: 400; }
+.household-session-exceptions { margin-top: 12px; }
+.household-session-exceptions > summary { cursor: pointer; font-size: .82rem; }
+.household-session-exceptions[open] { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.household-session-exceptions > summary { grid-column: 1/-1; }
+@media (max-width:700px) { .household-session-exceptions[open] { grid-template-columns: 1fr; } }
+
+/* Keep hierarchy cues without framing every nested editor. */
+#adminApp #householdRows .household-inline-editor {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding: 0;
+}
+#adminApp #householdRows .household-inline-editor[open] {
+  padding: 12px 0;
+}
+#adminApp #householdRows .tree-children .tree-children {
+  border-left: 0;
+}
+#adminApp #adminFoodList .food-category .food-category,
+#adminApp #adminFoodList .food-edit-form {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+#adminApp #adminFoodList .food-edit-form { padding-inline: 0; }
+@media (max-width: 700px) {
+  #adminApp :is(.household-node-name small, .household-guests, .food-item-info small) { font-size: .82rem; }
+}
+
+/* Record dates stay quiet and separate from editable venue/session details. */
+.record-timestamps { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 4px 12px; margin: 12px 0; }
+.record-timestamps dt { color: var(--muted); }
+.record-timestamps dd { margin: 0; overflow-wrap: anywhere; }
+#adminList .preview-titleline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; }
+
+/* Household details use equal single-line controls and paired text areas. */
+#adminApp .household-details-form {
+  align-items: start;
+}
+#adminApp .household-details-form > label:not(.checkbox-label) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  align-self: start;
+}
+#adminApp .household-details-form > label > :is(input:not([type=checkbox]), select) {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+#adminApp .household-details-form > label > textarea {
+  box-sizing: border-box;
+  width: 100%;
+  height: 88px;
+  min-height: 88px;
+  resize: vertical;
+}
+
+/* Sign-in and password recovery share native, password-manager-compatible forms. */
+.auth-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.auth-link-button {
+  border: 0;
+  background: none;
+  font: inherit;
+  padding: 8px 0;
+  text-align: start;
+  cursor: pointer;
+}
+.auth-feedback { min-height: 1.4em; overflow-wrap: anywhere; }
+.auth-feedback.auth-error { color: var(--danger, #b85248); }
+@media (pointer: coarse) {
+  .auth-link-button { min-height: 44px; }
+}
+
+/* Compact saved settings keep labels beside their values at every width. */
+.record-read-grid.compact-read-grid {
+  grid-template-columns: minmax(100px, 0.36fr) minmax(0, 1fr);
+  gap: 0 14px;
+  margin: 4px 0 0;
+  font-size: 0.88rem;
+}
+.compact-read-grid > dt,
+.compact-read-grid > dd {
+  min-width: 0;
+  padding: 9px 0;
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.compact-read-grid > dt:last-of-type,
+.compact-read-grid > dd:last-of-type {
+  border-bottom: 0;
+}
+.compact-read-grid > dd {
+  white-space: normal;
+}
+.compact-contact-details {
+  margin-top: 10px;
+}
+.compact-contact-details > summary {
+  color: var(--teal);
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+.compact-contact-details[open] > summary {
+  margin-bottom: 4px;
+}
+@media (max-width: 600px) {
+  .record-read-grid.compact-read-grid {
+    grid-template-columns: minmax(84px, 0.43fr) minmax(0, 1fr);
+    column-gap: 10px;
+    font-size: 0.86rem;
+  }
+  .compact-read-grid > dt,
+  .compact-read-grid > dd {
+    padding-block: 8px;
+    margin-bottom: 0;
+  }
+  .compact-contact-details > summary {
+    min-height: 44px;
+    padding-block: 7px;
+  }
+}
+
+/* Main-list searches retain their existing labels, inputs and controller listeners. */
+#adminApp .admin-search-control {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+#adminApp .admin-search-control > .admin-search-toggle,
+#adminApp .admin-search-panel > .admin-search-close {
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+#adminApp .admin-search-panel {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+#adminApp .admin-search-panel[hidden] {
+  display: none;
+}
+#adminApp .admin-search-panel > label {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+}
+#adminApp .admin-search-panel input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+#adminApp .admin-search-close > span {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+#adminApp .panel-heading:has(> .admin-search-control) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+#adminApp .panel-heading > .admin-search-control {
+  margin-inline-start: auto;
+}

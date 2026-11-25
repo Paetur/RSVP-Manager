@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "version": "0.9.0",
+  "functions": {
+    "guest-gateway": {
+      "file": "guest-gateway.ts",
+      "sha256": "5ec2c553205f2e99b4eebdd1793d22c7a50cfaf40d63abfee57daf0cd34dc375",
+      "verify_jwt": false,
+      "sources": {
+        "supabase/functions/_shared/site-origin.mjs": "9b3b31903310d20199c36ac79f6f3155e5248fcfd9c3fb8a2ca66cd6d8ea3948",
+        "supabase/functions/_shared/request-body.mjs": "ca583ef082fd0111f4e709e043f3dc032fd264d131160eafd70a86507f252164",
+        "supabase/functions/guest-gateway/index.ts": "91d8dea55c6cae3ec41d8734ccfc2c9bb14e02ddb39a8e5baaa5154d670af23a"
+      }
+    },
+    "admin-invitations": {
+      "file": "admin-invitations.ts",
+      "sha256": "e202a37ceeaad09d54273485db4ee16aea3eeceac9a567c53a78e8dea8df2e88",
+      "verify_jwt": false,
+      "sources": {
+        "supabase/functions/_shared/site-origin.mjs": "9b3b31903310d20199c36ac79f6f3155e5248fcfd9c3fb8a2ca66cd6d8ea3948",
+        "supabase/functions/_shared/request-body.mjs": "ca583ef082fd0111f4e709e043f3dc032fd264d131160eafd70a86507f252164",
+        "supabase/functions/admin-invitations/handler.mjs": "7974cc1ceb5bcea0845d9d3ccf030bf3a2b36294359b58bdad5fb881abdbf40b",
+        "supabase/functions/admin-invitations/index.ts": "8ff6067197b1a6f8871decb777c75a33559e676179e78a515489e7cf23d306ae"
+      }
+    },
+    "invitation-shortcuts": {
+      "file": "invitation-shortcuts.ts",
+      "sha256": "3ce972ddd464807b1d6a796e82fba13e101060835ad5b4e3efde5a48a4e8d9af",
+      "verify_jwt": false,
+      "sources": {
+        "supabase/functions/_shared/site-origin.mjs": "9b3b31903310d20199c36ac79f6f3155e5248fcfd9c3fb8a2ca66cd6d8ea3948",
+        "supabase/functions/_shared/request-body.mjs": "ca583ef082fd0111f4e709e043f3dc032fd264d131160eafd70a86507f252164",
+        "supabase/functions/invitation-shortcuts/handler.mjs": "d0784d5967605471b07d954a245bcc1e4730b46705739e36b25b29819cbabb9e",
+        "supabase/functions/invitation-shortcuts/index.ts": "b0704a54c962f6ebc278f007fbd3bdc07a915499780fcd7d3568a6e889316e13"
+      }
+    }
+  }
+}

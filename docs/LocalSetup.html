@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Local Supabase setup · RSVP Manager</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 1.5rem;
+      }
+      main {
+        max-width: 52rem;
+        margin: auto;
+        line-height: 1.6;
+      }
+      h1,
+      h2 {
+        line-height: 1.2;
+      }
+      h2 {
+        margin-top: 2rem;
+      }
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        padding: 1rem;
+        border: 1px solid #888;
+        border-radius: 0.5rem;
+      }
+      code {
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav><a href="../setup.html">Back to setup wizard</a></nav>
+      <h1>Install with local Supabase</h1>
+      <p>
+        Use your own computer or VM, a container runtime and the Supabase CLI.
+        Keep the website, database baseline and Edge Functions from the same
+        RSVP Manager release.
+      </p>
+      <h2>1. Start the local stack</h2>
+      <p>From your configured Supabase project directory:</p>
+      <pre>
+supabase start
+supabase status</pre
+      >
+      <p>
+        Use the Studio and API URLs printed by the CLI. When opening the website
+        from another device, use the VM’s hostname instead of localhost. Copy
+        only the public/publishable or anon browser key; keep secret/service
+        keys private. If the website uses HTTPS, its API must use HTTPS too.
+      </p>
+      <h2>2. Install the current schema once</h2>
+      <p>
+        Starting the stack from this release’s project directory applies its
+        single baseline automatically. If that happened, skip SQL installation.
+        If the application schema is empty, open local Studio → SQL Editor and
+        run the complete
+        <a href="../supabase/install.sql" download="rsvp-install.sql"
+          >SQL installer</a
+        >
+        once. The wizard never executes privileged SQL. Do not run the installer
+        over an installed event or apply both installation routes.
+      </p>
+      <h2>3. Run the Edge Functions locally</h2>
+      <p>
+        If both functions are already running under your VM’s configured
+        service, keep that setup. Otherwise, use the release’s complete
+        supabase/functions directory and supabase/config.toml. Put these
+        environment entries in a private file outside the served website;
+        replace the example URLs with the actual website origin and installation
+        URL:
+      </p>
+      <pre>
+RSVP_SITE_ORIGIN=http://localhost:8080
+RSVP_SITE_URL=http://localhost:8080/</pre
+      >
+      <p>
+        The origin has no path or trailing slash; the site URL includes its
+        installation path and trailing slash. From the same Supabase project
+        directory, run:
+      </p>
+      <pre>
+supabase functions serve --env-file /private/path/rsvp-functions.env --no-verify-jwt</pre
+      >
+      <p>
+        Keep it running while testing, or manage it through your local service.
+        Both guest-gateway and admin-invitations must use the same website
+        settings. Their invitation-code, origin, rate-limit and
+        administrator/session validation stays enabled. Never place server
+        credentials in browser files.
+      </p>
+      <h2>4. Complete the wizard</h2>
+      <p>
+        Under local Studio → Authentication → URL Configuration, set the full
+        website Site URL and allow its admin/?admin-invitation=1 redirect.
+        Return to the wizard, enter the API URL and public browser key, and
+        choose Test connection in step 2 only after the schema, function
+        environment, both functions and Auth URLs are configured. This test does
+        not install or configure the server. In step 3, create and confirm the
+        first Auth user under Authentication → Users, run the wizard’s
+        first-administrator SQL and verify login. In step 4, install the
+        downloaded config.js as js/config.js in your local website directory.
+        Existing VM installations may already have their public configuration in
+        place.
+      </p>
+      <p>
+        Keep the event unpublished while testing. Cloud installations use the
+        <a href="StudioSetup.html">cloud Studio guide</a> instead.
+      </p>
+      <p>
+        <a
+          href="https://supabase.com/docs/guides/local-development/cli/getting-started"
+          >Official Supabase local setup</a
+        >
+      </p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,1070 @@
+/* Guest food categories, bundled choices and add-person forms. */
+.guest-food-category {
+  min-width: 0;
+}
+.guest-food-category > h3 {
+  margin: 1rem 0 0.6rem;
+}
+.guest-food-group > .guest-food-details {
+  padding: 0.8rem;
+}
+.guest-food-group .food-item {
+  margin: 0.5rem 0;
+}
+.guest-add-person {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+.guest-add-person > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.guest-add-person form {
+  margin-top: 0.8rem;
+}
+.food-group-options {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.food-group-options .checkbox-label {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+.food-group-options input[type="checkbox"] {
+  width: auto;
+  min-height: 24px;
+}
+.food-group-admin {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.guest-add-person .checkbox-label {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+.guest-add-person input[type="checkbox"] {
+  width: auto;
+  min-height: 24px;
+}
+.guest-map-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.guest-map-link svg {
+  flex: none;
+}
+.guest-food-group > summary {
+  overflow-wrap: anywhere;
+}
+
+/* Food creation and consistent category/group panels. */
+.food-management-box {
+  margin-top: 12px;
+}
+.food-management-box > h3 {
+  margin-top: 0;
+}
+.food-language-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.food-language-action svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+}
+.food-name-field > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.food-category-name-form .other-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  #adminApp .food-edit-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #adminApp .food-edit-form > label {
+    grid-column: 1/-1;
+  }
+  .food-name-field > span {
+    flex-wrap: wrap;
+  }
+}
+
+/* Aligned icon controls and staged food coordination. */
+.food-name-field > .food-name-control,
+.food-unit-control {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.food-name-control input,
+.food-unit-control select {
+  min-width: 0;
+  width: 100%;
+}
+.food-unit-control .food-type-tools {
+  position: static;
+  margin: 0;
+}
+.food-interest-form fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 14px;
+  display: grid;
+  gap: 10px;
+}
+.food-interest-form legend {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.food-interest-form .radio-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.food-interest-form input {
+  width: auto;
+  min-height: 24px;
+}
+.food-language-action {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 5px;
+}
+.food-interest-form {
+  margin-bottom: 20px;
+}
+#foodGroupsSection,
+#foodCategoriesSection {
+  margin-top: 14px;
+}
+#adminApp .food-stage-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+}
+#adminApp .food-stage-heading h2 {
+  margin: 0 0 4px;
+}
+#adminFoodStageStatus {
+  margin: 0;
+}
+.food-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+.food-access-dialog {
+  width: min(44rem, calc(100vw - 24px));
+}
+.food-access-dialog > h2 {
+  margin-block: 0 4px;
+}
+.food-access-dialog > p {
+  margin-block: 0 14px;
+}
+.food-access-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.food-access-form > input {
+  width: 100%;
+  min-width: 0;
+}
+.food-access-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.food-access-dialog .food-access-filters > .btn[aria-pressed="true"] {
+  background: var(--light);
+  color: var(--ink);
+  border-color: var(--teal);
+}
+.food-access-roster {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  max-height: min(46dvh, 26rem);
+  overflow: auto;
+}
+.food-access-empty {
+  margin: 4px;
+}
+.food-access-group > legend {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.food-access-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.food-access-table th,
+.food-access-table td {
+  text-align: start;
+  border-bottom: 1px solid var(--line);
+  padding: 4px 10px;
+  overflow-wrap: anywhere;
+}
+.food-access-table thead th {
+  padding-block: 6px;
+}
+.food-access-table thead :nth-child(2),
+.food-access-table thead :nth-child(3) {
+  width: 25%;
+}
+.food-access-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.food-access-table :last-child:is(th, td):not([colspan]) {
+  text-align: center;
+}
+.food-access-table .food-access-relational-heading th {
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding-block: 7px 2px;
+}
+.food-access-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+.food-access-toggle > input {
+  margin: 0;
+}
+.food-access-form > p,
+.food-access-form > .form-actions {
+  margin: 0;
+}
+.food-access-form > .form-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 480px) {
+  .food-access-dialog {
+    padding: 14px;
+  }
+  .food-access-roster {
+    padding: 4px;
+  }
+  .food-access-group.venue-assignment-category {
+    padding-inline: 4px;
+  }
+  .food-access-table th,
+  .food-access-table td {
+    padding-inline: 6px;
+  }
+}
+
+#adminApp .food-edit-form input:not([type="checkbox"]),
+#adminApp .food-edit-form select {
+  height: 44px;
+  min-height: 44px;
+  padding: 9px 12px;
+  box-sizing: border-box;
+}
+#adminApp .food-edit-form textarea {
+  height: 94px;
+  min-height: 94px;
+}
+#adminApp .food-edit-form .food-unit-control {
+  width: 308px;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  box-sizing: border-box;
+}
+#adminApp .food-edit-form select[name="category"] {
+  width: 260px;
+  max-width: 100%;
+}
+#adminApp .food-edit-buttons {
+  align-items: center;
+  flex-wrap: wrap;
+}
+#adminApp .food-edit-buttons .food-guest-visibility {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  min-height: 44px;
+  margin: 0 0 0 8px;
+  white-space: nowrap;
+}
+#adminApp .food-edit-buttons .food-guest-visibility input {
+  width: 18px;
+  min-height: 18px;
+  margin: 0;
+}
+#foodCard > p {
+  white-space: pre-line;
+}
+@media (max-width: 600px) {
+  #adminApp .food-edit-buttons .food-guest-visibility {
+    margin-left: 0;
+  }
+}
+
+/* Keep icon columns inside the item editor, including touch-sized controls. */
+#adminApp .food-edit-form > label {
+  min-width: 0;
+}
+#adminApp .food-edit-form .food-name-control {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+#adminApp .food-edit-form .food-name-control > .admin-row-icon,
+#adminApp .food-edit-form .food-type-tools > .admin-row-icon {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+#adminApp .food-edit-form .food-type-tools {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  #adminApp .food-edit-form .food-unit-control {
+    width: 100%;
+  }
+}
+
+/* Compact per-person attendance choices; native radio behavior is retained. */
+.rsvp-inline {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.rsvp-person-row {
+  display: grid;
+  grid-template-columns: minmax(64px, 0.85fr) minmax(0, 2.15fr);
+  gap: 12px;
+  align-items: center;
+}
+.rsvp-person-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.rsvp-inline .response-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  max-width: none;
+  justify-self: end;
+  width: 100%;
+}
+.rsvp-inline .radio-pill {
+  position: relative;
+  justify-content: center;
+  text-align: center;
+  min-height: 44px;
+  padding: 7px 4px;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  overflow-wrap: normal;
+  word-break: normal;
+  cursor: pointer;
+  margin: 0;
+}
+.rsvp-inline .radio-pill input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  opacity: 0;
+}
+.rsvp-inline .radio-pill:has(input:checked) {
+  background: var(--white);
+  color: var(--ink);
+  border-color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
+  font-weight: 600;
+}
+.rsvp-inline .radio-pill:has(input:checked)::before {
+  content: "✓ ";
+  color: var(--teal);
+}
+.rsvp-inline .radio-pill:has(input:focus-visible) {
+  outline: 2px solid var(--teal);
+  outline-offset: 3px;
+}
+.rsvp-inline .radio-pill:has(input:disabled) {
+  cursor: default;
+  opacity: 0.7;
+}
+/* Approved compact phone layout; desktop attendance remains inline as before. */
+@media (max-width: 700px) {
+  .rsvp-person-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .rsvp-person-name {
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
+  }
+  .rsvp-inline .response-options {
+    gap: 5px;
+    max-width: none;
+  }
+  .rsvp-inline .radio-pill {
+    font-size: 11px;
+    line-height: 1.25;
+    padding: 6px 3px;
+    min-height: 48px;
+  }
+}
+@media (max-width: 350px) {
+  .rsvp-person-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rsvp-inline .response-options {
+    max-width: none;
+  }
+}
+
+.guest-session-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+.guest-session-heading h3 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.guest-mini-map {
+  width: 112px;
+  flex-shrink: 0;
+  text-align: center;
+}
+.guest-map-thumbnail {
+  display: block;
+  height: 76px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.guest-map-thumbnail iframe {
+  border: 0;
+  width: 280px;
+  height: 200px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.6);
+  pointer-events: none;
+}
+.guest-mini-map .guest-map-link {
+  display: block;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  margin-top: 5px;
+  text-decoration: underline;
+}
+.guest-map-thumbnail:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 3px;
+}
+
+/* Approved photo treatment applies only after private invitation/preview access. */
+body.guest-photo {
+  --ink: #eef1e7;
+  --muted: #bdcbbf;
+  --white: #163327;
+  --line: #587663;
+  --teal: #3d806b;
+  --light: #264a3c;
+  isolation: isolate;
+  background: #10231b;
+  color: var(--ink);
+}
+#guestPhotoBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  pointer-events: none;
+}
+#guestPhotoBackdrop:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(5, 24, 17, 0.3),
+    rgba(5, 24, 17, 0.38) 55%,
+    rgba(5, 24, 17, 0.55)
+  );
+}
+body.guest-photo .topbar {
+  background: rgba(13, 38, 25, 0.86);
+  border-color: rgba(199, 218, 195, 0.2);
+}
+body.guest-photo .brand,
+body.guest-photo .nav-link {
+  color: var(--ink);
+}
+body.guest-photo .guest-layout {
+  display: block;
+  max-width: 1000px;
+  padding-top: 30px;
+}
+body.guest-photo .hero-panel {
+  position: static;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  text-align: center;
+  padding: 20px 0 20px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+}
+body.guest-photo .hero-panel h1 {
+  font-size: clamp(2.7rem, 6vw, 5rem);
+  color: #f1eedc;
+  margin-bottom: 12px;
+}
+body.guest-photo .hero-date {
+  color: #f1eedc;
+  font-size: clamp(1.15rem, 3vw, 1.8rem);
+}
+body.guest-photo .hero-panel .lede {
+  color: #e0e8dc;
+  max-width: 45ch;
+}
+body.guest-photo .hero-panel .micro {
+  color: #d6e0d4;
+}
+body.guest-photo .guest-main {
+  max-width: 760px;
+  margin: 0 auto;
+}
+body.guest-photo .panel {
+  background: #143021;
+  border-color: #6a8b6d;
+  color: var(--ink);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+body.guest-photo .guest-response,
+body.guest-photo .radio-pill,
+body.guest-photo .language-switch {
+  background: #183a2b;
+  color: var(--ink);
+  border-color: var(--line);
+}
+body.guest-photo .language-switch button {
+  color: #dbe8d8;
+}
+body.guest-photo .footer,
+body.guest-photo .footer a {
+  color: #e1e9db;
+}
+@media (max-width: 600px) {
+  body.guest-photo .guest-layout {
+    padding-top: 10px;
+  }
+  body.guest-photo .hero-panel {
+    min-height: 0;
+    padding-top: 18px;
+    padding-bottom: 16px;
+  }
+  body.guest-photo .hero-panel h1 {
+    font-size: 2.7rem;
+  }
+  body.guest-photo .panel {
+    padding: 20px 16px;
+  }
+}
+
+body.guest-photo .eyebrow,
+body.guest-photo .quiet-link,
+body.guest-photo .guest-map-link,
+body.guest-photo .text-button {
+  color: #b4dcc7;
+}
+
+.food-selection-prompt {
+  margin: 20px 0 12px;
+  font-weight: 600;
+}
+.guest-food-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.guest-food-heading > strong {
+  flex: 1;
+  min-width: 70px;
+  overflow-wrap: anywhere;
+}
+.guest-food-heading > button {
+  flex: none;
+  min-height: 44px;
+  padding: 7px 12px;
+  margin: 0;
+}
+.guest-food-heading .tag {
+  font-size: 0.72rem;
+}
+
+/* Two food cards per row when the guest panel has room for inline actions. */
+.guest-food-category {
+  container-type: inline-size;
+}
+.guest-food-category > .food-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.guest-food-category > .food-list > .food-item {
+  min-width: 0;
+  margin: 0;
+}
+@container (min-width:240px) {
+  .guest-food-category > .food-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.guest-food-choice {
+  display: block !important;
+  padding: 0 !important;
+  border: 0;
+  background: transparent !important;
+  min-width: 0;
+}
+.guest-food-choice > .food-interest-choice {
+  margin: 0;
+  min-height: 64px;
+  height: auto;
+  width: 100%;
+  line-height: 1.4;
+}
+.guest-food-choice > .food-interest-choice:disabled {
+  cursor: default;
+}
+.guest-food-information {
+  margin-top: 6px;
+  min-width: 0;
+}
+.guest-food-information > summary {
+  padding: 8px 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--muted);
+}
+.guest-food-information > .guest-food-details {
+  padding: 8px 4px;
+}
+.guest-food-group .guest-food-information .food-item {
+  margin: 6px 0;
+}
+.guest-food-choice .food-interest-choice[aria-pressed="true"] {
+  font-weight: 600;
+}
+
+.food-review-list {
+  list-style: none;
+  margin: 16px 0;
+  padding: 0;
+}
+.food-review-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.food-review-list > li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.food-review-list .icon-popup-control {
+  flex: none;
+}
+.food-review-recipe {
+  max-height: 65vh;
+  overflow-y: auto;
+}
+#foodReview h3 {
+  margin-top: 18px;
+}
+.food-review-list .text-button {
+  min-height: 44px;
+}
+#foodReview .form-actions {
+  margin-top: 18px;
+}
+
+#foodCard.food-reviewing > p:not(#foodFollowup) {
+  display: none;
+}
+.guest-brand {
+  white-space: normal;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  line-height: 1.25;
+}
+.guest-brand #guestEventName {
+  overflow-wrap: anywhere;
+}
+.guest-footnote {
+  text-align: center;
+  padding-top: 18px;
+  padding-bottom: 28px;
+}
+.guest-footnote p {
+  margin: 0;
+}
+body.guest-photo .guest-footnote .micro {
+  color: #d6e0d4;
+}
+body.guest-photo .hero-panel h1 {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  max-width: 26ch;
+}
+@media (max-width: 600px) {
+  .guest-brand {
+    font-size: 0.95rem;
+  }
+  .guest-brand ~ .topbar-actions {
+    flex-shrink: 0;
+  }
+  .guest-brand ~ .topbar-actions .language-switch button {
+    padding: 4px 8px;
+  }
+  body.guest-photo .hero-panel h1 {
+    font-size: 2rem;
+  }
+}
+
+.guest-session-details {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 0 0 14px;
+}
+.guest-session-details > .session-venue {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.guest-session-details > .guest-mini-map {
+  flex: none;
+}
+@media (max-width: 600px) {
+  .guest-session-details {
+    gap: 12px;
+  }
+  .guest-session-details > .guest-mini-map {
+    width: 96px;
+  }
+}
+
+.session-venue-lines > span {
+  display: block;
+}
+.session-venue-lines > span:last-child {
+  margin-top: 5px;
+}
+
+body.guest-photo .topbar-inner {
+  max-width: 816px;
+  padding-left: 28px;
+  padding-right: 28px;
+}
+
+@media (max-width: 600px) {
+  body.guest-photo .topbar-inner {
+    padding-left: 17px;
+    padding-right: 17px;
+  }
+}
+
+/* The approved photo remains visible in both guest appearances. */
+html[data-theme="light"] body.guest-photo {
+  --ink: #203c32;
+  --muted: #506b5b;
+  --white: #f7faf5;
+  --line: #b5cbbb;
+  --teal: #286e56;
+  --light: #e5f0e5;
+  color: var(--ink);
+}
+html[data-theme="light"] body.guest-photo .panel {
+  background: #f5f8ef;
+  border-color: #abc4a8;
+  color: var(--ink);
+}
+html[data-theme="light"] body.guest-photo .guest-response,
+html[data-theme="light"] body.guest-photo .radio-pill {
+  background: #f8fbf4;
+  border-color: var(--line);
+  color: var(--ink);
+}
+html[data-theme="light"]
+  body.guest-photo
+  .food-interest-choice[aria-pressed="true"] {
+  border-color: #286e56;
+  box-shadow: inset 0 0 0 1px #286e56;
+}
+html[data-theme="light"]
+  body.guest-photo
+  .food-interest-choice[aria-pressed="true"]:before,
+html[data-theme="light"] body.guest-photo .eyebrow,
+html[data-theme="light"] body.guest-photo .quiet-link,
+html[data-theme="light"] body.guest-photo .guest-map-link,
+html[data-theme="light"] body.guest-photo .text-button {
+  color: #286e56;
+}
+html[data-theme="light"] body.guest-photo .brand,
+html[data-theme="light"] body.guest-photo .nav-link {
+  color: #eef1e7;
+}
+.food-followup {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.admin-venue-map {
+  display: inline-grid;
+  flex: none;
+  vertical-align: middle;
+}
+.admin-venue-map .venue-map-link {
+  white-space: normal;
+  line-height: 1.3;
+  font-size: 0.7rem;
+  margin-top: 5px;
+  text-align: center;
+}
+.venue-summary-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.venue-summary-details {
+  flex: 1;
+}
+.admin-venue-map .guest-map-thumbnail {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .admin-venue-map {
+    width: 96px;
+  }
+  .venue-summary-links {
+    gap: 6px;
+  }
+}
+
+#foodReview .food-review-summary > h3 {
+  margin: 0 0 10px;
+}
+.food-review-summary .food-review-list {
+  margin: 0;
+}
+.food-review-summary .food-review-list > li:last-child {
+  border-bottom: 0;
+}
+.food-review-summary {
+  margin-top: 14px;
+}
+
+/* Bring the invitation closer to the date and let the photo show through. */
+body.guest-photo .hero-date {
+  margin-bottom: 0;
+}
+body.guest-photo .panel {
+  background: rgba(20, 48, 33, 0.82);
+}
+body.guest-photo .guest-response,
+body.guest-photo .radio-pill {
+  background: rgba(24, 58, 43, 0.25);
+}
+body.guest-photo .rsvp-inline .radio-pill:has(input:checked) {
+  background: rgba(24, 58, 43, 0.25);
+  color: var(--ink);
+  border-color: #b4dcc7;
+  box-shadow: inset 0 0 0 1px #b4dcc7;
+}
+html[data-theme="light"] body.guest-photo .panel {
+  background: rgba(245, 248, 239, 0.9);
+}
+html[data-theme="light"] body.guest-photo .guest-response,
+html[data-theme="light"] body.guest-photo .radio-pill {
+  background: rgba(248, 251, 244, 0.35);
+}
+html[data-theme="light"]
+  body.guest-photo
+  .rsvp-inline
+  .radio-pill:has(input:checked) {
+  background: rgba(248, 251, 244, 0.35);
+  color: var(--ink);
+  border-color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
+}
+
+body.guest-photo .guest-layout {
+  padding-bottom: 0;
+}
+.guest-footnote {
+  padding-top: 20px;
+}
+.guest-brand #guestEventName {
+  font-size: clamp(1.15rem, 2.6vw, 1.6rem);
+  font-weight: 600;
+  line-height: 1.2;
+}
+@media (max-width: 600px) {
+  .guest-footnote {
+    padding-top: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .guest-food-category > .food-list {
+    gap: 8px;
+  }
+  .guest-food-choice > .food-interest-choice {
+    min-height: 52px;
+    height: auto;
+    padding: 10px 8px;
+    font-size: 0.82rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* RSVP household comments remain with the reviewed and confirmed response. */
+.rsvp-comment-field {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+}
+.rsvp-comment-field textarea {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+}
+.rsvp-comment-preview {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 14px;
+}
+.rsvp-comment-preview p {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Category paths nest without reducing phone food cards to narrow columns. */
+.guest-food-category > .guest-food-category {
+  margin-top: 16px;
+  padding-inline-start: 12px;
+  border-inline-start: 1px solid var(--line);
+}
+.guest-food-category > .guest-food-category > h3 {
+  margin-top: 0;
+  font-size: 1rem;
+}
+.guest-food-quantity {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  margin-top: 8px;
+}
+.guest-food-quantity input {
+  width: 70px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 8px;
+}
+.food-availability,
+.guest-food-choice > .guest-food-note {
+  margin: 8px 0 0;
+}
+.guest-food-choice > .guest-food-note {
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.food-quantity-feedback {
+  margin: 6px 0;
+  color: var(--danger);
+}
+@media (max-width: 600px) {
+  .guest-food-quantity {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .guest-food-quantity input {
+    width: 100%;
+  }
+  .guest-food-category > .guest-food-category {
+    padding-inline-start: 8px;
+  }
+  .guest-food-category > .food-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+body.guest-photo .rsvp-inline .radio-pill:has(input:checked)::before { color: #b4dcc7; }
+html[data-theme="light"] body.guest-photo .rsvp-inline .radio-pill:has(input:checked)::before { color: var(--teal); }
+
+@media (max-width: 700px), (pointer: coarse) {
+  .guest-layout input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+  .guest-layout select, .guest-layout textarea { font-size: 16px; }
+  body:not(:has(#adminApp)) :is(.language-switch button, #themeToggle) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

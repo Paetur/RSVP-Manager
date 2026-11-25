@@ -1,0 +1,284 @@
+/* Event planning and feature settings. Shared card geometry lives in shared-editor refinements. */
+#adminApp [data-panel="events"] > :is(.settings-card, #planningConfigHost) {
+  min-width: 0;
+}
+@media (min-width: 1100px) {
+  #adminApp [data-panel="events"]:not(.hidden) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  /* Reading cards share a row; an open editor keeps its existing full width. */
+  #adminApp [data-panel="events"] > .settings-card-editing,
+  #adminApp [data-panel="events"] > #planningConfigHost:has(.settings-card-editing) {
+    grid-column: 1 / -1;
+  }
+}
+.planning-summary .record-read-grid {
+  margin: 0;
+}
+.planning-summary h4 {
+  font-size: 0.87rem;
+  margin: 18px 0 10px;
+}
+.planning-summary ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.planning-summary li {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--light);
+}
+#adminApp .planning-editor {
+  gap: 14px;
+}
+#adminApp .planning-editor > .planning-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+#adminApp .planning-editor .planning-fields > legend {
+  padding: 0 6px;
+  font-size: 0.88rem;
+  margin: 0;
+  font-weight: 600;
+}
+#adminApp .planning-editor .planning-fields > .planning-fields {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 0;
+}
+#adminApp .planning-editor .planning-groups {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  min-width: 0;
+}
+#adminApp .planning-editor .planning-groups > .planning-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-width: 0;
+}
+#adminApp .planning-editor .planning-groups .form-actions {
+  grid-column: 1/-1;
+  margin: 0;
+  justify-content: flex-end;
+}
+#adminApp .planning-editor label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.84rem;
+  min-width: 0;
+}
+#adminApp .planning-editor > .small-tool {
+  justify-self: start;
+}
+@media (min-width: 1000px) {
+  #adminApp .planning-editor > .planning-fields > .planning-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  #adminApp .planning-editor > .planning-fields,
+  #adminApp .planning-editor .planning-groups > .planning-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Choose one food stage; the full card is its native radio label. */
+.feature-stage-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+  border: 0;
+  border-radius: 10px;
+  padding: 0;
+  margin: 12px 0 0;
+}
+.feature-stage-options > legend {
+  padding: 0;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+#adminApp .feature-stage-options > .feature-stage-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  min-width: 0;
+  margin: 0;
+}
+#adminApp .feature-stage-card > input[type="radio"] {
+  margin-top: 3px;
+  align-self: flex-start;
+}
+.feature-stage-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.feature-stage-copy strong {
+  font-weight: 700;
+}
+.feature-stage-copy > span {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+#adminApp .feature-stage-options > .feature-stage-card:has(input:checked) {
+  border-color: var(--teal);
+  background: color-mix(in srgb, var(--teal) 12%, var(--panel));
+}
+.feature-stage-options:disabled .feature-stage-card {
+  opacity: 0.65;
+}
+@media (max-width: 600px) {
+  .feature-stage-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.feature-stage-options input[type="radio"] {
+  appearance: none;
+  width: 19px;
+  height: 19px;
+  min-height: 19px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  display: grid;
+  place-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+.feature-stage-options input[type="radio"]:checked:after {
+  content: "✓";
+  font-weight: bold;
+  color: var(--accent);
+}
+
+/* Guest name preferences: compact choices with adjacent explanatory text. */
+#guestNamesHost .settings-card-heading {
+  margin-bottom: 8px;
+}
+.guest-name-preferences {
+  display: grid;
+  gap: 12px;
+}
+.guest-name-option {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.guest-name-preferences fieldset.guest-name-option {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px 12px;
+}
+.guest-name-option legend {
+  padding: 0 4px;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+.guest-name-languages {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 20px;
+  row-gap: 0;
+}
+#guestNamesHost .checkbox-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 44px;
+  margin: 0;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+#guestNamesHost .checkbox-label input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+.guest-name-option .micro {
+  margin: 2px 0 0;
+}
+#guestNamesHost .form-actions {
+  margin-top: 0;
+}
+
+/* Application presents publication state beside the real launch facts. */
+#adminApp [data-settings-panel="application"].application-settings:not(.hidden) {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  align-items: start;
+}
+.application-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.application-card-heading h2 { margin: 0; font-size: 1.05rem; }
+.application-status-badge { display: inline-block; border-radius: 6px; padding: 3px 8px; background: var(--light); color: var(--muted); font-size: .76rem; font-weight: 400; white-space: nowrap; }
+.application-status-badge.published { color: var(--action-text); }
+.publication-summary { margin: 0 0 18px; }
+.publication-summary > div { display: grid; grid-template-columns: minmax(120px, .35fr) minmax(0, 1.3fr); gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: .86rem; }
+.publication-summary > div:last-child { border: 0; }
+.publication-summary dt { color: var(--muted); }
+.publication-summary dd { margin: 0; }
+.application-publication-note { padding: 14px; border-radius: 9px; background: var(--light); font-size: .83rem; }
+.application-guidance, .application-completed-checks { border-top: 1px solid var(--line); margin-top: 15px; padding-top: 13px; }
+.application-guidance > summary, .application-completed-checks > summary { cursor: pointer; font-size: .87rem; color: var(--teal); }
+.application-guidance > p { margin-bottom: 0; }
+#adminApp .application-check-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.application-check-list > li { display: flex; align-items: baseline; gap: 7px; font-size: .85rem; }
+.application-check-list .launch-check-label { min-width: 0; }
+.application-check-list .application-status-badge { flex-shrink: 0; }
+.application-completed-checks[open] > summary { margin-bottom: 13px; }
+@media (max-width: 850px) {
+  #adminApp [data-settings-panel="application"].application-settings:not(.hidden) { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .publication-summary > div { grid-template-columns: minmax(88px, .5fr) minmax(0, 1fr); gap: 10px; }
+  .application-check-list > li { flex-wrap: wrap; }
+}
+@media (pointer: coarse) {
+  .application-guidance > summary, .application-completed-checks > summary { min-height: 44px; display: flex; align-items: center; }
+}
+
+/* Saved event cards use their compact facts; fuller guidance stays in the editor. */
+#eventFeaturesHost:not(.settings-card-editing) > p.muted,
+#adminApp [data-settings-card="event-settings"]:not(.settings-card-editing) > p.muted {
+  display: none;
+}
+#adminApp [data-panel="events"] .compact-saved-view {
+  min-width: 0;
+}
+#adminApp [data-panel="events"] .form-reading {
+  margin-top: 0;
+}
+
+/* Long translated headings wrap before their stable header pencil. */
+#adminApp [data-panel="events"] .settings-card-heading > :is(h2, h3) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

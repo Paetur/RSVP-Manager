@@ -1,0 +1,463 @@
+/* Content-language records, field token help and compact event statistics. */
+#adminApp .settings-language-card > .settings-card-heading {
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+#adminApp .settings-language-card > .settings-card-heading > h3 {
+  margin-inline-end: auto;
+}
+#adminApp .settings-language-card > .settings-card-heading > [data-read-only-action] {
+  margin: 0;
+  flex: 0 0 auto;
+}
+#adminApp #translationEditor {
+  max-width: 62rem;
+  margin-inline: auto;
+}
+#adminApp .translation-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+#adminApp .translation-editor-heading h2 {
+  margin: 0;
+}
+#adminApp .translation-editor-heading .small-tool {
+  margin: 0;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#adminApp .translation-editor-heading svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#adminApp .translation-search {
+  max-width: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#adminApp .translation-search input {
+  flex: 1;
+  min-width: 0;
+}
+#adminApp #foodTranslationGrid {
+  display: grid;
+  gap: 12px;
+}
+#adminApp .translation-record-card {
+  margin: 0;
+  padding: 14px 16px;
+}
+#adminApp .translation-record-card > .settings-card-heading {
+  margin: 0;
+  min-height: 34px;
+  align-items: center;
+}
+#adminApp .translation-record-card > summary {
+  list-style: none;
+  cursor: pointer;
+}
+#adminApp .translation-record-card > summary::-webkit-details-marker {
+  display: none;
+}
+#adminApp .translation-record-card > summary h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+#adminApp .translation-record-card > summary h3::before {
+  content: "›";
+  color: var(--muted);
+}
+#adminApp .translation-record-card[open] > summary h3::before {
+  content: "⌄";
+}
+#adminApp .translation-record-card[open] > summary {
+  margin-bottom: 14px;
+}
+#adminApp .translation-record-body > .local-editor-box > .local-editor-summary {
+  padding: 0;
+}
+#adminApp .translation-language-grid,
+#adminApp .translation-record-card .food-translation-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    var(--translation-languages, 3),
+    minmax(0, 1fr)
+  );
+  gap: 18px;
+  overflow: visible;
+}
+#adminApp .translation-record-card .food-translation-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  max-width: none;
+}
+#adminApp .translation-record-card .food-translation-row > label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  width: 100%;
+}
+#adminApp .translation-record-card .food-translation-grid > .form-actions,
+#adminApp .translation-record-card .food-translation-grid > .form-feedback {
+  grid-column: 1/-1;
+}
+#adminApp .translation-record-card .food-translation-row > strong {
+  margin-bottom: 4px;
+}
+#adminApp .translation-reading-field {
+  margin-top: 12px;
+}
+#adminApp .translation-reading-field p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#adminApp .translation-record-body .local-editor-feedback {
+  margin: 0 0 10px;
+}
+#adminApp .placeholder-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+#adminApp .placeholder-help-toggle {
+  font-family: ui-monospace, monospace;
+  margin: 0;
+  flex-shrink: 0;
+}
+#adminApp .placeholder-help {
+  grid-column: 1/-1;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+#adminApp .food-translation-row .placeholder-help {
+  grid-column: auto;
+}
+#adminApp .placeholder-help p {
+  margin: 0 0 10px;
+}
+#adminApp .placeholder-token-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+#adminApp .placeholder-token-row > div {
+  min-width: 0;
+}
+#adminApp .placeholder-token-row code {
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+#adminApp .placeholder-token-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+#adminApp .placeholder-token-row button {
+  margin: 0;
+  flex-shrink: 0;
+}
+#adminApp .overview-panel {
+  background: var(--white);
+  border-radius: 10px;
+  padding: 16px 20px 18px;
+}
+#adminApp .overview-panel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-bottom: 12px;
+}
+#adminApp .overview-panel-heading h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+#adminApp .overview-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+  gap: 6px;
+  padding: 4px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+#adminApp .overview-tabs button {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 34px;
+  padding: 4px 16px;
+  color: var(--muted);
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 5px;
+  font-size: .82rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+#adminApp .overview-tabs button[aria-selected="true"] {
+  background: var(--light);
+  border-color: var(--line);
+  color: var(--action-text);
+}
+#adminApp :is(.overview-panel, .overview-tabs button, .overview-cards)[hidden] {
+  display: none;
+}
+#adminApp .overview-cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 10px;
+}
+#adminApp .overview-cards .stat-card {
+  min-width: 0;
+  background: color-mix(in srgb, var(--paper) 40%, var(--white));
+  border-radius: 10px;
+}
+@media (min-width: 701px) {
+  /* Keep the invites toolbar in place when the visible Overview tab changes. */
+  #adminApp .overview-card-stack { display: grid; }
+  #adminApp .overview-cards { grid-area: 1 / 1; }
+  #adminApp .overview-cards[hidden]:not(:empty) {
+    display: grid;
+    visibility: hidden;
+  }
+}
+@media (max-width: 700px) {
+  #adminApp .overview-panel { padding: 14px; }
+  #adminApp .overview-tabs button { padding-inline: 11px; }
+  #adminApp .overview-cards { grid-template-columns: minmax(0, 1fr); }
+}
+#adminApp .stat-card.stat-card-compact {
+  padding: 14px;
+}
+#adminApp .stat-heading {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+#adminApp .stat-card.stat-card-compact .stat-heading b {
+  display: inline;
+  font-size: 1.65rem;
+}
+#adminApp .stat-heading span {
+  font-weight: 650;
+}
+#adminApp .overview-people-totals {
+  gap: 3px 8px;
+  margin-bottom: 3px;
+}
+#adminApp .overview-people-breakdown {
+  color: var(--muted);
+  font-size: .76rem;
+  margin: 0 0 10px;
+}
+#adminApp .overview-people-breakdown + #inviteGroupTrees {
+  border-top: 1px solid var(--line);
+  padding-top: 7px;
+}
+#adminApp .stat-counts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 12px;
+  margin: 0;
+  font-size: 0.75rem;
+}
+#adminApp .stat-counts dt {
+  color: var(--muted);
+}
+#adminApp .stat-counts dd {
+  margin: 0;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+#adminApp .stat-card .stat-footnote {
+  margin: 10px 0 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+#adminApp .stat-interest {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+#adminApp .stat-interest > small {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 5px;
+  font-size: 0.72rem;
+}
+#adminApp .stat-interest-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+#adminApp .stat-card .stat-interest-counts span {
+  font-size: 0.72rem;
+}
+@media (max-width: 650px) {
+  #adminApp .translation-record-card {
+    padding: 12px;
+  }
+  #adminApp .translation-language-grid,
+  #adminApp .translation-record-card .food-translation-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #adminApp .translation-language-reading + .translation-language-reading,
+  #adminApp
+    .translation-record-card
+    .food-translation-row
+    + .food-translation-row {
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+  #adminApp .stat-card.stat-card-compact {
+    padding: 12px;
+  }
+}
+@media (pointer: coarse) {
+  #adminApp .overview-tabs button,
+  #adminApp .placeholder-help button,
+  #adminApp #translationSearchToggle,
+  #adminApp #translationSearchClose {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Scoped token pickers share category tabs, search and compact rows. */
+.placeholder-category-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px; }
+.placeholder-category-tabs button { min-height: 36px; font-size: .8rem; white-space: nowrap; }
+.placeholder-browser > input[type="search"] { width: 100%; max-width: 360px; margin: 0 0 10px; }
+.placeholder-browser .placeholder-reference-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.placeholder-browser .placeholder-reference-row > div { min-width: 0; }
+.placeholder-browser .placeholder-reference-row code { overflow-wrap: anywhere; }
+.placeholder-browser .placeholder-reference-row small { display: block; margin-top: 4px; color: var(--muted); }
+.placeholder-browser .placeholder-reference-row > input { grid-column: 1 / -1; }
+.placeholder-no-results { color: var(--muted); }
+@media (pointer: coarse) { .placeholder-category-tabs button { min-height: 44px; } }
+
+/* Invites owns the consolidated event summary and its read-only filters. */
+#adminApp .invite-group-tree + .invite-group-tree { margin-top: 10px; }
+#adminApp .invite-group-tree > summary {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 6px;
+  font-size: .76rem;
+  font-weight: 650;
+  color: var(--ink);
+  cursor: pointer;
+}
+#adminApp .invite-group-tree > summary::before { content: "›"; color: var(--action-text); }
+#adminApp .invite-group-tree[open] > summary::before { transform: rotate(90deg); }
+#adminApp .invite-group-tree > summary > b { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+#adminApp .invite-group-tree > summary > .invite-session-active {
+  min-width: 0;
+  margin-inline-start: auto;
+  color: var(--action-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#adminApp .invite-group-list {
+  list-style: none;
+  margin: 0 0 0 7px;
+  padding: 0 0 0 6px;
+  border-inline-start: 1px solid var(--line);
+}
+#adminApp .invite-group-list > li { min-width: 0; }
+#adminApp .invite-group-list > li button > span { overflow-wrap: anywhere; }
+#adminApp .invite-stat-rows {
+  display: grid;
+  gap: 2px;
+}
+#adminApp .stat-card .invite-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  margin: 0;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  text-align: start;
+  cursor: pointer;
+}
+#adminApp .stat-card .invite-stat-row > span {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#adminApp .stat-card .invite-stat-row span,
+#adminApp .stat-card .invite-stat-row b {
+  color: inherit;
+  font-size: .76rem;
+  line-height: 1.3;
+  letter-spacing: normal;
+}
+#adminApp .stat-card .invite-stat-row b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+#adminApp .stat-card .invite-stat-check {
+  flex: 0 0 1em;
+  color: currentColor;
+  font-size: .76rem;
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+  visibility: hidden;
+}
+#adminApp .stat-card .invite-stat-row[aria-pressed="true"] {
+  border-color: var(--line);
+  background: var(--light);
+  color: var(--action-text);
+}
+#adminApp .stat-card .invite-stat-row[aria-pressed="true"] .invite-stat-check {
+  visibility: visible;
+}
+@media (hover: hover) and (pointer: fine) {
+  #adminApp .stat-card .invite-stat-row:hover { border-color: var(--action-text); }
+}
+#adminApp .stat-card .invite-stat-row:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  #adminApp .stat-card .invite-stat-row, #adminApp .invite-group-tree > summary { min-height: 44px; }
+}

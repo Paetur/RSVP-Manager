@@ -1,0 +1,8 @@
+{
+  "Batch(s)": "types.units.batch_s",
+  "Piece(s)": "types.units.piece_s",
+  "Tray(s)": "types.units.tray_s",
+  "Packet(s)": "types.units.packet_s",
+  "Kg": "types.units.kg",
+  "Grams": "types.units.grams"
+}

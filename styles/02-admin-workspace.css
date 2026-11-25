@@ -1,0 +1,1438 @@
+/* Nested household management and sortable food management */
+.hierarchy-view {
+  display: grid;
+  gap: 22px;
+}
+.hierarchy-section {
+  background: #fbfcfa;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 15px;
+}
+.hierarchy-section > h3 {
+  margin: 0 0 14px;
+}
+.hierarchy-group {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 13px;
+  margin-top: 12px;
+}
+.hierarchy-group > h4 {
+  margin: 0 0 11px;
+  font-size: 0.9rem;
+}
+.household-node {
+  border-left: 3px solid #accfc0;
+  background: #f8faf7;
+  border-radius: 0 9px 9px 0;
+  padding: 10px 12px;
+  margin-top: 7px;
+}
+.household-node-main,
+.food-manage-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 13px;
+  align-items: center;
+}
+.household-node-name {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.household-node-name small {
+  width: 100%;
+}
+.household-guests {
+  display: block;
+  margin-top: 6px;
+}
+.household-actions,
+.food-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+}
+.household-actions button,
+.food-item-actions button,
+.food-category-heading button {
+  min-width: 22px;
+}
+.parent-picker,
+.food-category-picker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.parent-picker select,
+.food-category-picker select {
+  width: auto;
+  max-width: 205px;
+  min-height: 34px;
+  padding: 6px 9px;
+  font-size: 0.78rem;
+}
+.food-admin-list {
+  display: grid;
+  gap: 17px;
+}
+.food-category {
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 13px 16px;
+  background: #fbfcfb;
+}
+.food-category-heading {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.food-category-heading h3 {
+  margin: 0;
+}
+.food-manage-item {
+  border-bottom: 1px solid #e6eee9;
+  padding: 12px 0;
+}
+.food-manage-item:last-child {
+  border-bottom: 0;
+}
+.food-manage-main strong,
+.food-manage-main small {
+  display: block;
+}
+.food-edit-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px;
+  margin: 15px 0 0;
+  padding: 14px;
+  border-radius: 10px;
+  background: white;
+  border: 1px solid var(--line);
+}
+.food-edit-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.77rem;
+  font-weight: 700;
+}
+.food-edit-form .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.food-edit-buttons {
+  grid-column: 1/-1;
+  display: flex;
+  gap: 8px;
+}
+.food-edit-form textarea {
+  min-height: 65px;
+}
+.food-edit-form input,
+.food-edit-form textarea {
+  min-height: 38px;
+  padding: 8px 10px;
+  font-size: 0.86rem;
+}
+@media (max-width: 730px) {
+  .household-node-main,
+  .food-manage-main {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .household-actions,
+  .food-item-actions {
+    width: 100%;
+  }
+  .parent-picker select,
+  .food-category-picker select {
+    max-width: 170px;
+  }
+  .food-edit-form {
+    grid-template-columns: 1fr;
+  }
+  .hierarchy-group {
+    padding: 9px;
+  }
+  .hierarchy-section {
+    padding: 11px;
+  }
+  .household-node {
+    padding: 9px;
+  }
+}
+/* Settings navigation: keep event configuration and administrator access together. */
+.settings-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-tabs button {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: white;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+}
+.settings-tabs button.active,
+.settings-tabs button[aria-pressed="true"] {
+  color: white;
+  background: var(--teal);
+  border-color: var(--teal);
+}
+.settings-subsection {
+  display: grid;
+  gap: 22px;
+}
+.settings-subsection.hidden {
+  display: none !important;
+}
+
+/* Compact admin workspace and deliberate View/Edit modes. */
+.admin-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.mode-switch {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.mode-switch button {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.mode-switch button.active {
+  background: var(--teal);
+  color: #fff;
+}
+.admin-layout {
+  padding-top: 30px;
+  padding-bottom: 60px;
+}
+.admin-heading {
+  margin-bottom: 14px;
+}
+.admin-heading h1 {
+  font-size: clamp(1.8rem, 3vw, 2.45rem);
+  margin-bottom: 5px;
+}
+.admin-heading .eyebrow {
+  margin-bottom: 7px;
+}
+.admin-heading .muted {
+  margin-bottom: 0;
+  font-size: 0.84rem;
+}
+.admin-layout .panel {
+  padding: 20px 23px;
+  border-radius: 13px;
+  box-shadow: none;
+}
+.admin-layout .panel h2 {
+  font-size: 1.25rem;
+  margin-bottom: 6px;
+}
+.admin-layout .panel h3 {
+  margin-top: 16px;
+}
+.admin-layout .tab-bar {
+  margin-bottom: 18px;
+}
+.admin-layout .tab-bar button {
+  padding: 10px 15px;
+}
+.admin-layout .tab-section {
+  gap: 15px;
+}
+.admin-layout .stats-grid {
+  gap: 10px;
+}
+.admin-layout .stat-card {
+  padding: 14px 16px;
+  border-radius: 10px;
+}
+.admin-layout .stat-card b {
+  font-size: 1.7rem;
+}
+.admin-layout .hierarchy-section,
+.admin-layout .hierarchy-group,
+.admin-layout .food-category {
+  margin-bottom: 12px;
+}
+.admin-layout .household-node,
+.admin-layout .food-manage-item {
+  padding: 9px 10px;
+  border-radius: 8px;
+}
+.admin-layout .household-node-main,
+.admin-layout .food-manage-main {
+  gap: 10px;
+}
+.publication-panel {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 17px;
+}
+.publication-panel .notice {
+  margin-bottom: 9px;
+}
+.publish-ack {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.82rem;
+  min-height: 44px;
+  margin: 0;
+}
+.publish-ack input {
+  width: auto;
+  flex: none;
+  margin: 0;
+}
+.publication-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px 16px;
+  flex-wrap: wrap;
+}
+@media (max-width: 650px) {
+  .admin-heading-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .admin-layout .panel {
+    padding: 17px 15px;
+  }
+  .admin-layout .tab-bar button {
+    padding: 9px 12px;
+  }
+}
+
+/* Approved compact admin design: text tabs and icon-only top toolbar */
+#adminApp .admin-heading {
+  align-items: center;
+  margin-bottom: 10px;
+}
+#adminApp .admin-heading .eyebrow {
+  font-size: 0.65rem;
+  margin-bottom: 4px;
+}
+#adminApp .admin-heading h1 {
+  font-size: clamp(1.65rem, 3.2vw, 2.2rem);
+  margin-bottom: 3px;
+}
+#adminApp .admin-heading .muted {
+  font-size: 0.76rem;
+}
+#adminApp .admin-heading-actions {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+#adminApp .admin-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 37px;
+  height: 37px;
+  flex: 0 0 37px;
+  padding: 7px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+#adminApp .admin-icon-btn:hover {
+  background: #edf5ef;
+  border-color: #b2cbbd;
+}
+#adminApp .admin-icon-btn.active,
+#adminApp .admin-icon-btn[aria-pressed="true"] {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: white;
+}
+#adminApp .admin-icon-btn svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+#adminApp .admin-icon-btn:disabled {
+  cursor: progress;
+  opacity: 0.62;
+}
+#adminApp .admin-icon-btn.is-refreshing svg {
+  animation: admin-refresh-spin 0.8s linear infinite;
+}
+@keyframes admin-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+#adminApp .admin-icon-btn:focus-visible,
+#adminApp .admin-main-tabs button:focus-visible,
+#adminApp .tree-disclosure > summary:focus-visible,
+#adminApp .admin-row-icon:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+#adminApp .admin-main-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: clamp(16px, 4.2vw, 52px);
+  overflow-x: auto;
+  padding: 0 8px;
+  margin: 3px 0 17px;
+  border-bottom: 2px solid #dce5de;
+  scrollbar-width: thin;
+}
+#adminApp .admin-main-tabs button {
+  position: relative;
+  flex: none;
+  background: transparent;
+  border: 0;
+  padding: 13px 6px 16px;
+  font-size: clamp(1.05rem, 2vw, 1.65rem);
+  font-weight: 750;
+  line-height: 1.3;
+  white-space: nowrap;
+  color: var(--muted);
+}
+#adminApp .admin-main-tabs button.active {
+  color: #126f5e;
+  border: 0;
+}
+#adminApp .admin-main-tabs button.active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: #126f5e;
+}
+/* Settings is a toolbar drawer, not a fourth navigation tab */
+#adminApp .settings-drawer {
+  background: #f0f5ef;
+  border: 1px solid #d5e2d8;
+  border-radius: 13px;
+  padding: 14px 16px;
+  margin-bottom: 15px;
+  max-height: 76vh;
+  overflow: auto;
+}
+#adminApp .settings-drawer-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+#adminApp .settings-drawer-heading h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+#adminApp .settings-drawer-heading .admin-icon-btn {
+  width: 29px;
+  height: 29px;
+  flex-basis: 29px;
+  font-size: 1.25rem;
+}
+#adminApp .settings-tabs {
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+}
+#adminApp .settings-tabs button {
+  font-size: 0.77rem;
+  padding: 8px 12px;
+}
+#adminApp .settings-subsection {
+  gap: 11px;
+}
+#adminApp .settings-drawer .panel {
+  padding: 15px;
+  box-shadow: none;
+  border-radius: 11px;
+}
+#adminApp .settings-drawer .panel h2 {
+  font-size: 1.03rem;
+}
+#adminApp .settings-management > .panel {
+  margin-top: 9px;
+}
+#adminApp .admin-management {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 10px 0;
+  overflow: hidden;
+}
+#adminApp .admin-management > summary {
+  padding: 10px 13px;
+  cursor: pointer;
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: var(--ink);
+  list-style: none;
+}
+#adminApp .admin-management > summary::before {
+  content: "▸";
+  color: var(--teal);
+  margin-right: 8px;
+}
+#adminApp .admin-management[open] > summary::before {
+  content: "▾";
+}
+#adminApp .admin-management > summary::-webkit-details-marker {
+  display: none;
+}
+#adminApp .admin-management > form {
+  margin: 2px 13px 14px;
+}
+#adminApp .admin-management > .panel {
+  border: 0;
+  margin: 0;
+}
+#adminApp .household-toolbar {
+  display: flex;
+  gap: 8px;
+  margin: 5px 0 11px;
+  flex-wrap: wrap;
+}
+#adminApp .small-tool {
+  background: white;
+  border: 1px solid var(--line);
+  padding: 6px 11px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 0.76rem;
+}
+#adminApp .small-tool:hover {
+  background: var(--light);
+}
+#adminApp .hierarchy-view {
+  display: grid;
+  gap: 8px;
+}
+#adminApp .tree-disclosure > summary {
+  list-style: none;
+  cursor: pointer;
+}
+#adminApp .tree-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+#adminApp .hierarchy-section {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+#adminApp .tree-planning-group,
+#adminApp .tree-group {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+#adminApp .tree-planning-group {
+  background: var(--ink);
+  color: white;
+}
+#adminApp .tree-group {
+  background: #e9eee7;
+  color: var(--ink);
+}
+#adminApp .tree-planning-group::before,
+#adminApp .tree-group::before {
+  content: "⌄";
+  font-size: 1.05rem;
+  line-height: 1;
+}
+#adminApp details:not([open]) > .tree-planning-group::before,
+#adminApp details:not([open]) > .tree-group::before {
+  content: "›";
+}
+#adminApp .tree-count {
+  margin-left: auto;
+  font-size: 0.67rem;
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+#adminApp .tree-planning-group .tree-count {
+  color: #d8e3df;
+}
+#adminApp .tree-children {
+  margin-left: 17px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+#adminApp .hierarchy-group {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 7px 0;
+}
+#adminApp .household-tree-node {
+  margin-top: 6px;
+}
+#adminApp .household-tree-node[open] > .household-node {
+  border-color: #bdd2c4;
+}
+#adminApp .household-node {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: white;
+  border-left-width: 1px;
+}
+#adminApp .household-tree-node > summary.household-node {
+  cursor: pointer;
+}
+#adminApp
+  .household-tree-node
+  > summary.household-node
+  .household-node-name
+  strong::before {
+  content: "⌄ ";
+  color: var(--teal);
+}
+#adminApp
+  .household-tree-node:not([open])
+  > summary.household-node
+  .household-node-name
+  strong::before {
+  content: "› ";
+}
+#adminApp .household-node-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  width: 100%;
+}
+#adminApp .household-node-name {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+#adminApp .household-node-name strong {
+  font-size: 0.81rem;
+  line-height: 1.4;
+}
+#adminApp .household-node-name small {
+  width: auto;
+  font-size: 0.7rem;
+}
+#adminApp .household-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+#adminApp .household-guests {
+  font-size: 0.68rem;
+  margin: 3px 7px 7px;
+}
+#adminApp .household-inline-editor {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 8px;
+  margin: 6px 0;
+  background: #f3f7f4;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+#adminApp .admin-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 29px;
+  height: 29px;
+  min-width: 29px;
+  padding: 2px;
+  border-radius: 7px;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1;
+}
+#adminApp .admin-row-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+#adminApp .admin-row-icon:hover:not(:disabled) {
+  background: var(--light);
+  border-color: #aecabd;
+}
+#adminApp .admin-row-icon.danger,
+#adminApp .admin-row-icon[title*="Deletion"] {
+  color: var(--danger);
+}
+#adminApp .admin-row-icon:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+#adminApp .household-inline-editor .parent-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+#adminApp .household-inline-editor .parent-picker select {
+  max-width: 220px;
+  min-height: 32px;
+}
+#adminApp .food-category {
+  padding: 0;
+  margin: 0 0 9px;
+  background: white;
+  overflow: hidden;
+  border-radius: 10px;
+}
+#adminApp .food-category-heading,
+#adminApp .invite-overview-heading {
+  background: #e9eee7;
+  color: var(--ink);
+}
+#adminApp .food-category-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 0;
+}
+#adminApp .food-category-heading::before {
+  content: "⌄";
+  color: var(--teal);
+  font-weight: 700;
+}
+#adminApp .food-category:not([open]) > .food-category-heading::before {
+  content: "›";
+}
+#adminApp .food-category-title {
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+#adminApp .food-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+#adminApp .food-category-items {
+  padding: 0 11px;
+}
+#adminApp .food-manage-item {
+  padding: 9px 3px;
+  border-radius: 0;
+  border-bottom: 1px solid #e7eee9;
+}
+#adminApp .food-manage-item:last-child {
+  border-bottom: 0;
+}
+#adminApp .food-manage-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+#adminApp .food-item-info strong {
+  font-size: 0.82rem;
+}
+#adminApp .food-item-info small {
+  font-size: 0.7rem;
+}
+#adminApp .food-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+#adminApp .food-item-actions .food-category-picker {
+  margin-left: 7px;
+}
+#adminApp .food-edit-form {
+  margin-top: 8px;
+}
+@media (max-width: 700px) {
+  #adminApp .admin-heading {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  #adminApp .admin-heading-actions {
+    width: auto;
+    margin-left: auto;
+  }
+  #adminApp .admin-main-tabs {
+    gap: clamp(11px, 4vw, 25px);
+    padding: 0 4px;
+  }
+  #adminApp .admin-main-tabs button {
+    font-size: clamp(1rem, 4.8vw, 1.25rem);
+    padding: 10px 5px 12px;
+  }
+  #adminApp .settings-drawer {
+    padding: 12px;
+    max-height: 75vh;
+  }
+  #adminApp .household-node-main,
+  #adminApp .food-manage-main {
+    flex-direction: row;
+    align-items: center;
+  }
+  #adminApp .household-actions,
+  #adminApp .food-item-actions {
+    width: auto;
+  }
+  #adminApp .household-node-name {
+    flex: 1;
+    min-width: 110px;
+  }
+  #adminApp .food-item-info {
+    min-width: 0;
+  }
+  #adminApp .food-item-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  #adminApp .tree-children {
+    margin-left: 10px;
+    padding-left: 7px;
+  }
+}
+@media (max-width: 430px) {
+  #adminApp .admin-icon-btn {
+    width: 33px;
+    height: 33px;
+    flex-basis: 33px;
+  }
+  #adminApp .admin-heading-actions {
+    gap: 5px;
+  }
+  #adminApp .tree-planning-group,
+  #adminApp .tree-group {
+    padding: 8px 9px;
+  }
+  #adminApp .household-node {
+    padding: 7px;
+  }
+  #adminApp .household-node-name small {
+    font-size: 0.64rem;
+  }
+  #adminApp .admin-row-icon {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+  }
+  #adminApp .tree-count {
+    font-size: 0.6rem;
+  }
+}
+
+/* Expanded household guest list, restored after the compact tree redesign. */
+#adminApp .household-expanded {
+  margin: 3px 0 9px 11px;
+  padding: 1px 0 1px 12px;
+  border-left: 1px solid var(--line);
+}
+#adminApp .guest-list-heading {
+  color: var(--muted);
+  font-size: 0.67rem;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  font-weight: 800;
+  margin: 9px 0 5px;
+}
+#adminApp .household-guest-list {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+#adminApp .household-guest-entry {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+#adminApp .household-guest-row {
+  min-height: 41px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+}
+#adminApp .household-guest-info {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  row-gap: 2px;
+  min-width: 0;
+}
+#adminApp .household-guest-info strong {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+#adminApp .household-guest-info small {
+  font-size: 0.67rem;
+}
+#adminApp .household-guest-row .admin-row-icon {
+  flex: none;
+}
+#adminApp .guest-edit-form {
+  margin: 0 10px 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #f7faf7;
+}
+#adminApp .guest-edit-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+#adminApp .guest-edit-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+#adminApp .guest-edit-field input,
+#adminApp .guest-edit-field select,
+#adminApp .guest-edit-field textarea {
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 9px;
+  font-size: 0.78rem;
+}
+#adminApp .guest-edit-field textarea {
+  min-height: 64px;
+  resize: vertical;
+}
+#adminApp .guest-edit-field input.token-text-value {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+}
+#adminApp .token-text-editor {
+  min-width: 0;
+  min-height: 36px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+#adminApp .token-text-editor:focus-visible,
+#adminApp .token-text-remove:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+#adminApp .token-text-editor[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+#adminApp .token-text-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+#adminApp .token-text-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 1px 0.1em;
+  padding-inline-start: 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--light);
+  color: var(--ink);
+  font-weight: 600;
+  line-height: 1.15;
+  vertical-align: middle;
+  white-space: nowrap;
+  cursor: grab;
+}
+#adminApp .token-text-chip:active {
+  cursor: grabbing;
+}
+#adminApp .token-text-editor button.token-text-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--action-text);
+  font: inherit;
+  cursor: pointer;
+}
+#adminApp .token-text-editor button.token-text-remove:hover:not(:disabled) {
+  background: var(--white) !important;
+  color: var(--action-text) !important;
+  transform: none !important;
+}
+#adminApp .guest-salutation {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 8px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+#adminApp .guest-salutation > legend {
+  padding-inline: 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+#adminApp .guest-salutation > p {
+  margin: 0;
+}
+#adminApp .guest-name-display {
+  grid-column: 1 / -1;
+  min-inline-size: 0;
+}
+#adminApp .guest-name-display > summary {
+  width: fit-content;
+  padding-block: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+#adminApp .guest-name-display-options {
+  margin-block-start: 4px;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--line);
+}
+@media (pointer: coarse) {
+  #adminApp .guest-name-display > summary {
+    min-height: 44px;
+    padding-block: 10px;
+  }
+}
+#adminApp .guest-salutation-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+#adminApp .guest-salutation-footer output {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+#adminApp .guest-salutation-footer button {
+  margin-inline-start: auto;
+}
+#adminApp .guest-child-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  align-self: end;
+  min-height: 36px;
+}
+#adminApp .guest-child-field input {
+  width: auto;
+  min-height: 0;
+}
+#adminApp .guest-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 10px;
+}
+#adminApp .guest-edit-actions button {
+  min-height: 35px;
+  padding: 7px 13px;
+  font-size: 0.76rem;
+}
+@media (max-width: 600px) {
+  #adminApp .household-expanded {
+    margin-left: 4px;
+    padding-left: 7px;
+  }
+  #adminApp .guest-edit-fields {
+    grid-template-columns: 1fr;
+  }
+  #adminApp .household-guest-info {
+    display: block;
+  }
+  #adminApp .household-guest-info strong,
+  #adminApp .household-guest-info small {
+    display: block;
+  }
+}
+
+/* Unified top navigation and a full, navigable Settings page. */
+.topbar .admin-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.topbar .admin-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.topbar .admin-top-actions.hidden {
+  display: none !important;
+}
+.topbar .admin-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 36px;
+  height: 36px;
+  width: 36px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--white);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.topbar .admin-icon-btn:hover {
+  background: var(--light);
+  border-color: var(--teal);
+}
+.topbar .admin-icon-btn.active,
+.topbar .admin-icon-btn[aria-pressed="true"] {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: #fff;
+}
+.topbar .admin-icon-btn svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.topbar .admin-icon-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.topbar .admin-icon-btn:focus-visible,
+.settings-back:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+.topbar .admin-icon-btn.is-refreshing svg {
+  animation: admin-refresh-spin 0.8s linear infinite;
+}
+.topbar .admin-icon-btn .theme-sun {
+  display: none;
+}
+html[data-theme="dark"] .topbar .admin-icon-btn .theme-sun {
+  display: block;
+}
+html[data-theme="dark"] .topbar .admin-icon-btn .theme-moon {
+  display: none;
+}
+.topbar .admin-identity-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+  gap: 2px;
+}
+#adminTopActions.hidden + .admin-identity-block {
+  display: none;
+}
+.topbar .admin-version {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.topbar .admin-version[hidden] {
+  display: none;
+}
+.topbar .admin-identity {
+  max-width: 155px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#adminApp.showing-settings .admin-main-tabs {
+  display: none;
+}
+#adminApp .settings-page {
+  max-width: 100%;
+  padding: 0;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+#adminApp .settings-page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0 6px;
+}
+#adminApp .settings-page-heading h2 {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+  font-weight: 500;
+  margin: 4px 0;
+}
+#adminApp .settings-page-heading .muted {
+  margin: 0;
+}
+#adminApp .settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--white);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  border-radius: 9px;
+  font-size: 0.83rem;
+  font-weight: 650;
+}
+#adminApp .settings-back:hover {
+  background: var(--light);
+}
+#adminApp .settings-back svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#adminApp .settings-page .settings-tabs {
+  margin: 3px 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+#adminApp .settings-page .settings-subsection {
+  display: grid;
+  gap: 15px;
+}
+#adminApp .settings-page .settings-subsection.hidden {
+  display: none !important;
+}
+#adminApp .settings-page .panel {
+  max-width: 100%;
+  background: var(--white);
+}
+#adminApp .settings-page .settings-management {
+  background: var(--white);
+}
+@media (max-width: 700px) {
+  .topbar .admin-identity {
+    display: none;
+  }
+}
+@media (max-width: 430px) {
+  .topbar-inner {
+    min-height: 61px;
+    gap: 7px;
+    padding: 0 10px;
+  }
+  .topbar .brand {
+    font-size: 0.93rem;
+    gap: 6px;
+  }
+  .topbar .brand-symbol {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+    border-radius: 8px;
+  }
+  .topbar .brand-soft {
+    display: none;
+  }
+  .topbar .admin-icon-btn {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+    padding: 5px;
+    border-radius: 7px;
+  }
+  .topbar .admin-icon-btn svg {
+    width: 17px;
+    height: 17px;
+  }
+  .topbar .admin-top-actions {
+    gap: 3px;
+  }
+  #adminApp .settings-page-heading h2 {
+    font-size: 1.6rem;
+  }
+}
+
+/* Phone header keeps section navigation and Sign out on one line. */
+@media (max-width: 700px) {
+  .topbar:has(.admin-topbar-actions) .topbar-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding-block: 8px;
+  }
+  .topbar:has(.admin-topbar-actions) .admin-section-menu {
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+  }
+  .topbar .admin-topbar-actions {
+    width: auto;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .topbar .admin-top-actions {
+    flex: 0 0 auto;
+    gap: 8px;
+  }
+  .topbar .admin-topbar-actions .admin-icon-btn {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+    padding: 10px;
+  }
+  .topbar .admin-topbar-actions #refreshButton,
+  .topbar .admin-topbar-actions #themeToggle,
+  .topbar .admin-topbar-actions #guestPreviewButton {
+    display: none;
+  }
+  .topbar .admin-identity-block {
+    display: none;
+  }
+}
+@media (max-width: 380px) {
+  .topbar:has(.admin-topbar-actions) .admin-topbar-actions {
+    width: auto;
+    max-width: none;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+}
+
+/* Main and Settings share a single scrolling tab row. */
+#adminApp :is(.admin-main-tabs, .settings-tabs) {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
+  gap: 4px;
+  scrollbar-width: thin;
+}
+#adminApp :is(.admin-main-tabs, .settings-tabs) > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+@media (max-width: 700px), (pointer: coarse) {
+  #adminApp :is(.admin-row-icon, .admin-icon-btn) {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex-basis: 44px;
+    padding: 10px;
+  }
+  #adminApp :is(.small-tool, .btn, .text-button),
+  #adminApp :is(.admin-main-tabs, .settings-tabs) > button {
+    min-height: 44px !important;
+    min-width: 44px;
+  }
+  #adminApp :is(.hierarchy-actions, .household-actions, .session-order-actions, .food-item-actions) {
+    flex-wrap: wrap;
+  }
+  #adminApp :is(.tree-planning-group, .tree-group) { flex-wrap: wrap; }
+  #adminApp input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+  #adminApp select, #adminApp textarea { font-size: 16px !important; }
+}

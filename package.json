@@ -1,0 +1,15 @@
+{
+  "name": "rsvp-manager",
+  "version": "0.9.0",
+  "private": true,
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.13",
+    "@supabase/supabase-js": "2.50.0",
+    "pg": "8.16.3",
+    "playwright": "1.57.0",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "libsodium-wrappers-sumo": "0.8.4"
+  }
+}

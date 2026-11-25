@@ -1,0 +1,374 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RSVP Manager Shortcuts batch API v1",
+  "$ref": "#/$defs/manifest",
+  "$defs": {
+    "create": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "properties": {
+              "queue_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999999999
+              }
+            },
+            "required": [
+              "queue_id",
+              "expected_revision"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "mode": {
+          "enum": [
+            "live",
+            "dry_run",
+            "live_test"
+          ]
+        },
+        "retry": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "manifest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "batch_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "mode": {
+          "enum": [
+            "live",
+            "dry_run",
+            "live_test"
+          ]
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "progress": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "pending": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "claimed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "processed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "partial": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "total",
+            "pending",
+            "claimed",
+            "processed",
+            "partial",
+            "failed",
+            "unknown",
+            "skipped"
+          ],
+          "additionalProperties": false
+        },
+        "statuses": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "properties": {
+              "attempt_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "delivery_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "state": {
+                "enum": [
+                  "pending",
+                  "claimed",
+                  "processed",
+                  "partial",
+                  "failed",
+                  "unknown",
+                  "skipped"
+                ]
+              }
+            },
+            "required": [
+              "attempt_id",
+              "delivery_id",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "invitations": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "properties": {
+              "attempt_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "delivery_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "household_name": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string",
+                "pattern": "^\\+[1-9][0-9]{6,14}$"
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "invitation_code": {
+                "type": "string",
+                "pattern": "^[A-HJ-NP-Z2-9]{8}$"
+              },
+              "invitation_link": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https://"
+              },
+              "image_url": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https://"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "required_actions": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "boolean"
+                  },
+                  "photo": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "text",
+                  "photo"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "attempt_id",
+              "delivery_id",
+              "household_name",
+              "phone",
+              "message",
+              "invitation_code",
+              "invitation_link",
+              "image_url"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "batch_id",
+        "mode",
+        "expires_at",
+        "progress",
+        "statuses",
+        "invitations"
+      ],
+      "additionalProperties": false
+    },
+    "claim": {
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "claim_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "attempt_id",
+        "claim_id"
+      ],
+      "additionalProperties": false
+    },
+    "result": {
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "attempt_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "claim_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "channel": {
+          "const": "whatsapp"
+        },
+        "result": {
+          "enum": [
+            "processed",
+            "partial",
+            "failed",
+            "skipped",
+            "unknown"
+          ]
+        },
+        "details": {
+          "type": "object",
+          "properties": {
+            "text_action_completed": {
+              "type": "boolean"
+            },
+            "photo_action_completed": {
+              "type": "boolean"
+            },
+            "error_stage": {
+              "enum": [
+                "text",
+                "photo",
+                "unknown"
+              ]
+            },
+            "error_code": {
+              "enum": [
+                "action_failed",
+                "image_fetch_failed",
+                "cancelled",
+                "unknown"
+              ]
+            }
+          },
+          "required": [
+            "text_action_completed",
+            "photo_action_completed"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "event_id",
+        "attempt_id",
+        "claim_id",
+        "channel",
+        "result",
+        "details"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "result": {
+                "const": "processed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "details": {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "error_code"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "error_stage"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "enum": [
+            "renew",
+            "revoke"
+          ]
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

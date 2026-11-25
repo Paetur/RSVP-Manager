@@ -1,0 +1,27 @@
+node_modules/
+artifacts/
+tmp/
+supabase/.temp/
+
+# Local Edge runtime secrets (example files may be tracked).
+supabase/functions/.env
+supabase/functions/.env.local
+
+.DS_Store
+
+# Per-installation runtime state, private evidence and generated release output.
+.env
+.env.*
+!.env.example
+release-output/
+internal/overview/dist/
+internal/overview/deployment.json
+**/__pycache__/
+*.pyc
+*.dump
+*.backup
+*.tar
+*.tar.gz
+*.zip
+*.sql.gz
+supabase/.branches/

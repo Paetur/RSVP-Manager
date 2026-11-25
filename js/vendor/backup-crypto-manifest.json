@@ -1,0 +1,17 @@
+{
+  "packages": {
+    "libsodium-sumo": "0.8.4",
+    "libsodium-wrappers-sumo": "0.8.4"
+  },
+  "files": {
+    "js/backup-crypto.js": "a1782216610404e2753cb53c5704c4e10b33df3a79469e55390c9d24a462adf6",
+    "js/vendor/libsodium-sumo.js": "a3d0b7eb2c24ba6b5401d88717e65bc6a92786d211bc8b91ed746d24226180f3",
+    "js/vendor/libsodium-wrappers.js": "4e2c5442899321d7d9aea69bef71a3c24a6eab5911b74a5c1ad8bc8c733b0a15",
+    "docs/CryptographyNotices.md": "8cf0c118190ce6661b6a88cb1f24d77f4d97820baca5c48d8c4c9e61e0559a60"
+  },
+  "sources": {
+    "js/backup-crypto.ts": "993fdf57b431d70f6b076450ce241c235beb88783a0727b6cc69e2d4e989b4ef",
+    "js/backup-kdf-worker.js": "5d5305c05fd505765b29e895a3ed893b8e323c1d8b109cb7f08c51bc3963af1e",
+    "tools/build-backup-crypto.cjs": "5e419462f2a7874cf887478c40ecf9073788b7f19a76d02d825e4184175ffff0"
+  }
+}

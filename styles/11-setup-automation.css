@@ -1,0 +1,61 @@
+/* The temporary, loopback-only installer shares the application's forms and controls. */
+.automatic-setup .automatic-steps {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.automatic-setup .automatic-steps button {
+  padding: 10px 6px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.automatic-setup .setup-step-complete {
+  border-color: var(--teal);
+}
+.automatic-setup .wizard-step > p {
+  margin: 10px 0 18px;
+}
+.automatic-setup .automatic-secret-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+.automatic-setup .automatic-secret-row label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.automatic-setup .automatic-secret-row input {
+  width: 100%;
+}
+.automatic-setup footer.wizard-actions {
+  margin-top: 18px;
+}
+@media (max-width: 760px) {
+  .automatic-setup .automatic-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .automatic-setup .automatic-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .automatic-setup .automatic-secret-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.automatic-setup .automatic-local .automatic-steps {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.automatic-setup .setup-target-choices { display:flex; flex-wrap:wrap; gap:12px 22px; }
+.automatic-setup .setup-target-choices label { display:flex; gap:8px; align-items:center; }
+.automatic-setup .automatic-admin-access { padding-block:14px; border-top:1px solid var(--line); }
+.automatic-setup #automaticAdministrator .checkbox-label { display:flex; gap:8px; align-items:center; }
+@media(max-width:480px) {
+  .automatic-setup .automatic-local .automatic-steps { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+@media (min-width: 601px) {
+  .setup-five-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}

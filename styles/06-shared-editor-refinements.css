@@ -1,0 +1,723 @@
+/* Local preview: shared inline checks, compact summaries and aligned maps. */
+#adminApp label:has(> input[type="checkbox"]),
+#adminApp label:has(> input[type="radio"]),
+.guest-add-person label:has(> input[type="checkbox"]) {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+#adminApp label > input[type="checkbox"],
+#adminApp label > input[type="radio"] {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+  align-self: center;
+}
+.stat-detail {
+  display: block;
+  white-space: pre-line;
+  line-height: 1.65;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.rsvp-submit-row {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+.rsvp-submit-row #rsvpHint {
+  flex: none;
+  min-width: 0;
+}
+.rsvp-submit-row #rsvpValidation {
+  margin: 0;
+}
+.rsvp-session {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(88px, 25%, 140px);
+  column-gap: 16px;
+  align-items: start;
+}
+.rsvp-session > .guest-session-heading,
+.rsvp-session > .venue-welcome,
+.rsvp-session > .guest-session-details {
+  grid-column: 1;
+}
+.rsvp-session > .guest-mini-map {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  width: 100%;
+  justify-self: end;
+  margin-bottom: 12px;
+}
+.rsvp-session > .rsvp-guest,
+.rsvp-session > p.micro {
+  grid-column: 1/-1;
+}
+.guest-map-thumbnail {
+  height: auto;
+  aspect-ratio: 4/3;
+}
+.guest-map-thumbnail iframe {
+  width: 200%;
+  height: 200%;
+  left: 0;
+  top: 0;
+  transform: scale(0.5);
+  transform-origin: top left;
+}
+.venue-summary-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1;
+}
+#venueList > details > summary.venue-summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  list-style: none;
+}
+#venueList > details > summary.venue-summary::-webkit-details-marker {
+  display: none;
+}
+#venueList > details > summary.venue-summary::before {
+  content: "▸";
+  width: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  color: var(--teal);
+}
+#venueList > details[open] > summary.venue-summary::before {
+  content: "▾";
+}
+#venueList .venue-summary-layout {
+  display: flex;
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+#venueList .venue-summary-content {
+  flex: 1 1 736px;
+  max-width: 736px;
+  align-items: center;
+}
+#venueList .venue-summary-links {
+  margin-left: auto;
+}
+#venueList .admin-venue-map {
+  width: clamp(88px, 16vw, 112px);
+}
+@media (max-width: 600px) {
+  .rsvp-session {
+    column-gap: 12px;
+  }
+  .venue-summary-content {
+    gap: 10px;
+  }
+}
+
+.venue-form-actions > .form-actions {
+  margin-top: 0;
+}
+#adminApp label:has(> input[type="checkbox"]),
+#adminApp label:has(> input[type="radio"]) {
+  min-height: 44px;
+}
+
+/* Tighter attendance rhythm; prompt above its left-aligned action. */
+.rsvp-session > .guest-session-heading {
+  margin-bottom: 4px;
+}
+.rsvp-session > .guest-session-heading h3 {
+  margin-bottom: 0;
+}
+.rsvp-session > .venue-welcome {
+  grid-column: 1/-1;
+  grid-row: 4;
+  margin: 8px 0 12px;
+  padding-left: calc((100% - 12px) * 0.85 / 3 + 12px);
+  text-align: center;
+}
+#rsvpEditor > .rsvp-rows {
+  margin-bottom: 8px;
+}
+
+.rsvp-session > #householdGuestHost {
+  grid-column: 1/-1;
+  min-width: 0;
+}
+.rsvp-session > #householdGuestHost .guest-add-person {
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.category-name-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+}
+.category-name-control > input {
+  height: 44px;
+  min-width: 0;
+}
+.category-name-control > .food-language-action {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+.item-lifecycle-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.food-edit-buttons .item-lifecycle-actions {
+  margin-left: auto;
+}
+
+/* Matching Food/Other editors and hierarchy controls. */
+.hierarchy-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.tree-planning-group,
+.tree-group {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hierarchy-inline-editor,
+.hierarchy-create-household {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 10px 0;
+}
+.household-toolbar {
+  flex-wrap: wrap;
+  align-items: center;
+}
+#adminApp .household-toolbar .archive-toggle {
+  margin: 0 0 0 8px;
+  min-height: 40px;
+}
+.other-edit-actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.other-edit-actions .item-lifecycle-actions {
+  margin-left: auto;
+}
+.other-edit-form .other-field-item {
+  order: 0;
+}
+.other-edit-form .other-field-category {
+  order: 1;
+}
+.other-edit-form .other-field-notes {
+  order: 2;
+}
+.other-edit-form .other-field-assigned_to {
+  order: 3;
+}
+.other-edit-form .other-field-status {
+  order: 4;
+}
+.other-edit-form .other-edit-actions {
+  order: 5;
+}
+.other-category-name-form {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.other-edit-form label {
+  font-size: 0.8rem;
+}
+.other-edit-form .other-field-item input {
+  height: 44px;
+  min-height: 44px;
+}
+@media (max-width: 650px) {
+  .hierarchy-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .hierarchy-inline-editor,
+  .hierarchy-create-household {
+    padding: 10px;
+  }
+  .household-toolbar .archive-toggle {
+    flex-basis: auto;
+  }
+}
+
+/* Compact guest Add person editor; retain comfortable touch targets. */
+#householdGuestHost .guest-add-person {
+  padding: 10px 12px;
+  margin-bottom: 0;
+}
+#householdGuestHost .guest-add-person > summary {
+  padding: 0;
+  margin: 0;
+}
+#householdGuestHost .guest-add-person form {
+  margin: 10px 0 0;
+  gap: 10px 14px;
+}
+#householdGuestHost .guest-add-person form > label {
+  margin: 0;
+  gap: 4px;
+  min-width: 0;
+}
+#householdGuestHost .guest-add-person .checkbox-label {
+  grid-column: 1/-1;
+  min-height: 32px;
+}
+#householdGuestHost .guest-add-person .form-actions {
+  margin: 0;
+  gap: 8px;
+}
+#householdGuestHost .guest-add-person form > p {
+  margin: 0;
+}
+#householdGuestHost .guest-add-person form > p:empty {
+  display: none;
+}
+
+/* Keep group metadata beside its name and actions at the trailing edge. */
+#householdRows .tree-planning-group > .tree-count,
+#householdRows .tree-group > .tree-count {
+  margin-left: 0;
+  white-space: normal;
+}
+#householdRows .tree-planning-group > .hierarchy-actions,
+#householdRows .tree-group > .hierarchy-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Save/Cancel stay at the start; guarded lifecycle actions finish the editor. */
+#adminApp .editor-lifecycle-actions,
+#adminApp .form-actions .item-lifecycle-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: auto;
+  flex-basis: auto;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+#adminApp .guest-edit-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+#adminApp .other-edit-actions,
+#adminApp .household-form-footer {
+  flex-wrap: wrap;
+  align-items: center;
+}
+#adminApp .editor-lifecycle-actions .btn {
+  margin: 0;
+}
+
+/* Each settings/translation box owns its edit state. Permission gates remain separate. */
+#adminApp .local-editor-box > .local-editor-form {
+  display: none !important;
+}
+#adminApp .local-editor-box.local-editor-open > .local-editor-form {
+  display: grid !important;
+}
+#adminApp .local-editor-box.local-editor-open > .local-editor-summary,
+#adminApp .local-editor-box.local-editor-open > .local-editor-pencil {
+  display: none;
+}
+#adminApp .local-editor-box {
+  min-width: 0;
+  position: relative;
+}
+
+#adminApp .local-editor-feedback:empty {
+  display: none;
+}
+#adminApp .local-editor-box.local-editor-open > .local-editor-feedback {
+  display: none;
+}
+
+#adminApp .local-editor-summary {
+  padding-inline-end: 44px;
+}
+#adminApp .local-editor-pencil {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  margin: 0;
+}
+
+/* Consistent settings cards and header pencils, including legacy record read views. */
+#adminApp [data-panel="events"]:not(.hidden),
+#adminApp [data-settings-panel="application"]:not(.hidden),
+#adminApp [data-settings-panel="languages"]:not(.hidden),
+#adminApp [data-settings-panel="interface"]:not(.hidden) {
+  display: grid;
+  gap: 16px;
+}
+#adminApp .settings-card {
+  margin: 0;
+  padding: 20px;
+  min-width: 0;
+  position: relative;
+  border-radius: 14px;
+}
+#adminApp .settings-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 14px;
+  min-height: 34px;
+}
+#adminApp .settings-card-heading h2,
+#adminApp .settings-card-heading h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+#adminApp .settings-card-heading .settings-card-pencil {
+  position: static;
+  inset: auto;
+  margin: 0;
+  flex: 0 0 auto;
+}
+#adminApp
+  .settings-card-editing
+  > .settings-card-heading
+  > :is(.settings-card-pencil, .settings-card-action) {
+  display: none;
+}
+#adminApp .settings-card > .muted {
+  margin: 0 0 16px;
+}
+#adminApp .settings-card .local-editor-summary {
+  padding: 0;
+}
+#adminApp .settings-card .record-read-grid {
+  margin: 0;
+  gap: 8px 18px;
+}
+#adminApp .settings-card form {
+  width: 100%;
+  max-width: none;
+}
+#adminApp .settings-card .management-form {
+  padding: 0;
+}
+#adminApp .settings-card .form-actions {
+  margin-top: 12px;
+  gap: 8px;
+}
+#adminApp .settings-card .planning-groups .form-actions {
+  margin-top: 0;
+}
+#adminApp .settings-card .publication-panel {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+#adminApp .settings-card .customization-layout {
+  margin: 0;
+  align-items: start;
+}
+#adminApp .settings-card .customization-preview-header h4 {
+  margin-top: 0;
+}
+#adminApp .settings-card .notification-settings > .micro {
+  margin-top: 0;
+}
+#adminApp .settings-card .local-editor-summary .customization-photo-meta {
+  margin: 0 0 14px;
+}
+#adminApp .settings-language-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--light);
+}
+#adminApp .settings-language-card > .settings-card-heading {
+  margin-bottom: 10px;
+}
+#adminApp .settings-language-card .language-row-actions {
+  grid-column: 1/-1;
+}
+@media (max-width: 700px) {
+  #adminApp .settings-card {
+    padding: 16px;
+  }
+  #adminApp .settings-card-heading {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 700px) {
+
+  .rsvp-session > .venue-welcome { padding-left: 0; }
+}
+
+/* Inline editors belong to the represented record, without a modal backdrop. */
+.inline-editor-panel,
+#adminApp .inline-editor-panel {
+  position: static;
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  max-height: none;
+  overflow: visible;
+  margin: 14px 0;
+  padding: 16px 0 0 14px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-left: 3px solid var(--teal);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+  gap: 12px;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.inline-editor-panel > p { white-space: pre-line; }
+.inline-editor-panel .form-actions { flex-wrap: wrap; }
+.recipe-print-view { display: none; }
+@media print {
+  body:has(> .recipe-print-view) > :not(.recipe-print-view) { display: none !important; }
+  body > .recipe-print-view { display: block; font: 16px/1.5 system-ui; color: black; background: white; }
+}
+
+/* Disclosure reads the record; its pencil explicitly opens editing. */
+.household-inline-editor:not(.household-detail-editing) > .household-details-form,
+.household-inline-editor:not(.household-detail-editing) > .household-contact-choice,
+.household-inline-editor:not(.household-detail-editing) > .household-form-footer,
+.household-inline-editor:not(.household-detail-editing) > .household-contact-editor { display: none; }
+.household-inline-editor.household-detail-editing > .view-only { display: none; }
+
+/* Reading stays compact; the record's pencil still owns its full editor. */
+.household-compact-reading { display: grid; gap: 4px; padding: 0 0 8px 18px; }
+.household-reading-line, .primary-contact-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; }
+.household-reading-line { overflow-wrap: anywhere; font-size: .9rem; }
+.household-inline-editor > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; padding-block: 6px; }
+.household-inline-editor > .household-compact-reading { margin-top: 0; }
+.form-actions .form-feedback { flex-basis: 100%; }
+
+/* Interface settings panels share the same card spacing. */
+.settings-interface-panel:not([hidden]) {
+  display: grid;
+  gap: 15px;
+  min-width: 0;
+}
+#adminApp .settings-interface-panel :is([data-settings-card="personal-preferences"], [data-settings-card="overview-appearance"]) > .settings-card-heading {
+  align-items: center;
+  margin-block-end: 8px;
+}
+#adminApp .settings-interface-panel .local-editor-summary {
+  min-width: 0;
+  margin-top: 0;
+}
+.interface-preference-group,
+.overview-card-setting-group {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding-block: 10px;
+  border-block-start: 1px solid var(--line);
+}
+:is(.interface-preference-group, .overview-tab-heading) > h3 {
+  margin: 0;
+  font-size: .92rem;
+  overflow-wrap: anywhere;
+}
+.interface-preference-controls,
+.interface-preference-pair {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.interface-preference-pair {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+}
+.interface-edit-tabs {
+  margin-block-end: 12px;
+  font-size: .86rem;
+}
+.interface-edit-panel,
+#invitesAppearanceForm > .interface-preference-controls {
+  padding-block-end: 12px;
+}
+#adminApp .interface-edit-panel .interface-choice-group {
+  margin: 0;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.interface-edit-panel .interface-choice-group > legend {
+  padding-inline: 4px;
+  font-size: .82rem;
+  font-weight: 650;
+}
+#adminApp .interface-edit-panel .interface-choice {
+  margin: 0;
+  padding-inline: 10px;
+}
+#adminApp .interface-edit-panel .interface-choice[aria-pressed="true"] {
+  color: var(--action-text);
+  border-color: var(--teal);
+  background: var(--light);
+}
+#adminApp .interface-preference-summary .record-read-grid {
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 0;
+}
+.interface-preference-summary .compact-read-grid > :is(dt, dd) {
+  padding-block: 7px;
+}
+.interface-preference-summary .compact-read-grid > dt {
+  padding-inline-end: 10px;
+}
+.interface-preference-summary .compact-read-grid > dd {
+  text-align: end;
+}
+.interface-date-example {
+  font-size: .83rem;
+}
+.interface-date-example > label {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+.interface-date-example > :is(label, div) > span {
+  font-weight: 650;
+}
+.interface-date-example > div {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 8px 12px;
+  background: var(--light);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.interface-date-example output {
+  font-weight: 700;
+}
+.admin-picker-preview:not([hidden]) {
+  display: block;
+  font-size: .82rem;
+  overflow-wrap: anywhere;
+}
+.admin-fixed-clock-datetime {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 6px;
+}
+.admin-fixed-clock-datetime input {
+  width: 100%;
+  min-width: 0;
+}
+#adminApp .settings-interface-panel .interface-preference-actions {
+  justify-content: flex-end;
+  margin-block-start: 0;
+  padding-block-start: 10px;
+  border-block-start: 1px solid var(--line);
+}
+#adminApp .interface-preference-actions .overview-reset-defaults {
+  margin-inline-end: auto;
+  padding-inline: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.overview-card-settings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.overview-tab-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.overview-tab-pencil { flex: none; }
+#adminApp .overview-tab-rename {
+  justify-self: end;
+  width: min(100%, 20rem);
+  margin: 0 0 6px;
+  padding-block-start: 8px;
+  gap: 6px;
+}
+#adminApp .overview-tab-rename .form-actions { margin: 0; }
+.overview-appearance-popup { width: min(380px, calc(100vw - 24px)); }
+.overview-tab-rename .form-actions > button,
+.overview-appearance-popup .form-actions > button { min-height: 44px; }
+.overview-card-setting-group[data-overview-drop="inside"] {
+  box-shadow: inset 0 -2px var(--action-text);
+}
+.overview-card-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  padding-block: 1px;
+  font-size: .88rem;
+}
+.overview-card-setting + .overview-card-setting { border-block-start: 1px solid var(--line); }
+.overview-card-setting[data-overview-drop="before"] { box-shadow: inset 0 2px var(--action-text); }
+.overview-card-setting[data-overview-drop="after"] { box-shadow: inset 0 -2px var(--action-text); }
+.overview-card-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.overview-card-setting:has(.overview-card-grip) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+#adminApp .overview-card-grip {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.1rem;
+  user-select: none;
+}
+#adminApp .overview-card-grip[draggable="true"] { cursor: grab; }
+#adminApp .overview-card-grip:hover:not(:disabled) { background: var(--light); color: var(--action-text); }
+.overview-card-state,
+#adminApp .overview-card-setting .overview-card-visibility {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+.overview-card-state { color: var(--muted); }
+.overview-card-state[data-shown="true"] { color: var(--action-text); }

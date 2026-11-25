@@ -1,0 +1,72 @@
+// Synthetic in-memory SQL only. Never connects to the VM or a hosted project.
+const {PGlite}=require('@electric-sql/pglite'),fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{const db=new PGlite();try{
+ await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role BYPASSRLS;CREATE SCHEMA auth;CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz,encrypted_password text);CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,created_at timestamptz DEFAULT now());CREATE TABLE auth.audit_log_entries(id uuid PRIMARY KEY,payload json,created_at timestamptz DEFAULT now());CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;GRANT USAGE ON SCHEMA auth TO authenticated,anon;`);
+ await db.exec(fs.readFileSync('supabase/install.sql','utf8'));
+ const v=async(q,args=[])=>(await db.query(q,args)).rows[0].v;
+ assert.equal(await v('SELECT food_stage v FROM public.event_settings WHERE id=1'),'interest');
+ const admin='11111111-1111-4111-8111-111111111111',session='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+ await db.query("INSERT INTO auth.users VALUES($1,'synthetic@example.invalid',now(),'unused')",[admin]);await db.query("INSERT INTO public.admins(user_id,name) VALUES($1,'Synthetic')",[admin]);await db.query('INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)',[session,admin]);
+ const login=()=>db.query("SELECT set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)",[admin,JSON.stringify({sub:admin,session_id:session})]);const logout=()=>db.query("SELECT set_config('request.jwt.claim.sub','',false),set_config('request.jwt.claims','{}',false)");
+ const saveAppearance=(values,expected)=>db.query("SELECT public.admin_save_guest_interface('wide',$1,$2)",[values,expected]);
+ const appearanceExpected={guest_theme_toggle:true,guest_theme_default:'dark'},appearance={guest_theme_toggle:false,guest_theme_default:'light'};
+ await login();await saveAppearance(appearance,appearanceExpected);
+ assert.deepEqual(await v("SELECT guest_interface_modes->'wide' v FROM public.event_settings WHERE id=1"),appearance);
+ assert.equal(await v('SELECT is_published v FROM public.event_settings WHERE id=1'),false);
+ await assert.rejects(()=>saveAppearance(appearanceExpected,appearanceExpected),/changed/);
+ await saveAppearance(appearanceExpected,appearance);await logout();
+ const households=[];for(const food of [false,true,true]){const id=await v("INSERT INTO public.households(household_name,language,planning_group_id,food) VALUES('Synthetic','en','general',$1) RETURNING id v",[food]);await db.query("INSERT INTO public.guests(household_id,first_name) VALUES($1,'Synthetic')",[id]);households.push(id);}
+ const items=[];for(const name of ['Secret menu dish','Another secret dish'])items.push(await v('INSERT INTO public.food_items(name_en,quantity_needed) VALUES($1,2) RETURNING id v',[name]));
+ await login();await db.query('SELECT public.admin_save_food_translations($1,$2)',[items[0],[{key:'food:'+items[0]+':name',language:'de',value:'Geheimes Gericht'}]]);
+ const group=await v("SELECT public.admin_save_food_group(NULL,'Secret bundle','{}',NULL,$1::uuid[]) v",[items]);
+ const preview=await v('SELECT public.admin_guest_preview(NULL,true) v');assert.equal(preview.food.stage,'interest');assert.equal(preview.food.items.length,0);assert.equal(JSON.stringify(preview.eventData).includes('Geheimes Gericht'),false);
+ await logout();await assert.rejects(()=>db.query("SELECT public.set_household_food_interest('ABCDEFGH',true,null)"),/not published/);
+ await db.exec('UPDATE public.event_settings SET is_published=true WHERE id=1');const codes=[];for(const h of households)codes.push(await v('SELECT invite_code v FROM public.households WHERE id=$1',[h]));
+ for(const code of codes){const food=await v('SELECT public.get_household_food($1) v',[code]);assert.equal(food.stage,'interest');for(const k of ['items','groups','claims','categories'])assert.deepEqual(food[k],[]);}
+ const event=await v('SELECT public.get_public_event_v2() v');assert.equal(JSON.stringify(event).includes('Geheimes Gericht'),false,'food translations stay hidden with the menu');
+ await db.query('SELECT public.set_household_food_interest($1,true,null)',[codes[0]]);await db.query('SELECT public.set_household_food_interest($1,true,null)',[codes[0]]);assert.equal(await v('SELECT food_interest v FROM public.households WHERE id=$1',[households[0]]),true);assert.equal(await v('SELECT food v FROM public.households WHERE id=$1',[households[0]]),false,'interest never grants item access');assert.equal(await v('SELECT count(*)::integer v FROM public.food_claims'),0);
+ await assert.rejects(()=>db.query('SELECT public.set_household_food_interest($1,false,null)',[codes[0]]),/already confirmed/);
+ await assert.rejects(()=>db.query('SELECT public.set_household_food_interest($1,false,true)',[codes[0]]),/already confirmed/);
+ assert.equal(await v('SELECT food_interest v FROM public.households WHERE id=$1',[households[0]]),true);
+ await assert.rejects(()=>db.query('SELECT public.set_household_food_claim($1,$2,1,null)',[codes[1],items[0]]),/not open/);await assert.rejects(()=>db.query('SELECT public.set_household_food_group($1,$2,1)',[codes[1],group]),/not open/);await assert.rejects(()=>db.query('SELECT public.confirm_household_food($1)',[codes[1]]),/not open/);
+ await login();await assert.rejects(()=>db.query("SELECT public.admin_set_food_stage('selection','selection')"),/changed/);await db.query("SELECT public.admin_set_food_stage('selection','interest')");await logout();
+ assert.equal(await v('SELECT public.get_household_food($1) v',[codes[0]]),null);const denied=await v('SELECT public.set_household_food_interest($1,true,null) v',[codes[0]]);assert.deepEqual(denied.items,[],'interest write does not leak a menu to households without food access');
+ assert.equal((await v('SELECT public.get_household_food($1) v',[codes[1]])).items.length,2);
+ await db.query("UPDATE public.households SET rsvp_state='locked' WHERE id=$1",[households[1]]);await db.query('SELECT public.set_household_food_interest($1,false,null)',[codes[1]]);assert.equal(await v('SELECT food_interest v FROM public.households WHERE id=$1',[households[1]]),false,'attendance confirmation does not lock the food answer');
+ await db.query('SELECT public.set_household_food_interest($1,false,null)',[codes[1]]);
+ await assert.rejects(()=>db.query('SELECT public.set_household_food_interest($1,true,false)',[codes[1]]),/already confirmed/);
+ const standalone=await v("INSERT INTO public.food_items(name_en,quantity_needed) VALUES('Standalone dish',2) RETURNING id v");
+ await assert.rejects(()=>db.query('SELECT public.set_household_food_claim($1,$2,1,null)',[codes[1],standalone]),/already confirmed/);
+ await assert.rejects(()=>db.query('SELECT public.set_household_food_group($1,$2,1)',[codes[1],group]),/already confirmed/);
+ assert.equal(await v('SELECT food_interest v FROM public.households WHERE id=$1',[households[1]]),false);
+ assert.equal(await v('SELECT count(*)::integer v FROM public.food_claims'),0,'a confirmed No cannot be bypassed with claims');
+ await db.query('SELECT public.set_household_food_group($1,$2,1)',[codes[2],group]);
+ assert.equal(await v('SELECT food_interest v FROM public.households WHERE id=$1',[households[2]]),true,'a real commitment records willingness for an unanswered household');
+ await assert.rejects(()=>db.query('SELECT public.set_household_food_interest($1,false,true)',[codes[2]]),/already confirmed/);
+ await login();await db.query("SELECT public.admin_set_food_stage('interest','selection')");await logout();assert.equal((await v('SELECT public.get_household_food($1) v',[codes[2]])).items.length,0);assert.equal(await v('SELECT count(*)::integer v FROM public.food_claims'),2,'hiding never deletes commitments');await assert.rejects(()=>db.query('SELECT public.set_household_food_group($1,$2,0)',[codes[2],group]),/not open/);
+ await login();await db.query("SELECT public.admin_set_food_stage('selection','interest')");const backup=await v('SELECT public.admin_export_backup() v');assert.equal(backup.payload.schema_version,'20261114034908');const template=await v("SELECT app_private.project_backup($1,'template',ARRAY['food','households'],false) v",[backup]);assert.equal(template.payload.tables['public.event_settings'][0].food_stage,'interest');assert.ok(template.payload.tables['public.households'].every(h=>h.food_interest===null));
+
+ // Feature switches block live writes, retain commitments, and can be re-enabled from Settings.
+ const expected=()=>v("SELECT jsonb_build_object('food_enabled',food_enabled,'other_enabled',other_enabled,'food_stage',food_stage,'food_introduction',food_introduction) v FROM public.event_settings WHERE id=1");
+ const before=await v('SELECT count(*)::integer v FROM public.food_claims');
+ const original=await expected();
+ await db.query("SELECT public.admin_save_features(false,false,'selection',$1,$2)",[{en:'Event-specific explanation',de:'Erklärung',fo:'Frágreiðing'},original]);
+ assert.equal(await v("SELECT public.admin_has_permission('food') v"),false);assert.equal(await v("SELECT public.admin_has_permission('other') v"),false);assert.equal(await v("SELECT public.admin_has_permission('settings','edit') v"),true);
+ assert.equal((await v('SELECT public.admin_guest_preview(NULL,true) v')).food,null);
+ await assert.rejects(()=>db.query("SELECT public.admin_save_features(true,true,'selection','{}',$1)",[original]),/changed/);
+ await logout();assert.equal(await v('SELECT public.get_household_food($1) v',[codes[2]]),null);
+ await assert.rejects(()=>db.query('SELECT public.set_household_food_interest($1,true,false)',[codes[0]]),/not published/);
+ await assert.rejects(()=>db.query('SELECT public.set_household_food_group($1,$2,0)',[codes[2],group]),/not open/);
+ await login();await db.query("SELECT public.admin_save_features(true,true,'selection',$1,$2)",[{en:'Event-specific explanation',de:'Erklärung',fo:'Frágreiðing'},await expected()]);
+ assert.equal(await v('SELECT count(*)::integer v FROM public.food_claims'),before);
+ const featureBackup=await v('SELECT public.admin_export_backup() v');assert.equal(featureBackup.payload.tables['public.event_settings'][0].food_introduction.de,'Erklärung');
+ await v('SELECT app_private.validate_backup($1) v',[featureBackup]);
+ const reviewedClaims=await v("SELECT jsonb_agg(jsonb_build_object('food_item_id',food_item_id,'quantity',quantity)) v FROM public.food_claims WHERE household_id=$1",[households[2]]);
+ await assert.rejects(()=>db.query('SELECT public.confirm_household_food($1,$2)',[codes[2],reviewedClaims.map(c=>({...c,quantity:2}))]),/changed/);
+ assert.equal(await v('SELECT food_confirmed v FROM public.households WHERE id=$1',[households[2]]),false);
+ await db.query('SELECT public.confirm_household_food($1,$2)',[codes[2],reviewedClaims]);await db.query('SELECT public.confirm_household_food($1,$2)',[codes[2],reviewedClaims]);assert.equal(await v('SELECT food_confirmed v FROM public.households WHERE id=$1',[households[2]]),true);
+ await db.exec('SET ROLE anon');await assert.rejects(()=>db.query('SELECT public.set_household_food_interest($1,true,null)',[codes[0]]),/permission denied/);await assert.rejects(()=>db.query("SELECT public.admin_set_food_stage('selection','interest')"),/permission denied/);await db.exec('RESET ROLE');
+ await db.query("INSERT INTO auth.users VALUES('22222222-2222-4222-8222-222222222222','second@example.invalid',now(),'unused')");await db.exec("INSERT INTO public.admins(user_id,name) VALUES('22222222-2222-4222-8222-222222222222','Second')");const permissions=await v('SELECT access_permissions v FROM public.admins WHERE user_id=$1',[admin]);permissions.preset='view';for(const k in permissions.sections)permissions.sections[k]='view';for(const k of ['sendInvites','exportBackup','restoreBackup','revokeSessions'])permissions[k]=false;await db.query('UPDATE public.admins SET access_permissions=$1 WHERE user_id=$2',[permissions,admin]);await db.exec('SET ROLE authenticated');await assert.rejects(()=>db.query("SELECT public.admin_set_food_stage('interest','selection')"),/permission|access/i);
+ await assert.rejects(()=>saveAppearance(appearance,appearanceExpected),/permission|access/i);
+ console.log('PASS food interest SQL: hidden item/group/category/translation payloads, blocked claim bypasses, independent household answers/access/RSVP, retries/conflicts, stage permissions, preserved commitments and backup/template contracts');
+}finally{await db.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

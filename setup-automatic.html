@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Automatic setup</title>
+    <link rel="stylesheet" href="css/app.css?v=20261124-background-mark-sent" />
+    <script src="js/translations.js?v=20261124-background-mark-sent" defer></script>
+    <script src="js/i18n.js?v=20261115-inline-restore" defer></script>
+    <script
+      src="js/setup-automatic.js?v=20261116-admin-setup"
+      defer
+    ></script>
+  </head>
+  <body>
+    <main class="site-width setup-layout automatic-setup">
+      <label
+        >Interface language<select id="automaticLanguage">
+          <option value="en">English</option>
+          <option value="de">Deutsch</option>
+          <option value="fo">Føroyskt</option>
+        </select></label
+      >
+      <header class="setup-heading">
+        <span class="eyebrow">FIRST-TIME SETUP</span>
+        <h1>Make this event yours.</h1>
+        <p class="lede">
+          Connect Supabase and create your administrator.
+        </p>
+      </header>
+      <section id="companionUnavailable" class="panel">
+        <h2>Start the trusted setup companion</h2>
+        <p>
+          Run this command from your downloaded release on your own computer,
+          then open the local address it prints.
+        </p>
+        <pre class="code-input">
+npm ci
+node --experimental-strip-types tools/setup-companion.mjs</pre
+        >
+        <p>
+          Choose Cloud or Local after starting the companion.
+        </p>
+        <a class="quiet-link" href="setup.html">Manual setup</a>
+      </section>
+      <div
+        id="automaticStatus"
+        class="notice hidden"
+        role="status"
+        aria-live="polite"
+      ></div>
+      <div id="automaticWizard" class="hidden">
+        <nav class="steps automatic-steps" aria-label="Setup steps">
+          <button type="button" data-auto-step="0">Connection</button
+          ><button type="button" data-auto-step="1">Database</button
+          ><button type="button" data-auto-step="2">Administrator</button
+          ><button type="button" data-auto-step="3">Secrets</button
+          ><button type="button" data-auto-step="4">Edge Functions</button
+          ><button type="button" data-auto-step="5">Configuration</button
+          ><button type="button" data-auto-step="6">Verification</button>
+        </nav>
+        <section class="panel wizard-step" data-auto-panel="0">
+          <h2>Connect Supabase</h2>
+          <p>
+            Credentials are sent only to this local companion and Supabase. They
+            are not saved in browser storage or project files.
+          </p>
+          <form id="automaticConnect" class="stacked-form" autocomplete="off">
+            <fieldset class="setup-target-choices"><legend>Installation</legend><label><input type="radio" name="target" value="cloud" checked> Supabase Cloud</label><label><input type="radio" name="target" value="local"> Local Supabase</label></fieldset>
+            <p class="micro hidden" id="automaticLocalHelp">Local mode creates the first administrator on an installed empty schema. Complete the local database, Auth and Edge Function installation first.</p>
+            <label
+              >Project URL<input
+                name="projectUrl"
+                type="url"
+                required
+                placeholder="https://your-project.supabase.co"
+                spellcheck="false"
+            /></label>
+            <label
+              >Publishable or legacy anon key<input
+                name="publicKey"
+                type="password"
+                required
+                autocomplete="off"
+                spellcheck="false"
+            /></label>
+            <label
+              >Secret or service_role key<input
+                name="serviceKey"
+                type="password"
+                required
+                autocomplete="off"
+                spellcheck="false"
+            /></label>
+            <label
+              >Project reference ID<input
+                data-cloud-field name="projectRef"
+                type="text"
+                required
+                minlength="20"
+                maxlength="20"
+                spellcheck="false"
+            /></label>
+            <label
+              >Supabase Management API access token<input
+                data-cloud-field name="accessToken"
+                type="password"
+                required
+                autocomplete="off"
+                spellcheck="false"
+            /></label>
+            <label class="hidden" id="automaticDatabaseConnectionLabel">Local PostgreSQL connection<input name="databaseUrl" type="password" autocomplete="off" spellcheck="false" placeholder="postgresql://postgres:password@127.0.0.1:54322/postgres" disabled></label>
+            <label
+              >Website base URL<input
+                name="siteUrl"
+                type="url"
+                required
+                placeholder="https://example.com/event/"
+                spellcheck="false"
+            /></label>
+            <p class="micro">
+              Use a dedicated project and a token with project, database, Auth
+              configuration, Edge Function and secret read/write permissions.
+            </p>
+            <div class="wizard-actions">
+              <button type="submit" class="btn">Validate connection</button>
+            </div>
+          </form>
+        </section>
+        <section class="panel wizard-step hidden" data-auto-panel="1">
+          <h2>Initialize database</h2>
+          <p>
+            Install the current schema, or add missing objects in a compatible
+            partial installation. Existing rows are kept. Incompatible schemas
+            and initialized applications are not overwritten.
+          </p>
+          <button class="btn" type="button" data-run="database">
+            Initialize database
+          </button>
+        </section>
+        <section class="panel wizard-step hidden" data-auto-panel="2">
+          <h2>Create your administrator</h2>
+          <p>
+            The account is created in Supabase Authentication and confirmed
+            directly. An existing account requires its current password.
+          </p>
+          <form id="automaticAdministrator" class="stacked-form">
+            <label
+              >Email<input
+                name="email"
+                type="email"
+                required
+                autocomplete="username" /></label
+            ><label
+              >Password<input
+                name="password" data-sensitive
+                type="password"
+                required
+                minlength="6"
+                maxlength="1024"
+                autocomplete="new-password" /></label
+            ><label>Confirm password<input name="confirmPassword" type="password" autocomplete="new-password" required minlength="6" maxlength="1024" data-sensitive></label>
+            <label class="checkbox-label"><input id="automaticShowPassword" type="checkbox"> Show password</label>
+            <p class="micro" id="automaticAdministratorValidation" role="status" hidden></p>
+            <div class="automatic-admin-access"><strong>Full administrator</strong><p class="micro">Manage your event, invitations and administrator access.</p></div>
+            <button class="btn" type="submit">Create administrator</button>
+          </form>
+        </section>
+        <section class="panel wizard-step hidden" data-auto-panel="3">
+          <h2>Configure Edge Function secrets</h2>
+          <p>
+            Configure RSVP_SITE_ORIGIN and RSVP_SITE_URL for the website
+            address. Supabase provides its platform credentials automatically.
+            No third-party secret is required by the current application.
+          </p>
+          <div id="automaticOptionalSecrets" class="stacked-form"></div>
+          <div class="wizard-actions">
+            <button class="btn secondary" id="automaticAddSecret" type="button">
+              Add optional secret</button
+            ><button class="btn" type="button" data-run="secrets">
+              Configure secrets
+            </button>
+          </div>
+        </section>
+        <section class="panel wizard-step hidden" data-auto-panel="4">
+          <h2>Deploy Edge Functions</h2>
+          <p>
+            Deploy and verify guest-gateway and admin-invitations from this
+            release. Other functions are left alone. Existing conflicting JWT
+            settings require review instead of being silently changed.
+          </p>
+          <button class="btn" type="button" data-run="functions">
+            Deploy Edge Functions
+          </button>
+        </section>
+        <section class="panel wizard-step hidden" data-auto-panel="5">
+          <h2>Application configuration</h2>
+          <p>
+            Configure the website URL, administrator invitation redirect and
+            Data API schemas. Keep the event unpublished and retain existing
+            settings.
+          </p>
+          <button class="btn" type="button" data-run="configuration">
+            Configure application
+          </button>
+        </section>
+        <section class="panel wizard-step hidden" data-auto-panel="6">
+          <h2>Verify installation</h2>
+          <p>
+            Check schema, administrator permissions, secrets, function
+            configuration and protected runtime responses before marking setup
+            complete.
+          </p>
+          <button class="btn" type="button" data-run="verification">
+            Verify and finish setup
+          </button>
+        </section>
+        <section class="panel hidden" id="automaticComplete">
+          <h2>Setup complete</h2>
+          <p id="automaticCompletionNote">
+            The application is initialized. The event remains unpublished.
+          </p>
+          <p>
+            Download the public browser configuration for your hosting
+            installation. Only the project URL and public key are included. For
+            GitHub Pages, set the existing Actions connection variables and
+            redeploy.
+          </p>
+          <div class="wizard-actions">
+            <button class="btn secondary" id="automaticDownload" type="button">
+              Download public configuration</button
+            ><a class="btn" id="automaticLogin" href="#"
+              >Continue to administrator login</a
+            >
+          </div>
+          <p class="micro">
+            Continuing configures this browser for sign-in. Publish the public
+            configuration to configure the website for other devices.
+          </p>
+        </section>
+        <footer class="wizard-actions">
+          <button class="btn secondary" id="automaticDisconnect" type="button">
+            Disconnect and forget credentials
+          </button>
+        </footer>
+      </div>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,1050 @@
+/* System-following dark mode shared by every page. */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #101a18;
+  --white: #1b2925;
+  --ink: #ecf3ef;
+  --muted: #a9bfb6;
+  --line: #344b41;
+  --teal: #3b9377;
+  --teal-dark: #6fc4a6;
+  --action-text: var(--teal-dark);
+  --primary-button-text: var(--paper);
+  --light: #253b32;
+  --warning: #3c301f;
+  --danger: #ff9b94;
+  --success: #1e4430;
+  --shadow: 0 14px 45px rgba(0, 0, 0, 0.26);
+}
+html[data-theme="dark"] body {
+  background: var(--paper);
+  color: var(--ink);
+}
+html[data-theme="dark"] .topbar {
+  background: #17251f;
+  border-color: var(--line);
+}
+html[data-theme="dark"] .brand {
+  color: var(--ink);
+}
+html[data-theme="dark"] .brand-soft {
+  color: var(--muted);
+}
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] #adminApp .panel,
+html[data-theme="dark"] .stat-card,
+html[data-theme="dark"] #adminApp .settings-page .panel,
+html[data-theme="dark"] .login-panel {
+  background: var(--white);
+  border-color: var(--line);
+  color: var(--ink);
+}
+html[data-theme="dark"] .muted,
+html[data-theme="dark"] .micro,
+html[data-theme="dark"] .small {
+  color: var(--muted);
+}
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background: #13231e;
+  color: var(--ink);
+  border-color: var(--line);
+  color-scheme: dark;
+}
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #91a89d;
+}
+html[data-theme="dark"] button:not(.btn),
+html[data-theme="dark"] .quiet-link {
+  color: inherit;
+}
+html[data-theme="dark"] .btn.secondary,
+html[data-theme="dark"] .text-button,
+html[data-theme="dark"] .small-tool,
+html[data-theme="dark"] .admin-row-icon,
+html[data-theme="dark"] #adminApp .settings-back {
+  background: #23352e;
+  color: var(--ink);
+  border-color: var(--line);
+}
+html[data-theme="dark"] #adminApp .admin-main-tabs {
+  border-color: var(--line);
+}
+html[data-theme="dark"] #adminApp .admin-main-tabs button {
+  color: #a2b9ac;
+}
+html[data-theme="dark"] #adminApp .admin-main-tabs button.active {
+  color: #8bdfba;
+}
+html[data-theme="dark"] #adminApp .admin-main-tabs button.active::after {
+  background: #8bdfba;
+}
+html[data-theme="dark"] #adminApp .tree-planning-group {
+  background: #24443a;
+  color: var(--ink);
+}
+html[data-theme="dark"] #adminApp .tree-group,
+html[data-theme="dark"] #adminApp .food-category-heading,
+html[data-theme="dark"] #adminApp .invite-overview-heading {
+  background: #2a4037;
+  color: var(--ink);
+}
+html[data-theme="dark"] #adminApp .tree-planning-group .tree-count,
+html[data-theme="dark"] #adminApp .tree-count {
+  color: #c5d6cc;
+}
+html[data-theme="dark"] #adminApp .household-node,
+html[data-theme="dark"] #adminApp .household-guest-entry,
+html[data-theme="dark"] #adminApp .food-category,
+html[data-theme="dark"] #adminApp .food-manage-item,
+html[data-theme="dark"] #adminApp .admin-management,
+html[data-theme="dark"] #adminApp .guest-edit-form,
+html[data-theme="dark"] #adminApp .food-edit-form,
+html[data-theme="dark"] #adminApp .household-inline-editor {
+  background: #1d2d27;
+  color: var(--ink);
+  border-color: var(--line);
+}
+html[data-theme="dark"] #adminApp .household-tree-node[open] > .household-node {
+  border-color: #4e7765;
+}
+html[data-theme="dark"] #adminApp .household-guest-row {
+  background: transparent;
+}
+html[data-theme="dark"] #adminApp .settings-tabs {
+  border-color: var(--line);
+}
+html[data-theme="dark"] #adminApp .settings-tabs button {
+  background: #22362d;
+  color: var(--ink);
+  border-color: var(--line);
+}
+html[data-theme="dark"] #adminApp .settings-tabs button.active {
+  background: var(--teal);
+  color: white;
+}
+html[data-theme="dark"] #adminApp .admin-management > summary {
+  color: var(--ink);
+}
+html[data-theme="dark"] #adminApp .check-list li,
+html[data-theme="dark"] .admin-member,
+html[data-theme="dark"] #adminApp .food-manage-item {
+  border-color: var(--line);
+}
+html[data-theme="dark"] .notice {
+  background: #263f32;
+  color: var(--ink);
+  border-color: var(--line);
+}
+html[data-theme="dark"] .notice.warning {
+  background: #3b3320;
+}
+html[data-theme="dark"] .notice.error {
+  background: #4a2928;
+}
+html[data-theme="dark"] .notice.success {
+  background: #1e4430;
+}
+html[data-theme="dark"] .tag {
+  background: #293e34;
+  color: #cae5d7;
+}
+html[data-theme="dark"] .eyebrow {
+  color: #8cd5b2;
+}
+
+/* Native summary marker must not duplicate the custom household disclosure chevron. */
+#adminApp .household-tree-node > summary.household-node {
+  list-style: none;
+  display: block;
+}
+#adminApp
+  .household-tree-node
+  > summary.household-node::-webkit-details-marker {
+  display: none;
+}
+#adminApp .household-tree-node > summary.household-node::marker {
+  content: "";
+}
+
+/* Admin-specific dark controls override the original ID-scoped light button styles. */
+html[data-theme="dark"] #adminApp .admin-row-icon,
+html[data-theme="dark"] #adminApp .small-tool,
+html[data-theme="dark"] #adminApp .tool-btn,
+html[data-theme="dark"] #adminApp .text-button {
+  background: #253c32;
+  color: #e3f2e8;
+  border-color: #486357;
+}
+html[data-theme="dark"] #adminApp .admin-row-icon:disabled {
+  background: #24312b;
+  color: #aebcb0;
+  opacity: 0.5;
+}
+html[data-theme="dark"] #adminApp .admin-row-icon.danger {
+  color: #ff9b94;
+}
+html[data-theme="dark"] #adminApp .admin-row-icon:hover:not(:disabled),
+html[data-theme="dark"] #adminApp .small-tool:hover {
+  background: #345043;
+  border-color: #5d947a;
+}
+
+/* Household lifecycle editors retain compact, theme-aware native controls. */
+.management-form {
+  padding: 12px 0;
+  max-width: 760px;
+}
+.management-form input,
+.management-form select,
+.management-form textarea {
+  min-width: 0;
+  width: 100%;
+}
+.management-form input[type="checkbox"] {
+  width: auto;
+}
+.management-form > button {
+  justify-self: start;
+  align-self: end;
+}
+.guest-management {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  margin: 4px 0 10px;
+}
+.guest-management > details {
+  flex: 1;
+}
+.management-history {
+  max-width: 100%;
+  overflow: auto;
+}
+.management-history td {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 240px;
+}
+.household-expanded > .admin-management {
+  margin: 8px 0;
+}
+.management-form .micro {
+  margin: 0;
+}
+.household-inline-editor:has(.management-form) {
+  flex-wrap: wrap;
+}
+.household-inline-editor > .management-form {
+  flex-basis: 100%;
+}
+@media (max-width: 600px) {
+  .management-form {
+    grid-template-columns: 1fr;
+  }
+  .management-form .span-2 {
+    grid-column: auto;
+  }
+  .guest-management {
+    flex-wrap: wrap;
+  }
+}
+
+#adminApp .archive-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  margin: 6px 0 12px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+#adminApp .archive-toggle input {
+  width: auto;
+  margin: 0;
+}
+.guest-management > .admin-management {
+  margin: 0;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+}
+html[data-theme="dark"] .language-switch,
+html[data-theme="dark"] .guest-response,
+html[data-theme="dark"] .radio-pill,
+html[data-theme="dark"] .choice,
+html[data-theme="dark"] .steps button,
+html[data-theme="dark"] .food-item,
+html[data-theme="dark"] .admin-member {
+  background: var(--white);
+  border-color: var(--line);
+  color: var(--ink);
+}
+html[data-theme="dark"] .language-switch button.selected,
+html[data-theme="dark"] .steps button.active {
+  background: var(--teal);
+  color: white;
+}
+html[data-theme="dark"] .lede {
+  color: var(--muted);
+}
+html[data-theme="dark"] .food-item input:disabled,
+html[data-theme="dark"] .choice:has(input:checked),
+html[data-theme="dark"] .data-table tbody tr:hover {
+  background: var(--light);
+}
+#adminApp details.household-inline-editor {
+  display: block;
+  padding: 8px;
+  margin: 8px 0;
+}
+.household-profile-summary {
+  display: grid;
+  grid-template-columns: minmax(100px, auto) 1fr;
+  gap: 6px 12px;
+  font-size: 0.82rem;
+}
+.household-profile-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.household-profile-summary dt {
+  color: var(--muted);
+}
+.invite-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.invite-row code {
+  display: block;
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.invite-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .invite-row {
+    align-items: start;
+    flex-direction: column;
+  }
+  .topbar-inner {
+    gap: 8px;
+  }
+  .topbar .brand {
+    font-size: 0.8rem;
+  }
+  .topbar-actions {
+    gap: 8px;
+  }
+  .admin-main-tabs button {
+    font-size: 0.9rem !important;
+  }
+}
+
+.invite-item {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.invite-item > .admin-management {
+  margin-top: 4px;
+}
+.session-venue {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+#venueList > .admin-management,
+#sessionsList > .admin-management {
+  margin: 8px 0;
+}
+
+/* Appearance choice and compact household actions. */
+.theme-control {
+  position: relative;
+  flex-shrink: 0;
+}
+.theme-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 100;
+  width: 205px;
+  padding: 16px;
+  background: var(--white, #fff);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.theme-menu label {
+  display: grid;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.theme-menu select {
+  font-size: 0.85rem;
+}
+#adminApp .admin-main-tabs [data-tab="invites"] {
+  margin-left: 0;
+}
+#adminApp .household-guest-row > .guest-management {
+  margin: 0;
+  gap: 6px;
+  flex-shrink: 0;
+}
+#adminApp .household-guest-row {
+  gap: 6px;
+}
+#adminApp .household-guest-info {
+  flex: 1;
+}
+.guest-move-panel {
+  padding: 0 12px;
+}
+.guest-move-panel form {
+  margin: 0;
+}
+#adminApp #inviteRows .invite-item {
+  border: 0;
+  padding: 8px 0;
+}
+html[data-theme="dark"] code {
+  background: #253b32;
+  color: var(--ink);
+}
+@media (max-width: 600px) {
+  .topbar:not(:has(.admin-topbar-actions)) .admin-icon-btn {
+    width: 29px;
+    height: 29px;
+    min-width: 29px;
+  }
+  .topbar .brand-symbol {
+    width: 28px;
+    height: 28px;
+  }
+  .topbar .brand {
+    gap: 5px;
+  }
+  .theme-menu {
+    right: auto;
+    left: 0;
+  }
+  #adminApp .admin-main-tabs {
+    gap: 5px;
+  }
+}
+
+.rsvp-current-responses {
+  margin: 12px 0;
+}
+.household-expanded .management-history p {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+}
+
+#adminApp .admin-main-tabs button {
+  font-size: clamp(1rem, 1.75vw, 1.4rem);
+}
+@media (max-width: 700px) {
+  #adminApp .admin-main-tabs button {
+    font-size: 1rem;
+  }
+}
+.venue-welcome {
+  font-size: 0.9rem;
+  margin: 8px 0;
+  white-space: pre-wrap;
+}
+
+.venue-welcome-editor {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+.venue-welcome-editor legend {
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0 6px;
+}
+.venue-welcome-editor textarea {
+  width: 100%;
+}
+
+.management-form input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  align-self: center;
+  justify-self: start;
+  margin: 0;
+}
+.feature-section {
+  padding: 0 12px 12px;
+}
+.feature-section > summary {
+  margin-left: -12px;
+  margin-right: -12px;
+  margin-bottom: 10px;
+}
+
+.status-time {
+  font-size: 0.78em;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.log-filters {
+  display: grid;
+  gap: 14px;
+  margin: 0 0 14px;
+}
+#adminApp .logs-panel .log-heading {
+  gap: 8px 16px;
+}
+#adminApp .logs-panel .log-heading h2 {
+  align-self: center;
+  margin: 0;
+}
+.log-heading .admin-search-panel {
+  width: min(23rem, 100%);
+}
+.log-filter-toolbar {
+  --log-filter-label-height: 1.2rem;
+  --log-filter-label-gap: 5px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--light);
+}
+.log-filter-toolbar > label {
+  display: grid;
+  min-width: 0;
+  gap: var(--log-filter-label-gap);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: var(--log-filter-label-height);
+}
+.log-filter-toolbar > label > :is(input, select) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+}
+.log-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 8px;
+  margin-top: calc(var(--log-filter-label-height) + var(--log-filter-label-gap));
+}
+.log-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.log-result-meta > p {
+  margin: 0;
+}
+.log-rows:has(.log-entry) {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--white);
+}
+.log-entry + .log-entry {
+  border-top: 1px solid var(--line);
+}
+.log-entry > summary {
+  display: grid;
+  grid-template-columns: 0.8rem minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.8rem;
+}
+.log-entry > summary::-webkit-details-marker {
+  display: none;
+}
+.log-entry > summary::before {
+  content: "";
+  width: 0.42rem;
+  height: 0.42rem;
+  margin-inline-start: 2px;
+  border: solid var(--teal);
+  border-width: 0 2px 2px 0;
+  transform: rotate(-45deg);
+}
+.log-entry[open] > summary::before {
+  transform: rotate(45deg);
+}
+.log-entry > summary:hover {
+  background: var(--light);
+}
+.log-entry:first-child > summary {
+  border-radius: 9px 9px 0 0;
+}
+.log-entry:last-child:not([open]) > summary {
+  border-end-start-radius: 9px;
+  border-end-end-radius: 9px;
+}
+.log-entry time {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.73rem;
+}
+.log-entry small,
+.log-subject strong {
+  display: block;
+}
+.log-entry > summary > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.log-details {
+  margin: 0 12px 12px;
+  padding: 12px;
+  background: var(--light);
+  border-radius: 8px;
+  overflow: auto;
+}
+.log-details td {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 320px;
+}
+.log-details pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 0.8rem;
+}
+.log-detail-value {
+  margin: 10px 0;
+}
+.log-detail-value strong {
+  text-transform: capitalize;
+  font-size: 0.8rem;
+}
+.log-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+.log-help {
+  flex: 1 1 14rem;
+  color: var(--muted);
+}
+.log-help > summary {
+  min-height: 44px;
+  align-content: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.log-help > p {
+  max-width: 72ch;
+  margin: 0 0 8px;
+}
+#logMore {
+  margin-inline-start: auto;
+}
+@media (max-width: 960px) {
+  .log-filter-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .log-filter-actions {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
+}
+@media (max-width: 700px) {
+  .log-entry > summary {
+    grid-template-columns: 0.8rem minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "arrow subject kind" "arrow time actor";
+    gap: 4px 8px;
+  }
+  .log-entry > summary::before {
+    grid-area: arrow;
+  }
+  .log-entry time {
+    grid-area: time;
+  }
+  .log-subject {
+    grid-area: subject;
+  }
+  .log-entry > summary > span:nth-of-type(2) {
+    grid-area: kind;
+  }
+  .log-actor {
+    grid-area: actor;
+  }
+}
+
+#adminApp .contact-list {
+  display: grid;
+  gap: 10px;
+  padding: 8px 12px 12px;
+}
+.contact-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--white, #fff);
+  min-width: 0;
+}
+.contact-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 14px;
+  padding: 14px;
+}
+.contact-card-info {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.contact-card-info > strong {
+  font-size: 0.88rem;
+}
+.contact-card-value {
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.contact-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.73rem;
+  color: var(--muted);
+}
+.contact-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.contact-editor {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--line);
+}
+#adminApp .contact-form {
+  max-width: none;
+  margin: 0;
+  padding: 16px 0 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+#adminApp .contact-form input:not([type="checkbox"]),
+#adminApp .contact-form select {
+  min-height: 44px;
+  height: 44px;
+  padding: 10px 12px;
+  width: 100%;
+  font-size: 0.86rem;
+}
+.contact-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  #adminApp .contact-form {
+    grid-template-columns: 1fr;
+  }
+  .contact-form .span-2 {
+    grid-column: auto;
+  }
+  .contact-card-header {
+    gap: 8px;
+    padding: 12px;
+  }
+  .contact-editor {
+    padding: 0 12px 12px;
+  }
+  #adminApp .contact-list {
+    padding: 8px;
+    gap: 8px;
+  }
+}
+
+.contact-guest-search {
+  margin: 0 !important;
+  padding: 0;
+}
+.contact-guest-search > label,
+.contact-guest-search > p,
+.contact-guest-results {
+  margin: 10px 12px;
+}
+.contact-guest-results {
+  display: grid;
+  gap: 6px;
+  max-height: 260px;
+  overflow: auto;
+}
+.contact-guest-option {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--light);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.contact-guest-option:hover {
+  border-color: var(--teal);
+}
+.contact-guest-option small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.contact-guest-option strong {
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .contact-guest-search > label,
+  .contact-guest-search > p,
+  .contact-guest-results {
+    margin: 8px;
+  }
+}
+
+/* Administrator invitations retain the member-card hierarchy at narrow widths. */
+.admin-invite-form {
+  padding: 18px 14px;
+}
+.admin-invite-form p {
+  margin: 0;
+}
+.admin-invitation-details {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+.admin-invitation-details .email {
+  overflow-wrap: anywhere;
+}
+.admin-invitation-details p {
+  margin: 5px 0 0;
+}
+.admin-invitation-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-invitation-status {
+  flex-basis: 100%;
+  margin: 0;
+}
+.admin-invitation-status:empty {
+  display: none;
+}
+#invitationPasswordFields {
+  display: grid;
+  gap: 16px;
+}
+#acceptInvitationStatus:empty,
+#adminInviteStatus:empty {
+  display: none;
+}
+
+/* Interface preferences stay compact in the desktop and mobile toolbars. */
+.interface-language {
+  width: auto;
+  min-width: 3.75rem;
+  max-width: 5rem;
+  padding: 0.45rem;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+#interfaceWordingForm select {
+  max-width: 100%;
+  min-width: 0;
+}
+.wording-preview {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+/* Long translated phrases must not set a grid column's minimum width. */
+#adminApp .settings-page .form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+#adminApp .settings-page .form-grid > label {
+  min-width: 0;
+}
+#adminApp .settings-page input,
+#adminApp .settings-page select,
+#adminApp .settings-page textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  #adminApp .settings-page .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .topbar:has(.admin-topbar-actions) .topbar-inner {
+    flex-wrap: wrap;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    row-gap: 7px;
+  }
+  .topbar .admin-topbar-actions {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* Closed disclosures occupy only their summary, including in Safari. */
+#adminApp details:not([open]) > :not(summary) {
+  display: none !important;
+}
+#adminApp .admin-management:not([open]) {
+  padding: 0;
+}
+#adminApp .admin-management:not([open]) > summary {
+  margin: 0;
+}
+#adminApp .hierarchy-view,
+#adminApp .food-admin-list {
+  align-content: start;
+  align-items: start;
+}
+
+.language-rows {
+  display: grid;
+  gap: 0;
+  padding: 0 10px 6px;
+}
+.language-row {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  align-items: center;
+}
+.language-enabled,
+.restore-ack {
+  display: flex !important;
+  align-items: center;
+  gap: 9px;
+}
+.language-enabled input,
+.restore-ack input {
+  width: auto;
+  min-height: 0;
+}
+.backup-preview {
+  margin: 16px 0;
+  overflow-wrap: anywhere;
+}
+.language-switch {
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .language-switch button {
+    padding: 4px 7px;
+  }
+}
+
+
+/* Account-selected hover treatment shared by ordinary and icon actions. */
+:root:not([data-button-hover="pencil"]):not([data-button-hover="create"]) :is(button,a.btn):not(.delete-action, .invite-stat-row):hover:not(:disabled) {
+  background: var(--light) !important;
+  border-color: var(--teal) !important;
+  color: var(--action-text) !important;
+  transform: none !important;
+}
+:root[data-button-hover="pencil"] :is(button,a.btn):not(.delete-action, .invite-stat-row):hover:not(:disabled) {
+  background: var(--pencil-hover-background, var(--light)) !important;
+  border-color: var(--pencil-hover-border, #aecabd) !important;
+  color: var(--action-text) !important;
+  transform: none !important;
+}
+:root[data-theme="dark"] { --pencil-hover-background: #2e473b; --pencil-hover-border: #5d947a; }
+:root[data-button-hover="create"] :is(button,a.btn):not(.delete-action, .invite-stat-row):hover:not(:disabled) {
+  background: var(--teal-dark) !important;
+  border-color: var(--teal) !important;
+  color: var(--paper) !important;
+  transform: translateY(-1px) !important;
+}
+:is(button,a.btn).delete-action {
+  color: #fff !important;
+  background: #a62f3a !important;
+  border-color: #a62f3a !important;
+}
+:is(button,a.btn).delete-action:hover:not(:disabled) {
+  background: #86232d !important;
+  border-color: #86232d !important;
+}
+:is(button,a.btn).delete-action {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+}
+.delete-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+@media (max-width: 700px) { .delete-action svg { display: none; } }
+.record-popup {
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  width: min(760px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 20px;
+}
+.record-popup::backdrop { background: rgb(0 0 0 / 55%); }
+.admin-change-alert { width: min(28rem, calc(100vw - 24px)); text-align: center; }
+.admin-change-alert p { margin: .5rem 0 1rem; color: var(--muted); }
+.admin-change-alert .form-actions { justify-content: center; }
+.admin-change-alert .form-actions > button { min-height: 44px; }
+.template-choice-popup { width: min(380px, calc(100vw - 24px)); }
+.template-choice-popup > button { display: block; margin: 10px 0; width: 100%; }
+.destructive-actions { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 12px; }
+
+/* Choices carry their own checkmark; hover samples use the real treatments. */
+.interface-choice-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.interface-choice, .guest-appearance-choice { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--paper); color: var(--ink); }
+.guest-appearance-choice { font: inherit; }
+.interface-choice::before, .guest-appearance-choice::before { content: ""; width: 14px; flex: 0 0 14px; }
+.interface-choice[aria-pressed="true"]::before, .guest-appearance-choice[aria-pressed="true"]::before { content: "✓"; }
+.interface-choice[aria-pressed="true"], .guest-appearance-choice[aria-pressed="true"] { border-color: var(--teal); background: var(--light); }
+#adminApp button.hover-choice[data-hover-choice="toolbar"]:hover { background: var(--light) !important; border-color: var(--teal) !important; color: var(--action-text) !important; transform: none !important; }
+#adminApp button.hover-choice[data-hover-choice="pencil"]:hover { background: var(--pencil-hover-background,var(--light)) !important; border-color: var(--pencil-hover-border,#aecabd) !important; color: var(--action-text) !important; transform: none !important; }
+#adminApp button.hover-choice[data-hover-choice="create"]:hover { background: var(--teal-dark) !important; border-color: var(--teal) !important; color: var(--paper) !important; transform: translateY(-1px) !important; }
