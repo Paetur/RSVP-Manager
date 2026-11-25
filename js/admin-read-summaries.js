@@ -33,9 +33,9 @@
         ["Event", settings.event_name],
         ["When", [date(settings.event_date), clock(settings.event_time)].filter(Boolean).join(" · ")],
         ["RSVP by", stamp(settings.rsvp_deadline)],
+        ["Timezone", settings.timezone],
         ["Organizer", settings.organizer_name],
         ["Food deadline", stamp(settings.food_deadline)],
-        ["Timezone", settings.timezone],
       ]);
       const contacts = [
         ["Email", settings.organizer_email],
@@ -73,23 +73,23 @@
         ["Time format", selected("timeFormat")],
         ["Example", window.RSVP_ADMIN_PREFERENCES.dateTimeExample()],
       ]);
-      preferenceGroup(host, "Invites appearance", invitesAppearance());
     }
-    function invitesAppearance() {
-      const grouping = $("inviteGroupBy")?.querySelector("input:checked")?.value || "relational";
-      const labels = { none: "None", relational: "Relational group", service: "Service" };
+    function invitesAppearance(host) {
+      host.classList.add("compact-saved-view", "interface-preference-summary");
+      const grouping = $("inviteGroupBy")?.querySelector("input:checked")?.nextElementSibling.textContent || T("Relational");
       const rowModes = [...($("inviteRowsPreference")?.querySelectorAll("[data-invite-width]") || [])]
         .map(group => [group.querySelector("legend").textContent, group.querySelector("input:checked")?.nextElementSibling.textContent]);
       const shown = [...($("inviteDefaultFields")?.querySelectorAll("[data-invite-default-field]:checked") || [])]
         .map(input => input.nextElementSibling?.textContent).filter(Boolean);
       const columns = [...($("inviteDefaultFields")?.querySelectorAll('[data-invite-default-layout="2"] input:checked') || [])]
         .map(input => [...input.nextElementSibling.children].map(node => node.textContent).join(" / ")).filter(Boolean);
-      return [
-        ["Group by", T(labels[grouping])],
+      rows(host, [
+        ["Group by", grouping],
         ...rowModes,
+        ["interface.messages.invites_show_text_button", T(window.RSVP_ADMIN_PREFERENCES.invitesShowText ? "Yes" : "No")],
         [T("Default shown fields") + " · " + T("Rows") + " 1", shown.join(" · ") || T("None selected")],
         [T("Default shown fields") + " · " + T("Rows") + " 2", columns.join(" · ")],
-      ];
+      ]);
     }
     function planning(host) {
       const settings = getStore().settings || {}, config = settings.planning_config || {};
@@ -114,6 +114,7 @@
       const callbacks = [
         [$("eventSettingsForm"), event],
         [$("personalPreferencesForm"), personal],
+        [$("invitesAppearanceForm"), invitesAppearance],
         [$("planningConfigHost")?.querySelector("form"), planning],
         [$("eventFeaturesHost")?.querySelector("form"), features],
       ];

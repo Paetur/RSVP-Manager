@@ -4,7 +4,7 @@ const assert = require("node:assert/strict"),
   vm = require("node:vm");
 const context = { window: {}, Intl, Date };
 vm.runInNewContext(fs.readFileSync("js/household-name.js", "utf8"), context);
-for (const file of ["text-placeholders", "food-interest-reply", "invitation-text", "admin-invitation-album"]) vm.runInNewContext(fs.readFileSync("js/" + file + ".js", "utf8"), context);
+for (const file of ["text-placeholders", "food-interest-reply", "guest-names", "invitation-text", "admin-invitation-album"]) vm.runInNewContext(fs.readFileSync("js/" + file + ".js", "utf8"), context);
 vm.runInNewContext(
   fs.readFileSync("js/admin-invitation-templates.js", "utf8"),
   context,
@@ -110,6 +110,53 @@ assert.match(api.draft(household,"manual").body,/2 April 2027/);
 store.settings.rsvp_deadline = null;
 assert.match(api.draft(household,"manual").body,/\{rsvp_deadline:\+5\}/,"a missing date remains visibly unresolved in a draft");
 assert.throws(()=>context.window.RSVP_INVITATION_TEXT.validate("{rsvp_deadline:+367}"),/unknown placeholder/);
+const invitationText = context.window.RSVP_INVITATION_TEXT;
+const greetingHousehold = { ...household, id: "h", primary_guest_id: "g", last_name: "Example" };
+const primaryGuest = { id: "g", household_id: "h", first_name: "Alex", last_name: "Example", courtesy_title: "Ms.", relation: "Mom" };
+const alternateGuest = { id: "g2", household_id: "h2", first_name: "Jamie", invitation_salutation: { pattern: "{nickname}", nickname: "Auntie" } };
+store.households = [greetingHousehold, { id: "h2", household_name: "Other household" }];
+store.guests = [primaryGuest, alternateGuest];
+store.contacts = [
+  { id: "c", household_id: "h", contact_type: "email", contact_name: "Taylor Example" },
+  { id: "c2", household_id: "h", contact_type: "email", contact_name: "Jamie", guest_id: "g2" },
+];
+store.invitationTemplates[0].subject = "Dear {contact_salutation}";
+store.invitationTemplates[0].body = "Dear {contact_salutation}, {household_name}: {invitation_link}";
+assert.equal(api.draft(greetingHousehold, "email").subject, "Dear Ms. Alex Example");
+assert.equal(api.draft(greetingHousehold, "email", { contactId: "c" }).subject, "Dear Taylor Example");
+primaryGuest.invitation_salutation = { pattern: "{Relation}" };
+assert.equal(api.draft(greetingHousehold, "email").body, "Dear Mom, Example household: {invitation_link}");
+assert.equal(api.draft(greetingHousehold, "email", { contactId: "c" }).subject, "Dear Taylor Example", "standalone contacts use their own saved name");
+assert.equal(api.draft(greetingHousehold, "email", { contactId: "c2" }).subject, "Dear Auntie", "a linked alternate uses their own nickname");
+primaryGuest.invitation_salutation = { pattern: "{Nickname}", nickname: "Mama" };
+assert.equal(api.draft(greetingHousehold, "email").subject, "Dear Mama");
+assert.equal(api.draft({ ...greetingHousehold, primary_guest_id: "g2" }, "email").subject, "Dear Auntie", "choosing a different primary guest changes newly rendered wording");
+primaryGuest.invitation_salutation = { pattern: "{nickname}" };
+assert.equal(api.draft(greetingHousehold, "email").subject, "Dear Ms. Alex Example", "a missing nickname falls back to the guest's name");
+delete primaryGuest.invitation_salutation;
+store.settings.guest_interface_modes = { phone: { guest_title_visibility: { de: true } }, wide: { guest_title_visibility: { de: false }, show_repeated_surname: false } };
+assert.equal(invitationText.guestSalutation(store, primaryGuest, { household: greetingHousehold }), "Alex");
+primaryGuest.invitation_salutation = { show_titles: true, show_repeated_surname: true };
+assert.equal(invitationText.guestSalutation(store, primaryGuest, { household: greetingHousehold }), "Ms. Alex Example");
+context.window.RSVP_I18N = { t: (source, _params, language) => language === "de" && source === "Ms." ? "Frau" : source };
+delete primaryGuest.invitation_salutation;
+primaryGuest.language = "en";
+store.settings.guest_interface_modes.wide = { guest_show_titles: true, guest_title_visibility: { de: true, en: false }, show_repeated_surname: true };
+assert.equal(api.draft(greetingHousehold, "email", { language: "de" }).subject, "Dear Frau Alex Example", "draft titles follow the message language, including visibility");
+assert.equal(api.draft(greetingHousehold, "email", { language: "en" }).subject, "Dear Alex Example");
+store.settings.guest_interface_modes.wide.guest_show_titles = false;
+assert.equal(api.draft(greetingHousehold, "email", { language: "de" }).subject, "Dear Alex Example", "the Wide master switch hides inherited draft titles");
+primaryGuest.invitation_salutation = { show_titles: true };
+assert.equal(api.draft(greetingHousehold, "email", { language: "de" }).subject, "Dear Frau Alex Example", "an explicit guest override takes precedence");
+const disabledLanguages = context.window.RSVP_GUEST_INTERFACE.effective({ guest_interface_modes: { phone: { guest_title_visibility: { de: true } } } }, "phone", [
+  { language_code: "en", enabled: true }, { language_code: "de", enabled: false }, { language_code: "fo", enabled: false },
+]);
+assert.equal(disabledLanguages.guest_title_visibility.fo, false, "the Phone defaults include disabled languages for the save comparison");
+assert.equal(disabledLanguages.guest_show_titles, false, "disabled language flags do not enable the inherited master switch");
+for (const invalid of ["", "Text only", "{firstname} {unknown}", "{relation:+2}", "{{relation}}", "{firstname}\n{lastname}"]) {
+  assert.equal(invitationText.validateSalutationPattern(invalid), false);
+}
+assert.equal(invitationText.validateSalutationPattern("{Nickname} ({Firstname})"), true);
 console.log(
-  "PASS invitation templates: named content/channel selection, placeholders, no unpublished link, missing-code/template fallback and replaced-store reads.",
+  "PASS invitation templates: named content/channel selection, scoped salutation and fallback, unpublished links and replaced-store reads.",
 );

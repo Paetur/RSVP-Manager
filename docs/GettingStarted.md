@@ -10,7 +10,7 @@ For a first installation, use the [trusted setup companion](AutomaticSetup.md) t
 
 The three icons at the top open **Home**, **Languages** and **Settings**. On desktop, the release version appears under your name after sign-in.
 
-Home opens **Main**, which contains Overview and Invites. The other tabs are **Events**, **Venues**, **Households**, **Food** and **Other**. Click Overview counts to filter Invites. Select households to see the draft, invitation and sending actions beside **View** and **Search**. When Apple Shortcuts is enabled, its box appears between Overview and Invites. [Manage invitation drafts](HouseholdsAndInvites.md#make-and-send-bulk-invites)
+Home opens **Main**, which contains Overview and Invites. The other tabs are **Events**, **Venues**, **Households**, **Food** and **Other**. Click Overview counts to filter Invites, then check **Active filters** above the list. Select households to see the draft, invitation and sending actions. **Group by**, **View** and **Search** control the current list. When Apple Shortcuts is enabled, its box appears between Overview and Invites. [Manage invitation drafts](HouseholdsAndInvites.md#make-and-send-bulk-invites)
 
 Your access determines which sections you see. The first Settings tab, **Application**, holds publication controls. Full administrators also see its launch checklist, with pending checks first and completed checks collapsed. The Publication card shows current access and delivery state. Acknowledge the release checks and confirm explicitly before publishing.
 
@@ -22,15 +22,15 @@ Use the **Search** icon in Households, Invites, Food or Logs to open that list's
 
 Editing one box does not open the others. Save closes that box after a successful update; Cancel discards its draft. Failed saves keep it open for retry. Someone with View only access cannot edit event records; personal Interface preferences remain available.
 
-The top actions refresh the data, change appearance, open the sign-in-protected guest preview in another tab and sign out. **Settings → Interface** shows your saved **Appearance**, **Date and time**, and **Invites appearance** choices. Use its pencil to edit all three sections, then choose **Save** to apply them to your administrator account or **Cancel** to discard the draft. Saved choices load when you sign in on another device. The top-bar appearance toggle applies immediately.
+The top actions refresh the data, change appearance, open the sign-in-protected guest preview in another tab and sign out. **Settings → Interface** contains the **Interface**, **Invites appearance**, and **Overview appearance** tabs. The first tab contains Interface, HTTP/SSL, and Apple Shortcuts. Use the Interface pencil to edit **Appearance** and **Date and time**. Choose **Save** to apply the choices to your administrator account or **Cancel** to discard the draft. Saved choices load when you sign in on another device. The top-bar appearance toggle applies immediately.
 
 - **Appearance** contains the theme, interface language and button hover settings.
-- **Date and time** offers the language default, a short month name, a numeric date with dots, or year-month-day. Time can follow the language default or use a 12-hour or 24-hour clock. Pick a sample date to preview the format as you edit. The date picker itself follows your browser.
-- **Invites appearance** holds grouping, row counts for narrow and wide screens, and default fields for each row layout. Household, Service and Invitation remain visible. Use the **View** menu in Invites for adjustments to the current view.
+- **Date and time** offers the language default, a short month name, a numeric date with dots, or year-month-day. **System default** follows the device’s clock convention. Choose **12-hour (AM/PM)** or **24-hour** to use the same clock format when viewing and editing times across devices. Pick a sample date to preview the format as you edit.
+- **Invites appearance** has its own editor for grouping, row counts for narrow and wide screens, the Text button and default fields for each row layout. Household, Service and Invitation remain visible. Use **Group by** and **View** in Invites to adjust the current list.
 
-The neighboring **Overview appearance** panel has its own pencil. **Information** and **Invitation** show the saved card order and which cards are shown. Use the checkboxes to show or hide cards and the arrows to reorder within each group. **Reset to defaults** prepares a draft. Choose **Save** to apply it or **Cancel** to keep your saved layout.
+Use the pencil in **Overview appearance** to show or hide cards and change their order. Drag a card by its grip to move it within or between tabs, tap the grip for move actions, or focus the grip and press Up or Down. Each tab name has a pencil that opens a small editor underneath it. Save the name there, then select **Save** in the panel to apply the draft. **Reset to defaults** restores the starting names, order and visibility after saving.
 
-![The Interface and Overview appearance cards with saved appearance, date, rows and card order preferences](images/ipad-interface-settings.png)
+![Settings → Interface with the Appearance editor and the Invites appearance and Overview appearance tabs](images/ipad-interface-settings.png)
 
 When another administrator changes event data, **Event data has changed** appears after open edits are resolved. Choose **Refresh** to load the latest data. If a household, venue or session changes while you are editing it, a stale save is rejected and your draft stays in the editor.
 
@@ -49,7 +49,7 @@ When another administrator changes event data, **Event data has changed** appear
 
 Adding a household does not automatically invite it to every session. Making a food item available at a venue does not send an invitation.
 
-On a wide screen, Events cards and the Venues and Sessions & scheduling boxes share columns. Opening an event, venue or session editor expands its box across the row; closing it restores the compact reading layout. Narrower screens stack the boxes. Resizing keeps your unsaved draft.
+On a wide screen, Events cards can sit side by side. Opening an editor gives it the full row. Under **Home → Venues**, switch between **Venues** and **Sessions** to work on places and activity schedules. Switching these tabs or resizing the window keeps open drafts.
 
 ## Set groups and event wording
 

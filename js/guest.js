@@ -36,7 +36,8 @@
   let foodInterestSaving = false,
     foodLoadVersion = 0,
     foodReviewSignature = null,
-    foodConfirmSaving = false;
+    foodConfirmSaving = false,
+    foodConfirmError = "";
   const contentTranslations = new Map();
   let rsvpCommentDraft = "",
     reviewComment = "",
@@ -367,9 +368,10 @@
     return R.orderedGuests(invitation?.guests);
   }
   function guestTitle(guest) {
-    if (window.RSVP_GUEST_INTERFACE.effective(eventData?.event, undefined, window.RSVP_I18N.languages).guest_title_visibility?.[language] === false) return "";
-    const title = guest?.courtesy_title || "";
-    return title === "Son" ? t("interface.messages.son") : title === "Daughter" ? t("interface.messages.daughter") : title;
+    const settings = window.RSVP_GUEST_INTERFACE.effective(eventData?.event, undefined, window.RSVP_I18N.languages);
+    const names = window.RSVP_GUEST_NAMES;
+    const show = guest?.name_display_overrides?.show_titles ?? names.showTitle(settings, language);
+    return show ? names.courtesyTitle(guest?.courtesy_title, language) : "";
   }
   function guestLastName(guest) {
     return window.RSVP_GUEST_NAMES.lastName(guest, invitation, window.RSVP_GUEST_INTERFACE.effective(eventData?.event));
@@ -380,7 +382,8 @@
   function guestNameNode(guest, tag = "span", attrs = {}) {
     const name = R.dom(tag, attrs);
     name.dataset.guestNameId = guest.id;
-    if (guestTitle(guest)) name.append(R.dom("span", { class: "guest-courtesy-title" }, guestTitle(guest) + " "));
+    const title = guestTitle(guest);
+    if (title) name.append(R.dom("span", { class: "guest-courtesy-title" }, title + " "));
     name.append(document.createTextNode([guest?.first_name, guestLastName(guest)].filter(Boolean).join(" ") || t("interface.messages.guest")));
     return name;
   }
@@ -515,6 +518,8 @@
   function renderInvitation(answers = new Map()) {
     const h = invitation.household || {},
       locked = h.rsvp_state === "locked";
+    // Leaving this page can discard the invitation once the URL loses its code.
+    $("guestBrand").removeAttribute("href");
     clearRsvpValidation();
     $("rsvpComment").value = rsvpCommentDraft;
     $("rsvpComment").disabled = locked || rsvpClosed() || rsvpSubmitting;
@@ -1755,6 +1760,7 @@
     )
       return;
     foodReviewSignature = foodSelectionSignature();
+    foodConfirmError = "";
     renderFood();
     $("foodReviewTitle").focus();
   }
@@ -1816,6 +1822,7 @@
       confirmed,
       returning,
       foodConfirmSaving,
+      foodConfirmError,
       (foodState.items || []).map((i) => [i.id, i.name_en, i.recipe_text]),
     ]);
     if (review.foodRenderKey === renderKey) return;
@@ -1880,6 +1887,7 @@
     summary.append(list);
     if (!confirmed) {
       const actions = R.dom("div", { class: "form-actions" }),
+        feedback = R.dom("p", { id: "foodReviewError", class: "notice form-feedback hidden" }),
         confirm = R.dom(
           "button",
           { id: "foodReviewConfirm", type: "button", class: "btn" },
@@ -1890,6 +1898,7 @@
           { type: "button", class: "btn secondary" },
           t("Back to edit"),
         );
+      feedback.setAttribute("role", "alert");
       confirm.disabled = back.disabled = foodConfirmSaving;
       confirm.addEventListener("click", confirmFood);
       back.addEventListener("click", () => {
@@ -1898,8 +1907,12 @@
         renderFood();
         $("confirmFood").focus();
       });
-      actions.append(confirm, back);
+      actions.append(feedback, confirm, back);
       review.append(actions);
+      if (foodConfirmError) {
+        R.showStatus(feedback, foodConfirmError, "error");
+        confirm.setAttribute("aria-describedby", feedback.id);
+      }
     }
   }
   async function confirmFood() {
@@ -1916,7 +1929,9 @@
       status(t("interface.messages.food_review_changed"), "warning");
       return;
     }
+    const restoreFocus = document.activeElement === $("foodReviewConfirm");
     foodConfirmSaving = true;
+    foodConfirmError = "";
     renderFoodReview();
     try {
       if (previewTarget) {
@@ -1934,7 +1949,8 @@
       });
       if (error) {
         await loadFood();
-        status(R.safeError(error), "error");
+        if (foodReviewSignature && !foodState?.confirmed)
+          foodConfirmError = R.safeError(error);
         return;
       }
       foodReviewSignature = null;
@@ -1944,6 +1960,10 @@
       foodConfirmSaving = false;
       renderFoodReview();
       if (returningForFood() && foodState.confirmed) $("foodReviewTitle")?.focus({ preventScroll: true });
+      else if (restoreFocus && document.activeElement === document.body) {
+        const target = $("foodReviewConfirm") || $("confirmFood");
+        if (!target.classList.contains("hidden")) target.focus();
+      }
     }
   }
   async function openPreview() {

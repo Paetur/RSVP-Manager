@@ -26,7 +26,10 @@
     delete host.customizationController;
     if (!ctx.can("settings")) return;
     const original = resetBaseline || ctx.getStore().settings || {},
-      revision = JSON.stringify([mode, original.guest_design, original.guest_background, original.guest_theme_toggle, original.guest_theme_default, original.guest_title_visibility, original.show_repeated_surname, original.guest_name_layout]);
+      originalTitles = original.guest_title_visibility || {},
+      savedShowTitles = original.guest_interface_modes?.[mode]?.guest_show_titles ?? null,
+      originalShowTitles = original.guest_show_titles ?? ctx.languages().some(([code]) => originalTitles[code] !== false),
+      revision = JSON.stringify([mode, original.guest_design, original.guest_background, original.guest_theme_toggle, original.guest_theme_default, original.guest_title_visibility, originalShowTitles, original.show_repeated_surname, original.guest_name_layout]);
     if (!draft || draft.revision !== revision)
       draft = {
         revision,
@@ -38,7 +41,8 @@
         theme: original.guest_theme_default || "dark",
         palette: previewPalette(original.guest_theme_default),
         wide: mode === "wide",
-        titles: { ...original.guest_title_visibility },
+        titles: { ...originalTitles },
+        showTitles: originalShowTitles,
         surname: original.show_repeated_surname !== false,
         nameLayout: original.guest_name_layout,
       };
@@ -251,16 +255,6 @@
     }
     colorSection.append(colors);
     range(colorSection, "Box opacity", "opacity", 35, 100);
-    const titlesSection = section("Show titles");
-    const titleChoices = make("div", { class: "guest-name-languages" });
-    for (const [code, label] of ctx.languages()) {
-      const wrap = make("label", { class: "checkbox-label" }), input = make("input", { type: "checkbox" });
-      input.checked = working.titles[code] !== false; input.dataset.requiresLanguageEdit = "true";
-      input.setAttribute("aria-label", T(mode === "phone" ? "Phone" : "Wide") + " · " + label);
-      input.addEventListener("change", () => { working.titles[code] = input.checked; update(); });
-      wrap.append(input, document.createTextNode(label)); titleChoices.append(wrap); controls.push(input);
-    }
-    titlesSection.append(titleChoices);
     const themeSection = section("Guest appearance"),
       themeLabel = make("label", {}, T("Guest default appearance")),
       theme = make("select");
@@ -283,6 +277,29 @@
     } themeSection.append(themeChoices);
     const names = make("div", { class: "guest-name-options" }), repeatedLabel = make("label", { class: "checkbox-label" }), repeated = make("input", { type: "checkbox" });
     repeated.checked = working.surname; repeatedLabel.append(repeated, document.createTextNode(T("Show repeated surname beside each guest"))); names.append(repeatedLabel);
+    const titlesLabel = make("label", { class: "checkbox-label" }),
+      showTitles = make("input", { type: "checkbox", id: "guest-show-titles-" + mode }),
+      titleChoices = make("div", { class: "guest-name-languages guest-title-languages", id: "guest-title-languages-" + mode });
+    showTitles.checked = working.showTitles;
+    showTitles.dataset.requiresLanguageEdit = "true";
+    showTitles.setAttribute("aria-controls", titleChoices.id);
+    showTitles.addEventListener("change", () => {
+      working.showTitles = showTitles.checked;
+      update();
+    });
+    titlesLabel.append(showTitles, document.createTextNode(T("Show titles")));
+    titleChoices.setAttribute("role", "group");
+    titleChoices.setAttribute("aria-label", T("Languages"));
+    for (const [code, label] of ctx.languages()) {
+      const wrap = make("label", { class: "checkbox-label" }), input = make("input", { type: "checkbox" });
+      input.checked = working.titles[code] !== false;
+      input.dataset.requiresLanguageEdit = "true";
+      input.setAttribute("aria-label", T(mode === "phone" ? "Phone" : "Wide") + " · " + label);
+      input.addEventListener("change", () => { working.titles[code] = input.checked; update(); });
+      wrap.append(input, document.createTextNode(label)); titleChoices.append(wrap); controls.push(input);
+    }
+    names.append(titlesLabel, titleChoices);
+    controls.push(showTitles);
     const namePlacement = make("label", {}, T("Guest name placement")), nameLayout = make("select");
     for (const [key, text] of [["above", "Above and centred"], ["inline", "Left inline"]]) nameLayout.append(make("option", { value: key }, T(text)));
     nameLayout.setAttribute("aria-label", T("Guest name placement")); nameLayout.value = working.nameLayout; namePlacement.append(nameLayout); names.append(namePlacement); controls.push(repeated, nameLayout);
@@ -398,6 +415,7 @@
     actions.append(save, cancel, reset);
     form.append(actions, status);
     controls.push(save, cancel, reset);
+    const titlesChanged = () => JSON.stringify(working.titles) !== JSON.stringify(originalTitles);
     function dirty() {
       return (
         working.backgroundMode !== "keep" ||
@@ -405,7 +423,7 @@
         working.resetDesign ||
         working.toggle !== (original.guest_theme_toggle !== false) ||
         working.theme !== (original.guest_theme_default || "dark") ||
-        JSON.stringify(working.titles) !== JSON.stringify(original.guest_title_visibility || {}) ||
+        working.showTitles !== originalShowTitles || titlesChanged() ||
         working.surname !== (original.show_repeated_surname !== false) || working.nameLayout !== original.guest_name_layout
       );
     }
@@ -419,7 +437,8 @@
       sample.dataset.previewTheme = working.palette;
       sample.dataset.guestNameLayout = working.nameLayout;
       sampleName.replaceChildren();
-      if (working.titles[I.language] !== false)
+      titleChoices.hidden = !working.showTitles;
+      if (working.showTitles && working.titles[I.language] !== false)
         sampleName.append(make("span", { class: "guest-courtesy-title" }, T("Son") + " "));
       sampleName.append(document.createTextNode([
         sampleGuest.first_name,
@@ -531,11 +550,14 @@
           guest_theme_toggle: working.toggle,
           guest_theme_default: working.theme,
           guest_title_visibility: working.titles, show_repeated_surname: working.surname, guest_name_layout: working.nameLayout,
+          ...(working.showTitles !== originalShowTitles || titlesChanged() ? { guest_show_titles: working.showTitles } : {}),
           ...(working.backgroundMode === "keep" ? {} : { guest_background: working.backgroundMode === "replace" ? working.background : null }),
         };
         const { error } = await R.adminRpc("admin_save_guest_interface", {
           p_mode: mode, p_values: values,
-          p_expected: Object.fromEntries(Object.keys(values).map(key => [key, original[key] ?? null])),
+          p_expected: Object.fromEntries(Object.keys(values).map(key => [
+            key, key === "guest_show_titles" ? savedShowTitles : original[key] ?? null,
+          ])),
         });
         if (error) throw error;
         if (ticket !== generation) return;
@@ -575,7 +597,7 @@
         const color = make("i"); color.style.backgroundColor = working.design[working.palette][key]; swatches.append(color);
       }
       row("Colours", swatches, text(T(working.designChanged || original.guest_design && !working.resetDesign ? "Custom" : "Default")));
-      const titles = ctx.languages().filter(([code]) => working.titles[code] !== false),
+      const titles = working.showTitles ? ctx.languages().filter(([code]) => working.titles[code] !== false) : [],
         titleValue = row("Titles");
       if (!titles.length) titleValue.append(text(T("Hidden")));
       for (const [code, label] of titles) titleValue.append(make("span", { class: "appearance-summary-language", title: label }, code.toUpperCase()));

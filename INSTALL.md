@@ -14,7 +14,7 @@ For a dedicated Supabase Cloud project, the [trusted local setup companion](docs
 
 ## Existing installations
 
-Beta.8 adds organizer change detection, stale-save protection and live guest counts. A retained beta.7 installation needs a reviewed, scoped database update for these features and the updated food workflow. Verify that the guest gateway matches the release before serving the new website. Backup format 3 and the 44-table manifest carry forward. Use the fresh installer only on an empty application database.
+Version 0.9.0 adds guest name display and saved invitation salutations. An installation with the original beta.8 schema needs a reviewed database update for the guest salutation field, related routines and translation mappings. Verify the guest gateway’s compatibility before serving the new website. Backups still use format 3 and 44 tables. The new guest column changes the exact backup manifest, so recover earlier backups on a matching schema and download a fresh Full backup after updating.
 
 Verify the installed schema and prepare a reviewed change for that installation. Protect its database, administrator access, private photos and configuration, including the existing publication setting. Rehearse the update and rollback on disposable data, then verify data and access afterward. Keep the website and backend compatible.
 
@@ -75,7 +75,7 @@ CLI alternative, after `gh auth login`:
 ```bash
 gh variable set RSVP_SUPABASE_URL --repo OWNER/WEBSITE --body 'https://YOUR-PROJECT.supabase.co'
 gh variable set RSVP_PUBLISHABLE_KEY --repo OWNER/WEBSITE --body 'sb_publishable_YOUR_PUBLIC_KEY'
-gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0-beta.8
+gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.0
 ```
 
 Use the workflow filename and release input name from your copy of the [deployment template](deployment/README.md). For direct static hosting without this Actions workflow, upload the wizard's downloaded file as `js/config.js` in the installation directory instead.

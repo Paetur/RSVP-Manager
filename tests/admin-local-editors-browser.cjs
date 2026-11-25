@@ -1,4 +1,4 @@
-const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture, selectInterfaceSettingsTab } = require("./helpers/admin-toolbar.cjs");
 const fs = require("node:fs"),
   path = require("node:path");
 const { chromium } = require("playwright"),
@@ -141,6 +141,10 @@ const { server, mock, extra, stageExtra, out } =
         .locator('[data-local-edit="personal-preferences"]')
         .isVisible(),
     );
+    await selectInterfaceSettingsTab(page, "invites");
+    const invites = await openBox(page, "invites-appearance");
+    assert.equal(await invites.locator("#inviteShowText").isEnabled(), true);
+    await invites.locator("#cancelInvitesAppearance").click();
     await page.locator("[data-settings-tab=interface]").click();
     assert.equal(
       await page

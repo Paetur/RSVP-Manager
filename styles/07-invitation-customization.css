@@ -295,7 +295,10 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
 .guest-mode-settings-card .customization-layout { display: block; }
 .guest-mode-settings-card .customization-preview { margin-top: 16px; }
 .guest-default-choices { display: flex; flex-wrap: wrap; gap: 8px 14px; }
-.guest-name-options { display: grid; gap: 8px; }
+.guest-name-options { display: grid; }
+.customization-form .guest-name-options .checkbox-label { margin: 0; }
+.guest-title-languages { padding-inline-start: 26px; }
+.guest-title-languages[hidden] { display: none; }
 .guest-mode-settings-card .customization-section { padding-block: 12px; }
 @media(max-width:900px) { .guest-mode-settings { grid-template-columns: minmax(0,1fr); } }
 

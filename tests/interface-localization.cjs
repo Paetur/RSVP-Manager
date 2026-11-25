@@ -74,7 +74,8 @@ async function run(browserType){
    const overflow=await page.evaluate(()=>Array.from(document.querySelectorAll('body *')).filter(n=>n.getBoundingClientRect().right>innerWidth+1).map(n=>n.tagName+'#'+n.id+'.'+n.className).slice(0,12));
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'Mobile admin overflow: '+overflow.join(', '));
    await page.goto(base+'/setup.html');const setupTitle=lang==='en'?'Make this event yours.':catalog['Make this event yours.'][lang];await page.waitForFunction(expected=>document.querySelector('h1')?.textContent===expected,setupTitle);assert.equal(await page.locator('h1').textContent(),setupTitle);
-   await page.goto(base+'/?ABCDEFGH');await page.locator('#invitationCard:not(.hidden)').waitFor();
+   await page.goto(base+'/?ABCDEFGH');
+   await page.locator('#invitationCard:not(.hidden) #householdName').filter({hasText:/^Food$/}).waitFor();
    assert.equal(await page.locator('#guestEventName').textContent(),'Settings');assert.equal(await page.locator('#householdName').textContent(),'Food');
    await page.locator('input[value="attending"]').check();await page.locator('#languageSwitcher [data-language="de"]').click();
    assert.equal(await page.locator('html').getAttribute('lang'),'de');assert.equal(await page.locator('input[value="attending"]').isChecked(),true);

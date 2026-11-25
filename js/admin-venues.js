@@ -182,7 +182,7 @@
         const form = sessionForm(s);
         const households = R.dom(
           "button",
-          { class: "btn secondary edit-only", type: "button" },
+          { class: "btn secondary edit-only session-manage-households", type: "button" },
           T("interface.messages.manage_households"),
         );
         households.setAttribute("aria-haspopup", "dialog");
@@ -200,7 +200,9 @@
         households.dataset.requiresSection = "invites";
         households.dataset.requiresLevel = "edit";
         form.querySelector(".form-actions").append(households);
-        d.append(recordTimes(s), form);
+        const details = R.dom("details", { class: "session-record-details" });
+        details.append(R.dom("summary", {}, T("Details")), recordTimes(s));
+        d.append(form, details);
         div.append(d);
       }
       $("newSessionEditor").replaceChildren(sessionForm({}));

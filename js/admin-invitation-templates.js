@@ -18,13 +18,15 @@
       const candidates = choices(h, channel, service);
       const named = binding.templateId ? candidates.find(t => t.id === binding.templateId) : candidates[0];
       const template = version(named, h.language), context = { venueId: binding.venueId ?? template?.context_venue_id ?? "", sessionId: binding.sessionId ?? template?.context_session_id ?? "" };
-      const resolved = window.RSVP_PLACEHOLDERS.context(getStore(), { household: h, language: binding.language || template?.language_code || h.language || "en", ...context });
+      const resolved = window.RSVP_INVITATION_TEXT.context(getStore(), {
+        household: h, channel, contactId: binding.contactId, language: binding.language || template?.language_code || h.language || "en", ...context,
+      });
       const fill = text => { try { return window.RSVP_PLACEHOLDERS.fill(text, resolved.values, resolved.options); } catch (_) { return text; } };
       const enabled = options(template), short = enabled.includes("shortMessage") && (channel === "sms" || !enabled.includes("message"));
       return { subject: template ? enabled.includes("subject") ? fill(template.subject) : "" : fill("{event_name}"), body: fill((short ? template?.short_body : enabled.includes("message") ? template?.body : "") || "{invitation_link}"), image: channel === "sms" || !enabled.includes("picture") ? null : template?.message_image || null, hasTemplate: !!template, context, templateId: named?.id, templateRevision: named?.revision };
     }
     function preview(subject, body, image, language, binding) {
-      const resolved = window.RSVP_PLACEHOLDERS.context(getStore(), { language, sample: true, ...binding });
+      const resolved = window.RSVP_INVITATION_TEXT.context(getStore(), { language, sample: true, ...binding });
       resolved.values.event_name = T("interface.messages.sample_invitation_event");
       const fill = text => {
         const value = window.RSVP_PLACEHOLDERS.fill(text, resolved.values, resolved.options);

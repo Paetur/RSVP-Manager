@@ -203,6 +203,8 @@
 #adminApp .overview-tabs {
   display: flex;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   gap: 6px;
   padding: 4px;
   background: var(--paper);
@@ -210,6 +212,8 @@
   border-radius: 8px;
 }
 #adminApp .overview-tabs button {
+  min-width: 0;
+  max-width: 100%;
   min-height: 34px;
   padding: 4px 16px;
   color: var(--muted);
@@ -218,6 +222,7 @@
   border-radius: 5px;
   font-size: .82rem;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 #adminApp .overview-tabs button[aria-selected="true"] {
   background: var(--light);

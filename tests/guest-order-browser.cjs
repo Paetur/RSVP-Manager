@@ -29,10 +29,9 @@ const { root, out, server, mock, extra, stageExtra } =
       await page.goto(
         "http://127.0.0.1:" + server.address().port + "/?ABCDEFGH",
       );
-      await page.locator("#householdName").waitFor({ state: "visible" });
+      await page.locator(".rsvp-person-name").first().waitFor();
       assert.match(await page.locator("#householdName").innerText(), / Family$/);
       const expected = ["Alice Test", "Zoe Test", "Charlie Test", "Ben Test"];
-      await page.locator(".rsvp-person-name").first().waitFor();
       assert.deepEqual(
         await page.locator(".rsvp-person-name").allTextContents(),
         expected,

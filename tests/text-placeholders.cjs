@@ -16,6 +16,12 @@ store.settings.is_published=true;assert.match(P.context(store,{household:h}).val
 assert.equal(P.context(store,{household:h,sessionId:"not-invited"}).values.session_name,null);
 assert.equal(P.context(store,{household:h,sessionId:"s1",venueId:"other"}).values.session_name,null);
 for(const token of P.tokens())assert.equal(P.validate(token),token);
+assert.ok(P.tokens("delivery").includes("{contact_salutation}"));
+assert.equal(P.fill("Dear {contact_salutation}", { contact_salutation: "Mom" }, { scope: "delivery" }), "Dear Mom");
+for (const scope of [undefined, "event", "venue"]) {
+  assert.ok(!P.tokens(scope).includes("{contact_salutation}"));
+  assert.throws(() => P.validate("{contact_salutation}", scope));
+}
 for(const text of ["{invite-deadline}","{unknown}","{rsvp_deadline:+367}","{event_name:+1}","{rsvp_deadline:5}"])assert.throws(()=>P.validate(text));
 assert.throws(()=>P.validate("{guest_names}","event"));
 const empty=P.context({settings:{}},{});assert.equal(P.fill("{organizer_email}",empty.values),"{organizer_email}");

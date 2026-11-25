@@ -736,6 +736,75 @@
   align-self: flex-start;
 }
 
+.session-edit-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.session-edit-form label {
+  min-width: 0;
+}
+#adminApp .session-edit-form :is(input:not([type="hidden"], [type="checkbox"]), select) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+}
+.session-schedule {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--light);
+}
+.session-time-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px 12px;
+}
+.session-schedule > p {
+  overflow-wrap: anywhere;
+}
+.session-options {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 0 20px;
+}
+#adminApp .session-edit-form > .form-actions {
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+#adminApp .session-edit-form .session-manage-households {
+  margin-inline-start: auto;
+}
+.session-record-details {
+  max-width: 760px;
+  margin: 0 12px 4px;
+  color: var(--muted);
+}
+.session-record-details > summary {
+  align-content: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.session-record-details > .record-timestamps {
+  margin: 0 0 8px;
+}
+@media (max-width: 660px) {
+  .session-edit-form,
+  .session-time-range {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .venue-assignment-category {
   min-width: 0;
   margin: 0 0 8px;
@@ -838,7 +907,7 @@ html[data-theme] #adminApp .settings-page .settings-tabs button {
 .translation-tabs button.active,
 html[data-theme] #adminApp .settings-page .settings-tabs button.active {
   background: transparent;
-  color: var(--teal);
+  color: var(--action-text);
 }
 .translation-tabs button.active::after,
 #adminApp .settings-page .settings-tabs button.active::after {
@@ -854,15 +923,15 @@ html[data-theme] #adminApp .settings-page .settings-tabs button.active {
   outline: 2px solid var(--teal);
   outline-offset: -2px;
 }
-.settings-language-tabs {
+:is(.settings-language-tabs, .settings-interface-tabs) {
   margin-bottom: 0;
 }
-:is(.database-tabs, .venue-tabs, .settings-language-tabs) button {
+:is(.database-tabs, .venue-tabs, .settings-language-tabs, .settings-interface-tabs, .interface-edit-tabs) button {
   min-height: 44px;
   padding-inline: 14px;
   border-radius: 7px 7px 0 0;
 }
-:is(.database-tabs, .venue-tabs) button.active {
+:is(.database-tabs, .venue-tabs, .interface-edit-tabs) button.active {
   background: var(--light);
   color: var(--action-text);
 }
@@ -1329,7 +1398,7 @@ html[data-theme] #adminApp .settings-page .settings-tabs button.active {
 .topbar .admin-section-menu .admin-icon-btn[aria-pressed="true"] {
   border-bottom-color: var(--teal);
   background: var(--light);
-  color: var(--teal);
+  color: var(--action-text);
 }
 .admin-section-description {
   font-size: 0.82rem;
@@ -2225,12 +2294,6 @@ html[data-theme] #adminApp .food-item-links button.food-inline-link:hover {
 #guestPreviewLabel {
   font-size: 0.78em;
   font-weight: 400;
-}
-.invite-row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px 10px;
 }
 .backup-template-sections {
   display: grid;

@@ -53,10 +53,16 @@ Re-enabling does not revive old revoked sessions: the person signs in again. Adm
 
 ## Sessions
 
-Everyone can revoke their own application sessions, including their other sessions. A separate permission allows revoking other administrators’ sessions. If you cannot view Administrators, your own sessions remain available in Settings → Interface.
+Everyone can revoke their own application sessions, including their other sessions. A separate permission allows revoking other administrators’ sessions. If you cannot view Administrators, open the first **Interface** tab under **Settings → Interface** to find your sessions.
 
 Use **Revoke session** to end that browser’s access on its next request. The session list shows the browser and device when recognizable. **Session refreshed** shows when the sign-in last renewed, if that time is available.
 
-[All user guides](README.md)
+## Logs
 
-Settings first opens **Application**. **Interface** groups your personal preferences under **Appearance**, **Date and time**, and **Invites appearance**. Its pencil opens all three sections. Save applies the choices to your administrator account. **Button hover appearance** offers Toolbar, Pencil and Create examples. Delete actions stay red, with an icon and label on wide screens and a label on phones.
+Full administrators can open **Settings → Logs**. Use the search icon at the upper right for a name or change, and use **Category**, **Action**, **From** and **Through** to narrow the history. Select **Search logs** to apply the filters or **Reset** to clear them. Expand an entry for its details and UTC timestamp. Date filters use the event timezone, and the list shows your local time. Invitation opens within 15 minutes are grouped.
+
+## Personal settings
+
+Settings first opens **Application**. **Settings → Interface** groups **Interface**, **Invites appearance** and **Overview appearance** in three tabs. The first tab contains Interface, HTTP/SSL and Apple Shortcuts. The Interface pencil opens **Appearance** and **Date and time**. Each appearance editor saves its own choices to your administrator account. **Button hover appearance** offers Toolbar, Pencil and Create examples. Delete actions stay red, with an icon and label on wide screens and a label on phones.
+
+[All user guides](README.md)

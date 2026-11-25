@@ -107,11 +107,20 @@ for(const h of fixtures.households.filter(h=>h.id!==h1&&!fixtures.guests.some(g=
       await setInvitesGrouping(page, false);
       const flat = await page
         .locator("#inviteRows [data-invite-household]")
-        .evaluateAll((rows) => rows.map((r) => r.dataset.inviteHousehold));
-      assert.equal(
-        flat[0],
-        "22222222-2222-4222-8222-222222222222",
-        "flat order remains independent of hierarchy",
+        .evaluateAll((rows) => rows.map((row) => ({
+          id: row.dataset.inviteHousehold,
+          name: row.querySelector(".invite-compact-name").textContent.trim(),
+        })));
+      assert.deepEqual(
+        flat.map(({ id }) => id).sort(),
+        reordered.flatMap(({ ids }) => ids).sort(),
+        "Alphabetic shows the same active households as Relational",
+      );
+      const names = flat.map(({ name }) => name);
+      assert.deepEqual(
+        names,
+        [...names].sort(new Intl.Collator("en-GB").compare),
+        "Alphabetic sorts the entire list by household name",
       );
       await setInvitesGrouping(page, true);
       await compare();

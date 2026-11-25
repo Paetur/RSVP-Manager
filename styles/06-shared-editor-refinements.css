@@ -523,21 +523,17 @@
 .household-inline-editor > .household-compact-reading { margin-top: 0; }
 .form-actions .form-feedback { flex-basis: 100%; }
 
-/* Interface and Overview appearance use the same card and section rhythm. */
-.interface-settings-grid {
+/* Interface settings panels share the same card spacing. */
+.settings-interface-panel:not([hidden]) {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 23rem), 1fr));
-  align-items: start;
   gap: 15px;
+  min-width: 0;
 }
-#adminApp .interface-settings-grid .settings-card-heading {
+#adminApp .settings-interface-panel :is([data-settings-card="personal-preferences"], [data-settings-card="overview-appearance"]) > .settings-card-heading {
   align-items: center;
   margin-block-end: 8px;
 }
-#adminApp [data-settings-card="personal-preferences"]:not(.settings-card-editing) > p.muted {
-  display: none;
-}
-#adminApp .interface-settings-grid .local-editor-summary {
+#adminApp .settings-interface-panel .local-editor-summary {
   min-width: 0;
   margin-top: 0;
 }
@@ -549,7 +545,7 @@
   padding-block: 10px;
   border-block-start: 1px solid var(--line);
 }
-:is(.interface-preference-group, .overview-card-setting-group) > h3 {
+:is(.interface-preference-group, .overview-tab-heading) > h3 {
   margin: 0;
   font-size: .92rem;
   overflow-wrap: anywhere;
@@ -562,6 +558,35 @@
 }
 .interface-preference-pair {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+}
+.interface-edit-tabs {
+  margin-block-end: 12px;
+  font-size: .86rem;
+}
+.interface-edit-panel,
+#invitesAppearanceForm > .interface-preference-controls {
+  padding-block-end: 12px;
+}
+#adminApp .interface-edit-panel .interface-choice-group {
+  margin: 0;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.interface-edit-panel .interface-choice-group > legend {
+  padding-inline: 4px;
+  font-size: .82rem;
+  font-weight: 650;
+}
+#adminApp .interface-edit-panel .interface-choice {
+  margin: 0;
+  padding-inline: 10px;
+}
+#adminApp .interface-edit-panel .interface-choice[aria-pressed="true"] {
+  color: var(--action-text);
+  border-color: var(--teal);
+  background: var(--light);
 }
 #adminApp .interface-preference-summary .record-read-grid {
   align-items: start;
@@ -576,6 +601,17 @@
 }
 .interface-preference-summary .compact-read-grid > dd {
   text-align: end;
+}
+.interface-date-example {
+  font-size: .83rem;
+}
+.interface-date-example > label {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+.interface-date-example > :is(label, div) > span {
+  font-weight: 650;
 }
 .interface-date-example > div {
   display: grid;
@@ -594,7 +630,17 @@
   font-size: .82rem;
   overflow-wrap: anywhere;
 }
-#adminApp .interface-settings-grid .interface-preference-actions {
+.admin-fixed-clock-datetime {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 6px;
+}
+.admin-fixed-clock-datetime input {
+  width: 100%;
+  min-width: 0;
+}
+#adminApp .settings-interface-panel .interface-preference-actions {
   justify-content: flex-end;
   margin-block-start: 0;
   padding-block-start: 10px;
@@ -612,10 +658,30 @@
   margin: 0;
   padding: 0;
 }
+.overview-tab-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.overview-tab-pencil { flex: none; }
+#adminApp .overview-tab-rename {
+  justify-self: end;
+  width: min(100%, 20rem);
+  margin: 0 0 6px;
+  padding-block-start: 8px;
+  gap: 6px;
+}
+#adminApp .overview-tab-rename .form-actions { margin: 0; }
+.overview-appearance-popup { width: min(380px, calc(100vw - 24px)); }
+.overview-tab-rename .form-actions > button,
+.overview-appearance-popup .form-actions > button { min-height: 44px; }
+.overview-card-setting-group[data-overview-drop="inside"] {
+  box-shadow: inset 0 -2px var(--action-text);
+}
 .overview-card-setting {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "label controls";
   align-items: center;
   gap: 6px;
   min-height: 48px;
@@ -626,45 +692,32 @@
 .overview-card-setting[data-overview-drop="before"] { box-shadow: inset 0 2px var(--action-text); }
 .overview-card-setting[data-overview-drop="after"] { box-shadow: inset 0 -2px var(--action-text); }
 .overview-card-label {
-  grid-area: label;
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.overview-card-grip {
-  display: none;
-  grid-area: grip;
+.overview-card-setting:has(.overview-card-grip) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+#adminApp .overview-card-grip {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
   color: var(--muted);
-  text-align: center;
+  font-size: 1.1rem;
   user-select: none;
-  visibility: hidden;
 }
-.overview-card-grip[draggable="true"] { cursor: grab; visibility: visible; }
-@media (hover: hover) and (pointer: fine) {
-  .overview-card-setting:has(.overview-card-grip) {
-    grid-template-columns: minmax(0, 1fr) 18px auto;
-    grid-template-areas: "label grip controls";
-  }
-  .overview-card-grip { display: block; }
-}
+#adminApp .overview-card-grip[draggable="true"] { cursor: grab; }
+#adminApp .overview-card-grip:hover:not(:disabled) { background: var(--light); color: var(--action-text); }
 .overview-card-state,
-.overview-card-controls {
-  grid-area: controls;
+#adminApp .overview-card-setting .overview-card-visibility {
   display: inline-flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
-  gap: 6px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .overview-card-state { color: var(--muted); }
 .overview-card-state[data-shown="true"] { color: var(--action-text); }
-.overview-card-visibility { justify-content: center; min-width: 44px; padding-inline: 4px; }
-.overview-card-moves { display: flex; gap: 4px; }
-.overview-card-moves > .btn { min-height: 44px; width: 44px; padding: 0; }
-@media (max-width: 365px) {
-  .overview-card-visibility > span {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    clip-path: inset(50%);
-    overflow: hidden;
-  }
-}

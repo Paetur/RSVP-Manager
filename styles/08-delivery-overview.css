@@ -1,6 +1,9 @@
 /* Household delivery overview; status and RSVP remain independent. */
 #inviteRows {
   --invite-columns: minmax(200px, 1.6fr) minmax(90px, 1fr) minmax(100px, 1fr) minmax(80px, .8fr) minmax(160px, 1.2fr);
+  --invite-row-icon-size: 29px;
+  --invite-row-control-gap: 6px;
+  --invite-row-controls-width: calc(44px + var(--invite-row-action-count, 0) * (var(--invite-row-icon-size) + var(--invite-row-control-gap)));
 }
 #inviteRows.has-food-interest {
   --invite-columns: minmax(200px, 1.7fr) minmax(90px, .9fr) minmax(100px, 1fr) minmax(80px, .7fr) minmax(90px, .8fr) minmax(160px, 1.2fr);
@@ -38,18 +41,11 @@
 .invite-overview-row > .invite-overview-service-info,
 .invite-overview-row > .invite-overview-delivery,
 .invite-overview-row > .invite-overview-reply,
-.invite-overview-row > .invite-overview-visit-status,
-.invite-overview-row > .invite-overview-reply-info,
 .invite-overview-row > .invite-overview-interest {
   display: grid;
   gap: 1px;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-.invite-overview-row .invite-row-actions {
-  justify-content: flex-end;
-  margin-left: 0;
-  flex-wrap: nowrap;
 }
 .invite-overview-row .btn {
   font-size: 0.72rem;
@@ -108,13 +104,14 @@
   align-content: center;
   gap: 1px;
 }
-.invite-overview-identity .invite-compact-name {
-  flex: 0 1 auto;
+#adminApp .household-details-dialog > h2 {
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
 }
 .invite-household-meta {
   white-space: normal;
 }
-.invite-interest-label, .invite-seen-label { display: none; }
+.invite-interest-label { display: none; }
 @media (max-width: 1000px) {
   .invite-overview-heading {
     display: none;
@@ -140,11 +137,7 @@
     grid-column: 1/-1;
   }
   .invite-overview-interest { grid-column: 3; grid-row: 2; }
-  .invite-interest-label, .invite-seen-label { display: block; }
-  .invite-overview-row .invite-row-actions {
-    grid-column: 1/-1;
-    justify-content: flex-start;
-  }
+  .invite-interest-label { display: block; }
   .invite-overview-recipient {
     grid-column: 1/-1;
     grid-row: 3;
@@ -356,33 +349,21 @@
   #adminApp .invite-overview-row small { font-size: .82rem; }
 }
 
-.invite-overview-row .invite-preview {
-  min-width: 44px;
-  min-height: 44px;
-  padding: 10px;
-}
-.invite-preview svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-#adminApp .invite-row-actions .invite-edit-household {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-}
-
 .invite-overview-interest { display: inline-flex; gap: 5px; }
 .invite-create { font-size: 1.35rem; }
 .invite-grouping { display: flex; flex-wrap: wrap; gap: 4px 16px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin: 0; min-width: 0; }
 .invite-grouping legend { padding-inline: 4px; font-size: .82rem; font-weight: 650; }
 #adminApp .invite-grouping label { display: inline-flex; align-items: center; gap: 6px; margin: 0; min-height: 44px; font-size: .82rem; }
 .invite-grouping input { width: auto; margin: 0; }
+#adminApp .invite-text-preference {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin: 0;
+  padding-inline: 12px;
+  font-size: .82rem;
+}
 .invite-default-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -419,7 +400,6 @@
 @media (max-width: 700px) {
   .invite-default-fields { grid-template-columns: 1fr; }
 }
-#adminApp .invite-row-actions :is(button,a) { display: inline-flex; width: 44px; height: 44px; min-width: 44px; align-items: center; justify-content: center; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--light); color: var(--action-text); text-decoration: none; }
 .template-choice-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -558,11 +538,10 @@
   #adminApp .invite-overview-row > :is(.invite-overview-delivery,.invite-overview-reply,.invite-overview-interest) { grid-column: auto; grid-row: auto; }
   #adminApp .invite-overview-row > .invite-overview-delivery:has(.invite-copy-text) { grid-column: span 2; }
   #adminApp .invite-overview-row > .invite-overview-recipient { grid-row: auto; order: 4; }
-  #adminApp .invite-overview-row > .invite-row-actions { order: 5; }
 }
 
 
-/* Invites keeps View and Search beside the title, above selection actions. */
+/* Invites keeps grouping, View and Search above selection actions. */
 #adminApp .invite-box-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--invite-toolbar-width, auto);
@@ -570,7 +549,7 @@
   gap: 10px 16px;
 }
 #adminApp .invite-box-heading:has(.admin-search-toggle[aria-expanded="true"]) {
-  --invite-toolbar-width: minmax(0, 27rem);
+  --invite-toolbar-width: minmax(0, 33rem);
 }
 .invite-heading-title { min-width: 0; }
 .invite-heading-toolbar {
@@ -581,6 +560,7 @@
   gap: 8px;
   min-width: 0;
 }
+.invite-heading-options { display: flex; flex: 0 0 auto; gap: 8px; max-width: 100%; }
 .invite-heading-search { min-width: 0; }
 .invite-heading-search:has(.admin-search-toggle[aria-expanded="true"]),
 #adminApp .invite-heading-search .admin-search-panel {
@@ -593,10 +573,42 @@
   margin-block: 4px 0;
   font-variant-numeric: tabular-nums;
 }
-#adminApp .invite-overview-seen { font-size: .72rem; }
+.invite-active-filters:not([hidden]) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 10px;
+  margin-block-end: 8px;
+  font-size: .8rem;
+}
+.invite-active-filters > span { font-weight: 700; }
+.invite-filter-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.invite-filter-summary > li {
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+#adminApp .invite-active-filters > .text-button {
+  min-height: 44px;
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .invite-active-filters:not([hidden]) { grid-template-columns: minmax(0, 1fr) auto; }
+  .invite-filter-summary { grid-area: 2 / 1 / 3 / -1; }
+  #adminApp .invite-active-filters > .text-button { grid-area: 1 / 2; }
+}
 #adminApp [data-invite-seen="seen"] { color: var(--action-text); }
-#inviteShownFieldsHost { flex: 0 0 auto; }
-#inviteShownFieldsHost .invite-shown-fields > summary {
+.invite-heading-options .invite-toolbar-choice > summary {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -604,6 +616,15 @@
   padding-inline: 11px;
 }
 #inviteShownFieldsHost .filter-choice-selection { display: none; }
+.invite-grouping-choices { grid-template-columns: minmax(0, 1fr); border: 0; padding: 0; }
+@media (max-width: 600px) {
+  .invite-heading-toolbar { flex-wrap: wrap; }
+  .invite-heading-toolbar .invite-heading-search:has(.admin-search-toggle[aria-expanded="true"]) { flex-basis: 100%; }
+}
+@media (max-width: 360px) {
+  .invite-heading-options { gap: 6px; }
+  .invite-heading-options .invite-toolbar-choice > summary { gap: 6px; padding-inline: 7px; }
+}
 #adminApp .invite-overview-row:has([data-bulk-select]:checked) {
   background-color: color-mix(in srgb, var(--teal) 8%, transparent);
 }
@@ -916,19 +937,12 @@
 /* One Invites list shares the existing draft/Sent action selection. */
 #adminApp [data-panel="invites"] { display: grid; gap: 16px; }
 #adminApp [data-panel="invites"].hidden { display: none; }
-.invite-shown-fields { position: relative; }
-/* The closed toolbar sits at the right edge. Align the menu to that edge. */
-.invite-heading-toolbar:not(:has(.admin-search-toggle[aria-expanded="true"])) .invite-shown-fields {
-  position: static;
-}
-.invite-heading-toolbar:not(:has(.admin-search-toggle[aria-expanded="true"])) .invite-shown-fields[open] > .template-choice-menu {
-  inset-inline: auto 0;
-}
-.invite-shown-fields:not([open]) > .template-choice-menu { display: none; }
-.invite-shown-fields[open] > .template-choice-menu {
+/* Align menus to the right until inline Search moves the options away from that edge. */
+.invite-toolbar-choice:not([open]) > .template-choice-menu { display: none; }
+.invite-toolbar-choice[open] > .template-choice-menu {
   position: absolute;
   inset-block-start: 100%;
-  inset-inline-start: -1px;
+  inset-inline-end: 0;
   inline-size: min(15rem, calc(100vw - 3rem));
   z-index: 8;
   background: var(--white);
@@ -936,15 +950,34 @@
   border-radius: 10px;
   box-shadow: 0 8px 16px color-mix(in srgb, var(--ink) 12%, transparent);
 }
+@media (width > 600px) {
+  .invite-heading-toolbar:has(.admin-search-toggle[aria-expanded="true"]) .invite-toolbar-choice { position: relative; }
+  .invite-heading-toolbar:has(.admin-search-toggle[aria-expanded="true"]) .invite-toolbar-choice > .template-choice-menu { inset-inline: -1px auto; }
+}
+@media (max-width: 600px) {
+  .invite-heading-options { position: relative; }
+  .invite-toolbar-choice[open] > .template-choice-menu { inline-size: min(15rem, calc(100vw - 6rem)); }
+}
 #adminApp .invite-overview-row > .invite-overview-select {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: var(--invite-row-control-gap);
   min-width: 44px;
   min-height: 44px;
 }
+#adminApp .invite-overview-select > .admin-row-icon {
+  flex: none;
+  width: var(--invite-row-icon-size);
+  height: var(--invite-row-icon-size);
+  border-radius: 50%;
+  background: var(--light);
+  color: var(--action-text);
+  text-decoration: none;
+}
 #adminApp .invite-overview-select > .bulk-invite-select {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   width: 44px;
@@ -957,9 +990,14 @@
   gap: 6px;
 }
 #inviteSelectionCount { white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 700px), (pointer: coarse) {
+  #inviteRows { --invite-row-icon-size: 44px; }
+}
 @media (max-width: 1000px) {
   #adminApp #inviteRows .invite-overview-row { position: relative; }
-  #adminApp .invite-overview-row > .invite-overview-identity { padding-inline-end: 50px; }
+  #adminApp .invite-overview-row > .invite-overview-identity {
+    padding-inline-end: calc(var(--invite-row-controls-width) + 6px);
+  }
   #adminApp .invite-overview-row > .invite-overview-select {
     position: absolute;
     inset-block-start: 0;

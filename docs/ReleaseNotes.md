@@ -1,5 +1,15 @@
 # Release notes
 
+## 0.9.0
+
+- Invites shows active filters together and offers **Clear filters**. Choose **Alphabetic**, **Relational** or **Service** grouping for the current list. Household preview and edit controls sit beside selection. Preview remains available after publication, and editing from the list opens Household details while the event is unpublished.
+- The invitation chip shows qualifying visit counts while keeping its review or copy action. Ready invitations can show **Text** before the first qualifying visit. RSVP shows attending over invited slots and can include the saved food answer.
+- **Settings → Interface** separates Interface, Invites appearance and Overview appearance. Move Overview cards within or between tabs and rename either tab. Choose event and venue timezones from lists. The RSVP deadline uses the event timezone, and explicit 12-hour or 24-hour preferences apply in time editors.
+- Localize guest titles in the invitation language and customize a guest’s title, surname or salutation. New template drafts can insert the contact’s saved salutation with `{contact_salutation}`. Guest invitations show the event name as plain text and report a failed food confirmation beside **Confirm food choices**.
+- Logs groups search and filters, and the session editor groups its venue and schedule. Muted text and primary buttons have stronger contrast in both themes.
+
+Backup format 3 retains 44 tables. The guest salutation field changes the column manifest, so recover earlier backups on a matching schema. Download a fresh Full backup after updating. An installation with the original beta.8 schema needs a reviewed database update for the guest salutation field, related routines and translation mappings. [Existing-installation instructions](../INSTALL.md#existing-installations)
+
 ## 0.9.0-beta.8
 
 - Main updates qualifying invitation visits, RSVP responses and food totals while you work. Active filters, selected households and open edits stay in place.

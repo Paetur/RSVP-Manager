@@ -74,7 +74,7 @@ client.rpc=async(name,args)=>{
     await routeSyntheticSdk(page, mock + "\n" + extra + "\n" + integration);
     await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
     await page.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
-    const card = page.locator('[data-settings-panel="checklist"] > [data-settings-card="experimental-shortcuts"]');
+    const card = page.locator('#settingsInterfaceGeneral > [data-settings-card="experimental-shortcuts"]');
     const box = card.locator('[data-editor-key="experimental-shortcuts"]');
     const helper = card.getByText("Shortcuts synthetic test helper", { exact: true });
     const checkbox = page.locator("#shortcutExperimentalEnabled");
@@ -155,6 +155,7 @@ client.rpc=async(name,args)=>{
 
     // A personal form may remain open with a draft while the application setting saves.
     await openBox(page, "personal-preferences");
+    await page.locator("#interfaceDateTimeTab").click();
     await page.locator('[data-preference-choices="time"] [data-preference-choice="12"]').click();
     assert.equal(await page.locator("#timeFormat").inputValue(), "12");
     assert.equal(await page.locator("#savePersonalPreferences").isEnabled(), true);

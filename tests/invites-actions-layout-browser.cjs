@@ -9,6 +9,7 @@ const seed = `
  fixtures.event_settings[0].food_enabled=true;
  fixtures.event_settings[0].food_stage='interest';
  const readyHousehold=fixtures.households.find(h=>h.id===h2);
+ readyHousehold.food_interest=true;
  fixtures.invitation_send_queue.push({
   id:'action-layout-ready',household_id:readyHousehold.id,channel:'manual',status:'ready',
   revision:1,created_at:'2026-11-15T12:00:00Z',updated_at:'2026-11-15T12:00:00Z',
@@ -22,36 +23,29 @@ async function refresh(page) {
  await page.waitForFunction(() => !document.getElementById('refreshButton').disabled);
 }
 
-async function geometry(page, count) {
+async function geometry(page, published = false) {
  const row = page.locator("#inviteRows .invite-household > summary").first();
- assert.equal(await row.locator('.invite-create,.invite-share').count(),0,'Invites removes create/share row actions');
- const actions = row.locator(":scope > .invite-row-actions");
- if(!count){
-  assert.equal(await actions.count(),0,'published rows have no action column');
-  assert.equal(await page.locator('.invite-overview-heading').getByText('Actions',{exact:true}).count(),0);
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
-  return;
- }
- assert.equal(await actions.locator(":scope > *").count(), count);
- const result = await actions.evaluate(node => {
-  const strip=node.getBoundingClientRect(),row=node.parentElement.getBoundingClientRect();
-  const boxes=[...node.children].map(child=>child.getBoundingClientRect());
-  const heading=document.querySelector('.invite-overview-heading').children[[...node.parentElement.children].indexOf(node)];
+ assert.equal(await row.locator('.invite-create,.invite-share,.invite-row-actions').count(),0);
+ assert.equal(await page.locator('.invite-overview-heading').getByText('Actions',{exact:true}).count(),0);
+ const selection = row.locator('.invite-overview-select');
+ assert.equal(await selection.locator('.invite-preview + .invite-edit-household').count(),published?0:1);
+ assert.equal(await selection.locator((published ? '.invite-preview' : '.invite-edit-household') + ' + .bulk-invite-select').count(),1);
+ const result = await selection.evaluate(node => {
+  const line=node.getBoundingClientRect();
+  const controls=[...node.querySelectorAll('.invite-preview,.invite-edit-household')];
+  const boxes=controls.map(control=>control.getBoundingClientRect());
+  const checkbox=node.querySelector('[data-bulk-select]').getBoundingClientRect();
+  const touch=matchMedia('(max-width: 700px), (pointer: coarse)').matches;
   return {
-   oneLine:boxes.every(box=>Math.abs(box.top-boxes[0].top)<1),
-   touch:boxes.every(box=>box.width>=43.5&&box.height>=43.5),
-   contained:boxes.every(box=>box.left>=strip.left-1&&box.right<=strip.right+1&&box.left>=row.left-1&&box.right<=row.right+1),
-   separated:boxes.every((box,index)=>!index||box.left>=boxes[index-1].right+3),
-   aligned:!heading||!heading.getClientRects().length||Math.abs(heading.getBoundingClientRect().left-strip.left)<1,
+   touch:!touch||boxes.every(box=>box.width>=43.5&&box.height>=43.5),
+   sameSize:boxes.every(box=>box.width===boxes[0].width&&box.height===boxes[0].height),
+   contained:boxes.every(box=>box.left>=line.left-1&&box.right<=line.right+1),
+   round:controls.every(control=>getComputedStyle(control).borderRadius==='50%'),
+   aligned:boxes.every(box=>box.right<checkbox.left && Math.abs((box.top+box.bottom)-(checkbox.top+checkbox.bottom))<=2),
    pageFits:document.documentElement.scrollWidth<=innerWidth+1,
   };
  });
- assert.equal(result.oneLine,true,'all action controls remain in one row');
- assert.equal(result.touch,true,'action controls retain 44px touch size');
- assert.equal(result.contained,true,'buttons stay inside action strip and household row');
- assert.equal(result.separated,true,'action controls do not overlap');
- assert.equal(result.aligned,true,'Actions heading follows the same optional-column grid');
- assert.equal(result.pageFits,true,'optional columns do not create page overflow');
+ assert.deepEqual(result,{touch:true,sameSize:true,contained:true,round:true,aligned:true,pageFits:true},'round controls fit to the left of selection and retain their touch targets');
 }
 
 async function toolbarGeometry(page, width) {
@@ -69,14 +63,16 @@ async function toolbarGeometry(page, width) {
   const stats=host.querySelector('#statsGrid'),overview=host.querySelector('#overviewPanel');
   const overviewControls=['#inviteGroupTrees','#inviteSessionTree','#inviteLanguageFilter','#inviteChannelFilter'];
   const box=node=>node.getBoundingClientRect(), h=box(heading), title=box(host.querySelector('.invite-heading-title'));
-  const view=box(host.querySelector('#inviteShownFieldsHost summary')), action=box(host.querySelector('#bulkInvitesHost'));
+  const group=box(host.querySelector('#inviteQuickGrouping summary')), view=box(host.querySelector('#inviteShownFieldsHost summary'));
+  const action=box(host.querySelector('#bulkInvitesHost'));
   const icon=box(host.querySelector('#inviteSearchToggle')), rows=box(host.querySelector('#inviteRows'));
   const status=box(host.querySelector('#bulkInviteStatus'));
   return {
    adminContainsRows:document.getElementById('adminApp').contains(host.querySelector('#inviteRows')),
    statsBeforeInvites:box(overview).bottom<=h.top+1&&overview.contains(stats)&&!host.querySelector('.invite-sorting'),
-   desktop:title.right<=view.left+1&&Math.abs(box(toolbar).top+box(toolbar).height/2-title.top-title.height/2)<2,
-   narrow:title.bottom<=view.top+1,
+   desktop:title.right<=group.left+1&&Math.abs(box(toolbar).top+box(toolbar).height/2-title.top-title.height/2)<2,
+   narrow:title.bottom<=group.top+1,
+   groupingBesideView:Math.abs(group.top-view.top)<2&&view.left>=group.right-1&&view.left-group.right<=12&&group.height>=44,
    compact:Math.abs(icon.top-view.top)<2&&icon.left>=view.right-1&&icon.left-view.right<=12,
    rightAligned:Math.abs(icon.right-h.right)<2&&icon.right<=innerWidth+1,
    actionBelow:Math.abs(action.left-h.left)<2&&Math.abs(action.right-h.right)<2&&action.top>=box(toolbar).bottom-1&&rows.top>=action.bottom-1,
@@ -84,7 +80,7 @@ async function toolbarGeometry(page, width) {
    overviewControls:overviewControls.every(selector=>stats.contains(host.querySelector(selector))),
   };
  });
- assert.deepEqual(result,{adminContainsRows:true,statsBeforeInvites:true,desktop:width>750,narrow:width<=750,compact:true,rightAligned:true,actionBelow:true,statusBelow:true,overviewControls:true});
+ assert.deepEqual(result,{adminContainsRows:true,statsBeforeInvites:true,desktop:width>750,narrow:width<=750,groupingBesideView:true,compact:true,rightAligned:true,actionBelow:true,statusBelow:true,overviewControls:true});
  const calls=await page.evaluate(()=>window.__calls.filter(({name})=>name!=='admin_guest_overview').length);
  await selection.getByRole('button',{name:'Clear',exact:true}).press('Enter');
  assert.equal(await selection.isVisible(),false,'clearing the selection closes the action strip');
@@ -123,7 +119,8 @@ async function searchDisclosure(page, width) {
    height:header.height, left:view.left, compact:icon.left-view.right<=12&&icon.left>=view.right-1,
    rightAligned:Math.abs((field.width?closeButton:icon).right-header.right)<2,
    fieldWidth:field.width, hiddenWidth:node.querySelector('#inviteSearchPanel').getBoundingClientRect().width,
-   inline:[view,icon,field,closeButton].every((item,i,items)=>Math.abs(item.top-view.top)<2&&(!i||item.left>=items[i-1].right-1)),
+   inline:[icon,field,closeButton].every((item,i,items)=>Math.abs(item.bottom-icon.bottom)<2&&(!i||item.left>=items[i-1].right-1)),
+   onNewRow:icon.top>=view.bottom,
    viewport:document.documentElement.scrollWidth<=innerWidth+1,
   };
  });
@@ -138,9 +135,10 @@ async function searchDisclosure(page, width) {
  assert.equal(await search.evaluate(node=>node===document.activeElement),true);
  assert.equal(await toggle.getAttribute('aria-expanded'),'true');
  const opened=await measure();
- assert.ok(opened.fieldWidth>0&&opened.inline&&opened.viewport&&opened.rightAligned,
-  'View, Search, field and × fit inline at '+width+'px: '+JSON.stringify(opened));
- assert.ok(opened.left<collapsed.left,'opening Search grows the toolbar into available space');
+ assert.ok(opened.fieldWidth>80&&opened.inline&&opened.viewport&&opened.rightAligned,
+  'Search, field and × fit at '+width+'px: '+JSON.stringify(opened));
+ assert.equal(opened.onNewRow,width<=600,'narrow screens give the Search field its own row');
+ if(width>600)assert.ok(opened.left<collapsed.left,'opening Search grows the toolbar into available space');
  if(width>750)assert.equal(opened.height,collapsed.height,'opening Search does not add a row on wide screens');
  const view=heading.locator('#inviteShownFieldsHost summary');
  await view.press('Enter');
@@ -149,6 +147,11 @@ async function searchDisclosure(page, width) {
   'the View menu fits while Search is open at '+width+'px');
  await view.press('Escape');
  assert.equal(await panel.isVisible(),true,'closing View leaves the Search disclosure open');
+ const grouping=heading.locator('#inviteQuickGrouping');
+ await grouping.locator('summary').press('Enter');
+ assert.ok(await grouping.locator('.template-choice-menu').evaluate(node=>{const b=node.getBoundingClientRect();return b.width>0&&b.left>=0&&b.right<=innerWidth+1;}),
+  'the Group by menu fits while Search is open at '+width+'px');
+ await grouping.locator('summary').press('Escape');
  const filter=async()=>{
   await search.fill('synthetic no match');
   assert.equal(await rows.count(),0);
@@ -166,6 +169,48 @@ async function searchDisclosure(page, width) {
  await toggle.click(); await filter(); await toggle.click(); await expectClosed();
 }
 
+async function groupingChoices(page) {
+ const grouping=page.locator('#inviteQuickGrouping'), button=grouping.locator('summary');
+ const rows=page.locator('#inviteRows');
+ const selected=rows.locator('[data-bulk-select]:checked');
+ const guestId=await page.evaluate(()=>{
+  const id=crypto.randomUUID();
+  fixtures.guests.push({id,household_id:h3,first_name:'Synthetic'});
+  return id;
+ });
+ await refresh(page);
+ await rows.locator('[data-bulk-select]:enabled').first().check();
+ const state=()=>page.evaluate(()=>({
+  saved:window.RSVP_ADMIN_PREFERENCES.invitesGrouping,
+  writes:window.__calls.filter(({name})=>name!=='admin_guest_overview').length,
+ }));
+ const before=await state();
+ await button.press('Enter');
+ assert.equal(await grouping.getByRole('radio',{name:'Relational',exact:true}).isChecked(),true);
+ await grouping.getByRole('radio',{name:'Service',exact:true}).click();
+ assert.ok(await rows.locator('[data-invite-service]').count()>0,'choosing Service groups the visible households immediately');
+ assert.equal(await selected.count(),1,'grouping preserves the selected household');
+ await grouping.getByRole('radio',{name:'Service',exact:true}).press('ArrowRight');
+ assert.equal(await grouping.getByRole('radio',{name:'Alphabetic',exact:true}).isChecked(),true);
+ assert.equal(await rows.locator('.invite-overview-group').count(),0,'Alphabetic shows a single list');
+ assert.deepEqual(await rows.locator('.invite-compact-name').allTextContents(),['Example child','Example hill family'],
+  'Alphabetic sorts by household name despite the opposite saved order');
+ assert.deepEqual(await state(),before,'toolbar grouping is a view choice and performs no writes');
+ await grouping.getByRole('radio',{name:'Alphabetic',exact:true}).press('Escape');
+ assert.equal(await button.evaluate(node=>node===document.activeElement),true,'Escape returns focus to Group by');
+ await refresh(page);
+ assert.equal(await rows.locator('.invite-overview-group').count(),0,'data refresh preserves the current grouping');
+ await button.press('Enter');
+ await grouping.getByRole('radio',{name:'Relational',exact:true}).click();
+ assert.ok(await rows.locator('[data-relation-group-id]').count()>0);
+ await page.locator('#inviteShownFieldsHost summary').click();
+ assert.equal(await grouping.evaluate(node=>node.open),false,'opening View closes Group by');
+ await page.locator('#inviteShownFieldsHost summary').press('Escape');
+ await page.locator('#bulkInviteContent').getByRole('button',{name:'Clear',exact:true}).click();
+ await page.evaluate(id=>{fixtures.guests=fixtures.guests.filter(guest=>guest.id!==id);},guestId);
+ await refresh(page);
+}
+
 async function rowsGeometry(page) {
  const rows=page.locator('#inviteRows');
  assert.equal(await rows.getAttribute('data-rows'),'1','fixture selects the one-row presentation');
@@ -178,7 +223,7 @@ async function rowsGeometry(page) {
  const fields=page.locator('#inviteShownFieldsHost .invite-shown-fields');
  const toggle=async key=>{if(!await fields.evaluate(node=>node.open))await fields.locator('summary').click();await fields.locator('[data-value="'+key+'"]').click();await page.keyboard.press('Escape');};
  const optionalColumns=['reply','food'];
- await toggle('lastSent');
+ await toggle('recipient');
  const before=await state();
  await setFixtureInviteRows(page,2);
  assert.equal(await rows.getAttribute('data-rows'),'2','the selected screen preference changes the rendered row layout');
@@ -186,7 +231,7 @@ async function rowsGeometry(page) {
   const row=host.querySelector('.invite-household > summary'),primary=row.querySelector('.invite-overview-identity'),name=primary.querySelector('.invite-compact-name'),meta=primary.querySelector('.invite-household-meta'),serviceCell=row.querySelector('.invite-overview-service-info'),recipient=serviceCell.querySelector('.invite-overview-recipient'),service=serviceCell.querySelector('.invite-copy-pill');
   const labels=[...host.querySelectorAll('.invite-overview-heading > span')].map(n=>n.textContent);
   return {inline:!!meta&&!!service&&!!recipient,below:!!meta&&meta.getBoundingClientRect().top>=name.getBoundingClientRect().bottom-1,
-   extraColumns:[...row.children].filter(n=>n.matches('.invite-overview-household-info,.invite-overview-recipient,.invite-overview-visit-status,.invite-overview-reply-info')).length,
+   extraColumns:[...row.children].filter(n=>n.matches('.invite-overview-household-info,.invite-overview-recipient')).length,
    headings:labels,service:service?.textContent,pageFits:document.documentElement.scrollWidth<=innerWidth+1,
    fontMatches:getComputedStyle(row.querySelector('.invite-overview-reply')).fontSize===getComputedStyle(name).fontSize};
  });
@@ -201,14 +246,16 @@ async function rowsGeometry(page) {
  assert.deepEqual(twoState.shown,optionalColumns,'choosing two rows enables both optional saved column groups');
  assert.deepEqual(await fields.locator('button[data-value]').evaluateAll(nodes=>nodes.map(node=>node.dataset.value)),optionalColumns,'two-row Shown offers optional paired columns and keeps Household, Service and Invitation mandatory');
  assert.deepEqual({...twoState,shown:before.shown},before,'two rows preserves selection and backend call history');
- for(const [key,selector] of [['reply','.invite-overview-reply'],['food','.invite-overview-interest']]){
+ assert.equal(await rows.locator('.invite-rsvp-food-answer:visible').count(),1,'saved food interest supplies the lower RSVP line');
+ for(const [key,selector] of [['reply','.invite-overview-reply'],['food','.invite-rsvp-food-answer:visible']]){
   await toggle(key);
-  assert.equal(await page.locator('#inviteRows .invite-household > summary > '+selector).count(),0,'hiding a two-row column removes its complete upper/lower pair: '+key);
+  assert.equal(await rows.locator(selector).count(),0,'hiding an optional two-row field removes its details: '+key);
   assert.ok(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta').count()>0,'Household details remain visible when an optional column is hidden');
   await toggle(key);
  }
  await toggle('reply');
- assert.equal(await page.locator('#inviteRows .invite-household > summary > .invite-overview-reply').count(),0,'RSVP and response detail disappear together as one optional column');
+ assert.equal(await page.locator('#inviteRows .invite-household > summary > .invite-overview-reply').count(),0,'RSVP and its food line disappear together as one optional column');
+ assert.equal(await rows.locator('.invite-overview-interest [data-food-interest="yes"]').innerText(),'Yes','saved interest remains in the Food column if RSVP is hidden');
  for(const selector of ['.invite-overview-identity .invite-household-meta','.invite-overview-service-info .invite-copy-recipient','.invite-overview-delivery .invite-copy-invitation'])assert.ok(await page.locator('#inviteRows '+selector).count()>0,'Household, Service and Invitation remain visible: '+selector);
  await refresh(page);assert.equal(await rows.getAttribute('data-rows'),'2','ordinary data refresh preserves the chosen row presentation');
  assert.equal(await page.locator('#inviteRows .invite-household > summary > .invite-overview-reply').count(),0,'temporary optional-column choices survive data refresh');
@@ -220,7 +267,7 @@ async function rowsGeometry(page) {
  assert.deepEqual((await state()).shown,optionalColumns,'each transition to two rows restores its saved optional columns');
  await setFixtureInviteRows(page,1);
  assert.deepEqual((await state()).shown,before.shown,'repeated layout switches retain the one-row choices');
- await toggle('lastSent');
+ await toggle('recipient');
  const copy = page.locator('#inviteRows .invite-copy-options').filter({ has: page.locator('.invite-copy-text') }).first();
  assert.ok(await copy.evaluate(cell => {
   const a = cell.querySelector('.invite-copy-invitation .invite-copy-pill').getBoundingClientRect();
@@ -311,6 +358,7 @@ async function mergedInvitesGeometry(page) {
    await setFixtureInviteRows(page,1);
    await toolbarGeometry(page,width);
    await searchDisclosure(page,width);
+   if([390,1366].includes(width))await groupingChoices(page);
    if(width===1366){
     const theme=await page.locator('html').getAttribute('data-theme');
     await toggleFixtureTheme(page);
@@ -331,10 +379,11 @@ async function mergedInvitesGeometry(page) {
    assert.equal(await page.locator('#inviteRows .invite-overview-household-info').count(),0,'household detail starts hidden');
    assert.ok(await page.locator('#inviteRows .invite-overview-service-info .invite-copy-recipient').count()>0,'Service is always present as the contact-value copy chip');
    assert.equal(await field('serviceInfo').count()+await field('delivery').count(),0,'required Service and Invitation are absent from optional Shown choices');
+   assert.equal(await field('lastSent').count()+await field('replyInfo').count(),0,'retired details are absent from View');
    assert.equal(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta,#inviteRows .invite-overview-recipient small').count(),0,'primary lines no longer contain secondary details');
    await summary.press('Enter');
    assert.equal(await fields.evaluate(node=>node.open),true);
-   await field('food').press('Space');await geometry(page,2);
+   await field('food').press('Space');await geometry(page);
    assert.equal(await field('food').getAttribute('aria-pressed'),'false');
    assert.equal(await page.locator('#inviteRows .invite-overview-heading').getByText('Food',{exact:true}).count(),0);
    await page.keyboard.press('Escape');
@@ -342,42 +391,52 @@ async function mergedInvitesGeometry(page) {
    assert.equal(await summary.evaluate(node=>document.activeElement===node),true);
    await refresh(page);
    assert.doesNotMatch(await selection.innerText(),/Food/);
-   await toggleField('food',true);await geometry(page,2);
-   assert.equal(await page.locator('#inviteRows .invite-overview-heading').getByText('Food',{exact:true}).count(),1);
+   await toggleField('food',true);await geometry(page);
+   const foodHeading=page.locator('#inviteRows .invite-overview-heading').getByText('Food',{exact:true});
+   assert.equal(await foodHeading.count(),0,'food interest is included with visible RSVP');
+   assert.match(await page.locator('#inviteRows .invite-overview-reply').allTextContents().then(text=>text.join(' ')),/F: Y/);
    for(const key of ['recipient','reply']){
-    await toggleField(key,false);await geometry(page,2);
-    await toggleField(key,true);await geometry(page,2);
+    await toggleField(key,false);await geometry(page);
+    if(key==='reply')assert.equal(await foodHeading.count(),1,'saved food interest has a fallback column');
+    await toggleField(key,true);await geometry(page);
    }
-   for(const key of ['recipient','lastSent','reply','replyInfo','food'])await toggleField(key,false);
+   for(const key of ['recipient','reply','food'])await toggleField(key,false);
    assert.equal(await fields.locator('button[aria-pressed=true]').count(),0);
-   assert.deepEqual(await page.locator('#inviteRows .invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Service','Invitation','Actions']);
-   assert.equal(await page.locator('#inviteRows .invite-overview-heading > span').count(),5,'required Household, Service, Invitation, Actions and selection remain');
-   for(const key of ['recipient','lastSent','reply','replyInfo','food'])await toggleField(key,true);
+   assert.deepEqual(await page.locator('#inviteRows .invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Service','Invitation']);
+   assert.equal(await page.locator('#inviteRows .invite-overview-heading > span').count(),4,'required Household, Service, Invitation and selection remain');
+   for(const key of ['recipient','reply','food'])await toggleField(key,true);
    assert.doesNotMatch(await selection.innerText(),/Household info/);
    await toggleField('householdInfo',true);
    assert.equal(await fields.locator('button[aria-pressed=false]').count(),0);
-   assert.deepEqual(await page.locator('#inviteRows .invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Household info','Recipient','Service','Invitation','Seen','RSVP','Food','Actions']);
+   assert.deepEqual(await page.locator('#inviteRows .invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Household info','Recipient','Service','Invitation','RSVP']);
    const detailCells=await page.locator('#inviteRows .invite-household > summary').first().evaluate(row=>({household:row.querySelector('.invite-overview-household-info')?.textContent,service:row.querySelector('.invite-overview-service-info')?.textContent,order:[...row.children].map(node=>node.className)}));
    assert.match(detailCells.household,/guests?.*[A-Z]{2}/,'household details moved into their own cell');
    assert.ok(detailCells.service,'service details are represented independently');
    assert.ok(detailCells.order.findIndex(value=>value.split(' ').includes('invite-overview-household-info'))>detailCells.order.findIndex(value=>value.split(' ').includes('invite-overview-identity')));
-   await geometry(page,2);
+   await geometry(page);
    await rowsGeometry(page);
    await toggleField('householdInfo',false);
    await page.locator('.invite-heading-title h2').click();
    assert.equal(await fields.evaluate(node=>node.open),false);
-   await page.evaluate(()=>{fixtures.event_settings[0].food_stage='selection';});
-   await refresh(page);await geometry(page,2);
-   assert.equal(await page.locator('#inviteRows .invite-overview-heading').getByText('Food',{exact:true}).count(),1);
-   await toggleField('food',false);await geometry(page,2);await toggleField('food',true);await geometry(page,2);
+   await page.evaluate(()=>{
+    fixtures.event_settings[0].food_stage='selection';
+    fixtures.food_claims.push({household_id:h2,food_item_id:fixtures.food_items[0].id,quantity:2});
+   });
+   await refresh(page);await geometry(page);
+   assert.equal(await foodHeading.count(),1,'food selection retains its quantity column');
+   assert.equal(await page.locator('#inviteRows .invite-overview-interest .invite-food-interest').getByText('2',{exact:true}).count(),1);
+   assert.match(await page.locator('#inviteRows .invite-overview-reply').allTextContents().then(text=>text.join(' ')),/F: Y/,'a saved answer still appears with RSVP after food choices open');
+   await toggleField('food',false);await geometry(page);await toggleField('food',true);await geometry(page);
    await page.evaluate(()=>{
     fixtures.event_settings[0].is_published=true;
     const h=fixtures.households.find(h=>h.id===h2);
+    h.visit_count=2;
     fixtures.invitation_send_queue=[{id:'action-layout-draft',household_id:h.id,channel:'manual',status:'draft',revision:1,created_at:'2026-11-16T12:00:00Z',updated_at:'2026-11-16T12:00:00Z',invitation_code_snapshot:h.invite_code,recipient_snapshot:{contact_name:'Example',contact_type:'manual',contact_value:'Example'},message_body:'Synthetic invitation '+window.RSVP.invitationURL(h.invite_code)}];
    });
-   await refresh(page);await geometry(page,0);
+   await refresh(page);await geometry(page,true);
    const review=page.locator('#inviteRows .invite-review-action');
-   assert.equal(await review.innerText(),'Review');
+   assert.equal(await review.innerText(),'Seen (2)','Seen updates the draft label');
+   assert.match(await review.getAttribute('aria-label'),/^Review · /,'the visited draft still announces the Review action');
    const draft=review.locator('xpath=ancestor::details[@data-invite-household]');
    assert.equal(await draft.locator(':scope > summary [data-invite-copy="invitation"], :scope > summary [data-invite-copy="message"]').count(),0);
    await review.press('Enter');
@@ -389,7 +448,8 @@ async function mergedInvitesGeometry(page) {
    assert.equal(await draft.locator(':scope > summary [data-bulk-select]').isChecked(),false,'opening Review does not select the household');
 
    const row=page.locator('#inviteRows .invite-household > summary').first();
-   assert.equal(await row.locator('.invite-preview,.invite-edit-household').count(),0,'published presentation retains eye/edit gates');
+   assert.equal(await row.locator('.invite-preview').count(),1,'published invitations retain the preview eye');
+   assert.equal(await row.locator('.invite-edit-household').count(),0,'the pencil is reserved for unpublished planning');
    assert.equal(await row.locator('.invite-share,.invite-create').count(),0);
    if(process.env.RSVP_INVITE_PREVIEW_DIR&&[390,820,1366].includes(width)){
     await page.evaluate(()=>{

@@ -32,6 +32,13 @@ Object.assign(fixtures.event_settings[0],values);return {data:null,error:null};}
     assert.equal(await application.locator("#launchChecklistCount").textContent(), completed + " / 7");
     assert.equal(await application.locator("#launchChecklist .application-status-badge").count(), pending);
     assert.equal(await application.locator("#publishEventButton").isDisabled(), true, "publish starts behind acknowledgement");
+    const publicationAlignment = await application.locator(".publication-actions").evaluate(actions => {
+      const bounds = selector => actions.querySelector(selector).getBoundingClientRect();
+      const publish = bounds("#publishEventButton"), check = bounds("#publishAck"), wording = bounds(".publish-ack span");
+      return { order: publish.right <= check.left && check.right <= wording.left,
+        aligned: Math.abs(check.top + check.bottom - wording.top - wording.bottom) < 2 };
+    });
+    assert.deepEqual(publicationAlignment, { order: true, aligned: true });
     await application.locator("#publishAck").check();
     assert.equal(await application.locator("#publishEventButton").isEnabled(), true);
     await application.locator("#publishAck").uncheck();
@@ -92,7 +99,7 @@ Object.assign(fixtures.event_settings[0],values);return {data:null,error:null};}
     const reference = page.locator("#placeholderReference");
     assert.equal(await reference.locator("select").count(), 0);
     assert.doesNotMatch(await reference.innerText(), /Placeholder context/);
-    assert.deepEqual(await reference.locator("[data-placeholder-category]").allTextContents(), ["All", "Event", "Household", "Venue", "Session"]);
+    assert.deepEqual(await reference.locator("[data-placeholder-category]").allTextContents(), ["All", "Event", "Household", "Venue", "Session", "Invitation salutation"]);
     await reference.getByRole("searchbox", { name: "Search placeholders" }).fill("deadline");
     assert.equal(await reference.locator(".placeholder-reference-row").count(), 4);
     await reference.getByRole("searchbox", { name: "Search placeholders" }).fill("");

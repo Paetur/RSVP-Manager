@@ -104,28 +104,21 @@ const wordingInvoke=client.functions.invoke;client.functions.invoke=async(name,r
         ),
       );
       const rows = page.locator("#inviteRows [data-invite-household]");
-      const allHouseholdIds = await rows.evaluateAll(nodes => nodes.map(node => node.dataset.inviteHousehold));
+      const rowIds = () => rows.evaluateAll(nodes => nodes.map(node => node.dataset.inviteHousehold));
+      const allHouseholdIds = await rowIds();
       const beforeFilters = await page.evaluate(reportingState);
-      for (const state of ["yes", "no", "unanswered"]) {
+      const answers = new Map(JSON.parse(beforeFilters.fixtures).households.map(household =>
+        [household.id, household.food_interest ?? null]));
+      for (const [state, answer] of [["yes", true], ["no", false], ["unanswered", null]]) {
         const filter = page.locator('[data-invite-food-filter="' + state + '"]');
         await filter.click();
         assert.equal(await filter.getAttribute("aria-pressed"), "true");
         assert.equal(await rows.count(), Number(await filter.locator("b").innerText()));
         assert.ok((await rows.count()) > 0);
-        assert.ok(
-          (await rows.locator("[data-food-interest]").allTextContents())
-            .length > 0,
-        );
-        assert.ok(
-          (
-            await rows
-              .locator("[data-food-interest]")
-              .evaluateAll((nodes) => nodes.map((n) => n.dataset.foodInterest))
-          ).every((v) => v === state),
-        );
+        assert.deepEqual(await rowIds(), allHouseholdIds.filter(id => answers.get(id) === answer));
       }
       await page.locator('[data-invite-food-filter="unanswered"]').click();
-      assert.deepEqual(await rows.evaluateAll(nodes => nodes.map(node => node.dataset.inviteHousehold)), allHouseholdIds, "repeating the Food option clears that filter");
+      assert.deepEqual(await rowIds(), allHouseholdIds, "repeating the Food option clears that filter");
       assert.deepEqual(await page.locator("[data-invite-food-filter]").evaluateAll(nodes => nodes.map(node => node.getAttribute("aria-pressed"))), ["false", "false", "false"]);
       assert.deepEqual(await page.evaluate(reportingState), beforeFilters,
         "report filters leave application data and other RPCs unchanged");

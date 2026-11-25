@@ -140,19 +140,30 @@ const { root, out, server, mock, extra, stageExtra } =
       );
       assert.equal(await page.locator("#foodFollowup").isVisible(), true);
       await page.locator("#confirmFood").click();
-      await review.locator("#foodReviewConfirm").click();
-      await page.locator("#guestStatus.error").waitFor();
+      const confirm = review.locator("#foodReviewConfirm");
+      await confirm.press("Enter");
+      const feedback = review.getByRole("alert");
+      await feedback.waitFor();
+      assert.equal(await feedback.innerText(), "Synthetic confirmation failure");
+      assert.equal(await page.locator("#guestStatus.error").count(), 0);
       assert.equal(await review.isVisible(), true);
+      assert.equal(await confirm.isEnabled(), true);
       assert.equal(
-        await review.locator("#foodReviewConfirm").isEnabled(),
+        await feedback.evaluate((notice) => {
+          const retry = notice.nextElementSibling;
+          const { top, bottom } = notice.getBoundingClientRect();
+          return retry === document.activeElement && top >= 0 &&
+            bottom <= innerHeight && retry.getAttribute("aria-describedby") === notice.id;
+        }),
         true,
       );
-      await review.locator("#foodReviewConfirm").click();
+      await confirm.press("Enter");
       await page.waitForFunction(() => window.__foodConfirmed === true);
       await page.waitForFunction(
         () => !document.getElementById("foodReviewConfirm"),
       );
       assert.equal(await review.locator("li").count(), 2);
+      assert.equal(await review.getByRole("alert").count(), 0);
       assert.equal(
         await page.evaluate(
           () => window.__confirmCalls[1].p_expected_claims.length,

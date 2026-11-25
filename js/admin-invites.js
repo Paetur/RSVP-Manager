@@ -42,12 +42,23 @@
     const visibleFields = window.RSVP_ADMIN_PREFERENCES.invitesFields;
     const columnGroups = window.RSVP_ADMIN_PREFERENCES.invitesColumnGroups;
     const requiredFields = window.RSVP_ADMIN_PREFERENCES.invitesRequiredFields;
+    const quickGrouping = $("inviteQuickGrouping");
+    const filterSummary = R.dom("div", { class: "invite-active-filters" });
+    const filterHeading = R.dom("span", { id: "inviteActiveFiltersTitle" });
+    const filterList = R.dom("ul", { class: "invite-filter-summary" });
+    const clearFiltersButton = R.dom("button", { type: "button", class: "text-button" });
+    filterSummary.hidden = true;
+    filterSummary.setAttribute("role", "group");
+    filterSummary.setAttribute("aria-labelledby", filterHeading.id);
+    filterSummary.append(filterHeading, filterList, clearFiltersButton);
+    $("inviteRows").before(filterSummary);
     const shown = new Set();
     const activityReaders = new WeakMap();
     const overviewCounters = new Map();
     let shownOwner, shownDefaults, shownColumnDefaults, rowLayout = 1, oneRowShown = [], clipboardBusy = false;
     let rowOverride, responsiveLayout;
-    let refreshSentRows = () => {};
+    let groupingOwner, groupingDefault, groupingOverride;
+    let refreshSentRows = () => {}, refreshRowStatuses = () => {};
 
     function refreshInvitationActivity() {
       $("inviteRows")?.querySelectorAll("details[data-invite-household][open]").forEach(
@@ -107,8 +118,18 @@
         selected: shown,
         onChange: render,
         beforeOptions: layoutChoices,
-        className: "invite-shown-fields",
+        group: "invite-toolbar-choice",
+        className: "invite-shown-fields invite-toolbar-choice",
       }));
+    }
+    function syncGrouping() {
+      const owner = getActor(), saved = window.RSVP_ADMIN_PREFERENCES.invitesGrouping;
+      if (groupingOwner !== owner || groupingDefault !== saved) groupingOverride = undefined;
+      groupingOwner = owner;
+      groupingDefault = saved;
+      const grouping = groupingOverride ?? saved;
+      for (const input of quickGrouping.querySelectorAll("input")) input.checked = input.value === grouping;
+      return grouping;
     }
     function openCurrentDelivery(row, householdId) {
       row.open = true;
@@ -206,7 +227,7 @@
       if (note) note.hidden = !sessions.length || Boolean(inviteSessionFilter);
     }
 
-    function renderGroupTrees(store, all) {
+    function renderGroupTrees(store, all, addActiveFilter) {
       const host = $("inviteGroupTrees");
       if (!host) {
         for (const selected of Object.values(groupSelections)) selected.clear();
@@ -259,7 +280,7 @@
               render();
               host.querySelector('[data-invite-group="' + CSS.escape(key) + '"]')?.focus({ preventScroll: true });
             });
-            options.set(entry.key, entry.matches);
+            options.set(entry.key, entry);
             item.append(button);
             if (entry.children) item.append(list(entry.children));
             tree.append(item);
@@ -277,9 +298,11 @@
         }
         const active = [];
         for (const key of selected) {
-          const matches = options.get(key);
-          if (matches) active.push(matches);
-          else selected.delete(key);
+          const entry = options.get(key);
+          if (entry) {
+            active.push(entry.matches);
+            addActiveFilter(label, entry.label);
+          } else selected.delete(key);
         }
         if (active.length) filters.push(active);
       }
@@ -378,14 +401,37 @@
       }
       // Keep the visible set and bulk selection stable until the next deliberate render.
       const visible = new Set(visibleHouseholdIds);
-      renderSeenSummary(models.filter(model => visible.has(model.h.id)));
+      const visibleModels = models.filter(model => visible.has(model.h.id));
+      renderSeenSummary(visibleModels);
+      refreshRowStatuses(visibleModels);
+    }
+    function renderActiveFilters(activeFilters) {
+      filterSummary.hidden = !activeFilters.length;
+      if (filterSummary.hidden) {
+        filterList.replaceChildren();
+        return;
+      }
+      filterHeading.textContent = T("interface.messages.invites_active_filters");
+      clearFiltersButton.textContent = T("interface.messages.invites_clear_filters");
+      filterList.replaceChildren(...activeFilters.map(([category, value]) => {
+        const item = R.dom("li");
+        item.append(R.dom("strong", {}, T(category)), " · ", value);
+        return item;
+      }));
     }
     function render() {
       const store = getOverviewStore();
+      const activeFilters = [];
+      const addActiveFilter = (category, value) => { if (value) activeFilters.push([category, value]); };
+      const addActiveChoice = (category, choices, key) => {
+        const choice = choices.find(([value]) => value === key);
+        if (choice) addActiveFilter(category, T(choice[1]));
+      };
       overviewCounters.clear();
       const sessions = window.RSVP_ADMIN_OVERVIEW.rsvpSessions(store);
       if (!$("inviteSessionTree") || !sessions.some(session => session.id === inviteSessionFilter)) inviteSessionFilter = null;
       renderSessionTree(sessions);
+      addActiveFilter("Sessions", sessions.find(session => session.id === inviteSessionFilter)?.name);
       const box = $("inviteRows");
       box.replaceChildren();
       renderShownFields();
@@ -394,7 +440,14 @@
         "householdInfo",
         ...columnGroups.filter(([key]) => requiredFields.includes(key) || shown.has(key)).flatMap(([, , fields]) => fields),
       ]);
-      const search = $("inviteSearch").value.trim().toLowerCase(), all = overviewModels(store);
+      const searchText = $("inviteSearch").value.trim();
+      const search = searchText.toLowerCase(), all = overviewModels(store);
+      addActiveFilter("Search", searchText);
+      const grouping = syncGrouping();
+      if (grouping === "none") {
+        const names = new Intl.Collator(window.RSVP_I18N.locale(), { sensitivity: "base" });
+        all.sort((a, b) => names.compare(R.householdName(a.h), R.householdName(b.h)));
+      }
       const filters = [
         ["needs-draft", "No drafts", (r) => !r.latest],
         ["review", "Review", (r) => r.latest?.status === "draft"],
@@ -415,16 +468,19 @@
         [key, label, all.filter(test).length, ({ models }) => models.filter(test).length]),
         inviteOverviewFilter, "inviteFilter", next => { inviteOverviewFilter = next; });
       else inviteOverviewFilter = "all";
+      addActiveChoice("Invites", filters, inviteOverviewFilter);
       const attendanceHost = $("inviteAttendanceCounts");
-      if (attendanceHost) renderCountFilters(attendanceHost, [
+      const attendanceChoices = [
         ["attending", "Attending"], ["declined", "Not attending"], ["pending", "Unanswered"],
-      ].map(([key, label]) => {
+      ];
+      if (attendanceHost) renderCountFilters(attendanceHost, attendanceChoices.map(([key, label]) => {
         const count = models => models.reduce((sum, model) => sum + model.attendance[key], 0);
         return [key, label, count(all), ({ models }) => count(models)];
       }),
         inviteAttendanceFilter, "inviteAttendanceFilter", next => { inviteAttendanceFilter = next; });
       else inviteAttendanceFilter = "all";
-      const matchesGroups = renderGroupTrees(store, all);
+      addActiveChoice("RSVP", attendanceChoices, inviteAttendanceFilter);
+      const matchesGroups = renderGroupTrees(store, all, addActiveFilter);
       const languageHost = $("inviteLanguageFilter"), serviceHost = $("inviteChannelFilter");
       const householdLanguage = row => row.h.language || store.settings?.default_language || "en";
       if (languageHost) {
@@ -435,13 +491,19 @@
             languageChoices.push(languages(code).find(([key]) => key === code) || [code, code.toUpperCase()]);
         }
         renderOptionFilter(languageHost, languageChoices, languageSelection, all, householdLanguage);
+        for (const key of languageSelection) addActiveChoice("Language", languageChoices, key);
       } else languageSelection.clear();
-      if (serviceHost) renderOptionFilter(serviceHost, Object.entries(serviceLabels), serviceSelection, all, row => row.service);
-      else serviceSelection.clear();
+      if (serviceHost) {
+        const serviceChoices = Object.entries(serviceLabels);
+        renderOptionFilter(serviceHost, serviceChoices, serviceSelection, all, row => row.service);
+        for (const key of serviceSelection) addActiveChoice("Services", serviceChoices, key);
+      } else serviceSelection.clear();
       const canInterestFilter = can("food") && store.settings?.food_enabled !== false;
       const showFoodInterest = canInterestFilter && store.settings?.food_stage === "interest";
-      const showFoodItems = can("food") && store.settings?.food_enabled !== false && store.settings?.food_stage === "selection";
+      const showFoodItems = canInterestFilter && store.settings?.food_stage === "selection";
       const showFood = displayedFields.has("food") && (showFoodInterest || showFoodItems);
+      const showReplyFood = showFood && displayedFields.has("reply");
+      const showFoodColumn = showFood && (showFoodItems || !showReplyFood);
       const foodHost = $("inviteFoodCounts");
       if (!canInterestFilter || !foodHost) inviteInterestFilter = "all";
       if (foodHost) {
@@ -449,12 +511,15 @@
         interestBox.hidden = !canInterestFilter;
         foodHost.hidden = !canInterestFilter;
         if (canInterestFilter) {
+          const foodChoices = [["yes", "Yes"], ["no", "No"], ["unanswered", "Unanswered"]];
           const counts = window.RSVP_ADMIN_OVERVIEW.foodInterestCounts(store);
-          renderCountFilters(foodHost, [["yes", "Yes"], ["no", "No"], ["unanswered", "Unanswered"]]
+          renderCountFilters(foodHost, foodChoices
             .map(([key, label]) => [key, label, counts[key], ({ food }) => food?.[key] ?? 0]),
             inviteInterestFilter, "inviteFoodFilter", next => { inviteInterestFilter = next; });
+          addActiveChoice("Food interest", foodChoices, inviteInterestFilter);
         } else foodHost.replaceChildren();
       }
+      renderActiveFilters(activeFilters);
       const matchesFilters = (r) =>
         (!search ||
           [R.householdName(r.h), r.contactName, r.contactValue]
@@ -473,22 +538,23 @@
       renderSeenSummary(visible);
       visibleHouseholdIds = visible.map(model => model.h.id);
       onVisibleHouseholds(visibleHouseholdIds.slice());
-      box.classList.toggle("has-food-interest", showFoodInterest);
-      const hasActions = !store.settings?.is_published && (canPreviewGuest() || can("households", "edit"));
+      box.classList.toggle("has-food-interest", showFoodColumn && showFoodInterest);
+      const showPreview = canPreviewGuest();
+      const showEdit = !store.settings?.is_published && can("households", "edit");
+      box.style.setProperty("--invite-row-action-count", Number(showPreview) + Number(showEdit));
+      const showText = window.RSVP_ADMIN_PREFERENCES.invitesShowText;
       const columns = [
         { key: "identity", label: "Household" },
         ...visibleFields.flatMap(([key, label]) => {
-          if (key === "food" || !displayedFields.has(key) || rowLayout === 2 && ["householdInfo", "recipient", "lastSent", "replyInfo"].includes(key)) return [];
-          if (key === "replyInfo" && !visible.some(model => model.total)) return [];
+          if (key === "food" || !displayedFields.has(key) || rowLayout === 2 && ["householdInfo", "recipient"].includes(key)) return [];
           return [{ key, label }];
         }),
-        ...(showFood ? [{ key: "food", label: "Food" }] : []),
-        ...(hasActions ? [{ key: "actions", label: "Actions" }] : []),
+        ...(showFoodColumn ? [{ key: "food", label: "Food" }] : []),
         { key: "selection", label: "" },
       ];
       box.style.setProperty("--invite-columns", "minmax(140px, 1.5fr) " + columns.slice(1).map(col =>
-        col.key === "selection" ? "74px" : col.key === "actions" ? "100px" :
-        ["householdInfo", "serviceInfo", "lastSent", "replyInfo"].includes(col.key) ? "minmax(50px, .8fr)" :
+        col.key === "selection" ? "max(74px, var(--invite-row-controls-width))" :
+        ["householdInfo", "serviceInfo"].includes(col.key) ? "minmax(50px, .8fr)" :
         col.key === "delivery" && rowLayout === 1 ? "minmax(104px, 1.15fr)" : "minmax(80px, 1fr)").join(" "));
       const heading = R.dom("div", { class: "invite-overview-heading" });
       for (const col of columns) {
@@ -514,15 +580,35 @@
         const summary = R.dom("summary", {
             class: "invite-compact-row invite-overview-row",
           }),
-          identity = R.dom("span", { class: "invite-overview-identity" });
-        identity.append(R.dom("strong", { class: "invite-compact-name" }, R.householdName(h)));
+          identity = R.dom("span", { class: "invite-overview-identity" }),
+          selection = R.dom("span", { class: "invite-overview-select" }),
+          name = R.householdName(h);
+        identity.append(R.dom("strong", { class: "invite-compact-name" }, name));
+        if (showPreview) {
+          const preview = R.dom("a", {
+            class: "admin-row-icon invite-preview",
+            title: T("Preview"),
+          });
+          preview.setAttribute("aria-label", T("Preview") + " · " + name);
+          preview.href = R.guestPreviewURL(h.id);
+          preview.target = "_blank";
+          preview.rel = "noopener noreferrer";
+          preview.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>';
+          selection.append(preview);
+        }
+        if (showEdit) {
+          const edit = iconAction("edit", T("interface.messages.edit_household") + name,
+            () => editHousehold(h.id, edit), false, "invite-edit-household");
+          edit.setAttribute("aria-haspopup", "dialog");
+          selection.append(edit);
+        }
         const householdInfo = R.dom("span", { class: "invite-overview-household-info" });
         householdInfo.append(R.dom("small", { class: "muted invite-household-meta" },
           T("interface.messages.count_guests", { count: model.guests }) + " · " +
           (h.language || store.settings?.default_language || "en").toUpperCase()));
         householdInfo.setAttribute("aria-label", T("Household info") + ": " + householdInfo.textContent);
         const foodInterest = R.dom("span", { class: "invite-overview-interest" });
-        if (showFoodInterest) {
+        if (showFoodColumn && showFoodInterest) {
           const state = window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, h),
             label = T({ yes: "Yes", no: "No", unanswered: "–" }[state] || "Unanswered"),
             badge = R.dom("small", { class: "muted invite-food-interest" }, label);
@@ -530,7 +616,7 @@
           foodInterest.setAttribute("aria-label", T("Food interest") + ": " + label);
           foodInterest.append(R.dom("small", { class: "muted invite-interest-label" }, T("Food")), badge);
         }
-        if (showFoodItems) {
+        if (showFoodColumn && showFoodItems) {
           const count = (store.claims || []).filter(c => c.household_id === h.id).reduce((n,c) => n + Number(c.quantity || 0), 0);
           foodInterest.append(R.dom("small", { class: "muted invite-interest-label" }, T("Food")), R.dom("small", { class: "invite-food-interest" }, count || "–"));
         }
@@ -544,41 +630,49 @@
         const delivery = R.dom("span", { class: "invite-overview-delivery" }),
           invitationActions = R.dom("span", { class: "invite-copy-options" }),
           sendFeedback = R.dom("span", { class: "invite-send-feedback" });
+        let refreshInvitationLabel;
         sendFeedback.hidden = true;
         function renderInvitationActions() {
-          const deliveryLabel = model.latest
-            ? {
-                draft: "Draft",
-                ready: "Invitation",
-                sent: "Marked sent",
-                failed: "Failed",
-                cancelled: "Cancelled",
-              }[model.latest.status] || "Not sent"
-            : "Not sent";
-          invitationActions.replaceChildren();
-          if (model.latest?.status === "draft") {
-            const review = R.dom("button", {
+          const status = model.latest?.status;
+          const defaultLabel = T({ draft: "Review", ready: "Invitation", sent: "Marked sent",
+            failed: "Failed", cancelled: "Cancelled" }[status] || "Not sent");
+          let primary;
+          if (status === "draft") {
+            primary = R.dom("button", {
               type: "button",
               class: "invite-copy-action invite-review-action",
+              title: T("Review"),
             });
-            review.setAttribute("aria-label", T("Review") + " · " + R.householdName(h));
-            review.append(R.dom("span", { class: "invite-copy-pill" }, T("Review")));
-            review.addEventListener("click", event => {
+            primary.setAttribute("aria-label", T("Review") + " · " + R.householdName(h));
+            primary.addEventListener("click", event => {
               event.preventDefault();
               event.stopPropagation();
               if (getActor() && can("invites") && row.isConnected) openCurrentDelivery(row, h.id);
             });
-            invitationActions.append(review);
           } else {
-            const invitation = copyButton(model, "invitation", "invite-copy-action invite-copy-invitation");
-            invitation.append(R.dom("span", { class: "invite-copy-pill" }, T(deliveryLabel)));
-            invitationActions.append(invitation);
-            if (model.latest?.status === "ready") {
-              const text = copyButton(model, "message", "invite-copy-action invite-copy-text");
-              text.append(R.dom("span", { class: "invite-copy-pill" }, T("Text")));
-              invitationActions.append(text);
-            }
+            primary = copyButton(model, "invitation", "invite-copy-action invite-copy-invitation");
           }
+          const actionName = primary.getAttribute("aria-label");
+          const pill = R.dom("span", { class: "invite-copy-pill" });
+          primary.append(pill);
+          const text = status === "ready" && showText
+            ? copyButton(model, "message", "invite-copy-action invite-copy-text") : null;
+          text?.append(R.dom("span", { class: "invite-copy-pill" }, T("Text")));
+          invitationActions.replaceChildren(primary);
+          refreshInvitationLabel = () => {
+            const label = model.seen ? T("interface.messages.invites_seen_count", { count: model.h.visit_count }) : defaultLabel;
+            if (pill.textContent !== label) {
+              pill.textContent = label;
+              primary.setAttribute("aria-label", model.seen ? actionName + " · " + label : actionName);
+            }
+            if (!text) return;
+            if (model.seen) {
+              if (document.activeElement === text)
+                (primary.disabled ? summary : primary).focus({ preventScroll: true });
+              text.remove();
+            } else if (!text.parentElement) invitationActions.append(text);
+          };
+          refreshInvitationLabel();
         }
         function renderSendFeedback() {
           const state = getSentState(h.id);
@@ -600,66 +694,39 @@
             sendFeedback.replaceChildren(retry);
           } else sendFeedback.replaceChildren();
         }
-        const seen = R.dom("small", { class: "muted invite-overview-seen" });
-        const visitStatus = R.dom("span", { class: "invite-overview-visit-status" });
-        function renderSeen() {
-          seen.hidden = rowLayout === 2 && !(model.seen || invitationNotSeen(model));
-          if (seen.hidden) {
-            delete seen.dataset.inviteSeen;
-            return;
-          }
-          seen.dataset.inviteSeen = model.seen ? "seen" : "unseen";
-          if (rowLayout === 1) {
-            seen.textContent = T(model.seen ? "Yes" : "No");
-            return;
-          }
-          if (!model.seen) {
-            seen.textContent = T("interface.messages.invites_unseen");
-            return;
-          }
-          const visitedAt = h.last_visited_at || h.first_visited_at;
-          const visitTime = visitedAt ? R.dom("time", {}, adminTime(visitedAt)) : null;
-          if (visitTime) visitTime.dateTime = visitedAt;
-          seen.replaceChildren(
-            R.dom("span", { class: "sr-only" }, T("Seen") + " "),
-            visitTime || "–",
-          );
-        }
-        renderSeen();
         renderInvitationActions();
         renderSendFeedback();
         delivery.append(invitationActions, sendFeedback);
-        if (rowLayout === 2) delivery.append(seen);
-        else visitStatus.append(R.dom("small", { class: "muted invite-seen-label" }, T("Seen")), seen);
-        const reply = R.dom("span", { class: "invite-overview-reply" });
-        const replyStatus = document.createTextNode("");
+        const reply = R.dom("span", { class: "invite-overview-reply" }),
+          replyStatus = R.dom("span"),
+          replyFood = R.dom("small", { class: "muted invite-rsvp-food-answer" });
         function renderReplyStatus() {
-          replyStatus.data = T(
-            model.replied
-              ? "Replied"
-              : model.answers
+          const status = model.replied
+            ? T("interface.messages.invites_replied_attendance", { attending: model.attendance.attending, total: model.total })
+            : T(model.answers
                 ? "Partly answered"
                 : model.sent
                   ? "Awaiting reply"
-                  : "No reply",
-          );
+                  : "No reply");
+          const answer = showReplyFood ? model.h.food_interest : null;
+          const answered = typeof answer === "boolean";
+          const compactFood = answered && rowLayout === 1
+            ? T(answer ? "interface.messages.invites_food_yes_short" : "interface.messages.invites_food_no_short") : "";
+          replyStatus.textContent = compactFood ? status + " · " + compactFood : status;
+          replyFood.hidden = !answered;
+          replyFood.textContent = answered ? T("interface.messages.invites_food_answer", { answer: T(answer ? "Yes" : "No") }) : "";
         }
-        renderReplyStatus();
         reply.append(replyStatus);
-        const replyInfo = R.dom("span", { class: "invite-overview-reply-info" });
-        if (model.total)
-          replyInfo.append(R.dom("small", { class: "muted" }, T("{answered} / {total} responses", {
-            answered: model.answers, total: model.total,
-          })));
+        renderReplyStatus();
         if (rowLayout === 2) {
           if (displayedFields.has("householdInfo")) identity.append(householdInfo);
           if (displayedFields.has("recipient")) serviceInfo.append(recipient);
-          if (displayedFields.has("replyInfo") && model.total) reply.append(replyInfo);
+          reply.append(replyFood);
         }
         const content = R.dom("div", { class: "invite-household-content" });
         let filled = false, facts, invitation, latestActivityRequest = 0;
         function renderHouseholdFacts() {
-          const summary = householdFacts(h);
+          const summary = householdFacts(model.h);
           const value = R.dom("dd", {}, model.lastSent ? adminTime(model.lastSent) : T("Not yet"));
           value.dataset.shortcutFact = "last_sent";
           summary.prepend(R.dom("dt", {}, T("Last sent")), value);
@@ -676,16 +743,18 @@
             if (!activity || request !== latestActivityRequest || !readable() ||
                 !getStore().households.includes(originalHousehold)) return;
             const { first_visited_at, last_visited_at, visit_count } = activity;
+            // A live update can arrive while this household's lookup is in flight.
+            if (Number(visit_count) < Number(model.h.visit_count)) return;
             // Refresh the dashboard's visit fields without replacing the open household.
-            Object.assign(h, { first_visited_at, last_visited_at, visit_count });
-            if (originalHousehold !== h)
+            Object.assign(model.h, { first_visited_at, last_visited_at, visit_count });
+            if (originalHousehold !== model.h)
               Object.assign(originalHousehold, { first_visited_at, last_visited_at, visit_count });
             const wasSeen = model.seen;
             model.seen = Number(visit_count) > 0;
             const next = renderHouseholdFacts();
             facts.replaceWith(next);
             facts = next;
-            renderSeen();
+            refreshInvitationLabel();
             if (model.seen !== wasSeen) refreshOverviewCounts();
           } catch (_) {
             // Keep the dashboard's visit facts if the activity lookup is unavailable.
@@ -721,30 +790,11 @@
           refreshActivity();
         });
         if (row.open) fillSections();
-        const actions = R.dom("span", { class: "invite-row-actions" });
-        if (!store.settings?.is_published && canPreviewGuest()) {
-          const preview = R.dom("a", { class: "admin-row-icon invite-preview" });
-          preview.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
-          preview.title = T("Preview");
-          preview.href = R.guestPreviewURL(h.id);
-          preview.target = "_blank";
-          preview.rel = "noopener noreferrer";
-          preview.setAttribute(
-            "aria-label",
-            T("Preview") + " · " + R.householdName(h),
-          );
-          actions.append(preview);
-        }
-
-        if (!store.settings?.is_published && can("households", "edit")) {
-          const edit = iconAction("edit", T("interface.messages.edit_household") + R.householdName(h), () => editHousehold(h.id)); edit.classList.add("invite-edit-household"); actions.append(edit);
-        }
-        const selection = R.dom("span", { class: "invite-overview-select" });
         const select = getSelectionControl(h.id);
         // The shared control owns eligibility and native checkbox
         // activation; its label isolates clicks/keys from this summary.
         if (select) selection.append(select);
-        const cells = { identity, householdInfo, recipient, serviceInfo, delivery, lastSent: visitStatus, reply, replyInfo, food: foodInterest, actions, selection };
+        const cells = { identity, householdInfo, recipient, serviceInfo, delivery, reply, food: foodInterest, selection };
         for (const col of columns) summary.append(cells[col.key]);
         row.append(summary, content);
         container.append(row);
@@ -755,7 +805,6 @@
             Object.assign(model, next);
             renderInvitationActions();
             renderReplyStatus();
-            renderSeen();
             const lastSent = facts?.querySelector('[data-shortcut-fact="last_sent"]');
             if (lastSent) lastSent.textContent = model.lastSent ? adminTime(model.lastSent) : T("Not yet");
             // Preserve an open editor while reconciling a background save.
@@ -776,10 +825,14 @@
               (next && !focused?.isConnected) || focused === current && current?.disabled)
             summary.focus({ preventScroll: true });
         }
-        renderedRows.set(h.id, { row, refreshSentRow });
+        function refreshGuestStatus({ h, seen, replied, attendance, answers, total }) {
+          Object.assign(model, { h, seen, replied, attendance, answers, total });
+          refreshInvitationLabel();
+          renderReplyStatus();
+        }
+        renderedRows.set(h.id, { row, refreshSentRow, refreshGuestStatus });
         return row;
       }
-      const grouping = window.RSVP_ADMIN_PREFERENCES.invitesGrouping;
       const groupSections = [], destinations = new Map();
       const visibleIds = new Set(visibleHouseholdIds);
       function drawGroup(section, models) {
@@ -891,6 +944,9 @@
         const count = cell.querySelector("#inviteSelectionCount");
         if (count) count.textContent = fresh.querySelector("#inviteSelectionCount").textContent;
       }
+      refreshRowStatuses = models => {
+        for (const model of models) renderedRows.get(model.h.id)?.refreshGuestStatus(model);
+      };
       refreshSentRows = (ids, { recorded = false } = {}) => {
         if (!box.contains(list)) return;
         if (!recorded) {
@@ -967,7 +1023,7 @@
       return group;
     }
 
-    function openHousehold(householdId) {
+    function resetFilters() {
       inviteOverviewFilter = "all";
       inviteInterestFilter = "all";
       inviteAttendanceFilter = "all";
@@ -976,6 +1032,15 @@
       languageSelection.clear();
       serviceSelection.clear();
       $("inviteSearch").value = "";
+    }
+    clearFiltersButton.addEventListener("click", () => {
+      resetFilters();
+      render();
+      $("inviteSearchToggle")?.focus({ preventScroll: true });
+    });
+
+    function openHousehold(householdId) {
+      resetFilters();
       rememberDisclosure("invite-household:" + householdId, true);
       render();
       const rows = $("inviteRows");
@@ -999,12 +1064,23 @@
       rowOverride = undefined;
       if (getActor() && getStore().settings && can("invites")) render();
     });
-    function closeOutsideShownFields(event) {
-      const dropdown = $("inviteShownFieldsHost")?.querySelector("details[open]");
+    quickGrouping.addEventListener("change", event => {
+      groupingOverride = event.target.value === groupingDefault ? undefined : event.target.value;
+      render();
+    });
+    quickGrouping.addEventListener("keydown", event => {
+      if (event.key !== "Escape" || !quickGrouping.open) return;
+      event.preventDefault();
+      event.stopPropagation();
+      quickGrouping.open = false;
+      quickGrouping.querySelector("summary").focus();
+    });
+    function closeOutsideToolbarChoice(event) {
+      const dropdown = document.querySelector(".invite-toolbar-choice[open]");
       if (dropdown && !dropdown.contains(event.target)) dropdown.open = false;
     }
-    document.addEventListener("pointerdown", closeOutsideShownFields);
-    document.addEventListener("focusin", closeOutsideShownFields);
+    document.addEventListener("pointerdown", closeOutsideToolbarChoice);
+    document.addEventListener("focusin", closeOutsideToolbarChoice);
     return { render, openHousehold, refreshInvitationActivity, refreshOverviewCounts,
       refreshSentRows: (...args) => refreshSentRows(...args),
       getVisibleHouseholdIds: () => visibleHouseholdIds.slice() };

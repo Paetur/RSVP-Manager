@@ -31,7 +31,7 @@ English provides the source wording. Missing translations use the configured fal
 
 Use the card’s pencil and Save/Cancel. Both texts support the event’s enabled languages and need Languages Edit permission. Each text is limited to 6,000 characters per language; changing it does not change food access, answers, commitments or publication.
 
-The reply accepts `{invite-deadline}` and calendar-day offsets such as `{invite-deadline:+5}` or `{invite-deadline:-2}` (up to 366 days). The date comes from the event’s **RSVP deadline**, using its timezone, then is displayed in the guest’s language. Preview uses the same renderer as the invitation. Unsupported placeholders are rejected.
+The reply accepts `{rsvp_deadline}` and calendar-day offsets such as `{rsvp_deadline:+5}` or `{rsvp_deadline:-2}` (up to 366 days). The date comes from the event’s **RSVP deadline**, using its timezone, then is displayed in the guest’s language. Preview uses the same renderer as the invitation. Unsupported placeholders are rejected.
 
 Set **Reply when no deadline is set** without a date placeholder. Missing translations use the configured fallback and then English. If no custom fallback is configured, a translated message says more information will follow. Replies are plain text. Only a saved Yes in Collect interest shows this reply; No, Unanswered and Choose food do not.
 
@@ -44,13 +44,14 @@ These `{placeholders}` are replaced with event/household values. They are specif
 | Settings → Templates | `{invitation_link}` | The household’s private invitation URL; required in a nonempty invitation message |
 | Settings → Templates | `{event_name}` | Event name |
 | Settings → Templates | `{household_name}` | Household name |
-| Languages globe → Guests → Food Interest Reply | `{invite-deadline}` | The event’s RSVP deadline date in its timezone |
-| Languages globe → Guests → Food Interest Reply | `{invite-deadline:+5}` | Five calendar days after that date |
-| Languages globe → Guests → Food Interest Reply | `{invite-deadline:-2}` | Two calendar days before that date |
+| Settings → Templates | `{contact_salutation}` | The selected contact’s salutation for a new draft |
+| Settings → Templates or Languages globe → Guests → Food Interest Reply | `{rsvp_deadline}` | The event’s RSVP deadline date in its timezone |
+| Settings → Templates or Languages globe → Guests → Food Interest Reply | `{rsvp_deadline:+5}` | Five calendar days after that date |
+| Settings → Templates or Languages globe → Guests → Food Interest Reply | `{rsvp_deadline:-2}` | Two calendar days before that date |
 
-Food reply offsets accept -366 through +366 days. Without a deadline, the configured no-deadline reply is used. Do not put deadline placeholders in the no-deadline reply or invitation templates. Food Explanation accepts ordinary text. Shared interface wording has its own phrase-specific placeholders: retain exactly those shown for the selected phrase.
+RSVP deadline offsets accept -366 through +366 days. Without a deadline, the food reply uses the configured no-deadline reply. Use its **{…}** help to see the tokens available there. Food Explanation accepts ordinary text. When editing shared interface wording, retain exactly the placeholders shown for the selected phrase.
 
-Press **{…}** beside an invitation-template Subject/Message, Food Interest Reply or a shared wording phrase containing placeholders. The help shows only that field’s supported tokens. **Insert** replaces the selected text or adds the token at the cursor; it updates the draft and preview without saving. Close the help with Close or Escape. Ordinary Food Explanation and the no-deadline reply do not support tokens. This table is the shared reference.
+Press **{…}** beside an invitation-template Subject, Message or Short Message, Food Interest Reply or a shared wording phrase containing placeholders. The help shows the field’s supported tokens. **Insert** replaces the selected text or adds the token at the cursor and updates the draft and preview. Close the help with Close or Escape.
 
 ## Enabled languages and interface wording
 
@@ -66,4 +67,4 @@ CSV export downloads version 2 shared wording for the selected language (`rsvp-l
 
 ## Time display
 
-**Settings → Interface → Date and time** offers personal date and clock formats with a live sample. Save applies the formats to dates and times displayed in the administrator interface. Sessions still use their venue time zones and scheduled times.
+Under **Settings → Interface**, open the Interface pencil and choose **Date and time**. Save the date and clock formats you previewed in the sample. **System default** uses the device’s clock convention. An explicit 12-hour or 24-hour choice also applies to the time fields in editors. Sessions use their venue timezones.

@@ -8,13 +8,35 @@ const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
 const { server, mock, extra } = createFoodHarness("admin-design-flow");
 const seed = `
 fixtures.event_settings[0].is_published=false;
+fixtures.event_settings[0].guest_interface_modes={wide:{guest_title_visibility:{en:true,de:false},show_repeated_surname:false},phone:{guest_title_visibility:{en:false},show_repeated_surname:true}};
 window.__designTemplates=[{id:'99999999-1111-4111-8111-111111111111',name:'Shared invitation',channels:['manual','whatsapp'],language_tags:['en'],revision:'design-template-v1',versions:{en:{subject:'Invitation',body:'Hello {household_name} {invitation_link}'}}}];
-fixtures.households.find(h=>h.id===h2).language='en';
+const designContact=fixtures.guests.find(guest=>guest.household_id===h2&&!guest.is_child);
+Object.assign(designContact,{courtesy_title:'Ms.',language:'en'});
+Object.assign(fixtures.households.find(h=>h.id===h2),{language:'en',primary_guest_id:designContact.id,record_revision:'household-design-1'});
 fixtures.invitation_send_queue.push({id:'design-draft',household_id:h2,revision:1,status:'draft',channel:'manual',message_body:'Hello Example child {invitation_link}',template_id:window.__designTemplates[0].id,created_at:'2026-11-15T12:00:00Z',updated_at:'2026-11-15T12:00:00Z',invitation_code_snapshot:'EFGHJKLM',recipient_snapshot:{contact_name:'Sample'}});
 window.__designWrites=[];
+window.__designHouseholdWrites=[];
+window.__designGuestWrites=[];
 const designRpc=client.rpc;
 client.rpc=async(name,args)=>{
   if(name==='admin_load_data'){const result=await designRpc(name,args);result.data.invitationTemplates=window.__designTemplates;return result;}
+  if(name==='admin_save_household'){
+    window.__designHouseholdWrites.push(args);
+    if(window.__designHouseholdFail){window.__designHouseholdFail=false;return {error:{message:'Synthetic household save failure'}};}
+    const household=fixtures.households.find(row=>row.id===args.p_id);
+    const {expected_revision,...values}=args.p_values;
+    if(!household||household.record_revision!==expected_revision)return {error:{message:'Synthetic stale household revision'}};
+    Object.assign(household,values,{record_revision:'household-design-2'});
+    return {data:household.id};
+  }
+  if(name==='admin_save_guest_details'){
+    window.__designGuestWrites.push(args);
+    if(window.__designGuestFail){window.__designGuestFail=false;return {error:{message:'Synthetic guest save failure'}};}
+    const result=await designRpc(name,args);
+    if(!result.error&&Object.hasOwn(args.p_values,'invitation_salutation'))
+      fixtures.guests.find(guest=>guest.id===(args.p_guest_id||result.data)).invitation_salutation=args.p_values.invitation_salutation;
+    return result;
+  }
   if(name==='admin_save_delivery'){
     window.__designWrites.push(args);
     if(window.__designFail){window.__designFail=false;return {error:{message:'Synthetic save failure'}};}
@@ -26,6 +48,116 @@ client.rpc=async(name,args)=>{
   }
   return designRpc(name,args);
 };`;
+
+async function checkGuestSalutation(page, household, householdId) {
+  const guestId = "55555555-5555-4555-8555-555555555555";
+  const guest = household.locator(`[data-guest-id="${guestId}"]`);
+  const pencil = guest.getByRole("button", { name: "Edit guest: Ms. Example Guest", exact: true });
+  const form = guest.locator(`[data-form-key="guest:${guestId}"]`);
+  const salutation = form.locator("fieldset.guest-salutation");
+  const nickname = form.getByLabel("Salutation or nickname", { exact: true });
+  const display = form.locator("details.guest-name-display");
+  const titles = display.getByLabel("Titles", { exact: true });
+  const surname = display.getByLabel("Show repeated surname", { exact: true });
+  const format = salutation.locator(".token-text-editor");
+  const formatValue = salutation.locator(".token-text-value");
+  const chips = format.locator('.token-text-chip[draggable="true"]');
+  const language = form.locator('label:has(> span:text-is("Language")) > select');
+  const preview = salutation.locator("output");
+  const save = form.getByRole("button", { name: "Save", exact: true });
+  const defaultFormat = "{titles} {firstname} {lastname}";
+  async function openDisplay() {
+    if (!await display.evaluate(node => node.open)) await display.locator("summary").click();
+  }
+
+  await pencil.click();
+  assert.equal(await form.getByRole("group", { name: "Invitation salutation", exact: true }).count(), 1);
+  assert.equal(await salutation.getByLabel("Salutation or nickname", { exact: true }).count(), 0);
+  assert.equal(await nickname.isVisible(), true);
+  assert.equal(await titles.isVisible(), false);
+  assert.equal(await save.isDisabled(), true);
+  assert.equal(await formatValue.inputValue(), defaultFormat);
+  assert.equal(await chips.count(), 3);
+  assert.doesNotMatch(await format.innerText(), /[{}]/);
+  assert.equal(await preview.textContent(), "Ms. Example Guest");
+  await openDisplay();
+  assert.equal(await titles.inputValue(), "");
+  assert.equal(await surname.inputValue(), "");
+  await language.selectOption("de");
+  assert.equal(await preview.textContent(), "Example Guest");
+  await titles.selectOption("false");
+  await language.selectOption("en");
+  assert.equal(await preview.textContent(), "Example Guest", "an explicit override persists across language changes");
+  await titles.selectOption("");
+  assert.equal(await preview.textContent(), "Ms. Example Guest");
+  await chips.nth(2).dragTo(chips.nth(1), { targetPosition: { x: 2, y: 8 } });
+  assert.match(await formatValue.inputValue(), /\{titles\}\s*\{lastname\}\s*\{firstname\}/);
+  assert.equal(await preview.textContent(), "Ms. Guest Example");
+  await form.getByRole("button", { name: "Cancel", exact: true }).click();
+  assert.equal(await page.evaluate(() => window.__designGuestWrites.length), 0);
+
+  await pencil.click();
+  assert.equal(await formatValue.inputValue(), defaultFormat);
+  await format.fill("");
+  await salutation.getByRole("button", { name: "Available placeholders · Salutation format", exact: true }).click();
+  assert.deepEqual(await salutation.locator(".placeholder-help code").allTextContents(), ["{titles}", "{firstname}", "{lastname}", "{relation}", "{nickname}"]);
+  await salutation.getByRole("button", { name: "Insert {relation}", exact: true }).click();
+  assert.equal(await preview.textContent(), "Cousin");
+  await format.locator(".token-text-remove").click();
+  assert.equal(await chips.count(), 0);
+  await salutation.getByRole("button", { name: "Insert {nickname}", exact: true }).click();
+  assert.equal(await formatValue.inputValue(), "{nickname}");
+  await nickname.fill("{Mom}");
+  assert.equal(await nickname.evaluate(input => input.validity.customError), true);
+  await nickname.fill("Mom");
+  assert.equal(await preview.textContent(), "Mom");
+  await openDisplay();
+  // Preserve an explicit Hide even while the guest inherits Hide in German.
+  await language.selectOption("de");
+  await titles.selectOption("false");
+  await surname.selectOption("true");
+  await page.evaluate(() => { window.__designGuestFail = true; });
+  await save.click();
+  await form.locator('.form-feedback[data-state="error"]').waitFor();
+  assert.equal(await preview.textContent(), "Mom");
+  await save.click();
+  await form.waitFor({ state: "hidden" });
+  assert.deepEqual(await page.evaluate(() => window.__designGuestWrites.at(-1).p_values.invitation_salutation),
+    { pattern: "{nickname}", nickname: "Mom", show_titles: false, show_repeated_surname: true });
+  await pencil.click();
+  assert.equal(await preview.textContent(), "Mom");
+  await salutation.getByRole("button", { name: "Use default format", exact: true }).click();
+  assert.equal(await preview.textContent(), "Example Guest");
+  await openDisplay();
+  assert.equal(await titles.inputValue(), "false");
+  assert.equal(await surname.inputValue(), "true");
+  await titles.selectOption("");
+  assert.equal(await preview.textContent(), "Example Guest");
+  await language.selectOption("en");
+  assert.equal(await preview.textContent(), "Ms. Example Guest");
+  assert.equal(await nickname.inputValue(), "Mom");
+  await form.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  const add = household.locator(`[data-form-key="guest:${householdId}:new"]`);
+  const addSalutation = add.locator("fieldset.guest-salutation");
+  await add.locator("xpath=..").locator(":scope > summary").click();
+  await add.getByLabel("First name", { exact: true }).fill("Sample guest");
+  assert.equal(await addSalutation.locator(".token-text-value").inputValue(), defaultFormat);
+  assert.equal(await addSalutation.locator("output").textContent(), "Sample guest");
+  await add.getByLabel("Salutation or nickname", { exact: true }).fill("Sam");
+  assert.equal(await addSalutation.locator("output").textContent(), "Sample guest");
+  await addSalutation.locator(".token-text-editor").fill("");
+  await addSalutation.getByRole("button", { name: "Available placeholders · Salutation format", exact: true }).click();
+  await addSalutation.getByRole("button", { name: "Insert {nickname}", exact: true }).click();
+  assert.equal(await addSalutation.locator("output").textContent(), "Sam");
+  await add.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForFunction(id => document.querySelector(`[data-tree-key="household:${id}"] .household-guest-list`)?.textContent.includes("Sample guest"), householdId);
+  assert.deepEqual(await page.evaluate(() => {
+    const { p_guest_id, p_household_id, p_values } = window.__designGuestWrites.at(-1);
+    return [p_guest_id, p_household_id, p_values.invitation_salutation];
+  }), [null, householdId, { pattern: "{nickname}", nickname: "Sam" }]);
+}
+
 (async () => {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = process.env.RSVP_TEST_BASE_URL || "http://127.0.0.1:" + server.address().port;
@@ -59,25 +191,72 @@ await require("./helpers/admin-toolbar.cjs").autoConfirmInline(page);
       await page.locator('[data-tab="events"]').press("ArrowLeft");
       assert.equal(await page.locator('[data-tab="invites"]').getAttribute("aria-selected"), "true");
       const household = page.locator('#inviteRows [data-invite-household="22222222-2222-4222-8222-222222222222"]');
-      const rowActions = household.locator(":scope > summary .invite-row-actions");
-      assert.equal(await rowActions.locator(".invite-create,.invite-share").count(), 0);
-      const preview = rowActions.getByRole("link", { name: /^Preview/ });
+      assert.equal(await household.locator(".invite-create,.invite-share,.invite-row-actions").count(), 0);
+      const name = household.locator(":scope > summary .invite-compact-name");
+      const preview = household.locator(":scope > summary .invite-overview-select > a.invite-preview");
       assert.equal(await preview.innerText(), "");
       assert.equal(await preview.locator("svg").count(), 1);
-      assert.equal(await rowActions.locator(":scope > :nth-child(1)").getAttribute("title"), "Preview");
+      assert.equal(await preview.getAttribute("aria-label"), "Preview · " + await name.textContent());
       const householdId = await household.getAttribute("data-invite-household");
-      await rowActions.locator(".invite-edit-household").click();
-      assert.equal(await page.locator('[data-tab="households"]').getAttribute("aria-selected"), "true");
-      const householdForm = page.locator('#household-form-' + householdId);
-      assert.equal(await householdForm.isVisible(), true);
-      assert.equal(await householdForm.getByLabel('Name', { exact: true }).evaluate(input => input === document.activeElement), true);
+      assert.equal(new URL(await preview.getAttribute("href")).hash, "#guest-preview=" + householdId);
+      assert.equal(await preview.getAttribute("target"), "_blank");
+      const pencilSelector = '#inviteRows [data-invite-household="' + householdId + '"] .invite-preview + .invite-edit-household';
+      const pencil = page.locator(pencilSelector);
+      const dialog = page.locator("dialog.household-details-dialog");
+      const householdName = dialog.getByLabel("Name", { exact: true });
+      const householdSave = dialog.getByRole("button", { name: "Save", exact: true });
+      const originalName = await name.textContent();
+      const initiallyOpen = await household.evaluate(node => node.open);
+      const waitForPencilFocus = () => page.waitForFunction(selector => {
+        const button = document.querySelector(selector);
+        return button && !button.disabled && document.activeElement === button;
+      }, pencilSelector);
+      await pencil.press("Enter");
+      await dialog.waitFor();
+      assert.equal(await dialog.getByRole("heading", { name: "Household details · " + originalName, exact: true }).count(), 1);
+      assert.equal(await dialog.getByRole("group", { name: "Invitation salutation", exact: true }).count(), 0);
+      assert.equal(await page.locator('[data-tab="invites"]').getAttribute("aria-selected"), "true");
+      assert.equal(await household.evaluate(node => node.open), initiallyOpen);
+      assert.equal(await householdName.evaluate(input => input === document.activeElement), true);
+      assert.equal(await householdSave.isDisabled(), true);
+      await householdName.fill("Discard this household change");
+      await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+      await dialog.waitFor({ state: "hidden" });
+      await waitForPencilFocus();
+      assert.equal(await name.textContent(), originalName);
+      assert.equal(await page.evaluate(() => window.__designHouseholdWrites.length), 0);
+
+      await pencil.click();
+      assert.equal(await householdName.inputValue(), originalName);
+      assert.equal(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true);
+      const updatedName = "Renamed example child";
+      await householdName.fill(updatedName);
+      await page.evaluate(() => { window.__designHouseholdFail = true; });
+      await householdSave.click();
+      await dialog.locator('.form-feedback[data-state="error"]').waitFor();
+      assert.equal(await householdName.inputValue(), updatedName);
+      assert.equal(await name.textContent(), originalName);
+      await householdSave.click();
+      await dialog.waitFor({ state: "hidden" });
+      await waitForPencilFocus();
+      assert.equal(await name.textContent(), updatedName);
+      assert.deepEqual(await page.evaluate(() => window.__designHouseholdWrites.map(write => [write.p_id, write.p_values.expected_revision])),
+        [[householdId, "household-design-1"], [householdId, "household-design-1"]]);
+      assert.equal(await page.evaluate(() => window.__designHouseholdWrites.some(write => Object.hasOwn(write.p_values, "invitation_salutation"))), false);
+
+      await page.locator('[data-tab="households"]').click();
       const householdDetails = page.locator('[data-tree-key="household:' + householdId + '"]');
       await householdDetails.evaluate(node => {
         for (let parent = node; parent; parent = parent.parentElement) if (parent.tagName === "DETAILS") parent.open = true;
-        node.querySelectorAll("details").forEach(detail => { detail.open = true; });
+        node.querySelectorAll("details:not(.guest-name-display)").forEach(detail => { detail.open = true; });
       });
       assert.equal(await householdDetails.locator(".delivery-create").count(), 0);
-      await householdDetails.getByRole("link", { name: "View in Invites", exact: true }).click();
+      await checkGuestSalutation(page, householdDetails, householdId);
+      const viewInInvites = householdDetails.getByRole("link", { name: "View in Invites", exact: true, includeHidden: true });
+      await viewInInvites.evaluate(link => {
+        for (let detail = link.closest("details"); detail; detail = detail.parentElement.closest("details")) detail.open = true;
+      });
+      await viewInInvites.click();
       assert.equal(await page.locator('[data-tab="invites"]').getAttribute("aria-selected"), "true");
       const draftRecord = household.locator('[data-invite-delivery-submenu="drafts"] [data-delivery-id="design-draft"]');
       const editSummary = draftRecord.getByText("Edit delivery", { exact: true });
@@ -147,8 +326,8 @@ await require("./helpers/admin-toolbar.cjs").autoConfirmInline(page);
       await page.locator('[data-tab="invites"]').click();
       const h = page.locator('#inviteRows [data-invite-household="22222222-2222-4222-8222-222222222222"]');
       assert.equal(await page.locator('.invite-edit-household').count(), 0, 'unpublished edit shortcut is hidden after publication');
-      assert.equal(await page.locator('.invite-preview').count(), 0);
-      assert.equal(await h.locator(':scope > summary .invite-row-actions').count(), 0, 'published rows use copying and shared selection');
+      assert.equal(new URL(await preview.getAttribute("href")).hash, "#guest-preview=" + householdId);
+      assert.equal(await page.locator('#inviteRows .invite-overview-heading').getByText('Actions', { exact: true }).count(), 0);
       await h.locator(':scope > summary .invite-review-action').click();
       const fresh = draftRecord.locator('[data-form-key="delivery:design-draft"]');
       if (!(await fresh.isVisible())) await editSummary.click();
@@ -159,7 +338,7 @@ await require("./helpers/admin-toolbar.cjs").autoConfirmInline(page);
       assert.deepEqual(requests, []);
       await page.close();
     }
-    console.log("PASS saved template draft review/customize/Cancel/failure retry, unchanged templates, draft/ready without sending, merged Invites, navigation, album header, shared attendance and 44px phone pencils at 320/390/1160px.");
+    console.log("PASS household details, guest Add/Edit salutations, save retry and focus, published preview, delivery draft edits, navigation, album header and 44px phone pencils at 320/390/1160px.");
   } finally {
     await browser.close();
     await new Promise((resolve) => server.close(resolve));

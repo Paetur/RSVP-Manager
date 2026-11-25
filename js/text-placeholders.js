@@ -6,17 +6,23 @@
     household: ["household_name", "guest_names", "guest_count", "invited_sessions", "invited_venues", "invitation_link", "rsvp_status", "unanswered_guest_count"],
     venue: ["venue_name", "venue_address", "venue_map_link"],
     session: ["session_name", "session_date", "session_start", "session_end", "session_timezone"],
+    delivery: ["contact_salutation"],
   };
   const dates = new Set(["rsvp_deadline", "food_deadline", "event_date", "session_date"]);
   const pattern = /\{([a-z][a-z0-9_]*)(?::([+-]\d{1,3}))?\}/g;
-  const names = Object.values(groups).flat();
+  const names = [...groups.event, ...groups.household, ...groups.venue, ...groups.session];
+  const scopes = {
+    event: groups.event,
+    venue: [...groups.event, ...groups.household, ...groups.venue],
+    delivery: [...names, ...groups.delivery],
+  };
+  const scopeNames = scope => Object.hasOwn(scopes, scope) ? scopes[scope] : names;
   const tokens = (scope = "invitation") => {
-    const allowed = scope === "event" ? groups.event : scope === "venue" ? [...groups.event, ...groups.household, ...groups.venue] : names;
-    return [...allowed.map(n => "{" + n + "}"), "{rsvp_deadline:+5}", "{rsvp_deadline:-2}"];
+    return [...scopeNames(scope).map(n => "{" + n + "}"), "{rsvp_deadline:+5}", "{rsvp_deadline:-2}"];
   };
   function validate(text, scope = "invitation") {
     if (typeof text !== "string" || text.length > 12000) throw Error("Invalid placeholder text");
-    const allowed = new Set(tokens(scope).map(t => t.slice(1,-1)));
+    const allowed = new Set(scopeNames(scope));
     const rest = text.replace(pattern, (whole, name, offset) => {
       if (!allowed.has(name) || (offset && (!dates.has(name) || Math.abs(Number(offset)) > 366))) throw Error("The text contains an unsupported placeholder.");
       return "";
@@ -76,5 +82,5 @@
     return { values, options:{language,timezone:e.timezone || "UTC"} };
   }
   const unresolved = text => /[{}]/.test(text);
-  window.RSVP_PLACEHOLDERS = { groups, names, dates, tokens, validate, fill, context, unresolved };
+  window.RSVP_PLACEHOLDERS = { groups, names, dates, scopeNames, tokens, validate, fill, context, unresolved };
 })();

@@ -2,7 +2,7 @@
 (function () {
   "use strict";
   window.RSVP_ADMIN_STATISTICS = {
-    create({ R, T, getStore, can, planningLabel, planningConfiguration }) {
+    create({ R, T, getStore, can, planningLabel, planningConfiguration, setOverviewCards }) {
       const $ = R.byId;
       const tabs = [
         { key: "information", button: $("overviewInformationTab"), panel: $("overviewInformationPanel"), label: "Information" },
@@ -142,10 +142,14 @@
           filterCard("services", "inviteChannelFilter", "Services");
         }
         const preferences = window.RSVP_ADMIN_PREFERENCES;
-        preferences.setOverviewCards([...cards.values()].map(({ id, label, tab }) => ({ id, label, tab })));
-        const visible = preferences.overviewLayout.flatMap(({ id, shown }) => shown && cards.has(id) ? [cards.get(id)] : []);
+        setOverviewCards([...cards.values()].map(({ id, label, tab }) => ({ id, label, tab })));
+        const visible = preferences.overviewLayout.flatMap(({ id, shown, tab }) => {
+          const card = cards.get(id);
+          return shown && card ? [{ ...card, tab: tab || card.tab }] : [];
+        });
+        const names = preferences.overviewTabNames || {};
         for (const tab of tabs) {
-          tab.button.textContent = T(tab.label);
+          tab.button.textContent = names[tab.key] || T(tab.label);
           tab.panel.replaceChildren(...visible.filter(card => card.tab === tab.key).map(card => card.node));
           tab.button.hidden = !tab.panel.childElementCount;
         }

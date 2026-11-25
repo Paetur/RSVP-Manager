@@ -128,12 +128,15 @@
       contact.addEventListener("change", showRecipient);
       f.append(recipient);
       const useTemplate = !q.id && !q.message_body;
-      let automatic = useTemplate ? invitationDraft(h, channel.value, { templateId: q.template_id }) : null;
+      let automatic = useTemplate ? invitationDraft(h, channel.value, { templateId: q.template_id, contactId: contact.value }) : null;
       if (automatic?.hasTemplate) f.dataset.initialDraft = "true";
       const venueContext = field(f, T("Venue context"), automatic?.context?.venueId || "", [["", T("No specific venue")], ...getStore().locations.filter(v=>!v.archived_at).map(v=>[v.id,v.name])]);
       const sessionContext = field(f, T("Session context"), automatic?.context?.sessionId || "", [["", T("No specific session")], ...getStore().sessions.filter(s=>s.is_active).map(s=>[s.id,s.name])]);
       const resolvedText = text => {
-        const resolved = window.RSVP_PLACEHOLDERS.context(getStore(), { household: h, language: h.language || "en", venueId: venueContext.value, sessionId: sessionContext.value });
+        const resolved = window.RSVP_INVITATION_TEXT.context(getStore(), {
+          household: h, channel: channel.value, contactId: contact.value, language: h.language || "en",
+          venueId: venueContext.value, sessionId: sessionContext.value,
+        });
         try { return window.RSVP_PLACEHOLDERS.fill(text, resolved.values, resolved.options); } catch (_) { return text; }
       };
       const custom = disclosure(T("Customize this delivery"), "delivery-customize span-2"),
@@ -182,7 +185,9 @@
         const changeContext = () => {
           const session = getStore().sessions.find(s => s.id === sessionContext.value);
           if (session && venueContext.value && session.location_id !== venueContext.value) sessionContext.value = "";
-          const next = invitationDraft(h, channel.value, { templateId: q.template_id, venueId: venueContext.value, sessionId: sessionContext.value });
+          const next = invitationDraft(h, channel.value, {
+            templateId: q.template_id, contactId: contact.value, venueId: venueContext.value, sessionId: sessionContext.value,
+          });
           if (subject.value === automatic.subject) subject.value = next.subject;
           if (body.value === automatic.body) body.value = next.body;
           automatic = next;
@@ -190,6 +195,7 @@
         };
         venueContext.addEventListener("change", changeContext);
         sessionContext.addEventListener("change", changeContext);
+        contact.addEventListener("change", changeContext);
       }
       f.addEventListener("input", renderPreview);
       f.addEventListener("change", renderPreview);
@@ -197,7 +203,7 @@
       custom.addEventListener("invalid", () => { custom.open = true; }, true);
       if (useTemplate)
         channel.addEventListener("change", () => {
-          const next = invitationDraft(h, channel.value, { templateId: q.template_id });
+          const next = invitationDraft(h, channel.value, { templateId: q.template_id, contactId: contact.value });
           venueContext.value = next.context.venueId;
           sessionContext.value = next.context.sessionId;
           if (subject.value === automatic.subject) subject.value = next.subject;

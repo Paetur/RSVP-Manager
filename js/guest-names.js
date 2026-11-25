@@ -1,15 +1,22 @@
-// Display-only surname folding. Stored guest names always remain complete.
+// Invitation display rules leave stored names complete.
 (function () {
   "use strict";
   function lastName(guest, invitation, settings) {
     const surname = guest?.last_name || "";
-    if (settings?.show_repeated_surname !== false) return surname;
+    if ((guest?.name_display_overrides?.show_repeated_surname ?? settings?.show_repeated_surname) !== false) return surname;
     const householdName = invitation?.household?.last_name?.trim();
     const guests = (invitation?.guests || []).filter((person) => !person.archived_at);
     return householdName && guests.length && guests.every((person) => person.last_name?.trim() === householdName)
       ? "" : surname;
   }
-  window.RSVP_GUEST_NAMES = Object.freeze({ lastName });
+  function showTitle(settings, language) {
+    return settings?.guest_show_titles !== false && settings?.guest_title_visibility?.[language] !== false;
+  }
+  function courtesyTitle(title, language) {
+    if (!["Mr.", "Ms.", "Son", "Daughter"].includes(title)) return title || "";
+    return window.RSVP_I18N?.t(title, {}, language) || title;
+  }
+  window.RSVP_GUEST_NAMES = Object.freeze({ lastName, showTitle, courtesyTitle });
 })();
 
 // Shared projection for administrator previews and the actual guest viewport.
@@ -17,11 +24,21 @@
   "use strict";
   let selected = "phone";
   const viewport = () => matchMedia("(max-width: 700px)").matches ? "phone" : "wide";
-  const keys = ["guest_title_visibility", "show_repeated_surname", "guest_name_layout", "guest_design", "guest_background", "guest_theme_toggle", "guest_theme_default", "notification_preferences"];
+  const keys = ["guest_show_titles", "guest_title_visibility", "show_repeated_surname", "guest_name_layout", "guest_design", "guest_background", "guest_theme_toggle", "guest_theme_default", "notification_preferences"];
   function effective(settings = {}, mode = viewport(), languages = []) {
     const overrides = settings.guest_interface_modes?.[mode] || {};
-    const titles = mode === "phone" ? Object.fromEntries(languages.map(l => [typeof l === "string" ? l : l.language_code, false])) : settings.guest_title_visibility || {};
-    return { ...settings, guest_title_visibility: mode === "phone" ? Object.fromEntries(languages.map(l => [typeof l === "string" ? l : l.language_code, false])) : settings.guest_title_visibility || {}, guest_name_layout: mode === "phone" ? "above" : "inline", ...overrides, guest_title_visibility: { ...titles, ...overrides.guest_title_visibility } };
+    const code = language => typeof language === "string" ? language : language.language_code;
+    const defaults = mode === "phone" ? Object.fromEntries(languages.map(l => [code(l), false])) : settings.guest_title_visibility;
+    const titles = { ...defaults, ...overrides.guest_title_visibility };
+    // Older settings have only per-language flags. Keep their visibility on each layout.
+    const enabled = languages.length ? languages.filter(l => l.enabled !== false).map(code) : Object.keys(titles);
+    const inferred = enabled.some(language => titles[language] !== false)
+      || (!languages.length && !enabled.length && mode === "wide");
+    return {
+      ...settings, guest_name_layout: mode === "phone" ? "above" : "inline", ...overrides,
+      guest_title_visibility: titles,
+      guest_show_titles: overrides.guest_show_titles ?? inferred,
+    };
   }
   window.RSVP_GUEST_INTERFACE = {
     keys, viewport, effective,

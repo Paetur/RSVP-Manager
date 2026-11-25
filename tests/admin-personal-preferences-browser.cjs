@@ -3,7 +3,7 @@ const { openBox } = require("./helpers/local-edit-ui.cjs");
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
 const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
-const { refreshFixture, selectOverviewTab } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture, selectInterfaceSettingsTab, selectOverviewTab } = require("./helpers/admin-toolbar.cjs");
 const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal-preferences");
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -29,7 +29,7 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal
     writes = [],
     delay;
   const defaultCards = ["households", "food", "rsvp", "invites", "services", "language"];
-  const savedCards = ["food", "households", "rsvp", "services", "invites"];
+  const savedCards = ["food", "households", "services", "rsvp", "invites"];
   const cardOrder = (page) => page.locator("#statsGrid [data-overview-card]")
     .evaluateAll((cards) => cards.map((card) => card.dataset.overviewCard));
   const settingsOrder = (page) => page.locator("#overviewCardOrder [data-overview-setting]")
@@ -38,20 +38,18 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal
     await page.locator("#mainSectionToggle").click();
     await page.locator('[data-tab="invites"]').click();
   }
-  async function openInterfaceSettings(page) {
-    await page.locator("#settingsToggle").click();
-    await page.locator("[data-settings-tab=checklist]").click();
+  async function openInterfaceSettings(page, name) {
+    if (await page.locator("#settingsToggle").getAttribute("aria-pressed") !== "true")
+      await page.locator("#settingsToggle").click();
+    await selectInterfaceSettingsTab(page, name);
+  }
+  async function selectInterfaceEditorTab(page, tab) {
+    const button = page.locator(tab === "date" ? "#interfaceDateTimeTab" : "#interfaceAppearanceTab");
+    if (await button.getAttribute("aria-selected") !== "true") await button.click();
   }
   async function editOverview(page) {
-    await openInterfaceSettings(page);
+    await openInterfaceSettings(page, "overview");
     return openBox(page, "overview-appearance");
-  }
-  async function interfacePanelBounds(page) {
-    const grid = page.locator(".interface-settings-grid");
-    const personal = grid.locator(':scope > [data-settings-card="personal-preferences"]');
-    const overview = grid.locator(':scope > [data-settings-card="overview-appearance"]');
-    assert.ok(await grid.evaluate((node) => node.scrollWidth <= node.clientWidth + 1), "the Interface settings fit without horizontal scrolling");
-    return { personal: await personal.boundingBox(), overview: await overview.boundingBox() };
   }
   async function device(account, storage, hasTouch = false) {
     const context = await browser.newContext({
@@ -90,8 +88,7 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     await page.waitForFunction(
       () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
     );
-    await page.locator("#settingsToggle").click();
-    await page.locator("[data-settings-tab=checklist]").click();
+    await openInterfaceSettings(page);
     await openBox(page, "personal-preferences");
     return { context, page, errors };
   }
@@ -115,15 +112,30 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
       '#personalPreferencesForm [data-preference-choices="appearance"] [data-preference-choice]',
     )), "Edit focuses the first visible preference");
     assert.deepEqual(
-      await page.locator("#personalPreferencesForm .interface-preference-group h3").allTextContents(),
-      ["Appearance", "Date and time", "Invites appearance"],
+      await page.locator("#interfaceEditTabs [role=tab]").allTextContents(),
+      ["Appearance", "Date and time"],
     );
     assert(await page.locator("#personalPreferencesForm").evaluate(
       (form) => form.scrollWidth <= form.clientWidth + 1,
     ), "the Interface editor fits a phone");
-    const phonePanels = await interfacePanelBounds(page);
-    assert.equal(phonePanels.personal.x, phonePanels.overview.x, "the two peer panels stack on a phone");
-    assert.ok(phonePanels.overview.y >= phonePanels.personal.y + phonePanels.personal.height);
+    const interfaceTabs = page.locator("#settingsInterfaceTabs");
+    assert.deepEqual(await interfaceTabs.getByRole("tab").allTextContents(),
+      ["Interface", "Invites appearance", "Overview appearance"]);
+    const interfacePanel = page.locator("#settingsInterfaceGeneral");
+    for (const card of ["personal-preferences", "transport-security", "experimental-shortcuts"])
+      assert.equal(await interfacePanel.locator('[data-settings-card="' + card + '"]').isVisible(), true);
+    assert.equal(await page.locator("#settingsInvitesAppearance").isVisible(), false);
+    assert.equal(await page.locator("#settingsOverviewAppearance").isVisible(), false);
+    const interfaceTab = interfaceTabs.getByRole("tab", { name: "Interface", exact: true });
+    const invitesAppearanceTab = interfaceTabs.getByRole("tab", { name: "Invites appearance", exact: true });
+    const overviewAppearanceTab = interfaceTabs.getByRole("tab", { name: "Overview appearance", exact: true });
+    await interfaceTab.press("ArrowRight");
+    await invitesAppearanceTab.and(page.locator('[aria-selected="true"]:focus')).waitFor();
+    await invitesAppearanceTab.press("End");
+    await overviewAppearanceTab.and(page.locator('[aria-selected="true"]:focus')).waitFor();
+    await overviewAppearanceTab.press("Home");
+    await interfaceTab.and(page.locator('[aria-selected="true"]:focus')).waitFor();
+    await selectInterfaceEditorTab(page, "date");
     assert.equal(await sample.getAttribute("type"), "date");
     assert.equal(await sample.inputValue(), "2026-11-24");
     await sample.fill("2026-12-08");
@@ -142,12 +154,15 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
       window.__accessPermissions.sections.settings = "view";
       await window.RSVP_ADMIN_ACCESS.refresh();
     });
-    // Edits stay in one draft across all three groups.
+    // Edits stay in one Interface draft across the two sub-tabs.
+    await selectInterfaceEditorTab(page, "appearance");
     await page.locator('[data-preference-choices="appearance"] [data-preference-choice="light"]').click();
+    await selectInterfaceEditorTab(page, "date");
     await page.locator('[data-preference-choices="time"] [data-preference-choice="12"]').click();
     await page.locator('[data-preference-choices="date"] [data-preference-choice="dots"]').click();
+    await selectInterfaceEditorTab(page, "appearance");
     await page.locator('[data-preference-choices="language"] [data-preference-choice="de"]').click();
-    await page.locator('#inviteGroupBy input[data-invite-grouping="none"]').check();
+    await selectInterfaceEditorTab(page, "date");
     assert.match(await example.innerText(), /08\.12\.2026 · 0?6:30\s*p\.?m\.?/i);
     assert(await save.isEnabled());
     assert.equal(writes.length, 0);
@@ -164,7 +179,7 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     });
     await cancel.click();
     assert.deepEqual(await summary.locator(".interface-preference-group h3").allTextContents(),
-      ["Appearance", "Date and time", "Invites appearance"]);
+      ["Appearance", "Date and time"]);
     assert(await summary.isVisible());
     assert.match(await summary.innerText(), /24 Nov 2026 · 18:30/);
     assert.equal(await page.locator("#themePreference").inputValue(), "dark");
@@ -177,11 +192,12 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     await openBox(page, "personal-preferences");
     assert.equal(await page.locator("#buttonHover").inputValue(), "toolbar");
     // One explicit Save batches only the changed fields and blocks duplicate work.
+    await selectInterfaceEditorTab(page, "appearance");
     await page.locator('[data-preference-choices="appearance"] [data-preference-choice="light"]').click();
+    await page.locator('[data-preference-choices="hover"] [data-preference-choice="create"]').click();
+    await selectInterfaceEditorTab(page, "date");
     await page.locator('[data-preference-choices="time"] [data-preference-choice="12"]').click();
     await page.locator('[data-preference-choices="date"] [data-preference-choice="iso"]').click();
-    await page.locator('[data-preference-choices="hover"] [data-preference-choice="create"]').click();
-    await page.locator('#inviteGroupBy input[data-invite-grouping="none"]').check();
     let release;
     delay = new Promise((r) => (release = r));
     await save.click();
@@ -201,7 +217,6 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
       rsvp_interface_time_format: "12",
       rsvp_interface_date_format: "iso",
       rsvp_interface_button_hover: "create",
-      rsvp_invites_grouped: false,
     });
     assert.equal(await page.evaluate(() => document.documentElement.dataset.buttonHover), "create");
     assert.equal(profiles.a.user_metadata.unrelated, "preserved");
@@ -214,6 +229,7 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     await openBox(page, "personal-preferences");
     // A failed save retains the draft and the applied value; retry persists it.
     fail = true;
+    await selectInterfaceEditorTab(page, "date");
     await page.locator('[data-preference-choices="time"] [data-preference-choice="24"]').click();
     await save.click();
     await page
@@ -230,6 +246,14 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
       .locator("#personalPreferencesStatus[data-state=saved]")
       .waitFor({ state: "attached" });
     assert.match(await summary.innerText(), /2026-11-24 · 18:30/);
+    await selectInterfaceSettingsTab(page, "invites");
+    assert.equal(await page.locator("#settingsInvitesAppearance").isVisible(), true);
+    assert.equal(await interfacePanel.isVisible(), false);
+    await openBox(page, "invites-appearance");
+    await page.locator('#inviteGroupBy input[data-invite-grouping="none"]').check();
+    await page.locator("#saveInvitesAppearance").click();
+    await page.locator("#invitesAppearanceStatus[data-state=saved]").waitFor({ state: "attached" });
+    assert.deepEqual(writes.at(-1), { rsvp_invites_grouped: false });
     assert.equal(profiles.a.user_metadata.rsvp_invites_grouped, false);
 
     // The real Overview and its editor share one saved order per account.
@@ -242,10 +266,10 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     const filteredCount = await inviteRows.count();
     assert.ok(filteredCount > 0 && filteredCount < allCount, "the Language card actively narrows the list");
     await page.setViewportSize({ width: 1160, height: 1100 });
-    await openInterfaceSettings(page);
-    const desktopPanels = await interfacePanelBounds(page);
-    assert.ok(Math.abs(desktopPanels.personal.y - desktopPanels.overview.y) < 1, "the two panels align on desktop");
-    assert.ok(desktopPanels.overview.x >= desktopPanels.personal.x + desktopPanels.personal.width);
+    await openInterfaceSettings(page, "overview");
+    assert.equal(await page.locator("#settingsOverviewAppearance").isVisible(), true);
+    assert.equal(await page.locator("#settingsInvitesAppearance").isVisible(), false);
+    assert.equal(await interfacePanel.isVisible(), false);
     const overviewSummary = page.locator('[data-editor-key="overview-appearance"] > .local-editor-summary');
     const groupHeadings = (host) => host.locator("[data-overview-setting-tab]").getByRole("heading", { level: 3 }).allTextContents();
     const overviewRows = (host) => host.locator("[data-overview-setting]");
@@ -254,22 +278,27 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     assert.deepEqual(await overviewRows(overviewSummary).evaluateAll((rows) => rows.map((row) => row.dataset.overviewSetting)), defaultCards);
     assert.equal(await overviewSummary.locator('.overview-card-state[data-shown="true"]').count(), defaultCards.length);
     assert.equal(await overviewSummary.locator('.overview-card-state [aria-hidden="true"]').first().innerText(), "✓");
+    assert.doesNotMatch(await overviewSummary.innerText(), /\bShown\b/);
     const editor = await openBox(page, "overview-appearance");
     assert.deepEqual(await settingsOrder(page), defaultCards);
     assert.deepEqual(await groupHeadings(editor), ["Information", "Invitation"]);
     const editorRowHeights = await overviewRows(editor).evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
     assert.deepEqual(editorRowHeights, savedRowHeights, "Overview rows keep their spacing in read and edit modes");
     const row = (id) => editor.locator('[data-overview-setting="' + id + '"]');
-    const moveHouseholdsDown = row("households").locator('[data-overview-move="down"]');
-    assert.match(await moveHouseholdsDown.getAttribute("aria-label"), /^Move down · Households/);
-    assert.equal(await row("rsvp").locator('[data-overview-move="down"]').isDisabled(), true);
-    assert.equal(await row("invites").locator('[data-overview-move="up"]').isDisabled(), true);
-    await moveHouseholdsDown.focus();
-    await page.keyboard.press("Enter");
-    assert.equal(await moveHouseholdsDown.evaluate((button) => button === document.activeElement), true);
+    const grip = (id) => row(id).locator("[data-overview-grip]");
+    assert.equal(await editor.locator("[data-overview-move]").count(), 0);
+    assert.doesNotMatch(await editor.innerText(), /\bShown\b/);
+    const householdsGrip = grip("households");
+    await householdsGrip.press("ArrowUp");
+    assert.deepEqual(await settingsOrder(page), defaultCards, "a grip at the top cannot move upward");
+    await householdsGrip.press("ArrowDown");
+    assert.equal(await householdsGrip.evaluate((button) => button === document.activeElement), true);
     const reorderedInformation = ["food", "households", "rsvp", "invites", "services", "language"];
     assert.deepEqual(await settingsOrder(page), reorderedInformation);
-    const serviceGrip = row("services").locator("[data-overview-grip]");
+    const serviceGrip = grip("services");
+    const gripPosition = await serviceGrip.boundingBox();
+    const serviceLabel = await row("services").locator(".overview-card-label").boundingBox();
+    assert.ok(gripPosition.x + gripPosition.width < serviceLabel.x, "the drag grip is left of the card name");
     async function dragServicesTo(id) {
       await serviceGrip.scrollIntoViewIfNeeded();
       const grip = await serviceGrip.boundingBox();
@@ -281,12 +310,53 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
       await page.mouse.up();
     }
     await dragServicesTo("rsvp");
-    assert.deepEqual(await settingsOrder(page), reorderedInformation, "dragging onto a different tab cannot change the saved order");
-    await dragServicesTo("invites");
+    assert.deepEqual(await settingsOrder(page), ["food", "households", "services", "rsvp", "invites", "language"]);
+    const tabOf = id => row(id).evaluate(node => node.closest("[data-overview-setting-tab]").dataset.overviewSettingTab);
+    assert.equal(await tabOf("services"), "information", "dragging moves a card to the target tab");
+    const rsvpGrip = grip("rsvp");
+    await rsvpGrip.press("ArrowDown");
+    assert.equal(await tabOf("rsvp"), "invitation", "grip keyboard controls move cards across tabs");
+    assert.equal(await rsvpGrip.evaluate(button => button === document.activeElement), true);
+    const renamePencil = (tab) => editor.locator('[data-overview-rename-tab="' + tab + '"]');
+    const renameDialog = page.getByRole("dialog", { name: /^Rename/ });
+    const renameInput = renameDialog.getByRole("textbox");
+    const writesBeforeRename = writes.length;
+    assert.equal(await editor.locator('[data-overview-setting-tab] input[type="text"]:visible').count(), 0);
+    const informationPencil = renamePencil("information");
+    await informationPencil.click();
+    await renameDialog.waitFor();
+    assert.equal(await renameDialog.getAttribute("aria-label"), "Rename · Information");
+    assert.equal(await renameDialog.getAttribute("data-overview-rename-editor"), "information");
+    assert.equal(await informationPencil.getAttribute("aria-expanded"), "true");
+    const pencilBounds = await informationPencil.boundingBox();
+    const dialogBounds = await renameDialog.boundingBox();
+    assert.ok(dialogBounds.y >= pencilBounds.y + pencilBounds.height - 1 &&
+      dialogBounds.y <= pencilBounds.y + pencilBounds.height + 24,
+      "the rename editor opens immediately below its pencil");
+    assert.ok(Math.abs(dialogBounds.x + dialogBounds.width - pencilBounds.x - pencilBounds.width) <= 2,
+      "the rename editor aligns with the pencil's right edge");
+    assert.equal(await renameInput.evaluate((input) => input === document.activeElement), true);
+    await renameInput.fill("Discarded");
+    await renameDialog.getByRole("button", { name: "Cancel" }).click();
+    await renameDialog.waitFor({ state: "hidden" });
+    assert.deepEqual(await groupHeadings(editor), ["Information", "Invitation"]);
+    await informationPencil.and(page.locator(':focus[aria-expanded="false"]')).waitFor();
+    async function renameTab(tab, name) {
+      await renamePencil(tab).click();
+      await renameInput.fill(name);
+      await renameDialog.getByRole("button", { name: "Save", exact: true }).click();
+      await renameDialog.waitFor({ state: "hidden" });
+      await renamePencil(tab).and(page.locator(":focus")).waitFor();
+    }
+    await renameTab("information", "Community");
+    await renameTab("invitation", "Delivery");
+    assert.deepEqual(await groupHeadings(editor), ["Community", "Delivery"]);
+    assert.equal(writes.length, writesBeforeRename, "renaming only changes the Overview draft");
+    assert.deepEqual(await page.locator("#overviewTablist [role=tab]").allTextContents(), ["Information", "Invitation"]);
     const visibleLanguage = row("language").locator('input[type="checkbox"]');
     await visibleLanguage.uncheck();
     const layout = [...savedCards, "language"]
-      .map((id) => ({ id, shown: id !== "language" }));
+      .map((id) => ({ id, shown: id !== "language", ...(id === "services" ? { tab: "information" } : id === "rsvp" ? { tab: "invitation" } : {}) }));
     assert.deepEqual(await settingsOrder(page), layout.map(({ id }) => id));
     assert.deepEqual(await cardOrder(page), defaultCards, "edits stay in the independent draft");
 
@@ -295,13 +365,20 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     await overviewSave.click();
     await page.locator("#overviewAppearanceStatus[data-state=error]").waitFor();
     assert.equal(await visibleLanguage.isChecked(), false, "a failed save retains the visibility draft");
+    assert.deepEqual(await groupHeadings(editor), ["Community", "Delivery"], "a failed save retains the tab name draft");
     assert.deepEqual(await cardOrder(page), defaultCards, "a failed save keeps the applied layout");
     await overviewSave.click();
     await page.locator("#overviewAppearanceStatus[data-state=saved]").waitFor({ state: "attached" });
-    assert.deepEqual(writes.at(-1), { rsvp_overview_layout: layout });
-    assert.equal(await overviewSummary.locator('[data-overview-setting="language"] .overview-card-state').innerText(), "Hidden");
+    assert.deepEqual(writes.at(-1), {
+      rsvp_overview_layout: layout,
+      rsvp_overview_tab_names: { information: "Community", invitation: "Delivery" },
+    });
+    assert.equal(await overviewSummary.locator('[data-overview-setting="language"]').getByRole("img", { name: "Hidden" }).count(), 1);
     await openOverview(page);
     assert.deepEqual(await cardOrder(page), savedCards);
+    assert.deepEqual(await page.locator("#overviewTablist [role=tab]").allTextContents(), ["Community", "Delivery"]);
+    assert.equal(await page.locator('#overviewInformationPanel [data-overview-card="services"]').count(), 1);
+    assert.equal(await page.locator('#overviewInvitationPanel [data-overview-card="rsvp"]').count(), 1);
     assert.equal(await inviteRows.count(), allCount, "hiding the Language card clears its active filter");
     await page.setViewportSize({ width: 390, height: 844 });
     assert.deepEqual(await cardOrder(page), savedCards, "phone and desktop use the same saved order");
@@ -310,6 +387,7 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     assert.ok(await editor.evaluate((form) => form.scrollWidth <= form.clientWidth + 1), "the Overview editor fits a phone");
     await editor.locator("#resetOverviewAppearance").click();
     assert.deepEqual(await settingsOrder(page), defaultCards);
+    assert.deepEqual(await groupHeadings(editor), ["Information", "Invitation"]);
     assert.equal(await visibleLanguage.isChecked(), true);
     await editor.locator("#cancelOverviewAppearance").click();
     await openOverview(page);
@@ -317,6 +395,7 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
 
     const second = await device("a");
     assert.deepEqual(await cardOrder(second.page), savedCards, "the Overview layout follows the signed-in account");
+    assert.deepEqual(await second.page.locator("#overviewTablist [role=tab]").allTextContents(), ["Community", "Delivery"]);
     assert.equal(await second.page.locator('#inviteGroupBy input[data-invite-grouping="none"]').isChecked(), true, "grouping follows the account to another device");
     assert.equal(
       await second.page.locator("#themePreference").inputValue(),
@@ -355,11 +434,16 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     const touchEditor = await editOverview(b.page);
     assert.deepEqual(await settingsOrder(b.page), ["households", "rsvp", "language", "services", "invites"], "the editor cannot show a card the administrator cannot access");
     const touchRow = touchEditor.locator('[data-overview-setting="households"]');
-    assert.equal(await touchRow.locator("[data-overview-grip]").isVisible(), false, "touch uses the arrow controls");
-    for (const selector of [".overview-card-visibility", '[data-overview-move="down"]']) {
+    for (const selector of [".overview-card-visibility", "[data-overview-grip]"]) {
       const target = await touchRow.locator(selector).boundingBox();
-      assert.ok(target.width >= 44 && target.height >= 44, "reordering and visibility have touch-sized targets");
+      assert.ok(target?.width >= 44 && target?.height >= 44, "expected a 44px touch target for " + selector + ", measured " + target?.width + "×" + target?.height);
     }
+    const touchRsvp = touchEditor.locator('[data-overview-setting="rsvp"]');
+    await touchRsvp.locator("[data-overview-grip]").tap();
+    const moveDialog = b.page.getByRole("dialog");
+    await moveDialog.getByRole("button", { name: /^Move down/ }).tap();
+    await moveDialog.waitFor({ state: "hidden" });
+    assert.equal(await touchRsvp.evaluate((node) => node.closest("[data-overview-setting-tab]").dataset.overviewSettingTab), "invitation", "the grip's touch actions move a card between tabs");
     await b.page.evaluate(() => { window.__accessPermissions.sections.households = "none"; });
     await refreshFixture(b.page);
     await b.page.locator("#statsGrid .overview-people-breakdown").waitFor({ state: "detached" });
@@ -398,12 +482,13 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     await page.locator("#overviewAppearanceStatus[data-state=saved]").waitFor({ state: "attached" });
     await openOverview(page);
     assert.deepEqual(await cardOrder(page), defaultCards);
+    assert.deepEqual(await page.locator("#overviewTablist [role=tab]").allTextContents(), ["Information", "Invitation"]);
     assert.equal(await page.locator("#inviteLanguageFilter [aria-pressed=true]").count(), 0);
-    await page.locator("#settingsToggle").click();
-    await page.locator("[data-settings-tab=checklist]").click();
+    await openInterfaceSettings(page);
     await openBox(page, "personal-preferences");
     // The header shortcut is desktop-only; it preserves other Interface drafts.
     await page.setViewportSize({ width: 1160, height: 900 });
+    await selectInterfaceEditorTab(page, "date");
     await page.locator('[data-preference-choices="time"] [data-preference-choice="12"]').click();
     await page.locator("#themeToggle").click();
     await page
@@ -415,6 +500,7 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     assert(await save.isEnabled());
     await cancel.click();
     await openBox(page, "personal-preferences");
+    await selectInterfaceEditorTab(page, "appearance");
     // Language reload checks unrelated dirty forms before committing any fields.
     await page.evaluate(() => {
       const f = document.createElement("form");
@@ -466,8 +552,7 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
         document.querySelector("#inviteOverviewCounts .invite-stat-row"),
     );
     assert.equal(profiles.a.user_metadata.rsvp_interface_language, "de");
-    await page.locator("#settingsToggle").click();
-    await page.locator("[data-settings-tab=checklist]").click();
+    await openInterfaceSettings(page);
     assert.equal(
       await page.locator("#savePersonalPreferences").innerText(),
       "Speichern",
@@ -483,7 +568,7 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     console.log(
       "PASS personal Interface: grouped reading, live date and time examples, native date picker formatting, single Save/Cancel, account/device isolation, pending locks, retry, immediate header toggle and safe language reload.",
     );
-    console.log("PASS Overview appearance: keyboard and pointer reorder, focus, visibility and filter clearing, responsive and per-account persistence, failed save retry, Reset and Cancel.");
+    console.log("PASS Overview appearance: keyboard, mouse, and touch ordering, tab name dialogs, visibility and filter clearing, responsive and per-account persistence, failed save retry, Reset and Cancel.");
   } finally {
     await browser.close();
     await new Promise((r) => server.close(r));

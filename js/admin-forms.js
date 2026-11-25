@@ -144,7 +144,7 @@
       if (form.renderReadSummary) form.renderReadSummary(view);
       else {
         for (const control of form.querySelectorAll("input,textarea,select")) {
-          if (control.type === "hidden") continue;
+          if (Object.hasOwn(control.dataset, "clockPart") || (control.type === "hidden" && !control.dataset.clockSource)) continue;
           const label = control.closest("label");
           const text =
             control.getAttribute("aria-label") ||
@@ -273,11 +273,11 @@
         wrap.classList.add("checkbox-label");
         wrap.prepend(input);
       } else wrap.append(input);
-      window.RSVP_ADMIN_PREFERENCES.refreshDatePicker(input);
       form.append(wrap);
+      window.RSVP_ADMIN_PREFERENCES.refreshDatePicker(input);
       return input;
     }
-    function saveForm(form, label, save) {
+    function saveForm(form, label, save, afterSave) {
       const button = R.dom("button", { class: "btn", type: "submit" }, label),
         cancel =
           Array.from(form.querySelectorAll("button[type=button]")).find(
@@ -360,6 +360,7 @@
               }
             }
           }
+          afterSave?.();
         } catch (error) {
           formFeedback(form, "error", R.safeError(error));
           show(R.safeError(error), "error");

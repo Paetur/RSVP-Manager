@@ -3,7 +3,7 @@
   "use strict";
   function render({ R, T }) {
     const host = R.byId("placeholderReference"); host.replaceChildren();
-    const entries = Object.values(window.RSVP_PLACEHOLDERS.groups).flat().map(name => ["{" + name + "}", name.replaceAll("_", " ")]);
+    const entries = Object.values(window.RSVP_PLACEHOLDERS.groups).flat().map(name => ["{" + name + "}", name === "contact_salutation" ? T("Invitation salutation") : name.replaceAll("_", " ")]);
     entries.push(["{rsvp_deadline:+5}", T("Five days after the RSVP deadline")], ["{rsvp_deadline:-2}", T("Two days before the RSVP deadline")]);
     host.append(R.dom("h2", {}, T("Placeholders")),
       R.dom("p", { class: "muted" }, T("Use the {…} button beside an editor to insert a supported placeholder.")),

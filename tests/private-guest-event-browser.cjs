@@ -35,8 +35,10 @@ const { root, out, server, mock, extra, stageExtra } = createFoodHarness(
       }),
     );
     const base = "http://127.0.0.1:" + server.address().port;
+    const brand = page.locator("#guestBrand");
     await page.goto(base + "/");
     await page.locator("#codeCard:not(.hidden)").waitFor();
+    assert.equal(await brand.getAttribute("href"), "./");
     assert.equal(await page.locator(".guest-mini-map").count(), 0);
     assert.equal(
       await page.evaluate(() =>
@@ -46,9 +48,16 @@ const { root, out, server, mock, extra, stageExtra } = createFoodHarness(
     );
     await page.goto(base + "/?AAAAAAAA");
     await page.locator("#guestStatus.warning").waitFor();
+    assert.equal(await brand.getAttribute("href"), "./");
     assert.equal(await page.locator(".rsvp-session").count(), 0);
     await page.goto(base + "/?ABCDEFGH");
     await page.locator(".guest-mini-map").waitFor();
+    assert.equal(await brand.getAttribute("href"), null);
+    const attending = page.locator("#rsvpRows input[value=attending]").first();
+    await attending.check();
+    await brand.click();
+    assert.equal(await page.locator("#codeCard").isHidden(), true);
+    assert.equal(await attending.isChecked(), true);
     assert.equal(
       await page.locator(".guest-mini-map .guest-map-link").innerText(),
       "Map & directions",

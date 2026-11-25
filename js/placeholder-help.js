@@ -2,7 +2,7 @@
 (function () {
   "use strict";
   let nextId = 0;
-  const labels = { event: "Event", household: "Household", venue: "Venue", session: "Session", other: "Other" };
+  const labels = { event: "Event", household: "Household", venue: "Venue", session: "Session", delivery: "Invitation salutation", other: "Other" };
   function category(token) {
     const name = token.slice(1, -1).split(":")[0];
     return Object.entries(window.RSVP_PLACEHOLDERS?.groups || {}).find(([, names]) => names.includes(name))?.[0] || "other";
@@ -57,7 +57,7 @@
   }
   function attach(
     input,
-    { R, T, kind, requiredLink = false, tokens: allowedTokens },
+    { R, T, kind, requiredLink = false, tokens: allowedTokens, insertToken, editingSurface },
   ) {
     if (input.placeholderHelp) return;
     const wrap = input.closest("label"),
@@ -121,6 +121,7 @@
     panel.append(browser({ R, T, entries: tokens, action: "Insert", className: "placeholder-insertion-browser",
       onAction: token => {
         if (input.disabled || input.readOnly || input.form?.getAttribute("aria-busy") === "true") return;
+        if (insertToken) return insertToken(token);
         input.focus({ preventScroll: true });
         const end = input.value.length, start = Math.min(selection[0], end), finish = Math.min(selection[1], end);
         input.setRangeText(token, start, finish, "end"); remember();
@@ -163,9 +164,235 @@
         button.focus({ preventScroll: true });
       }
     };
-    for (const target of [input, button, panel])
+    for (const target of [input, button, panel, editingSurface].filter(Boolean))
       target.addEventListener("keydown", escape);
     input.placeholderHelp = { button, panel };
   }
-  window.RSVP_PLACEHOLDER_HELP = Object.freeze({ attach, browser });
+
+  const salutationLabels = { "{titles}": "Title", "{firstname}": "First name", "{lastname}": "Last name", "{relation}": "Relation", "{nickname}": "Nickname" };
+
+  function attachTokenEditor(input, { R, T, tokens }) {
+    const label = input.closest("label");
+    const name = input.getAttribute("aria-label");
+    const tokenSet = new Set(tokens.map(token => token.toLowerCase()));
+    const pattern = new RegExp("(" + tokens.map(token => token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "gi");
+    const validation = R.dom("small", { class: "token-text-error", id: "token-text-error-" + ++nextId });
+    const editor = R.dom("div", { class: "token-text-editor" });
+    editor.contentEditable = "true";
+    editor.setAttribute("role", "textbox");
+    editor.setAttribute("aria-label", name);
+    editor.setAttribute("aria-describedby", validation.id);
+    editor.setAttribute("aria-required", String(input.required));
+    let caret, dragged;
+
+    const editable = () => !input.disabled && !input.readOnly && input.form?.getAttribute("aria-busy") !== "true";
+    function read(node) {
+      if (node.nodeType === Node.TEXT_NODE) return node.data;
+      return node.dataset?.placeholder ?? Array.from(node.childNodes, read).join("");
+    }
+    function part(text) {
+      if (!tokenSet.has(text.toLowerCase())) return document.createTextNode(text);
+      const caption = T(salutationLabels[text.toLowerCase()] || text);
+      const chip = R.dom("span", { class: "token-text-chip", title: T("Drag to reorder") }, caption);
+      chip.contentEditable = "false";
+      chip.draggable = true;
+      chip.dataset.placeholder = text;
+      const remove = R.dom("button", { class: "token-text-remove", type: "button" }, "×");
+      remove.setAttribute("aria-label", T("Remove") + " " + caption);
+      chip.append(remove);
+      return chip;
+    }
+    function selectedRange() {
+      const selection = window.getSelection();
+      if (!selection?.rangeCount) return null;
+      const range = selection.getRangeAt(0);
+      return editor.contains(range.startContainer) && editor.contains(range.endContainer) ? range : null;
+    }
+    function remember() {
+      const range = selectedRange();
+      if (range) caret = range.cloneRange();
+    }
+    function select(range) {
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      caret = range.cloneRange();
+    }
+    function insertionRange() {
+      if (caret && editor.contains(caret.startContainer) && editor.contains(caret.endContainer)) return caret.cloneRange();
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      return range;
+    }
+    function updateValidation() {
+      editor.setAttribute("aria-invalid", String(!input.validity.valid));
+      validation.hidden = input.validity.valid;
+      validation.textContent = input.validity.valid ? "" : input.validationMessage;
+    }
+    function updateValue() {
+      const value = read(editor);
+      if (input.value !== value) {
+        input.value = value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      remember();
+    }
+    function displayValue() {
+      if (read(editor) !== input.value) {
+        editor.replaceChildren(...input.value.split(pattern).filter(Boolean).map(part));
+        caret = null;
+      }
+      queueMicrotask(updateValidation);
+    }
+    function addSpaces(chip) {
+      let before = chip.previousSibling, after = chip.nextSibling;
+      while (before?.nodeType === Node.TEXT_NODE && !before.length) before = before.previousSibling;
+      while (after?.nodeType === Node.TEXT_NODE && !after.length) after = after.nextSibling;
+      if (before?.dataset?.placeholder) chip.before(" ");
+      if (after?.dataset?.placeholder) chip.after(" ");
+    }
+    function insertNode(range, node, separate = false) {
+      range.deleteContents();
+      range.insertNode(node);
+      if (separate) addSpaces(node);
+      range.setStartAfter(node);
+      range.collapse(true);
+      select(range);
+    }
+    function tokenizeTypedText() {
+      const range = selectedRange();
+      let at;
+      for (const node of Array.from(editor.childNodes)) {
+        if (node.nodeType !== Node.TEXT_NODE) continue;
+        const pieces = node.data.split(pattern);
+        if (pieces.length < 2) continue;
+        let position = 0;
+        const items = pieces.filter(Boolean).map(piece => {
+          const item = part(piece);
+          if (!at && range?.collapsed && range.startContainer === node && range.startOffset <= position + piece.length) {
+            at = { item, offset: range.startOffset - position };
+          }
+          position += piece.length;
+          return item;
+        });
+        node.replaceWith(...items);
+      }
+      if (at) {
+        if (at.item.nodeType === Node.TEXT_NODE) range.setStart(at.item, at.offset);
+        else range.setStartAfter(at.item);
+        range.collapse(true);
+        select(range);
+      }
+    }
+
+    attach(input, { R, T, tokens, editingSurface: editor, insertToken: token => {
+      const range = insertionRange();
+      editor.focus({ preventScroll: true });
+      insertNode(range, part(token), true);
+      updateValue();
+    } });
+    label.after(editor, validation);
+    input.classList.add("token-text-value");
+    input.tabIndex = -1;
+    input.setAttribute("aria-hidden", "true");
+    input.addEventListener("focus", () => editor.focus({ preventScroll: true }));
+    input.addEventListener("invalid", event => {
+      event.preventDefault();
+      updateValidation();
+      editor.focus();
+    });
+    input.addEventListener("input", displayValue);
+    input.addEventListener("change", displayValue);
+    displayValue();
+    for (const event of ["pointerup", "keyup", "focusout"]) editor.addEventListener(event, remember);
+    editor.addEventListener("beforeinput", event => {
+      if (!editable() || event.inputType.startsWith("format") || ["insertParagraph", "insertLineBreak"].includes(event.inputType)) event.preventDefault();
+    });
+    editor.addEventListener("input", event => {
+      event.stopPropagation();
+      if (!event.isComposing) tokenizeTypedText();
+      updateValue();
+    });
+    editor.addEventListener("paste", event => {
+      event.preventDefault();
+      const value = event.clipboardData?.getData("text/plain").replace(/[\r\n]+/g, " ");
+      if (!editable() || !value) return;
+      insertNode(selectedRange() || insertionRange(), document.createTextNode(value));
+      tokenizeTypedText();
+      updateValue();
+    });
+    for (const action of ["copy", "cut"]) editor.addEventListener(action, event => {
+      const range = selectedRange();
+      if (!range || range.collapsed || !event.clipboardData) return;
+      event.preventDefault();
+      event.clipboardData.setData("text/plain", read(range.cloneContents()));
+      if (action === "cut" && editable()) {
+        range.deleteContents();
+        updateValue();
+      }
+    });
+    editor.addEventListener("click", event => {
+      const remove = event.target.closest(".token-text-remove");
+      if (!remove || !editable()) return;
+      const range = document.createRange();
+      range.setStartBefore(remove.parentElement);
+      range.collapse(true);
+      remove.parentElement.remove();
+      editor.focus({ preventScroll: true });
+      select(range);
+      updateValue();
+    });
+    editor.addEventListener("keydown", event => {
+      const chip = event.target.closest(".token-text-remove")?.parentElement;
+      if (!chip || !event.altKey || !["ArrowLeft", "ArrowRight"].includes(event.key) || !editable()) return;
+      const chips = [...editor.querySelectorAll(".token-text-chip")];
+      const earlier = event.key === "ArrowLeft";
+      const neighbor = chips[chips.indexOf(chip) + (earlier ? -1 : 1)];
+      if (!neighbor) return;
+      event.preventDefault();
+      const range = document.createRange();
+      if (earlier) range.setStartBefore(neighbor);
+      else range.setStartAfter(neighbor);
+      range.collapse(true);
+      insertNode(range, chip, true);
+      chip.querySelector("button").focus();
+      updateValue();
+    });
+    editor.addEventListener("dragstart", event => {
+      const chip = event.target.closest(".token-text-chip");
+      if (!chip || !editable()) return;
+      dragged = chip;
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", chip.dataset.placeholder);
+    });
+    editor.addEventListener("dragend", () => { dragged = null; });
+    editor.addEventListener("dragover", event => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = dragged && editable() ? "move" : "none";
+    });
+    editor.addEventListener("drop", event => {
+      event.preventDefault();
+      const chip = event.target.closest(".token-text-chip");
+      if (!dragged || dragged === chip || !editable()) return;
+      const range = document.createRange();
+      if (chip) {
+        const rect = chip.getBoundingClientRect();
+        if (event.clientX < (rect.left + rect.right) / 2) range.setStartBefore(chip);
+        else range.setStartAfter(chip);
+      } else {
+        const position = document.caretPositionFromPoint?.(event.clientX, event.clientY);
+        const fallback = position ? null : document.caretRangeFromPoint?.(event.clientX, event.clientY);
+        const node = position?.offsetNode || fallback?.startContainer;
+        if (!node || !editor.contains(node) || dragged.contains(node)) return;
+        range.setStart(node, position?.offset ?? fallback.startOffset);
+      }
+      range.collapse(true);
+      insertNode(range, dragged, true);
+      updateValue();
+    });
+    return editor;
+  }
+
+  window.RSVP_PLACEHOLDER_HELP = Object.freeze({ attach, attachTokenEditor, browser });
 })();

@@ -263,7 +263,7 @@ async function run(){
    const newVenue=page.locator('#newVenueForm form');
    await newVenue.getByLabel('Venue name',{exact:true}).fill('Faroe test venue');
    await newVenue.getByLabel('Country code').fill('FO');
-   await newVenue.getByLabel('Venue timezone').fill('Atlantic/Faroe');
+   await newVenue.getByLabel('Venue timezone').selectOption('Atlantic/Faroe');
    await newVenue.getByLabel('Venue address').fill('Synthetic Faroe address');
    await newVenue.getByLabel('Welcome message — English',{exact:true}).fill('Welcome to our Faroese celebration.');
    await newVenue.getByRole('button',{name:'Create venue'}).click();
@@ -274,7 +274,7 @@ async function run(){
    assert.equal(await newVenue.locator('.venue-welcome-editor textarea').count(),3,'venue welcome messages remain separate from the event introduction');
    await newVenue.getByLabel('Venue name',{exact:true}).fill('Germany test venue');
    await newVenue.getByLabel('Country code').fill('DE');
-   await newVenue.getByLabel('Venue timezone').fill('Europe/Berlin');
+   await newVenue.getByLabel('Venue timezone').selectOption('Europe/Berlin');
    await newVenue.getByRole('button',{name:'Create venue'}).click();
    await waitForApp(page,()=>window.__fixtures.event_locations.length===2);
    await waitForApp(page,()=>document.querySelector('#newVenueForm [aria-label="Venue name"]').value==='');

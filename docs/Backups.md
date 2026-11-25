@@ -92,7 +92,7 @@ The current installation keeps its administrator access, website address, runtim
 
 ## Current format and infrastructure recovery
 
-Current exports use application backup **format 3**, schema **20261114034908**, with a 44-table manifest. Full files store each referenced picture and template revision once. Partial files read the selected sections and include the shared snapshots those sections need. Column manifests use a stable field-name order. Beta.3 exports use format 2 and need a matching beta.3 recovery installation. Download a fresh Full backup after updating. Language CSV exports are separate.
+Current exports use application backup **format 3**, schema **20261114034908**, with a 44-table manifest. Full files store each referenced picture and template revision once. Partial files read the selected sections and include the shared snapshots those sections need. Restore checks the exact column manifest, so use a matching installation to recover older backups. Beta.3 exports use format 2 and need a matching beta.3 recovery installation. Download a fresh Full backup after updating. Language CSV exports are separate.
 
 Passwords, Auth sessions, personal administrator Interface preferences, secret keys, email-service settings, rate-limit counters and hosting configuration require separate infrastructure recovery. App sign-in references, if included, are historical information rather than active sessions. Raw Auth-service audit records are not application-backup data. Keep the repository/deployment configuration with the installation owner and rehearse restoration.
 

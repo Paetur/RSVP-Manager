@@ -130,7 +130,7 @@
       panel.dataset.permissionEdit = String(
         section === "personal" || can(section, "edit"),
       );
-      if (name !== "checklist" && !can(section, "edit"))
+      if (section !== "personal" && !can(section, "edit"))
         for (const control of panel.querySelectorAll(
           "form input,form textarea,form button[type=submit]",
         ))
@@ -607,11 +607,9 @@
   function render() {
     renderMembers();
     const own = R.byId("adminSessionsPanel"),
-      target = document.querySelector(
-        '[data-settings-panel="' +
-          (can("administrators") ? "administrators" : "checklist") +
-          '"]',
-      );
+      target = can("administrators")
+        ? document.querySelector('[data-settings-panel="administrators"]')
+        : R.byId("settingsInterfaceGeneral");
     if (target && own) target.append(own);
     renderSessions();
     apply();

@@ -92,13 +92,20 @@
   const currentActor = (actor) =>
     !!actor && actor === user && !signingOut && !authRecovery?.blocksAccess();
 
-  function stamp(datetime) {
-    if (!datetime) return "";
-    const d = new Date(datetime),
-      parts = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 16);
-    return parts;
+  const timezones = Intl.supportedValuesOf?.("timeZone") || [];
+  function timezoneOptions(current) {
+    const zones = new Set([
+      "UTC", "Atlantic/Faroe", "Europe/Berlin",
+      Intl.DateTimeFormat().resolvedOptions().timeZone, ...timezones, current,
+    ]);
+    return [...zones].filter(Boolean).sort().map(zone => [zone, zone]);
+  }
+  const eventDeadlineFields = [
+    ["settingDeadline", "rsvp_deadline"], ["settingFoodDeadline", "food_deadline"],
+  ];
+  function deadlineWallTime(instant, zone) {
+    try { return R.zonedInput(instant, zone); }
+    catch (_) { return R.zonedInput(instant, "UTC"); }
   }
   function row(parent, tag, attrs = {}, text) {
     const n = R.dom(tag, attrs, text);
@@ -404,7 +411,11 @@
           fallback_language: store.settings?.fallback_language,
           translations: store.content,
         });
-      await window.RSVP_I18N.loadCatalogs();
+      // Invitation drafts and salutation previews can use a language other than the administrator's.
+      await Promise.all([
+        window.RSVP_I18N.loadCatalogs(),
+        ...window.RSVP_I18N.languages.map(({ language_code }) => window.RSVP_I18N.loadCategory(language_code, "interface")),
+      ]);
       if (!current()) return false;
       showEventMenus(true);
       renderAll();
@@ -451,12 +462,16 @@
     can,
     planningLabel,
     planningConfiguration,
+    setOverviewCards: cards => window.RSVP_ADMIN_PREFERENCES.setOverviewCards(cards, iconAction),
   });
   matchMedia("(max-width: 700px)").addEventListener("change", () => {
     window.RSVP_NOTIFICATIONS.configure("admin", window.RSVP_GUEST_INTERFACE.effective(store.settings, undefined, store.languages).notification_preferences?.admin);
   });
   function renderAll() {
     window.RSVP_POPUPS.reconcile(can);
+    const householdDialog = window.RSVP_POPUPS.get("invites-household-details");
+    if (householdDialog && !editableInvitedHousehold(householdDialog.dataset.householdId))
+      householdDialog.close();
     const resumeInline = window.RSVP_INLINE?.suspend();
     try {
 
@@ -694,10 +709,99 @@
     }
     return false;
   }
+  function guestSalutationEditor(fields, guest, { first, last, title, relation, language }) {
+    const text = window.RSVP_INVITATION_TEXT;
+    const saved = guest.invitation_salutation;
+    const nickname = field(fields, T("Salutation or nickname"), saved?.nickname, null, "text", false, 100);
+    nickname.closest("label").classList.add("guest-edit-field");
+    const display = R.dom("details", { class: "guest-name-display" });
+    const options = R.dom("div", { class: "guest-edit-fields guest-name-display-options" });
+    const displayChoices = [
+      ["", T("System default")],
+      ["true", T("Show to guests")],
+      ["false", T("Hide from guests")],
+    ];
+    const overrides = [
+      ["show_titles", T("Titles")],
+      ["show_repeated_surname", T("Show repeated surname")],
+    ].map(([key, label]) => {
+      const input = field(options, label, String(saved?.[key] ?? ""), displayChoices);
+      input.closest("label").classList.add("guest-edit-field");
+      return [key, input];
+    });
+    display.append(R.dom("summary", {}, T("Name display")), options);
+    fields.append(display);
+
+    const section = R.dom("fieldset", { class: "guest-salutation" });
+    section.append(R.dom("legend", {}, T("Invitation salutation")));
+    const format = field(section, T("Salutation format"), saved?.pattern || text.defaultSalutationPattern, null, "text", true, 200);
+    format.closest("label").classList.add("guest-edit-field");
+    const formatEditor = window.RSVP_PLACEHOLDER_HELP.attachTokenEditor(format, { R, T, tokens: text.salutationTokens });
+    section.append(R.dom("p", { class: "micro" }, T("Drag chips to reorder them. Type between chips to add your own text.")));
+
+    const household = () => store.households.find(item => item.id === guest.household_id);
+    const draftGuest = () => ({
+      ...guest,
+      first_name: first.value.trim(),
+      last_name: last.value.trim(),
+      courtesy_title: title.value,
+      relation: relation.value.trim(),
+      language: language.value || household()?.language,
+    });
+    const preview = R.dom("output");
+    preview.setAttribute("aria-label", T("Preview"));
+    const defaults = R.dom("button", { class: "small-tool", type: "button" }, T("Use default format"));
+    const footer = R.dom("div", { class: "guest-salutation-footer" });
+    footer.append(R.dom("span", { class: "micro" }, T("Preview")), preview, defaults);
+    section.append(footer);
+    fields.append(section);
+
+    const controls = [nickname, format, ...overrides.map(([, input]) => input)];
+    function configuration() {
+      const data = {};
+      const pattern = format.value.trim();
+      const nicknameValue = nickname.value.trim();
+      if (pattern !== text.defaultSalutationPattern) data.pattern = pattern;
+      if (nicknameValue) data.nickname = nicknameValue;
+      for (const [key, input] of overrides)
+        if (input.value) data[key] = input.value === "true";
+      return Object.keys(data).length ? data : null;
+    }
+    function renderPreview() {
+      const validFormat = text.validateSalutationPattern(format.value.trim());
+      const validNickname = !/[{}\r\n]/.test(nickname.value);
+      format.setCustomValidity(validFormat ? "" : T("Use only the listed salutation placeholders."));
+      nickname.setCustomValidity(validNickname ? "" : T("Enter a nickname without braces or line breaks."));
+      const config = configuration();
+      const draft = draftGuest();
+      preview.textContent = validFormat && validNickname ? text.guestSalutation(store, draft, {
+        configuration: config,
+        language: draft.language,
+        household: household(),
+      }) : "";
+      defaults.disabled = config?.pattern === undefined;
+    }
+    for (const input of [section, options, nickname, first, last, title, relation, language]) {
+      input.addEventListener("input", renderPreview);
+      input.addEventListener("change", renderPreview);
+    }
+    defaults.addEventListener("click", () => {
+      if (section.closest("form")?.getAttribute("aria-busy") === "true") return;
+      format.value = text.defaultSalutationPattern;
+      format.dispatchEvent(new Event("input", { bubbles: true }));
+      formatEditor.focus({ preventScroll: true });
+    });
+    renderPreview();
+    return {
+      changed: () => controls.some(input => input.value !== input.dataset.cleanOriginal),
+      configuration,
+    };
+  }
   function buildGuestEditor(guest) {
     const form = R.dom("form", { class: "guest-edit-form edit-only hidden" });
     form.dataset.formKey = "guest:" + (guest.id || guest.household_id + ":new");
     const fields = R.dom("div", { class: "guest-edit-fields" });
+    const restoreOnly = guest.archived_at || store.households.find(h => h.id === guest.household_id)?.archived_at;
     function labeledInput(
       label,
       value,
@@ -745,8 +849,8 @@
       guest.courtesy_title,
       [
         ["", T("interface.messages.none")],
-        ["Mr.", "Mr."],
-        ["Ms.", "Ms."],
+        ["Mr.", T("Mr.")],
+        ["Ms.", T("Ms.")],
         ["Son", T("interface.messages.son")],
         ["Daughter", T("interface.messages.daughter")],
       ],
@@ -764,6 +868,7 @@
         ...languages(guest.language),
       ],
     );
+    const salutation = restoreOnly ? null : guestSalutationEditor(fields, guest, { first, last, title, relation, language });
     const phone = labeledInput(T("interface.messages.phone"), guest.phone, 80);
     phone.type = "tel";
     const mobile = labeledInput(
@@ -878,6 +983,7 @@
             .filter(([k]) => k !== "p_guest_id")
             .map(([k, v]) => [k.slice(2), v]),
         );
+        if (salutation?.changed()) fields.invitation_salutation = salutation.configuration();
         const { error } = await R.adminRpc("admin_save_guest_details", {
           p_guest_id: guest.id || null,
           p_household_id: guest.household_id,
@@ -908,10 +1014,7 @@
       );
       if (guest.archived_at || !store.settings?.is_published)
         footerAction(form, deleteRecordButton("guests", guest));
-      if (
-        guest.archived_at ||
-        store.households.find((h) => h.id === guest.household_id)?.archived_at
-      ) {
+      if (restoreOnly) {
         form.dataset.restoreOnly = "true";
         for (const control of fields.querySelectorAll("input,select,textarea"))
           control.disabled = true;
@@ -1139,10 +1242,10 @@
       .groups.map((group) => group.id)
       .filter((id) => ids.has(id));
   }
-  function householdForm(h, contactChoice = null) {
+  function householdForm(h, contactChoice = null, { formKey = "household:" + (h.id || "new"), afterSave } = {}) {
     const f = managementForm();
     const revision = h.record_revision;
-    f.dataset.formKey = "household:" + (h.id || "new");
+    f.dataset.formKey = formKey;
     f.classList.add("household-details-form");
     const name = field(
       f,
@@ -1313,6 +1416,7 @@
         }
         return saveVersionedRecord("admin_save_household", args, revision);
       },
+      afterSave,
     );
   }
   function guestManagement(g) {
@@ -1779,11 +1883,11 @@
       f.querySelector("[data-discard]").addEventListener("click", onCancel);
     return f;
   }
-  function householdContactChoice(h) {
+  function householdContactChoice(h, panelId = "primary-contact-picker-" + h.id) {
     const title = T("Primary household contact"),
       row = R.dom("div", { class: "household-contact-row span-2" });
     const panel = R.dom("div", {
-      id: "primary-contact-picker-" + h.id,
+      id: panelId,
       class: "household-primary-picker edit-only hidden",
     });
     const choice = R.dom("input", { type: "hidden" });
@@ -2548,32 +2652,40 @@
       sessionId,
     });
   }
-  function editHouseholdFromInvites(householdId) {
-    if (store.settings?.is_published || !can("households", "edit")) return;
-    const household = store.households.find((item) => item.id === householdId && !item.archived_at);
-    if (!household) return;
-    tab("households");
-    let form = $("household-form-" + householdId);
-    if (!form) {
-      // Clearing a filter rebuilds the Household list; retain unfinished edits.
-      if ([...$("householdRows").querySelectorAll("form")].some((item) => item.dataset.dirty === "true")) {
-        show(T("Unsaved changes. Select Save to update the database."));
-        return;
-      }
-      $("householdSearch").value = "";
-      renderHouseholds();
-      form = $("household-form-" + householdId);
-    }
-    if (!form) return;
-    for (let parent = form.parentElement; parent; parent = parent.parentElement) {
-      if (parent.tagName !== "DETAILS") continue;
-      parent.open = true;
-      const key = parent.dataset.householdDetailKey || parent.dataset.treeKey;
-      if (key) expandedGroups.set(key, true);
-    }
-    form.closest(".household-inline-editor")?.classList.add("household-detail-editing");
-    form.scrollIntoView({ block: "nearest" });
-    form.querySelector("input:not([type=checkbox]):not(:disabled)")?.focus({ preventScroll: true });
+  function editableInvitedHousehold(householdId) {
+    if (store.settings?.is_published || !can("invites") || !can("households", "edit")) return null;
+    return store.households.find(item => item.id === householdId && !item.archived_at);
+  }
+  function editHouseholdFromInvites(householdId, trigger) {
+    const key = "invites-household-details", actor = user;
+    const household = editableInvitedHousehold(householdId);
+    if (!household || !trigger.isConnected || window.RSVP_POPUPS.get(key)) return;
+    const dialog = window.RSVP_POPUPS.create(key, { class: "household-details-dialog" }, trigger);
+    dialog.dataset.householdId = householdId;
+    const title = T("interface.messages.household_details") + " · " + R.householdName(household);
+    const heading = R.dom("h2", { id: key + "-heading" }, title);
+    dialog.setAttribute("aria-labelledby", heading.id);
+    const choice = householdContactChoice(household, "invite-primary-contact-picker-" + householdId);
+    const form = householdForm(household, choice, {
+      formKey: key + ":" + householdId,
+      afterSave: () => { if (dialog.open) dialog.close(); },
+    });
+    form.id = key + "-form";
+    form.saveActions.querySelector('button[type="submit"]').setAttribute("form", form.id);
+    form.saveActions.querySelector("[data-discard]").addEventListener("click", () => dialog.close());
+    dialog.addEventListener("close", () => {
+      for (const editor of dialog.querySelectorAll("form")) window.RSVP_I18N.markClean(editor);
+      if (trigger.isConnected || activeTab !== "invites" || !currentActor(actor)) return;
+      // Saving reloads the list. Find the replacement for the old dialog trigger.
+      const row = $("inviteRows").querySelector('[data-invite-household="' + CSS.escape(householdId) + '"]');
+      const focus = row?.querySelector(".invite-edit-household:enabled") || row?.querySelector(".invite-preview") ||
+        $("inviteShownFieldsHost").querySelector("summary");
+      focus?.focus({ preventScroll: true });
+    });
+    dialog.append(heading, form, choice.panel, form.saveActions);
+    $("adminApp").append(dialog);
+    dialog.openInline();
+    form.querySelector("input")?.focus({ preventScroll: true });
   }
   const invitesView = window.RSVP_ADMIN_INVITES.create({
     R,
@@ -4808,10 +4920,11 @@
     $("settingOrganizerName").value = e.organizer_name || "";
     $("settingOrganizerEmail").value = e.organizer_email || "";
     $("settingOrganizerPhone").value = e.organizer_phone || "";
-    $("settingFoodDeadline").value = stamp(e.food_deadline);
-    $("settingTimezone").value = e.timezone || "UTC";
+    const zone = e.timezone || "UTC", timezone = $("settingTimezone");
+    timezone.replaceChildren(...timezoneOptions(zone).map(([value, label]) => R.dom("option", { value }, label)));
+    timezone.value = timezone.dataset.previousZone = zone;
+    for (const [id, key] of eventDeadlineFields) $(id).value = deadlineWallTime(e[key], zone);
     $("settingUrl").value = e.website_url || "";
-    $("settingDeadline").value = stamp(e.rsvp_deadline);
     window.RSVP_ADMIN_PREFERENCES.refreshDatePickers($("eventSettingsForm"));
     $("publicationState").textContent = e.is_published
       ? T(
@@ -4858,16 +4971,15 @@
       false,
       1000,
     );
+    const savedZone = v.timezone || store.settings?.timezone || "Atlantic/Faroe";
     const timezone = field(
       f,
       T("interface.messages.venue_timezone"),
-      v.timezone || store.settings?.timezone || "Atlantic/Faroe",
-      null,
+      savedZone,
+      timezoneOptions(savedZone),
       "text",
       true,
-      100,
     );
-    timezone.placeholder = "Atlantic/Faroe or Europe/Berlin";
     const map = field(
       f,
       T("interface.messages.map_link_https"),
@@ -5000,6 +5112,7 @@
   function sessionForm(s) {
     const f = managementForm();
     const revision = s.record_revision;
+    f.classList.add("session-edit-form");
     f.dataset.formKey = "session:" + (s.id || "new");
     const name = field(
       f,
@@ -5020,8 +5133,10 @@
       80,
     );
     key.pattern = "[a-z0-9_-]+";
+    const schedule = R.dom("div", { class: "session-schedule" });
+    const timeRange = R.dom("div", { class: "session-time-range" });
     const venue = field(
-      f,
+      schedule,
       T("interface.messages.session_venue"),
       s.location_id,
       [
@@ -5039,20 +5154,20 @@
       store.settings?.timezone ||
       "UTC";
     const starts = field(
-      f,
+      timeRange,
       T("interface.messages.starts_venue_local_time"),
       R.zonedInput(s.starts_at, zone()),
       null,
       "datetime-local",
     );
     const ends = field(
-      f,
+      timeRange,
       T("interface.messages.ends_venue_local_time"),
       R.zonedInput(s.ends_at, zone()),
       null,
       "datetime-local",
     );
-    const hint = R.dom("p", { class: "micro span-2" });
+    const hint = R.dom("p", { class: "micro" });
     const updateHint = () => {
       hint.textContent = T(
         "interface.messages.times_are_entered_in_zone_changing_venue_keeps_the_typed_local_ti",
@@ -5061,21 +5176,23 @@
     };
     updateHint();
     venue.addEventListener("change", updateHint);
-    f.append(hint);
+    schedule.append(timeRange, hint);
+    const options = R.dom("div", { class: "session-options" });
     const rsvp = field(
-      f,
+      options,
       T("interface.messages.rsvp_required"),
       s.requires_rsvp !== false,
       null,
       "checkbox",
     );
     const active = field(
-      f,
+      options,
       T("interface.messages.active_session"),
       s.is_active !== false,
       null,
       "checkbox",
     );
+    f.append(schedule, options);
     return saveForm(
       f,
       s.id
@@ -5696,19 +5813,21 @@
       .forEach((b) =>
         b.addEventListener("click", () => settingsTab(b.dataset.settingsTab)),
       );
-    const languageTabs = [...$("settingsLanguageTabs").querySelectorAll('[role="tab"]')];
-    for (const languageTab of languageTabs) {
-      languageTab.addEventListener("click", () => {
-        if (!A.settingsAllowed("languages")) return;
-        // Keep open forms and drafts mounted when switching between the two panels.
-        for (const item of languageTabs) {
-          const active = item === languageTab;
-          item.classList.toggle("active", active);
-          item.setAttribute("aria-selected", String(active));
-          item.tabIndex = active ? 0 : -1;
-          $(item.getAttribute("aria-controls")).hidden = !active;
-        }
-      });
+    for (const [navId, section] of [["settingsLanguageTabs", "languages"], ["settingsInterfaceTabs", "checklist"]]) {
+      const tabs = [...$(navId).querySelectorAll('[role="tab"]')];
+      for (const tab of tabs) {
+        tab.addEventListener("click", () => {
+          if (!A.settingsAllowed(section)) return;
+          // Keep open forms and drafts mounted when switching panels.
+          for (const item of tabs) {
+            const active = item === tab;
+            item.classList.toggle("active", active);
+            item.setAttribute("aria-selected", String(active));
+            item.tabIndex = active ? 0 : -1;
+            $(item.getAttribute("aria-controls")).hidden = !active;
+          }
+        });
+      }
     }
     $("settingsToggle").addEventListener("click", () => tab("settings"));
     $("logFilters").addEventListener("submit", (e) => {
@@ -5930,6 +6049,17 @@
       cancel.addEventListener("click", () => restoreDraft(form));
       formActions(form, save, cancel);
     }
+    $("settingTimezone").addEventListener("change", ({ currentTarget: timezone }) => {
+      for (const [id, key] of eventDeadlineFields) {
+        const field = $(id), original = store.settings?.[key];
+        // A zone-only edit changes the displayed wall time, not the saved instant.
+        if (original && field.value === deadlineWallTime(original, timezone.dataset.previousZone)) {
+          field.value = deadlineWallTime(original, timezone.value);
+          window.RSVP_ADMIN_PREFERENCES.refreshDatePicker(field);
+        }
+      }
+      timezone.dataset.previousZone = timezone.value;
+    });
     $("eventSettingsForm").addEventListener("submit", async (e) => {
       if (e.target.querySelector("button[type=submit]").disabled) {
         e.preventDefault();
@@ -5939,14 +6069,17 @@
       e.target.setAttribute("aria-busy", "true");
       e.target.cleanSaveUpdate?.();
       e.preventDefault();
-      const deadline = $("settingDeadline").value;
-      if (deadline && !Number.isFinite(new Date(deadline).valueOf())) {
+      const timezone = $("settingTimezone").value;
+      const deadlines = {};
+      try {
+        for (const [id, key] of eventDeadlineFields) {
+          const value = $(id).value, original = store.settings[key];
+          deadlines[key] = original && value === deadlineWallTime(original, timezone)
+            ? original : R.zonedInstant(value, timezone);
+        }
+      } catch (error) {
         e.target.removeAttribute("aria-busy");
-        formFeedback(
-          e.target,
-          "error",
-          T("interface.messages.invalid_rsvp_deadline"),
-        );
+        formFeedback(e.target, "error", R.safeError(error));
         e.target.cleanSaveUpdate?.();
         return;
       }
@@ -5957,12 +6090,11 @@
         organizer_name: $("settingOrganizerName").value.trim() || null,
         organizer_email: $("settingOrganizerEmail").value.trim() || null,
         organizer_phone: $("settingOrganizerPhone").value.trim() || null,
-        food_deadline: $("settingFoodDeadline").value ? new Date($("settingFoodDeadline").value).toISOString() : null,
+        ...deadlines,
         default_language: store.settings.default_language,
         fallback_language: store.settings?.fallback_language || "en",
-        timezone: $("settingTimezone").value.trim(),
+        timezone,
         website_url: $("settingUrl").value.trim() || null,
-        rsvp_deadline: deadline ? new Date(deadline).toISOString() : null,
         updated_at: new Date().toISOString(),
       };
       const { error } = await db

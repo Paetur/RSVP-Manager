@@ -174,7 +174,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await page.locator('#mainSectionToggle').click();
  await selectWorkTab(page,'invites');
  await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(node=>node.open=true));
- const draftPreview=page.locator('#inviteRows .invite-row-actions a').first();
+ const draftPreview=page.locator('#inviteRows .invite-preview').first();
  assert.match(await draftPreview.getAttribute('href'),/#guest-preview=[a-f0-9-]{36}$/);
  assert.equal(await page.locator('#inviteRows [aria-label^="Copy invitation link"]').count(),0);
  await page.close();
@@ -287,7 +287,8 @@ async function run(type){const browser=await type.launch({headless:true});try{
   }};
  `;
  await guest.route('**/supabase.min.js',r=>r.fulfill({contentType:'text/javascript',body:mock+'\n'+extra+'\n'+guestExtra}));
- await guest.goto(base+'/?ABCDEFGH');await guest.locator('#invitationCard:not(.hidden)').waitFor();
+ await guest.goto(base+'/?ABCDEFGH');
+ await guest.getByRole('button',{name:'Granska svar',exact:true}).waitFor();
  assert.equal(await guest.locator('html').getAttribute('lang'),'sv');
  assert.equal(await guest.locator('#languageSwitcher [data-language="sv"]').count(),1);
  assert.equal(await guest.locator('#languageSwitcher [data-language="fo"]').count(),0);

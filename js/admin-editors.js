@@ -12,6 +12,7 @@
         "Interface",
         "personal",
       ],
+      ["#invitesAppearanceForm", "invites-appearance", "Invites appearance", "personal"],
       ["#overviewAppearanceForm", "overview-appearance", "Overview appearance", "personal"],
       ["#transportProtocols", "transport-security", "HTTP/SSL", "settings"],
       ["#shortcutExperimentalForm", "experimental-shortcuts", "Apple Shortcuts", "settings"],

@@ -7,13 +7,14 @@
  */
 :root {
   --ink: #233837;
-  --muted: #677b78;
+  --muted: #526662;
   --line: #dce6e1;
   --paper: #f7f9f5;
   --white: #fff;
   --teal: #176f61;
   --action-text: var(--teal);
   --teal-dark: #115447;
+  --primary-button-text: #fff;
   --light: #eaf3ec;
   --warning: #fff9e9;
   --danger: #962d2f;
@@ -179,7 +180,7 @@ code {
 }
 .lede {
   font-size: 1.07rem;
-  color: #657b76;
+  color: var(--muted);
   max-width: 46ch;
   line-height: 1.8;
 }
@@ -267,17 +268,19 @@ code {
   border: 1px solid var(--teal);
   border-radius: 11px;
   background: var(--teal);
-  color: #fff;
+  color: var(--primary-button-text);
   text-decoration: none;
   font-weight: 700;
   font-size: 0.86rem;
-  transition:
-    background 0.15s ease,
-    transform 0.15s ease;
+  transition: transform 0.15s ease;
 }
 .btn:hover {
   background: var(--teal-dark);
   transform: translateY(-1px);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--action-text);
+  outline-offset: 3px;
 }
 .btn.secondary {
   background: #fff;
@@ -296,6 +299,7 @@ code {
 .btn.danger {
   background: #a4363a;
   border-color: #a4363a;
+  color: #fff;
 }
 .quiet-link {
   text-decoration: none;

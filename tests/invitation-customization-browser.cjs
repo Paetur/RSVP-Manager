@@ -66,6 +66,9 @@ const custom =
         }
       }
       const host = page.locator('[data-settings-card="guest-customization:phone"]');
+      const showPhoneTitles = host.getByRole('checkbox', { name: 'Show titles', exact: true });
+      const phoneTitleLanguages = host.locator('.guest-name-languages');
+      const englishPhoneTitle = phoneTitleLanguages.getByRole('checkbox', { name: 'Phone · en', exact: true });
       const wideHost = page.locator('[data-settings-card="guest-customization:wide"]');
       const preview = appearance.locator('details.guest-appearance-preview');
       const sample = preview.locator('.customization-sample');
@@ -122,7 +125,11 @@ const custom =
       assert.equal(await sample.locator('input[type=radio]:checked').count(), 1);
       await sample.locator('input[value="1"]').check();
       assert.equal(await sample.locator('.rsvp-person-name').innerText(), 'Guest Sample household');
-      await host.locator('.guest-name-languages input').first().check();
+      assert.equal(await showPhoneTitles.isChecked(), false);
+      assert.equal(await phoneTitleLanguages.isVisible(), false);
+      await showPhoneTitles.check();
+      assert.equal(await phoneTitleLanguages.isVisible(), true);
+      await englishPhoneTitle.check();
       assert.equal(await sample.locator('.rsvp-person-name').innerText(), 'Son Guest Sample household');
       await host.getByRole('checkbox', { name: 'Show repeated surname beside each guest', exact: true }).uncheck();
       assert.equal(await sample.locator('.rsvp-person-name').innerText(), 'Son Guest');
@@ -299,7 +306,8 @@ const custom =
       await page.waitForFunction(() => !document.getElementById('refreshButton').disabled);
       await openBox(page, 'guest-customization:phone');
       await host.getByLabel('Guest name placement', { exact: true }).selectOption('inline');
-      await host.locator('.guest-name-languages input').first().check();
+      await showPhoneTitles.check();
+      await englishPhoneTitle.check();
       await host.getByRole('checkbox', { name: 'Show repeated surname beside each guest', exact: true }).uncheck();
       await host.locator('input[type=color]').first().fill('#556677');
       await host.locator('input[type=color]').first().dispatchEvent('input');
@@ -376,6 +384,8 @@ const custom =
       await host.getByRole('button', { name: 'Save', exact: true }).click();
       await page.waitForFunction(() => window.__customWrites.length === 5 && !document.getElementById('refreshButton').disabled);
       assert.equal(await page.evaluate(() => window.__customWrites[4].p_mode), 'phone');
+      assert.equal(await page.evaluate(() => window.__customWrites[4].p_values.guest_show_titles), true);
+      assert.equal(await page.evaluate(() => window.__customWrites[4].p_values.guest_title_visibility.en), true);
       assert.equal(await page.evaluate(() => fixtures.event_settings[0].guest_interface_modes.phone.guest_name_layout), 'inline');
       assert.equal(await page.evaluate(() => fixtures.event_settings[0].guest_interface_modes.wide.guest_name_layout), 'above');
       await openBox(page, 'guest-customization:phone');
@@ -385,7 +395,7 @@ const custom =
       assert.equal(await sample.getAttribute('data-guest-name-layout'), 'inline', 'Cancel restores selected mode saved values');
       await openBox(page, 'guest-customization:phone');
       await host.getByLabel('Guest name placement', { exact: true }).selectOption('above');
-      await host.locator('.guest-name-languages input').first().uncheck();
+      await englishPhoneTitle.uncheck();
       await page.evaluate(() => {
         fixtures.event_settings[0].guest_interface_modes.phone.guest_theme_default = 'light';
         window.__rejectStaleCustom = true;
@@ -395,7 +405,7 @@ const custom =
       await openBox(page, 'guest-customization:phone');
       await host.getByRole('button', { name: 'Reset appearance', exact: true }).click();
       assert.equal(await host.getByLabel('Guest name placement', { exact: true }).inputValue(), 'above', 'Reset retains unrelated name draft after stored settings change');
-      assert.equal(await host.locator('.guest-name-languages input').first().isChecked(), false, 'Reset retains unrelated title draft');
+      assert.equal(await englishPhoneTitle.isChecked(), false, 'Reset retains unrelated title draft');
       await host.getByRole('button', { name: 'Save', exact: true }).click();
       await host.getByText('Synthetic appearance conflict', { exact: true }).waitFor();
       assert.equal(await page.evaluate(() => window.__customRequests.at(-1).p_expected.guest_theme_default), 'dark', 'Reset retains original optimistic baseline');
@@ -403,7 +413,8 @@ const custom =
       await host.getByRole('button', { name: 'Cancel', exact: true }).click();
       await openBox(page, 'guest-customization:phone');
       assert.equal(await host.getByLabel('Guest name placement', { exact: true }).inputValue(), 'inline');
-      assert.equal(await host.locator('.guest-name-languages input').first().isChecked(), true);
+      assert.equal(await showPhoneTitles.isChecked(), true);
+      assert.equal(await englishPhoneTitle.isChecked(), true);
       assert.equal(await host.locator('.guest-default-choices input[value=light]').isChecked(), true, 'Cancel restores current live saved appearance');
       await host.getByRole('button', { name: 'Cancel', exact: true }).click();
       await showPreview();

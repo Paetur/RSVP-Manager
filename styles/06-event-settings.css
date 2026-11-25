@@ -239,14 +239,13 @@
 .application-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .application-card-heading h2 { margin: 0; font-size: 1.05rem; }
 .application-status-badge { display: inline-block; border-radius: 6px; padding: 3px 8px; background: var(--light); color: var(--muted); font-size: .76rem; font-weight: 400; white-space: nowrap; }
-.application-status-badge.published { color: var(--teal); }
+.application-status-badge.published { color: var(--action-text); }
 .publication-summary { margin: 0 0 18px; }
 .publication-summary > div { display: grid; grid-template-columns: minmax(120px, .35fr) minmax(0, 1.3fr); gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: .86rem; }
 .publication-summary > div:last-child { border: 0; }
 .publication-summary dt { color: var(--muted); }
 .publication-summary dd { margin: 0; }
 .application-publication-note { padding: 14px; border-radius: 9px; background: var(--light); font-size: .83rem; }
-#adminApp .application-settings .publish-ack { display: flex; align-items: flex-start; justify-content: flex-start; gap: 7px; font-size: .82rem; margin: 14px 0; }
 .application-guidance, .application-completed-checks { border-top: 1px solid var(--line); margin-top: 15px; padding-top: 13px; }
 .application-guidance > summary, .application-completed-checks > summary { cursor: pointer; font-size: .87rem; color: var(--teal); }
 .application-guidance > p { margin-bottom: 0; }

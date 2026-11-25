@@ -12,8 +12,8 @@ const seed = `
 fixtures.event_settings[0].is_published=false;
 fixtures.event_settings[0].planning_config={groups:[{id:'group_a',names:{en:'Family',fo:'Familja',de:'Familie'}},{id:'group_b',names:{en:'Friends',fo:'Vinir',de:'Freunde'}}],labels:{households:{en:'Households'},guests:{en:'Guests'}}};
 fixtures.event_languages.forEach(l=>l.display_name={en:'English',fo:'Føroyskt',de:'Deutsch'}[l.language_code]);
-fixtures.event_locations=[{id:cat1,name:'Example hall',address:'Example street 12',country_code:'DE',timezone:'Europe/Berlin',sort_order:1,notes:'Doors open before the celebration.',welcome_en:'Welcome to our celebration.'},{id:cat2,name:'Example garden',address:'Example lane 2',country_code:'DE',timezone:'Europe/Berlin',sort_order:2}];
-fixtures.event_sessions=[{id:s1,session_key:'dinner',name:'Celebration dinner',sort_order:1,is_active:true,requires_rsvp:true,location_id:cat1,starts_at:'2027-02-20T17:00:00Z',ends_at:'2027-02-20T21:00:00Z'}];
+fixtures.event_locations=[{id:cat1,name:'Example hall',address:'Example street 12',country_code:'DE',timezone:'Europe/Berlin',sort_order:1,notes:'Doors open before the celebration.',welcome_en:'Welcome to our celebration.'},{id:cat2,name:'Example garden',address:'Example lane 2',country_code:'FO',timezone:'Atlantic/Faroe',sort_order:2}];
+fixtures.event_sessions=[{id:s1,session_key:'dinner',name:'Celebration dinner',sort_order:1,is_active:true,requires_rsvp:true,location_id:cat1,starts_at:'2027-02-20T17:00:00Z',ends_at:'2027-02-20T21:00:00Z',created_at:'2026-11-01T12:00:00Z'}];
 `;
 
 async function rect(locator) {
@@ -45,6 +45,66 @@ async function capture(panel, name, width) {
   await panel.screenshot({ path: path.join(previewDir, name + "-" + width + ".png") });
 }
 
+async function checkSessionSchedule(form, width) {
+  const schedule = form.locator(".session-schedule");
+  const venue = schedule.getByLabel("Session venue", { exact: true });
+  const range = schedule.locator(".session-time-range");
+  const start = range.locator('[aria-label="Starts (venue local time)"]:visible');
+  const end = range.locator('[aria-label="Ends (venue local time)"]:visible');
+  const [venueBox, rangeBox, startBox, endBox] = await Promise.all([rect(venue), rect(range), rect(start), rect(end)]);
+  assert.ok(Math.abs(venueBox.width - rangeBox.width) < 2 && venueBox.bottom < startBox.y,
+    "the venue spans the schedule above the date and time fields");
+  if (width >= 660) {
+    assert.ok(Math.abs(startBox.y - endBox.y) < 2 && startBox.right < endBox.x, "start and end share the wide schedule row");
+  } else {
+    assert.ok(Math.abs(startBox.x - endBox.x) < 2 && startBox.bottom < endBox.y, "start and end stack on phones");
+  }
+  assert.equal(await form.locator(".session-options").getByRole("checkbox").count(), 2, "session options stay together");
+  return { schedule, venue, start };
+}
+
+async function checkSessionEditor(page, session, width) {
+  const form = session.locator("form.session-edit-form");
+  const { schedule, venue, start } = await checkSessionSchedule(form, width);
+  const startValue = width === 820 ? "2027-02-20T18:00" : "2027-02-20";
+  assert.equal(await start.inputValue(), startValue, "the saved start remains in the venue's local time");
+  if (width !== 820) {
+    const clock = schedule.getByRole("textbox", { name: "Starts (venue local time) · Event time", exact: true });
+    assert.equal(await clock.inputValue(), width === 390 ? "6:00 PM" : "18:00");
+  }
+
+  const footer = form.locator(".form-actions");
+  const save = footer.getByRole("button", { name: "Save", exact: true });
+  const manage = footer.getByRole("button", { name: "Manage households", exact: true });
+  assert.equal(await save.isDisabled(), true, "opening the session shows a clean form");
+  assert.equal(await manage.isEnabled(), true, "household management is available on an unchanged session");
+  if (width === 1440) {
+    const [footerBox, saveBox, manageBox] = await Promise.all([rect(footer), rect(save), rect(manage)]);
+    assert.ok(Math.abs(manageBox.right - footerBox.right) < 2 && Math.abs(manageBox.y - saveBox.y) < 2,
+      "Manage households sits at the right edge of the wide action row");
+    await manage.click();
+    const dialog = page.getByRole("dialog", { name: "Manage households · Celebration dinner", exact: true });
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await dialog.waitFor({ state: "hidden" });
+    assert.equal(await manage.evaluate(button => button === document.activeElement), true, "Cancel returns focus to Manage households");
+  }
+
+  const dates = session.locator(".session-record-details");
+  assert.equal(await dates.evaluate(record => record.open), false, "record timestamps start collapsed");
+  assert.ok((await rect(dates)).y >= (await rect(form)).bottom - 1, "record timestamps follow the editor");
+  await dates.locator(":scope > summary").click();
+  assert.equal(await dates.locator("time").getAttribute("datetime"), "2026-11-01T12:00:00Z");
+  assert.equal(await dates.getByText("Not recorded", { exact: true }).count(), 1);
+  await dates.locator(":scope > summary").click();
+
+  const originalVenue = await venue.inputValue();
+  await venue.selectOption({ label: "Example garden · FO" });
+  assert.equal(await start.inputValue(), startValue, "choosing another venue preserves the typed local date and time");
+  assert.match(await schedule.innerText(), /Atlantic\/Faroe/);
+  assert.equal(await save.isEnabled(), true, "changing the venue leaves the session editable");
+  return { venue, originalVenue };
+}
+
 (async () => {
   if (previewDir) fs.mkdirSync(previewDir, { recursive: true });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -53,12 +113,16 @@ async function capture(panel, name, width) {
     for (const width of [390, 820, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 1000 }, hasTouch: width < 1000 }), errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
-      await page.addInitScript(() => {
+      await page.addInitScript((screenWidth) => {
         if (window === window.top) {
           localStorage.setItem("rsvp-interface-language", "en");
           localStorage.setItem("event-appearance", "dark");
+          window.__personalProfile = {
+            rsvp_interface_language: "en", rsvp_interface_appearance: "dark",
+            rsvp_interface_time_format: screenWidth === 390 ? "12" : screenWidth === 1440 ? "24" : "locale",
+          };
         }
-      });
+      }, width);
       await routeSyntheticSdk(page, mock + "\n" + extra + "\n" + stageExtra + "\n" + seed);
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
       await page.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
@@ -106,7 +170,17 @@ async function capture(panel, name, width) {
       await session.locator("[data-record-pencil]").click();
       await checkFullRow(venues, venueWorkspace, "Session editor");
       await checkBounds(page, "Session editor");
+      const sessionDraft = await checkSessionEditor(page, session, width);
+      await capture(session, "sessions-edit", width);
       await session.locator("form [data-discard]").click();
+      assert.equal(await sessionDraft.venue.inputValue(), sessionDraft.originalVenue, "Cancel restores the saved venue");
+      const addSession = page.locator("#newSessionEditor").locator("..");
+      await addSession.locator(":scope > summary").click();
+      const createSession = addSession.locator("form.session-edit-form");
+      await checkSessionSchedule(createSession, width);
+      assert.equal(await createSession.getByRole("button", { name: "Manage households", exact: true }).count(), 0);
+      assert.equal(await addSession.locator(".session-record-details").count(), 0);
+      await addSession.locator(":scope > summary").click();
       await venueTab.click();
       assert.ok(await venueForm.isVisible(), "returning to Venues restores the open editor");
       assert.equal(await venueName.inputValue(), "Unsaved example venue", "switching tabs preserves the venue draft");

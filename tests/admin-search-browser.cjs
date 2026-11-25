@@ -91,9 +91,44 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
       await page.locator("#settingsToggle").click();
       await page.locator('[data-settings-tab="logs"]').click();
       await page.waitForFunction(() => window.__lastLogQuery && !document.getElementById("logApply").disabled);
+      const layout = await page.locator("#logFilters").evaluate(form => {
+        const measure = selector => {
+          const { left, top, right, bottom, height } = form.querySelector(selector).getBoundingClientRect();
+          return { left, top, right, bottom, height };
+        };
+        const toolbar = getComputedStyle(form.querySelector(".log-filter-toolbar"));
+        return {
+          title: measure("h2"), toggle: measure("#logSearchToggle"), heading: measure(".log-heading"),
+          toolbarRight: measure(".log-filter-toolbar").right - parseFloat(toolbar.paddingRight) - parseFloat(toolbar.borderRightWidth),
+          filters: ["#logCategory", "#logAction", "#logFrom", "#logTo"].map(measure),
+          apply: measure("#logApply"), reset: measure("#logReset"),
+        };
+      });
+      const aligned = (first, second) => Math.abs(first.top - second.top) < 2;
+      assert.ok(layout.toggle.left >= layout.title.right - 2 && layout.toggle.top < layout.title.bottom,
+        "Logs Search sits on the right of the title row");
+      const center = box => box.top + box.height / 2;
+      assert.ok(Math.abs(center(layout.title) - center(layout.toggle)) < 2, "the title and search control are vertically centered");
+      assert.ok(Math.abs(layout.toggle.right - layout.heading.right) < 2, "Search is flush with the heading's right edge");
+      const [category, action, from, through] = layout.filters;
+      assert.ok(aligned(category, action) && aligned(from, through), "category/action and date controls stay paired");
+      assert.ok(layout.filters.every(control => Math.abs(control.height - category.height) < 2), "filter controls have a consistent height");
+      assert.ok(layout.reset.right <= layout.apply.left + 1 && Math.abs(layout.apply.right - layout.toolbarRight) < 2,
+        "Log actions stay together at the right edge of the toolbar");
+      if (width >= 1000) {
+        assert.ok(aligned(category, from) && aligned(through, layout.apply), "filters and actions share one desktop row");
+      } else {
+        assert.ok(from.top >= category.bottom && layout.apply.top >= through.bottom, "phone layout stacks filter pairs and actions");
+      }
+      const help = page.locator('[data-settings-panel="logs"] .log-help');
+      assert.equal(await help.evaluate(node => node.open), false, "log reference notes start collapsed");
+      assert.equal(await page.locator("#logRows .log-entry").count(), 50, "the initial page still loads real fixture results");
       await page.locator("#logSearchToggle").click();
-      await page.locator("#logSearch").fill(noMatch); await page.locator("#logApply").click();
+      assert.equal(await page.locator("#logSearch").evaluate(input => document.activeElement === input && input.form?.id === "logFilters"), true);
+      await page.locator("#logSearch").fill(noMatch);
+      await page.locator("#logSearch").press("Enter");
       await page.waitForFunction(value => window.__lastLogQuery.p_search === value && !document.getElementById("logApply").disabled, noMatch);
+      assert.match(await page.locator("#logRows").innerText(), /No log entries/);
       const queries = await page.evaluate(() => window.__calls.filter(call => call.name === "admin_query_logs").length);
       await page.locator("#logSearchClose").click();
       await page.waitForFunction(() => window.__lastLogQuery.p_search === "" && !document.getElementById("logApply").disabled);
@@ -102,8 +137,43 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
       assert.equal(await page.locator("#logSearchToggle").evaluate(node => document.activeElement === node), true);
       assert.equal(await page.evaluate(() => window.__calls.filter(call => call.name === "admin_query_logs").length), queries + 1,
         "log clear callback refreshes applied server-side search exactly once");
+      assert.equal(await page.locator("#logRows .log-entry").count(), 50);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
       if (screenshots) await page.screenshot({ path: path.join(screenshots, "logs-closed-" + width + ".png") });
+      await page.locator("#logMore").click();
+      await page.waitForFunction(() => document.querySelectorAll("#logRows .log-entry").length === 55);
+      assert.ok(await page.evaluate(() => window.__lastLogQuery.p_before_key), "older entries use the existing cursor");
+      await page.locator("#logCategory").selectOption("households");
+      await page.waitForFunction(() => window.__lastLogQuery.p_category === "households" && !document.getElementById("logApply").disabled);
+      await page.locator("#logAction").selectOption("update");
+      await page.waitForFunction(() => window.__lastLogQuery.p_action === "update" && !document.getElementById("logApply").disabled);
+      await page.locator("#logFrom").fill("2026-10-31");
+      const filledFrom = await page.locator("#logFrom").boundingBox();
+      const blankThrough = await page.locator("#logTo").boundingBox();
+      assert.ok(Math.abs(filledFrom.y - blankThrough.y) < 2, "a formatted date hint keeps the two date fields aligned");
+      if (width >= 1000) {
+        const filledCategory = await page.locator("#logCategory").boundingBox();
+        const filledApply = await page.locator("#logApply").boundingBox();
+        assert.ok(Math.abs(filledFrom.y - filledCategory.y) < 2 && Math.abs(filledFrom.y - filledApply.y) < 2,
+          "a formatted date hint keeps the desktop controls on the same row");
+      }
+      await page.locator("#logTo").fill("2026-10-31");
+      await page.locator("#logApply").click();
+      await page.waitForFunction(() => window.__lastLogQuery.p_to && !document.getElementById("logApply").disabled);
+      assert.deepEqual(await page.evaluate(() => [window.__lastLogQuery.p_from, window.__lastLogQuery.p_to]),
+        ["2026-10-30T23:00:00.000Z", "2026-10-31T23:00:00.000Z"], "dates still use inclusive event-day boundaries");
+      assert.equal(await page.locator("#logRows .log-entry").count(), 14);
+      await page.locator("#logRows .log-entry > summary").first().click();
+      assert.match(await page.locator("#logRows .log-entry[open] .log-details").innerText(), /\+298 654321/);
+      await page.locator("#logReset").click();
+      await page.waitForFunction(() => !window.__lastLogQuery.p_category && !document.getElementById("logApply").disabled);
+      assert.deepEqual(await page.evaluate(() => {
+        const { p_search, p_category, p_action, p_from, p_to, p_before_at, p_before_key } = window.__lastLogQuery;
+        return [p_search, p_category, p_action, p_from, p_to, p_before_at, p_before_key];
+      }), ["", "", "", null, null, null, null], "reset clears the search, filters and cursor");
+      assert.equal(await page.locator("#logRows .log-entry").count(), 50);
+      assert.equal(await page.evaluate(start => window.__calls.slice(start).some(call => call.name !== "admin_query_logs"), before), false,
+        "the Logs flow makes read-only requests");
       assert.deepEqual(errors, []);
       await page.close();
     }
@@ -123,7 +193,16 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
     await page.locator("#householdSearchClose").click();
     assert.ok(await page.locator("#householdRows .household-tree-node").count() > 0);
     await page.close();
-    console.log("PASS main-list search: original nodes/listeners, actual Household/Invites/Food filters, open/close/Escape/toggle clearing, programmatic/restored visibility, focus/ARIA/touch sizing, idempotence, unchanged Languages lifecycle, single Logs refresh and zero state writes at phone/desktop widths.");
+
+    const restricted = await browser.newPage();
+    await routeSyntheticSdk(restricted, mock + "\n" + extra + "\nwindow.__accessPermissions.preset = 'custom';");
+    await restricted.goto("http://127.0.0.1:" + server.address().port + "/admin/");
+    await restricted.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
+    await restricted.locator("#settingsToggle").click();
+    assert.equal(await restricted.locator('[data-settings-tab="logs"]').isVisible(), false, "custom access does not expose Logs");
+    assert.equal(await restricted.evaluate(() => window.__calls.some(call => call.name === "admin_query_logs")), false);
+    await restricted.close();
+    console.log("PASS main-list search and Logs: shared disclosure, responsive header and filters, Enter submission, single clear refresh, date filtering, paging, reset, and full-administrator access at phone and desktop widths.");
     if (screenshots) console.log("Synthetic screenshots: " + screenshots);
   } finally {
     if (browser) await browser.close();

@@ -10,7 +10,7 @@ A fictional event in Dark mode, shown at iPad landscape width.
 
 ### Invites
 
-![Invitation overview and grouped household list with Seen and Not seen counts, visit dates and compact View and Search controls](docs/images/ipad-invites.png)
+![Invitation overview and household list with invitation and RSVP statuses](docs/images/ipad-invites.png)
 
 ### Food access
 
@@ -36,9 +36,9 @@ A fictional event in Dark mode, shown at iPad landscape width.
 
 ## Downloads and installation
 
-Download **[0.9.0-beta.8](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0-beta.8)** for the installation ZIP and checksum. The release starts unconfigured, so each installation has its own data. [Installation instructions](INSTALL.md)
+Download **[0.9.0](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0)** for the installation ZIP and checksum. The release starts unconfigured, so each installation has its own data. [Installation instructions](INSTALL.md)
 
-Use the current installer for a fresh database. Beta.8 improves the organizer dashboard, invitations and food access while keeping backup format 3. For a retained installation, use a reviewed update that preserves existing data and photos. [Existing-installation instructions](INSTALL.md#existing-installations) · [Release notes](docs/ReleaseNotes.md)
+Use the current installer for a fresh database. Version 0.9.0 adds saved invitation salutations, more Invites grouping and filtering controls, and separate appearance editors. For an existing installation, use a reviewed update that preserves existing data and photos. [Existing-installation instructions](INSTALL.md#existing-installations) · [Release notes](docs/ReleaseNotes.md)
 
 For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 
@@ -71,6 +71,6 @@ These guides are organized as individual pages so they can later form a wiki.
 
 Review your venues, sessions, guest assignments, translations and contact details. Test a complete invitation and reply on the devices you intend to use. Keep the event unpublished until you are ready and have approved publication.
 
-Use the Service chip to copy the recipient number or email. Open a draft through Review, then use Make invitation(s) to prepare it on a published event. The Invitation chip copies a prepared invitation. Use Text to copy the message and RSVP link alone. Check the full caption and RSVP link after pasting, send in your messaging app, then return to use Mark sent. Administrator invitations use a separate email process.
+Use the Service chip to copy the recipient number or email. Open a draft for review, then use Make invitation(s) to prepare it on a published event. Use the invitation chip to copy the prepared invitation. If the Text button appears, use it to copy the message and RSVP link alone. Check the full caption and RSVP link after pasting, send in your messaging app, then return to use Mark sent. Administrator invitations use a separate email process.
 
 Private invitation links and downloaded backups should be shared only with the people who need them.
