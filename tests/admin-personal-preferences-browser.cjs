@@ -1,4 +1,3 @@
-const { openBox } = require("./helpers/local-edit-ui.cjs");
 // Real controls with a synthetic account service. No production Auth/data writes.
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -49,7 +48,7 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-personal
   }
   async function editOverview(page) {
     await openInterfaceSettings(page, "overview");
-    return openBox(page, "overview-appearance");
+    return page.locator("#overviewAppearanceForm");
   }
   async function device(account, storage, hasTouch = false) {
     const context = await browser.newContext({
@@ -89,7 +88,6 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
       () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
     );
     await openInterfaceSettings(page);
-    await openBox(page, "personal-preferences");
     return { context, page, errors };
   }
   try {
@@ -101,16 +99,15 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     const page = a.page,
       save = page.locator("#savePersonalPreferences"),
       cancel = page.locator("#cancelPersonalPreferences"),
-      summary = page.locator("[data-editor-key=personal-preferences] > .local-editor-summary"),
+      form = page.locator("#personalPreferencesForm"),
       sample = page.locator("#interfaceSampleDate"),
       example = page.locator("#interfaceLiveExample");
     assert.equal(await page.locator("#themePreference").inputValue(), "dark");
     assert.equal(await page.locator("#timeFormat").inputValue(), "24");
     assert.equal(await page.locator("#dateFormat").inputValue(), "locale");
     assert.equal(await page.locator("#interfaceLanguage").inputValue(), "en");
-    assert(await page.evaluate(() => document.activeElement.matches(
-      '#personalPreferencesForm [data-preference-choices="appearance"] [data-preference-choice]',
-    )), "Edit focuses the first visible preference");
+    assert(await form.isVisible(), "Interface opens directly to its preferences");
+    assert.equal(await page.locator('[data-settings-card="personal-preferences"] [data-local-edit]').count(), 0);
     assert.deepEqual(
       await page.locator("#interfaceEditTabs [role=tab]").allTextContents(),
       ["Appearance", "Date and time"],
@@ -178,10 +175,8 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
       hourCycle: "h23",
     });
     await cancel.click();
-    assert.deepEqual(await summary.locator(".interface-preference-group h3").allTextContents(),
-      ["Appearance", "Date and time"]);
-    assert(await summary.isVisible());
-    assert.match(await summary.innerText(), /24 Nov 2026 · 18:30/);
+    assert(await form.isVisible());
+    assert.match(await example.innerText(), /24 Nov 2026 · 18:30/);
     assert.equal(await page.locator("#themePreference").inputValue(), "dark");
     assert.equal(await page.locator("#timeFormat").inputValue(), "24");
     assert.equal(await page.locator("#dateFormat").inputValue(), "locale");
@@ -189,7 +184,6 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     assert.equal(await page.locator('#inviteGroupBy input[data-invite-grouping="relational"]').isChecked(), true);
     assert(await save.isDisabled());
     assert.equal(writes.length, 0);
-    await openBox(page, "personal-preferences");
     assert.equal(await page.locator("#buttonHover").inputValue(), "toolbar");
     // One explicit Save batches only the changed fields and blocks duplicate work.
     await selectInterfaceEditorTab(page, "appearance");
@@ -226,7 +220,7 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
       "light",
     );
     assert(await save.isDisabled());
-    await openBox(page, "personal-preferences");
+    assert.equal(await cancel.evaluate(node => document.activeElement === node), true);
     // A failed save retains the draft and the applied value; retry persists it.
     fail = true;
     await selectInterfaceEditorTab(page, "date");
@@ -245,15 +239,20 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     await page
       .locator("#personalPreferencesStatus[data-state=saved]")
       .waitFor({ state: "attached" });
-    assert.match(await summary.innerText(), /2026-11-24 · 18:30/);
+    assert.match(await example.innerText(), /2026-11-24 · 18:30/);
     await selectInterfaceSettingsTab(page, "invites");
     assert.equal(await page.locator("#settingsInvitesAppearance").isVisible(), true);
     assert.equal(await interfacePanel.isVisible(), false);
-    await openBox(page, "invites-appearance");
+    assert.equal(await page.locator('#invitesAppearanceForm').isVisible(), true);
+    const initialInvitesProfiles = await page.evaluate(() => Object.fromEntries(["phone", "tablet", "desktop"]
+      .map(screen => [screen, window.RSVP_ADMIN_PREFERENCES.getInvitesProfile(screen)])));
     await page.locator('#inviteGroupBy input[data-invite-grouping="none"]').check();
     await page.locator("#saveInvitesAppearance").click();
     await page.locator("#invitesAppearanceStatus[data-state=saved]").waitFor({ state: "attached" });
-    assert.deepEqual(writes.at(-1), { rsvp_invites_grouped: false });
+    assert.deepEqual(writes.at(-1), {
+      rsvp_invites_grouped: false,
+      rsvp_invites_defaults: { grouped: true, showText: true, invitesProfiles: initialInvitesProfiles },
+    });
     assert.equal(profiles.a.user_metadata.rsvp_invites_grouped, false);
 
     // The real Overview and its editor share one saved order per account.
@@ -270,20 +269,14 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     assert.equal(await page.locator("#settingsOverviewAppearance").isVisible(), true);
     assert.equal(await page.locator("#settingsInvitesAppearance").isVisible(), false);
     assert.equal(await interfacePanel.isVisible(), false);
-    const overviewSummary = page.locator('[data-editor-key="overview-appearance"] > .local-editor-summary');
     const groupHeadings = (host) => host.locator("[data-overview-setting-tab]").getByRole("heading", { level: 3 }).allTextContents();
-    const overviewRows = (host) => host.locator("[data-overview-setting]");
-    const savedRowHeights = await overviewRows(overviewSummary).evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
-    assert.deepEqual(await groupHeadings(overviewSummary), ["Information", "Invitation"]);
-    assert.deepEqual(await overviewRows(overviewSummary).evaluateAll((rows) => rows.map((row) => row.dataset.overviewSetting)), defaultCards);
-    assert.equal(await overviewSummary.locator('.overview-card-state[data-shown="true"]').count(), defaultCards.length);
-    assert.equal(await overviewSummary.locator('.overview-card-state [aria-hidden="true"]').first().innerText(), "✓");
-    assert.doesNotMatch(await overviewSummary.innerText(), /\bShown\b/);
-    const editor = await openBox(page, "overview-appearance");
+    const editor = page.locator("#overviewAppearanceForm");
+    assert.equal(await editor.isVisible(), true, "Overview appearance is directly editable");
+    assert.equal(await page.locator('[data-settings-card="overview-appearance"] [data-local-edit]').count(), 0);
+    assert.equal(await editor.locator('[data-overview-rename-tab]').count(), 2, "the tab rename controls remain");
     assert.deepEqual(await settingsOrder(page), defaultCards);
     assert.deepEqual(await groupHeadings(editor), ["Information", "Invitation"]);
-    const editorRowHeights = await overviewRows(editor).evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
-    assert.deepEqual(editorRowHeights, savedRowHeights, "Overview rows keep their spacing in read and edit modes");
+    assert.equal(await editor.locator('[data-overview-setting] input:checked').count(), defaultCards.length);
     const row = (id) => editor.locator('[data-overview-setting="' + id + '"]');
     const grip = (id) => row(id).locator("[data-overview-grip]");
     assert.equal(await editor.locator("[data-overview-move]").count(), 0);
@@ -373,7 +366,8 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
       rsvp_overview_layout: layout,
       rsvp_overview_tab_names: { information: "Community", invitation: "Delivery" },
     });
-    assert.equal(await overviewSummary.locator('[data-overview-setting="language"]').getByRole("img", { name: "Hidden" }).count(), 1);
+    assert.equal(await editor.isVisible(), true, "Save keeps Overview appearance editable");
+    assert.equal(await visibleLanguage.isChecked(), false, "the saved visibility is reflected in the editor");
     await openOverview(page);
     assert.deepEqual(await cardOrder(page), savedCards);
     assert.deepEqual(await page.locator("#overviewTablist [role=tab]").allTextContents(), ["Community", "Delivery"]);
@@ -485,7 +479,6 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     assert.deepEqual(await page.locator("#overviewTablist [role=tab]").allTextContents(), ["Information", "Invitation"]);
     assert.equal(await page.locator("#inviteLanguageFilter [aria-pressed=true]").count(), 0);
     await openInterfaceSettings(page);
-    await openBox(page, "personal-preferences");
     // The header shortcut is desktop-only; it preserves other Interface drafts.
     await page.setViewportSize({ width: 1160, height: 900 });
     await selectInterfaceEditorTab(page, "date");
@@ -499,7 +492,6 @@ client.auth.getUser=()=>window.profileRequest();client.auth.updateUser=values=>w
     assert.equal(await page.locator("#timeFormat").inputValue(), "12");
     assert(await save.isEnabled());
     await cancel.click();
-    await openBox(page, "personal-preferences");
     await selectInterfaceEditorTab(page, "appearance");
     // Language reload checks unrelated dirty forms before committing any fields.
     await page.evaluate(() => {

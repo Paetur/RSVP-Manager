@@ -1,5 +1,5 @@
 const {selectWorkTab}=require('./helpers/language-ui.cjs');
-const {selectOverviewTab}=require('./helpers/admin-toolbar.cjs');
+const {selectOverviewTab,ensureInviteSelection}=require('./helpers/admin-toolbar.cjs');
 // Geometry regression for native disclosures; uses only synthetic administration data.
 const {chromium,webkit}=require('playwright');
 const {mock}=require('./helpers/admin-fixture.cjs');
@@ -57,6 +57,7 @@ async function run(type){
   assert.equal(await page.evaluate(()=>window.__calls.some(c=>c.name==='admin_save_delivery')),false,'opening Invites does not create a delivery');
   await selectOverviewTab(page,'invitation');
   await page.locator('[data-invite-filter="needs-draft"]').click();
+  await ensureInviteSelection(page);
   await page.locator('[data-bulk-select-all]').check();
   await action.getByRole('button',{name:'Make draft(s)',exact:true}).click();
   await page.locator('#bulkInviteStatus').getByText('3 drafts created',{exact:true}).waitFor();

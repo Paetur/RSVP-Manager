@@ -536,7 +536,7 @@ html[data-theme="dark"] code {
   border-radius: 10px;
   background: var(--light);
 }
-.log-filter-toolbar > label {
+.log-choice-field {
   display: grid;
   min-width: 0;
   gap: var(--log-filter-label-gap);
@@ -544,12 +544,72 @@ html[data-theme="dark"] code {
   font-weight: 700;
   line-height: var(--log-filter-label-height);
 }
-.log-filter-toolbar > label > :is(input, select) {
+.log-date-field > input {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
   height: 44px;
   min-height: 44px;
+}
+.log-date-field {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: var(--log-filter-label-gap);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: var(--log-filter-label-height);
+}
+.log-date-field > input {
+  padding-inline-end: 2.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.log-date-field > .log-date-calendar {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-end: 0;
+  inline-size: 44px;
+  block-size: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  border-radius: 0.5rem;
+}
+.log-date-field > .log-date-calendar::before {
+  content: "";
+  inline-size: 14px;
+  block-size: 12px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-block-start-width: 4px;
+  border-radius: 2px;
+}
+.log-date-field > .log-date-calendar:focus-within {
+  outline: 2px solid var(--teal);
+  outline-offset: -3px;
+}
+.log-date-field > .log-date-calendar > input {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.log-date-field > .log-date-calendar > input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+@media (max-width: 375px) {
+  /* Give the full date and a touch-sized calendar affordance room to fit. */
+  .log-date-field { grid-column: 1 / -1; }
 }
 .log-filter-actions {
   display: flex;
@@ -557,6 +617,100 @@ html[data-theme="dark"] code {
   justify-content: end;
   gap: 8px;
   margin-top: calc(var(--log-filter-label-height) + var(--log-filter-label-gap));
+}
+.log-filter-choice {
+  position: relative;
+}
+.log-filter-choice > summary {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  cursor: pointer;
+  list-style: none;
+}
+.log-filter-choice > summary::-webkit-details-marker { display: none; }
+.log-filter-choice > summary::after {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: none;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-2px) rotate(45deg);
+}
+.log-filter-choice[open] > summary::after { transform: translateY(2px) rotate(225deg); }
+.log-filter-choice > summary:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+.log-filter-caption {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.log-filter-menu {
+  position: absolute;
+  z-index: 5;
+  inset-block-start: calc(100% + 4px);
+  inset-inline-start: 0;
+  box-sizing: border-box;
+  width: min(18rem, calc(100vw - 4rem));
+  max-height: min(21rem, 55vh);
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--white);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  overflow: auto;
+}
+.log-filter-options > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.log-filter-options > label:hover,
+.log-filter-options > label:focus-within {
+  background: var(--light);
+}
+.log-filter-options input {
+  flex: none;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--teal);
+}
+.log-actor-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 5px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.log-actor-choices > button {
+  min-width: 0;
+  min-height: 36px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  overflow-wrap: anywhere;
+}
+.log-actor-choices > button[aria-pressed="true"] {
+  border-color: var(--line);
+  background: var(--light);
+  color: var(--action-text);
 }
 .log-result-meta {
   display: flex;
@@ -577,20 +731,23 @@ html[data-theme="dark"] code {
 }
 .log-entry > summary {
   display: grid;
-  grid-template-columns: 0.8rem minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.8fr);
-  gap: 12px;
+  grid-template-columns: 0.75rem minmax(0, 1fr) fit-content(34%);
+  grid-template-areas: "arrow time kind" "arrow subject actor";
+  gap: 2px 8px;
   align-items: center;
-  min-height: 44px;
-  padding: 10px 12px;
+  min-height: 38px;
+  padding: 6px 10px;
   cursor: pointer;
   list-style: none;
   font-size: 0.8rem;
+  line-height: 1.35;
 }
 .log-entry > summary::-webkit-details-marker {
   display: none;
 }
 .log-entry > summary::before {
   content: "";
+  grid-area: arrow;
   width: 0.42rem;
   height: 0.42rem;
   margin-inline-start: 2px;
@@ -612,41 +769,101 @@ html[data-theme="dark"] code {
   border-end-end-radius: 9px;
 }
 .log-entry time {
+  grid-area: time;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
   font-size: 0.73rem;
 }
-.log-entry small,
-.log-subject strong {
-  display: block;
+.log-subject,
+.log-kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+.log-subject {
+  grid-area: subject;
+}
+.log-subject small {
+  font-size: 0.75rem;
+}
+.log-kind {
+  grid-area: kind;
+  justify-content: end;
+  text-align: end;
+}
+.log-kind .tag {
+  padding: 2px 6px;
+  white-space: normal;
+}
+.log-actor {
+  grid-area: actor;
+  color: var(--muted);
+  text-align: end;
+  font-size: 0.75rem;
 }
 .log-entry > summary > * {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 .log-details {
-  margin: 0 12px 12px;
-  padding: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  margin: 0 10px 8px;
+  padding: 6px 10px;
   background: var(--light);
   border-radius: 8px;
   overflow: auto;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.log-details .data-table :is(th, td) {
+  padding: 4px 6px;
 }
 .log-details td {
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
   max-width: 320px;
+}
+.log-details p,
+.log-details pre {
+  margin: 0;
 }
 .log-details pre {
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
   font: inherit;
-  font-size: 0.8rem;
+}
+.log-detail-note {
+  max-width: 72ch;
 }
 .log-detail-value {
-  margin: 10px 0;
+  display: grid;
+  grid-template-columns: minmax(0, min(8rem, 38%)) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 2px 8px;
 }
 .log-detail-value strong {
-  text-transform: capitalize;
-  font-size: 0.8rem;
+  color: var(--muted);
+}
+.log-technical > summary {
+  min-height: 32px;
+  align-content: center;
+  color: var(--action-text);
+  cursor: pointer;
+  font-weight: 700;
+}
+.log-details > * + .log-technical {
+  border-block-start: 1px solid var(--line);
+}
+.log-technical[open] > summary,
+.log-technical > .log-detail-value:not(:last-child) {
+  margin-block-end: 4px;
+}
+.log-entry > summary:focus-visible,
+.log-technical > summary:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: -2px;
 }
 .log-footer {
   display: flex;
@@ -681,27 +898,16 @@ html[data-theme="dark"] code {
     grid-column: 1 / -1;
     margin-top: 0;
   }
+  #logAction > .log-filter-menu {
+    inset-inline: auto 0;
+  }
 }
-@media (max-width: 700px) {
-  .log-entry > summary {
-    grid-template-columns: 0.8rem minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas: "arrow subject kind" "arrow time actor";
-    gap: 4px 8px;
-  }
-  .log-entry > summary::before {
-    grid-area: arrow;
-  }
-  .log-entry time {
-    grid-area: time;
-  }
-  .log-subject {
-    grid-area: subject;
-  }
-  .log-entry > summary > span:nth-of-type(2) {
-    grid-area: kind;
-  }
-  .log-actor {
-    grid-area: actor;
+@media (pointer: coarse) {
+  .log-entry > summary,
+  .log-technical > summary,
+  .log-filter-options > label,
+  .log-actor-choices > button {
+    min-height: 44px;
   }
 }
 

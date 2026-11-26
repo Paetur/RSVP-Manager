@@ -6,14 +6,6 @@
     let pendingFocus = null,
       pendingRecordFocus = null;
     const policies = [
-      [
-        "#personalPreferencesForm",
-        "personal-preferences",
-        "Interface",
-        "personal",
-      ],
-      ["#invitesAppearanceForm", "invites-appearance", "Invites appearance", "personal"],
-      ["#overviewAppearanceForm", "overview-appearance", "Overview appearance", "personal"],
       ["#transportProtocols", "transport-security", "HTTP/SSL", "settings"],
       ["#shortcutExperimentalForm", "experimental-shortcuts", "Apple Shortcuts", "settings"],
       ["#guestNamesHost form", "guest-names", "Guest titles", "settings"],
@@ -57,7 +49,7 @@
       ["#languageRows form", null, "Languages", "languages"],
     ];
     const editable = (policy, form) =>
-      form.dataset.editorAvailable !== "false" && (policy[3] === "personal" || can(policy[3], "edit"));
+      form.dataset.editorAvailable !== "false" && can(policy[3], "edit");
     function readSummary(form, summary) {
       summary.replaceChildren();
       if (form.renderReadSummary) {

@@ -2112,7 +2112,7 @@
     restore: "Restored",
     assign: "Assigned",
     invitations_changed: "Invitation assignments changed",
-    submitted: "Household submitted",
+    submitted: "interface.messages.log_household_rsvp_submitted",
     reopened: "RSVP reopened",
     late_submission_authorized: "Late response allowed",
     response_submitted: "Guest response submitted",
@@ -2139,7 +2139,60 @@
   };
   let logEntries = [],
     logCursor = null,
+    logAppliedFilters = null,
+    logActor = "all",
     logGeneration = 0;
+  const logChoiceIds = ["logCategory", "logAction"];
+  function logSelected(id) {
+    return [...$(id + "Options").querySelectorAll("input:checked")].map((input) => input.value);
+  }
+  function logActionName(action) {
+    return T(Object.hasOwn(logActions, action) ? logActions[action] : action.replaceAll("_", " "));
+  }
+  function renderLogChoices(id, values, labelFor) {
+    const list = $(id + "Options");
+    const controls = [...list.querySelectorAll("input")];
+    if (values.length === controls.length && values.every((value, i) => controls[i].value === value)) {
+      controls.forEach((input) => { input.nextElementSibling.textContent = labelFor(input.value); });
+      if (!values.length) list.textContent = T("interface.messages.no_log_entries_match_these_filters");
+      return;
+    }
+    const selected = new Set(logSelected(id));
+    const focused = list.contains(document.activeElement) ? document.activeElement.value : null;
+    const choices = values.map((value) => {
+      const label = R.dom("label");
+      const input = R.dom("input", { type: "checkbox", value });
+      input.checked = selected.has(value);
+      label.append(input, R.dom("span", {}, labelFor(value)));
+      return label;
+    });
+    list.replaceChildren(...choices);
+    if (!values.length) list.textContent = T("interface.messages.no_log_entries_match_these_filters");
+    if (focused != null)
+      (choices.find((choice) => choice.firstElementChild.value === focused)?.firstElementChild || $(id).querySelector("summary"))
+        .focus({ preventScroll: true });
+  }
+  function renderLogFilterCaptions() {
+    const actor = logActor === "guest" ? T("interface.messages.log_guest_activity")
+      : logActor === "admin" ? T("interface.messages.log_admin_activity") : "";
+    for (const [id, names, scope, all] of [
+      ["logCategory", logSelected("logCategory").map((value) => T(logCategories[value])), actor, "interface.messages.all_categories"],
+      ["logAction", logSelected("logAction").map(logActionName), "", "interface.messages.all_actions"],
+    ]) {
+      const caption = $(id + "Caption");
+      const selection = names.length > 2 ? T("interface.messages.invites_count_selected", { count: names.length }) : names.join(", ");
+      caption.textContent = [scope, selection].filter(Boolean).join(" · ") || T(all);
+      caption.title = [scope, names.join(", ")].filter(Boolean).join(" · ");
+    }
+    for (const button of $("logActorChoices").querySelectorAll("button"))
+      button.setAttribute("aria-pressed", String(button.dataset.logActor === logActor));
+  }
+  function resetLogChoices(actor = "all") {
+    logActor = actor;
+    for (const id of logChoiceIds)
+      for (const input of $(id + "Options").querySelectorAll("input")) input.checked = false;
+    renderLogFilterCaptions();
+  }
   function logDateBoundary(value, next = false) {
     if (!value) return null;
     let date = value;
@@ -2160,6 +2213,90 @@
         ? JSON.stringify(value, null, 2)
         : String(value);
   }
+  const logDetailLabels = {
+    before: "interface.messages.before",
+    after: "interface.messages.after",
+    session: "interface.messages.session",
+    reason: "interface.messages.log_reason",
+    submission_id: "interface.messages.log_submission_id",
+  };
+  const logTechnicalFields = new Set(["entity", "subject_id", "submission_id"]);
+  const logAttendance = {
+    attending: "interface.messages.attending",
+    declined: "interface.messages.not_attending",
+    pending: "interface.messages.pending",
+  };
+  function logResponse(value) {
+    return Object.hasOwn(logAttendance, value) ? T(logAttendance[value]) : value;
+  }
+  function logSummary(entry, details) {
+    const { category, action, subject, household_name: household } = entry;
+    const actionLabel = logActions[action] || action.replaceAll("_", " ");
+    const isHouseholdRsvp = category === "rsvp" && subject === "Household RSVP";
+    if (category === "rsvp" && action === "response_submitted") {
+      return {
+        title: subject || T("interface.messages.unnamed_guest"),
+        context: [logResponse(details.after), details.session].filter(Boolean).join(" · "),
+        category,
+      };
+    }
+    const primarySubject = isHouseholdRsvp || subject === actionLabel || subject === details.entity
+      ? null : subject;
+    const context = category === "rsvp" && action === "response_corrected"
+      ? [subject, details.session]
+      : [primarySubject, household];
+    return {
+      title: T(actionLabel),
+      context: [...new Set(context.filter(Boolean))].join(" · "),
+      category: isHouseholdRsvp || (category === "invitations" && action === "opened") ? null : category,
+    };
+  }
+  function appendLogDetail(container, label, value) {
+    if (value == null) return;
+    const row = R.dom("div", { class: "log-detail-value" });
+    row.append(R.dom("strong", {}, label), R.dom("pre", {}, formatLogValue(value)));
+    container.append(row);
+  }
+  function logFieldName(key) {
+    return Object.hasOwn(logDetailLabels, key)
+      ? T(logDetailLabels[key])
+      : key.replaceAll("_", " ").replace(/^./, (first) => first.toUpperCase());
+  }
+  function renderLogDetails(entry, details, timestamp) {
+    const content = R.dom("div", { class: "log-details" });
+    const technical = R.dom("details", { class: "log-technical" });
+    technical.append(R.dom("summary", {}, T("interface.messages.log_technical_details")));
+    appendLogDetail(technical, T("interface.messages.log_event_reference"), entry.event_key);
+    appendLogDetail(technical, T("interface.messages.log_timestamp_utc"), timestamp);
+    for (const key of logTechnicalFields) appendLogDetail(technical, logFieldName(key), details[key]);
+
+    if (entry.category === "rsvp" && entry.action === "submitted") {
+      content.append(R.dom("p", { class: "log-detail-note" }, T("interface.messages.locked_after_submission")));
+      appendLogDetail(content, logFieldName("reason"), details.reason);
+    } else if (entry.category === "rsvp" && ["response_submitted", "response_corrected"].includes(entry.action)) {
+      if (entry.household_name && entry.household_name !== entry.subject)
+        appendLogDetail(content, T("interface.messages.household"), entry.household_name);
+      appendLogDetail(content, logFieldName("before"), logResponse(details.before));
+      if (entry.action === "response_corrected")
+        appendLogDetail(content, logFieldName("after"), logResponse(details.after));
+      appendLogDetail(content, logFieldName("reason"), details.reason);
+    } else if (entry.category === "invitations" && entry.action === "opened" && details.recording) {
+      content.append(R.dom("p", { class: "log-detail-note" }, T("interface.messages.log_invitation_open_recording")));
+    } else if (details.before && typeof details.before === "object" && details.after && typeof details.after === "object") {
+      const keys = [...new Set([...Object.keys(details.before), ...Object.keys(details.after)])]
+        .filter((key) => JSON.stringify(details.before[key]) !== JSON.stringify(details.after[key]));
+      if (keys.length) content.append(makeTable(
+        [T("interface.messages.field"), T("interface.messages.before"), T("interface.messages.after")],
+        keys.map((key) => [logFieldName(key), formatLogValue(details.before[key]), formatLogValue(details.after[key])]),
+      ));
+    } else {
+      for (const [key, value] of Object.entries(details)) {
+        if (!logTechnicalFields.has(key)) appendLogDetail(content, logFieldName(key), value);
+      }
+    }
+    content.append(technical);
+    return content;
+  }
   function renderLogs() {
     const box = $("logRows");
     box.replaceChildren();
@@ -2167,9 +2304,12 @@
       const d = R.dom("details", { class: "log-entry" });
       const summary = R.dom("summary");
       const date = new Date(e.occurred_at);
+      const timestamp = date.toISOString();
+      const details = e.details || {};
+      const activity = logSummary(e, details);
       const time = R.dom(
         "time",
-        { title: date.toISOString() },
+        {},
         window.RSVP_ADMIN_PREFERENCES.formatDate(
           date,
           window.RSVP_I18N?.language || "en",
@@ -2177,86 +2317,19 @@
           { timeStyle: "medium" },
         ),
       );
-      time.dateTime = date.toISOString();
+      time.dateTime = timestamp;
       const subject = R.dom("span", { class: "log-subject" });
-      subject.append(
-        R.dom("strong", {}, e.subject),
-        R.dom("small", { class: "muted" }, e.household_name || ""),
-      );
-      const kind = R.dom("span");
-      kind.append(
-        R.dom(
-          "span",
-          { class: "tag" },
-          T(logCategories[e.category] || e.category),
-        ),
-        R.dom(
-          "small",
-          {},
-          T(logActions[e.action] || e.action.replaceAll("_", " ")),
-        ),
-      );
-      summary.append(
-        time,
-        subject,
-        kind,
-        R.dom("span", { class: "log-actor" }, e.actor),
-      );
-      d.append(summary);
-      const content = R.dom("div", { class: "log-details" });
-      content.append(
-        R.dom(
-          "p",
-          { class: "micro" },
-          T("interface.messages.reference") +
-            e.event_key +
-            " · " +
-            date.toISOString(),
-        ),
-      );
-      const details = e.details || {};
-      if (
-        details.before &&
-        typeof details.before === "object" &&
-        details.after &&
-        typeof details.after === "object"
-      ) {
-        const keys = [
-          ...new Set([
-            ...Object.keys(details.before),
-            ...Object.keys(details.after),
-          ]),
-        ].filter(
-          (k) =>
-            JSON.stringify(details.before[k]) !==
-            JSON.stringify(details.after[k]),
-        );
-        content.append(
-          makeTable(
-            [
-              T("interface.messages.field"),
-              T("interface.messages.before"),
-              T("interface.messages.after"),
-            ],
-            keys.map((k) => [
-              k,
-              formatLogValue(details.before[k]),
-              formatLogValue(details.after[k]),
-            ]),
-          ),
-        );
-      } else {
-        for (const [key, value] of Object.entries(details)) {
-          if (value == null) continue;
-          const row = R.dom("div", { class: "log-detail-value" });
-          row.append(
-            R.dom("strong", {}, key.replaceAll("_", " ")),
-            R.dom("pre", {}, formatLogValue(value)),
-          );
-          content.append(row);
-        }
+      subject.append(R.dom("strong", {}, activity.title));
+      if (activity.context) subject.append(R.dom("small", { class: "muted" }, activity.context));
+      summary.append(time, subject);
+      if (activity.category) {
+        const kind = R.dom("span", { class: "log-kind" });
+        kind.append(R.dom("span", { class: "tag" }, T(logCategories[activity.category] || activity.category)));
+        summary.append(kind);
       }
-      d.append(content);
+      if (e.actor && (e.actor_user_id || !["Guest", "Guest / system"].includes(e.actor)))
+        summary.append(R.dom("span", { class: "log-actor" }, e.actor));
+      d.append(summary, renderLogDetails(e, details, timestamp));
       box.append(d);
     }
     if (!logEntries.length)
@@ -2273,41 +2346,38 @@
     );
   }
   async function loadLogs(reset = true) {
+    if (reset && !$("logFilters").reportValidity()) return;
+    renderLogChoices("logCategory", Object.keys(logCategories), (value) => T(logCategories[value]));
+    renderLogFilterCaptions();
     const generation = ++logGeneration;
     $("logMore").disabled = true;
     $("logApply").disabled = true;
     $("logStatus").textContent = T("interface.messages.loading_logs");
     try {
-      const filters = {
+      const filters = reset ? {
         p_search: $("logSearch").value.trim(),
-        p_category: $("logCategory").value,
-        p_action: $("logAction").value,
-        p_from: logDateBoundary($("logFrom").value),
-        p_to: logDateBoundary($("logTo").value, true),
+        p_categories: logSelected("logCategory"),
+        p_actions: logSelected("logAction"),
+        p_actor: logActor,
+        p_from: logDateBoundary(window.RSVP_ADMIN_LOG_DATES.isoValue($("logFrom"))),
+        p_to: logDateBoundary(window.RSVP_ADMIN_LOG_DATES.isoValue($("logTo")), true),
+      } : logAppliedFilters;
+      if (!filters) return;
+      const { data, error } = await R.adminRpc("admin_query_logs_filtered", {
+        ...filters,
         p_before_at: reset ? null : logCursor?.occurred_at || null,
         p_before_key: reset ? null : logCursor?.event_key || null,
         p_limit: 50,
-      };
-      const { data, error } = await R.adminRpc("admin_query_logs", filters);
+      });
       if (error) throw error;
       if (generation !== logGeneration) return;
       const incoming = data?.entries || [];
       logEntries = reset ? incoming : [...logEntries, ...incoming];
       logCursor = logEntries.at(-1) || null;
+      logAppliedFilters = filters;
       renderLogs();
-      const selected = $("logAction").value;
-      $("logAction").replaceChildren(
-        R.dom("option", { value: "" }, T("interface.messages.all_actions")),
-      );
-      for (const action of data?.actions || [])
-        $("logAction").append(
-          R.dom(
-            "option",
-            { value: action },
-            T(logActions[action] || action.replaceAll("_", " ")),
-          ),
-        );
-      $("logAction").value = selected;
+      const actions = [...new Set([...(data?.actions || []), ...logSelected("logAction")])];
+      renderLogChoices("logAction", actions, logActionName);
       $("logMore").classList.toggle("hidden", !data?.has_more);
       $("logStatus").textContent = "";
     } catch (error) {
@@ -2315,6 +2385,7 @@
       $("logStatus").textContent = R.safeError(error);
       if (reset) {
         logEntries = [];
+        logAppliedFilters = null;
         renderLogs();
       }
       $("logMore").classList.add("hidden");
@@ -2678,8 +2749,9 @@
       if (trigger.isConnected || activeTab !== "invites" || !currentActor(actor)) return;
       // Saving reloads the list. Find the replacement for the old dialog trigger.
       const row = $("inviteRows").querySelector('[data-invite-household="' + CSS.escape(householdId) + '"]');
-      const focus = row?.querySelector(".invite-edit-household:enabled") || row?.querySelector(".invite-preview") ||
-        $("inviteShownFieldsHost").querySelector("summary");
+      const focus = [row?.querySelector(".invite-edit-household:enabled"), row?.querySelector(".invite-preview"),
+        row?.querySelector(":scope > summary"), $("inviteShownFieldsHost").querySelector("summary")]
+        .find(control => control?.getClientRects().length);
       focus?.focus({ preventScroll: true });
     });
     dialog.append(heading, form, choice.panel, form.saveActions);
@@ -2695,6 +2767,7 @@
     getActor: () => user?.id || null,
     getSelectionControl: id => bulkInvitesView.selectionControl(id),
     getSelectAllControl: () => bulkInvitesView.selectAllControl(),
+    clearSelection: () => bulkInvitesView.clearSelection({ focus: false }),
     getSentState: id => bulkInvitesView.sentState(id),
     retrySent: id => bulkInvitesView.retrySent(id),
     onVisibleHouseholds: ids => { bulkInvitesView.syncVisible(ids); bulkInvitesView.render(); },
@@ -5830,17 +5903,42 @@
       }
     }
     $("settingsToggle").addEventListener("click", () => tab("settings"));
-    $("logFilters").addEventListener("submit", (e) => {
+    const logForm = $("logFilters");
+    window.RSVP_ADMIN_LOG_DATES.attach(logForm, T);
+    logForm.addEventListener("submit", (e) => {
       e.preventDefault();
       loadLogs(true);
     });
-    $("logCategory").addEventListener("change", () => {
-      $("logAction").value = "";
+    const logMenus = logChoiceIds.map((id) => $(id));
+    for (const menu of logMenus) {
+      menu.addEventListener("change", () => {
+        renderLogFilterCaptions();
+        loadLogs(true);
+      });
+      menu.addEventListener("toggle", () => {
+        if (menu.open) for (const other of logMenus) if (other !== menu) other.open = false;
+      });
+      menu.addEventListener("keydown", (event) => {
+        if (!menu.open || event.key !== "Escape") return;
+        event.preventDefault();
+        menu.open = false;
+        menu.querySelector("summary").focus();
+      });
+    }
+    document.addEventListener("click", ({ target }) => {
+      for (const menu of logMenus) if (menu.open && !menu.contains(target)) menu.open = false;
+    });
+    $("logActorChoices").addEventListener("click", ({ target }) => {
+      const choice = target.closest("button[data-log-actor]");
+      if (!choice) return;
+      resetLogChoices(choice.dataset.logActor);
+      $("logCategory").open = false;
+      $("logCategory").querySelector("summary").focus();
       loadLogs(true);
     });
-    $("logAction").addEventListener("change", () => loadLogs(true));
     $("logReset").addEventListener("click", () => {
-      $("logFilters").reset();
+      logForm.reset();
+      resetLogChoices();
       loadLogs(true);
     });
     $("logMore").addEventListener("click", () => loadLogs(false));

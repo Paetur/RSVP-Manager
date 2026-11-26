@@ -1,5 +1,19 @@
 # Release notes
 
+## 0.9.1
+
+- Show Overview filter checkmarks only on the active tab. Selected filters continue to apply to Invites when you switch tabs.
+- Put **Clear filters** at the start of the compact Invites filter summary. Selected values share one label per category, so multiple services appear together.
+- Show **Seen** after the first qualifying invitation visit and add the count after repeat visits.
+- In Logs, filter guest and administrator activity by multiple categories and actions and a DD/MM/YYYY date range. Compact results show household RSVP submissions and individual guest answers separately.
+- Save separate Phone, Tablet and Desktop row and field choices for Invites. Two-row layouts show visit or sent time below Invitation and Food below RSVP. Phone and Tablet have optional expanded household details.
+- Use **Select** between **View** and **Search** to show the row checkboxes, **Select all** and the selection counter.
+- Edit Interface, Invites appearance and Overview appearance directly in their tabs. Invites appearance opens with a live preview. Phone offers additional shown fields, and Phone and Tablet configure action icons under **Expanded household**. Tablet can also show the action icons in the list in **2 Row**. Row checkboxes stay on the right, and the Invitation second line shows only the formatted date and time.
+- Use **Reset to defaults** in Invites appearance to restore the account’s starting Invites settings in the preview. Save applies them to the list.
+- Keep Service and Invitation copy targets at least 44 pixels wide at narrow tablet widths, including when Select is active.
+
+Existing 0.9.0 installations need a reviewed backend update for the filtered Logs query and current translation registry. Backups retain format 3 and the same 44-table column manifest. [Existing-installation instructions](../INSTALL.md#existing-installations)
+
 ## 0.9.0
 
 - Invites shows active filters together and offers **Clear filters**. Choose **Alphabetic**, **Relational** or **Service** grouping for the current list. Household preview and edit controls sit beside selection. Preview remains available after publication, and editing from the list opens Household details while the event is unpublished.

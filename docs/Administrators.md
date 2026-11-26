@@ -59,10 +59,16 @@ Use **Revoke session** to end that browser’s access on its next request. The s
 
 ## Logs
 
-Full administrators can open **Settings → Logs**. Use the search icon at the upper right for a name or change, and use **Category**, **Action**, **From** and **Through** to narrow the history. Select **Search logs** to apply the filters or **Reset** to clear them. Expand an entry for its details and UTC timestamp. Date filters use the event timezone, and the list shows your local time. Invitation opens within 15 minutes are grouped.
+Full administrators can open **Settings → Logs**. Search for a name or change, or select several categories and actions in their dropdowns. The **Guests** and **Admin** shortcuts in **Category** start with all recorded activity for that group. You can then narrow the results further.
+
+Enter dates as **DD/MM/YYYY** or use the calendars in **From** and **Through**. Use **Search logs** to apply the dates and search text or **Reset** to clear the filters. Date filters use the event time zone, and the list shows your local time.
+
+![Logs with a date filter and separate household submission and guest response rows](images/ipad-logs-filters.png)
+
+**Household RSVP submitted** records that the household submitted and locked its RSVP. Separate rows show each guest’s answer and the session it belongs to. Expand a row for more information, then open **Technical details** if you need its log reference, UTC timestamp or submission ID. Invitation opens from the same household within 15 minutes are grouped.
 
 ## Personal settings
 
-Settings first opens **Application**. **Settings → Interface** groups **Interface**, **Invites appearance** and **Overview appearance** in three tabs. The first tab contains Interface, HTTP/SSL and Apple Shortcuts. The Interface pencil opens **Appearance** and **Date and time**. Each appearance editor saves its own choices to your administrator account. **Button hover appearance** offers Toolbar, Pencil and Create examples. Delete actions stay red, with an icon and label on wide screens and a label on phones.
+Settings first opens **Application**. **Settings → Interface** opens **Interface**, **Invites appearance** and **Overview appearance** directly to their preference controls. The Interface tab contains **Appearance** and **Date and time**, plus HTTP/SSL and Apple Shortcuts. Each preference form saves its own choices to your administrator account. **Button hover appearance** offers Toolbar, Pencil and Create examples. Delete actions stay red, with an icon and label on desktop and a label on phones.
 
 [All user guides](README.md)

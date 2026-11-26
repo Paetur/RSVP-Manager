@@ -114,9 +114,8 @@ const custom =
         await page.locator('.guest-landing-settings').screenshot({ path: path.join(process.env.RSVP_COMPACT_PREVIEW_DIR, 'compact-landing-' + width + '.png') });
       }
       await page.locator('[data-settings-tab=checklist]').click();
-      const personal = page.locator('[data-editor-key="personal-preferences"] .local-editor-summary');
-      assert.ok(await personal.locator('dt').count() > 0, 'personal preferences keep their existing read summary');
-      assert.equal(await personal.locator('.appearance-compact-summary').count(), 0);
+      assert.equal(await page.locator('#personalPreferencesForm').isVisible(), true, 'personal preferences can be edited as soon as Interface opens');
+      assert.equal(await page.locator('[data-settings-card="personal-preferences"] .appearance-compact-summary').count(), 0);
       await page.locator('[data-settings-tab=interface]').click();
       await showPreview();
       if (process.env.RSVP_COMPACT_PREVIEW_DIR)

@@ -51,46 +51,6 @@
         host.append(details);
       }
     }
-    function selected(id) {
-      const control = $(id);
-      return control?.selectedOptions?.[0]?.textContent || control?.value || "—";
-    }
-    function preferenceGroup(host, title, entries) {
-      const group = R.dom("section", { class: "interface-preference-group" });
-      group.append(R.dom("h3", {}, T(title)));
-      rows(group, entries);
-      host.append(group);
-    }
-    function personal(host) {
-      host.classList.add("compact-saved-view", "interface-preference-summary");
-      preferenceGroup(host, "Appearance", [
-        ["Theme", selected("themePreference")],
-        ["Language", T({ en: "English", de: "German", fo: "Faroese" }[$("interfaceLanguage")?.value] || selected("interfaceLanguage"))],
-        ["Button hover appearance", selected("buttonHover")],
-      ]);
-      preferenceGroup(host, "Date and time", [
-        ["Date format", selected("dateFormat")],
-        ["Time format", selected("timeFormat")],
-        ["Example", window.RSVP_ADMIN_PREFERENCES.dateTimeExample()],
-      ]);
-    }
-    function invitesAppearance(host) {
-      host.classList.add("compact-saved-view", "interface-preference-summary");
-      const grouping = $("inviteGroupBy")?.querySelector("input:checked")?.nextElementSibling.textContent || T("Relational");
-      const rowModes = [...($("inviteRowsPreference")?.querySelectorAll("[data-invite-width]") || [])]
-        .map(group => [group.querySelector("legend").textContent, group.querySelector("input:checked")?.nextElementSibling.textContent]);
-      const shown = [...($("inviteDefaultFields")?.querySelectorAll("[data-invite-default-field]:checked") || [])]
-        .map(input => input.nextElementSibling?.textContent).filter(Boolean);
-      const columns = [...($("inviteDefaultFields")?.querySelectorAll('[data-invite-default-layout="2"] input:checked') || [])]
-        .map(input => [...input.nextElementSibling.children].map(node => node.textContent).join(" / ")).filter(Boolean);
-      rows(host, [
-        ["Group by", grouping],
-        ...rowModes,
-        ["interface.messages.invites_show_text_button", T(window.RSVP_ADMIN_PREFERENCES.invitesShowText ? "Yes" : "No")],
-        [T("Default shown fields") + " · " + T("Rows") + " 1", shown.join(" · ") || T("None selected")],
-        [T("Default shown fields") + " · " + T("Rows") + " 2", columns.join(" · ")],
-      ]);
-    }
     function planning(host) {
       const settings = getStore().settings || {}, config = settings.planning_config || {};
       const type = { wedding: "Wedding", reunion: "Reunion", conference: "Conference", custom: "Custom" }[settings.event_type] || "Custom";
@@ -113,8 +73,6 @@
     function apply() {
       const callbacks = [
         [$("eventSettingsForm"), event],
-        [$("personalPreferencesForm"), personal],
-        [$("invitesAppearanceForm"), invitesAppearance],
         [$("planningConfigHost")?.querySelector("form"), planning],
         [$("eventFeaturesHost")?.querySelector("form"), features],
       ];

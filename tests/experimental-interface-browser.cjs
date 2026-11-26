@@ -153,8 +153,8 @@ client.rpc=async(name,args)=>{
     assert.equal(await workspace.evaluate(node => node.hidden), true, "malformed acknowledgment cannot enable the feature");
     checks.push("malformed save acknowledgment is rejected");
 
-    // A personal form may remain open with a draft while the application setting saves.
-    await openBox(page, "personal-preferences");
+    // The personal preferences draft stays editable while the separate application setting saves.
+    assert.equal(await page.locator("#personalPreferencesForm").isVisible(), true);
     await page.locator("#interfaceDateTimeTab").click();
     await page.locator('[data-preference-choices="time"] [data-preference-choice="12"]').click();
     assert.equal(await page.locator("#timeFormat").inputValue(), "12");

@@ -106,13 +106,14 @@
       onSelectionChange();
     }
 
-    function clearSelection() {
-      if (busy || actor !== getActor() || !can("invites")) return;
+    function clearSelection({ focus = true } = {}) {
+      if (busy || actor !== getActor() || !can("invites")) return false;
       selectionVersion++;
       selected.clear();
       notice = null;
       refreshSelection();
-      $("inviteRows")?.querySelector("[data-bulk-select-all]:enabled")?.focus({ preventScroll: true });
+      if (focus) $("inviteRows")?.querySelector("[data-bulk-select-all]:enabled")?.focus({ preventScroll: true });
+      return true;
     }
 
     function selectedScope() {
@@ -536,7 +537,7 @@
         const clear = R.dom("button", {
           type: "button", class: "bulk-invite-clear", disabled: busy,
         }, T("interface.messages.clear_selection"));
-        clear.addEventListener("click", clearSelection);
+        clear.addEventListener("click", () => clearSelection());
         context.append(element("span", "bulk-invite-count", T("interface.messages.invites_count_selected", { count: selection.length })), clear);
         const actions = element("div", "bulk-invite-actions");
         const makeDraft = button("Make draft(s)", makeDrafts,
@@ -561,7 +562,7 @@
       if (focusedAction) box.querySelector(focusedAction + ":enabled")?.focus({ preventScroll: true });
     }
 
-    return { render, clear, syncVisible, selectionControl, selectAllControl, changeToDraft, retrySent,
+    return { render, clear, syncVisible, selectionControl, selectAllControl, clearSelection, changeToDraft, retrySent,
       sentState: id => sends.get(id)?.state || null,
       selected: id => selected.has(id) };
   }

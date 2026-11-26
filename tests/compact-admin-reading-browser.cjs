@@ -2,7 +2,6 @@
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path");
 const { chromium } = require("playwright");
 const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
-const { openBox } = require("./helpers/local-edit-ui.cjs");
 const { selectInterfaceSettingsTab } = require("./helpers/admin-toolbar.cjs");
 const { server, mock, extra, cleanup } = createPublicFoodHarness("compact-admin-reading");
 const aliases = JSON.parse(fs.readFileSync("locales/aliases.json", "utf8"));
@@ -80,25 +79,19 @@ async function paired(list) {
       // Saving another personal preference does not discard the event draft.
       await page.locator("#settingsToggle").click();
       await selectInterfaceSettingsTab(page);
-      const personal = page.locator('[data-editor-key="personal-preferences"] .local-editor-summary');
-      const groups = personal.locator(".interface-preference-group");
-      assert.deepEqual(await groups.locator("h3").allTextContents(), ["Appearance", "Date and time"].map(tr));
-      assert.deepEqual(await groups.nth(0).locator("dt").allTextContents(), ["Theme", "Language", "Button hover appearance"].map(tr));
-      assert.deepEqual(await groups.nth(1).locator("dt").allTextContents(), ["Date format", "Time format", "Example"].map(tr));
-      for (const group of await groups.all()) await paired(group.locator(".compact-read-grid"));
+      const personal = page.locator("#personalPreferencesForm");
+      assert.equal(await personal.isVisible(), true);
+      assert.deepEqual(await personal.locator("#interfaceEditTabs [role=tab]").allTextContents(), ["Appearance", "Date and time"].map(tr));
       await selectInterfaceSettingsTab(page, "invites");
-      const invites = page.locator('[data-editor-key="invites-appearance"] .local-editor-summary .compact-read-grid');
-      assert.deepEqual((await invites.locator("dt").allTextContents()).slice(0, 3),
-        ["Group by", "Narrow screens (below 1024 px)", "Wide screens (1024 px and wider)"].map(tr));
-      await paired(invites);
+      const invites = page.locator("#invitesAppearanceForm");
+      assert.equal(await invites.isVisible(), true, "Invites appearance opens in edit mode");
+      assert.deepEqual(await invites.locator("[data-invite-screen]").allTextContents(), ["Phone", "Tablet", "Desktop"].map(tr));
       await selectInterfaceSettingsTab(page);
-      await openBox(page, "personal-preferences");
       const alternate = theme === "light" ? "dark" : "light";
       await page.locator('[data-preference-choices="appearance"] [data-preference-choice="' + alternate + '"]').click();
       await page.locator("#savePersonalPreferences").click();
       await page.waitForFunction(() => document.getElementById("personalPreferencesForm").getAttribute("aria-busy") !== "true");
-      assert.equal(await groups.nth(0).locator("dd").first().innerText(), tr(alternate === "light" ? "Light" : "Dark"));
-      await openBox(page, "personal-preferences");
+      assert.equal(await personal.locator('#interfaceAppearanceHost [aria-pressed="true"]').innerText(), tr(alternate === "light" ? "Light" : "Dark"));
       await page.locator("#interfaceDateTimeTab").click();
       await page.locator('[data-preference-choices="time"] [data-preference-choice="12"]').click();
       await page.locator("#cancelPersonalPreferences").click();

@@ -28,6 +28,7 @@
     show,
     getSelectionControl = () => null,
     getSelectAllControl = () => null,
+    clearSelection = () => false,
     onVisibleHouseholds = () => {},
     getSentState = () => null,
     retrySent = () => {},
@@ -37,26 +38,28 @@
     let inviteSessionFilter = null;
     const languageSelection = new Set(), serviceSelection = new Set();
     const groupSelections = { top: new Set(), relation: new Set() };
-    const wideScreen = matchMedia("(min-width: 1024px)");
+    const desktopScreen = matchMedia("(min-width: 1024px)");
+    const tabletScreen = matchMedia("(min-width: 512px)");
+    const screenSize = () => desktopScreen.matches ? "desktop" : tabletScreen.matches ? "tablet" : "phone";
     const serviceLabels = { messages: "Messages", email: "Email", whatsapp: "WhatsApp", sms: "SMS", none: "None" };
     const visibleFields = window.RSVP_ADMIN_PREFERENCES.invitesFields;
     const columnGroups = window.RSVP_ADMIN_PREFERENCES.invitesColumnGroups;
     const requiredFields = window.RSVP_ADMIN_PREFERENCES.invitesRequiredFields;
     const quickGrouping = $("inviteQuickGrouping");
+    const selectionToggle = $("inviteSelectionToggle");
     const filterSummary = R.dom("div", { class: "invite-active-filters" });
-    const filterHeading = R.dom("span", { id: "inviteActiveFiltersTitle" });
     const filterList = R.dom("ul", { class: "invite-filter-summary" });
-    const clearFiltersButton = R.dom("button", { type: "button", class: "text-button" });
+    const clearFiltersButton = R.dom("button", { type: "button", class: "invite-clear-filters" });
     filterSummary.hidden = true;
     filterSummary.setAttribute("role", "group");
-    filterSummary.setAttribute("aria-labelledby", filterHeading.id);
-    filterSummary.append(filterHeading, filterList, clearFiltersButton);
+    filterList.setAttribute("role", "list");
+    filterSummary.append(clearFiltersButton, filterList);
     $("inviteRows").before(filterSummary);
-    const shown = new Set();
+    const quickViews = new Map();
     const activityReaders = new WeakMap();
     const overviewCounters = new Map();
-    let shownOwner, shownDefaults, shownColumnDefaults, rowLayout = 1, oneRowShown = [], clipboardBusy = false;
-    let rowOverride, responsiveLayout;
+    let viewOwner, renderedView, renderedRowsMode, renderedFields, renderedLanguage, clipboardBusy = false;
+    let selectionOwner, selecting = false;
     let groupingOwner, groupingDefault, groupingOverride;
     let refreshSentRows = () => {}, refreshRowStatuses = () => {};
 
@@ -66,32 +69,36 @@
       );
     }
 
-    function renderShownFields() {
+    function renderShownFields(screen, profile, required) {
       const host = $("inviteShownFieldsHost");
-      const owner = getActor(), defaults = window.RSVP_ADMIN_PREFERENCES.invitesShownFields;
-      const columnDefaults = window.RSVP_ADMIN_PREFERENCES.invitesTwoRowColumns;
-      const signature = JSON.stringify(defaults), columnSignature = JSON.stringify(columnDefaults);
-      const changedOwner = shownOwner !== owner, changedFields = shownDefaults !== signature;
-      const changedColumns = shownColumnDefaults !== columnSignature;
-      const preferences = window.RSVP_ADMIN_PREFERENCES;
-      const savedLayout = wideScreen.matches ? preferences.invitesWideRows : preferences.invitesNarrowRows;
-      if (changedOwner || responsiveLayout !== savedLayout) rowOverride = undefined;
-      responsiveLayout = savedLayout;
-      const nextLayout = rowOverride ?? savedLayout;
-      const changedLayout = rowLayout !== nextLayout;
-      // Keep temporary one-row choices across responsive layout changes.
-      if (changedOwner || changedFields) oneRowShown = defaults.slice();
-      else if (changedLayout && rowLayout === 1) oneRowShown = [...shown];
-      rowLayout = nextLayout;
-      if (changedOwner || changedLayout || rowLayout === 1 && changedFields || rowLayout === 2 && changedColumns) {
-        shown.clear();
-        for (const key of rowLayout === 2 ? columnDefaults : oneRowShown) shown.add(key);
-        host.replaceChildren();
+      const owner = getActor(), language = window.RSVP_I18N.language;
+      if (viewOwner !== owner) {
+        quickViews.clear();
+        viewOwner = owner;
       }
-      shownOwner = owner;
-      shownDefaults = signature;
-      shownColumnDefaults = columnSignature;
-      if (host.childElementCount) return;
+      let view = quickViews.get(screen);
+      if (!view) {
+        view = { fields: {}, signatures: {} };
+        quickViews.set(screen, view);
+      }
+      if (view.savedRows !== profile.rows || renderedView !== view) view.rowOverride = undefined;
+      view.savedRows = profile.rows;
+      const rowLayout = view.rowOverride ?? profile.rows;
+      // Preserve temporary one-row choices. Paired columns start from the
+      // saved defaults each time their layout is entered.
+      for (const [rows, defaults] of [[1, profile.shownFields], [2, profile.twoRowColumns]]) {
+        const signature = JSON.stringify(defaults);
+        if (view.signatures[rows] !== signature || rows === 2 && rowLayout === 2 &&
+            (renderedRowsMode !== 2 || renderedView !== view)) view.fields[rows] = new Set(defaults);
+        view.signatures[rows] = signature;
+      }
+      const shown = view.fields[rowLayout];
+      if (renderedFields === shown && renderedLanguage === language && host.childElementCount)
+        return { rowLayout, shown };
+      renderedView = view;
+      renderedRowsMode = rowLayout;
+      renderedFields = shown;
+      renderedLanguage = language;
       const layoutChoices = R.dom("fieldset", { class: "invite-layout-choices" });
       layoutChoices.append(R.dom("legend", { class: "sr-only" }, T("Rows")));
       for (const [rows, label] of [[1, "1 Row"], [2, "2 Row"]]) {
@@ -100,7 +107,7 @@
         input.checked = rowLayout === rows;
         input.addEventListener("change", () => {
           if (!input.checked) return;
-          rowOverride = rows;
+          view.rowOverride = rows === view.savedRows ? undefined : rows;
           render();
           // Row changes replace the available fields and the dropdown controls.
           const next = host.querySelector("details");
@@ -110,17 +117,20 @@
         choice.append(input, R.dom("span", {}, T(label)));
         layoutChoices.append(choice);
       }
-      host.append(window.RSVP_INLINE.multiChoice({
+      const options = rowLayout === 1 ? visibleFields : screen === "phone"
+        ? [["householdInfo", "Household info"], ...columnGroups] : columnGroups;
+      host.replaceChildren(window.RSVP_INLINE.multiChoice({
         R,
         T,
         label: "View",
-        options: (rowLayout === 1 ? visibleFields : columnGroups).filter(([key]) => !requiredFields.includes(key)),
+        options: options.filter(([key]) => !required.includes(key) && (rowLayout !== 2 || key !== "food")),
         selected: shown,
         onChange: render,
         beforeOptions: layoutChoices,
         group: "invite-toolbar-choice",
         className: "invite-shown-fields invite-toolbar-choice",
       }));
+      return { rowLayout, shown };
     }
     function syncGrouping() {
       const owner = getActor(), saved = window.RSVP_ADMIN_PREFERENCES.invitesGrouping;
@@ -403,26 +413,31 @@
       const visible = new Set(visibleHouseholdIds);
       const visibleModels = models.filter(model => visible.has(model.h.id));
       renderSeenSummary(visibleModels);
-      refreshRowStatuses(visibleModels);
+      refreshRowStatuses(visibleModels, store);
     }
     function renderActiveFilters(activeFilters) {
-      filterSummary.hidden = !activeFilters.length;
+      filterSummary.hidden = !activeFilters.size;
       if (filterSummary.hidden) {
         filterList.replaceChildren();
         return;
       }
-      filterHeading.textContent = T("interface.messages.invites_active_filters");
+      filterSummary.setAttribute("aria-label", T("interface.messages.invites_active_filters"));
       clearFiltersButton.textContent = T("interface.messages.invites_clear_filters");
-      filterList.replaceChildren(...activeFilters.map(([category, value]) => {
+      filterList.replaceChildren(...Array.from(activeFilters, ([category, values]) => {
         const item = R.dom("li");
-        item.append(R.dom("strong", {}, T(category)), " · ", value);
+        item.append(R.dom("strong", {}, T(category)), " · ", values.join(", "));
         return item;
       }));
     }
     function render() {
       const store = getOverviewStore();
-      const activeFilters = [];
-      const addActiveFilter = (category, value) => { if (value) activeFilters.push([category, value]); };
+      const activeFilters = new Map();
+      const addActiveFilter = (category, value) => {
+        if (!value) return;
+        const values = activeFilters.get(category);
+        if (values) values.push(value);
+        else activeFilters.set(category, [value]);
+      };
       const addActiveChoice = (category, choices, key) => {
         const choice = choices.find(([value]) => value === key);
         if (choice) addActiveFilter(category, T(choice[1]));
@@ -433,13 +448,28 @@
       renderSessionTree(sessions);
       addActiveFilter("Sessions", sessions.find(session => session.id === inviteSessionFilter)?.name);
       const box = $("inviteRows");
+      const screen = screenSize(), phone = screen === "phone", desktop = screen === "desktop";
+      const profile = window.RSVP_ADMIN_PREFERENCES.getInvitesProfile(screen);
+      const required = phone ? ["delivery"] : requiredFields;
+      const owner = getActor(), canSelect = !!owner && can("invites");
+      if (!canSelect || selectionOwner !== owner) selecting = false;
+      selectionOwner = owner;
+      if (selectionToggle) {
+        selectionToggle.hidden = !canSelect;
+        selectionToggle.setAttribute("aria-pressed", String(selecting));
+        selectionToggle.textContent = T(selecting ? "Done" : "Select");
+      }
       box.replaceChildren();
-      renderShownFields();
+      const { rowLayout, shown } = renderShownFields(screen, profile, required);
+      box.dataset.screen = screen;
       box.dataset.rows = String(rowLayout);
-      const displayedFields = rowLayout === 1 ? new Set([...shown, ...requiredFields]) : new Set([
-        "householdInfo",
-        ...columnGroups.filter(([key]) => requiredFields.includes(key) || shown.has(key)).flatMap(([, , fields]) => fields),
-      ]);
+      box.dataset.selecting = String(selecting);
+      const choices = rowLayout === 1 ? [...shown, ...required] : [
+        ...(!phone || shown.has("householdInfo") ? ["householdInfo"] : []),
+        ...columnGroups.filter(([key]) => required.includes(key) || shown.has(key)).flatMap(([, , fields]) => fields),
+      ];
+      const displayedFields = new Set(choices);
+      const expandedFields = new Set(desktop ? [] : profile.expandedFields);
       const searchText = $("inviteSearch").value.trim();
       const search = searchText.toLowerCase(), all = overviewModels(store);
       addActiveFilter("Search", searchText);
@@ -501,8 +531,9 @@
       const canInterestFilter = can("food") && store.settings?.food_enabled !== false;
       const showFoodInterest = canInterestFilter && store.settings?.food_stage === "interest";
       const showFoodItems = canInterestFilter && store.settings?.food_stage === "selection";
-      const showFood = displayedFields.has("food") && (showFoodInterest || showFoodItems);
-      const showReplyFood = showFood && displayedFields.has("reply");
+      const foodAvailable = showFoodInterest || showFoodItems;
+      const showFood = rowLayout === 1 && displayedFields.has("food") && foodAvailable;
+      const showReplyFood = displayedFields.has("reply") && (rowLayout === 2 ? foodAvailable : showFood);
       const showFoodColumn = showFood && (showFoodItems || !showReplyFood);
       const foodHost = $("inviteFoodCounts");
       if (!canInterestFilter || !foodHost) inviteInterestFilter = "all";
@@ -538,11 +569,18 @@
       renderSeenSummary(visible);
       visibleHouseholdIds = visible.map(model => model.h.id);
       onVisibleHouseholds(visibleHouseholdIds.slice());
-      box.classList.toggle("has-food-interest", showFoodColumn && showFoodInterest);
-      const showPreview = canPreviewGuest();
-      const showEdit = !store.settings?.is_published && can("households", "edit");
-      box.style.setProperty("--invite-row-action-count", Number(showPreview) + Number(showEdit));
+      const wantsInlineActions = desktop ? profile.showActions :
+        screen === "tablet" && rowLayout === 2 && profile.showInlineActions;
+      const wantsExpandedActions = !desktop && profile.showActions;
+      const showActions = wantsInlineActions || wantsExpandedActions;
+      const showPreview = showActions && canPreviewGuest();
+      const showEdit = showActions && !store.settings?.is_published && can("households", "edit");
+      const inlineActions = wantsInlineActions && (showPreview || showEdit);
+      const expandedActions = wantsExpandedActions && (showPreview || showEdit);
+      const actionCount = inlineActions ? Number(showPreview) + Number(showEdit) : 0;
+      box.style.setProperty("--invite-row-action-count", actionCount);
       const showText = window.RSVP_ADMIN_PREFERENCES.invitesShowText;
+      const stackedPhone = phone && rowLayout === 2;
       const columns = [
         { key: "identity", label: "Household" },
         ...visibleFields.flatMap(([key, label]) => {
@@ -550,21 +588,30 @@
           return [{ key, label }];
         }),
         ...(showFoodColumn ? [{ key: "food", label: "Food" }] : []),
-        { key: "selection", label: "" },
+        ...(inlineActions || selecting && !stackedPhone ? [{ key: "selection", label: "" }] : []),
       ];
-      box.style.setProperty("--invite-columns", "minmax(140px, 1.5fr) " + columns.slice(1).map(col =>
-        col.key === "selection" ? "max(74px, var(--invite-row-controls-width))" :
-        ["householdInfo", "serviceInfo"].includes(col.key) ? "minmax(50px, .8fr)" :
-        col.key === "delivery" && rowLayout === 1 ? "minmax(104px, 1.15fr)" : "minmax(80px, 1fr)").join(" "));
+      const phonePrimaryKeys = ["identity", "delivery", "reply", "selection"];
+      const primaryColumns = phone ? columns.filter(({ key }) => phonePrimaryKeys.includes(key)) : columns;
+      const phoneExtras = phone ? columns.filter(({ key }) => !phonePrimaryKeys.includes(key)) : [];
+      const minimumControlWidth = desktop && selecting ? 74 : 44;
+      box.style.setProperty("--invite-columns", primaryColumns.map(col =>
+        col.key === "selection" ? `max(${minimumControlWidth}px, var(--invite-row-controls-width))` :
+        col.key === "identity" ? "minmax(0, 1.5fr)" :
+        col.key === "householdInfo" ? "minmax(0, .8fr)" :
+        col.key === "serviceInfo" ? "minmax(var(--invite-copy-track-min, 0px), .8fr)" :
+        col.key === "delivery" ? "minmax(var(--invite-copy-track-min, 0px), 1.2fr)" : "minmax(0, 1fr)").join(" "));
+      box.style.setProperty("--invite-phone-details", displayedFields.has("reply") ? "repeat(2, minmax(0, 1fr))" : "minmax(0, 1fr)");
       const heading = R.dom("div", { class: "invite-overview-heading" });
-      for (const col of columns) {
-        const cell = R.dom("span", {}, col.label ? T(col.label) : "");
-        if (col.key === "selection") {
-          cell.className = "invite-overview-select";
-          const selectAll = getSelectAllControl();
-          if (selectAll) cell.append(selectAll);
-        }
+      for (const col of primaryColumns) {
+        if (col.key === "selection" && !desktop && !selecting) continue;
+        const cell = R.dom("span", { class: col.key === "selection" ? "invite-overview-select" : "invite-column-label" }, col.label ? T(col.label) : "");
         heading.append(cell);
+      }
+      if (selecting) {
+        const cell = stackedPhone ? R.dom("span", { class: "invite-overview-select" }) : heading.querySelector(".invite-overview-select");
+        const selectAll = getSelectAllControl();
+        if (selectAll) cell.append(selectAll);
+        if (stackedPhone) heading.append(cell);
       }
       box.append(heading);
       const list = R.dom("div", { class: "invite-compact-list" });
@@ -584,52 +631,64 @@
           selection = R.dom("span", { class: "invite-overview-select" }),
           name = R.householdName(h);
         identity.append(R.dom("strong", { class: "invite-compact-name" }, name));
-        if (showPreview) {
-          const preview = R.dom("a", {
-            class: "admin-row-icon invite-preview",
-            title: T("Preview"),
-          });
-          preview.setAttribute("aria-label", T("Preview") + " · " + name);
-          preview.href = R.guestPreviewURL(h.id);
-          preview.target = "_blank";
-          preview.rel = "noopener noreferrer";
-          preview.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>';
-          selection.append(preview);
+        function appendActionButtons(actions) {
+          if (showPreview) {
+            const preview = R.dom("a", { class: "admin-row-icon invite-preview", title: T("Preview") });
+            preview.setAttribute("aria-label", T("Preview") + " · " + name);
+            preview.href = R.guestPreviewURL(h.id);
+            preview.target = "_blank";
+            preview.rel = "noopener noreferrer";
+            preview.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>';
+            actions.append(preview);
+          }
+          if (showEdit) {
+            const edit = iconAction("edit", T("interface.messages.edit_household") + name,
+              () => editHousehold(h.id, edit), false, "invite-edit-household");
+            edit.setAttribute("aria-haspopup", "dialog");
+            actions.append(edit);
+          }
         }
-        if (showEdit) {
-          const edit = iconAction("edit", T("interface.messages.edit_household") + name,
-            () => editHousehold(h.id, edit), false, "invite-edit-household");
-          edit.setAttribute("aria-haspopup", "dialog");
-          selection.append(edit);
-        }
+        if (inlineActions) appendActionButtons(selection);
+        const meta = T("interface.messages.count_guests", { count: model.guests }) + " · " +
+          (h.language || store.settings?.default_language || "en").toUpperCase();
         const householdInfo = R.dom("span", { class: "invite-overview-household-info" });
-        householdInfo.append(R.dom("small", { class: "muted invite-household-meta" },
-          T("interface.messages.count_guests", { count: model.guests }) + " · " +
-          (h.language || store.settings?.default_language || "en").toUpperCase()));
-        householdInfo.setAttribute("aria-label", T("Household info") + ": " + householdInfo.textContent);
+        householdInfo.append(R.dom("small", { class: "muted invite-household-meta" }, meta));
+        householdInfo.setAttribute("aria-label", T("Household info") + ": " + meta);
         const foodInterest = R.dom("span", { class: "invite-overview-interest" });
-        if (showFoodColumn && showFoodInterest) {
-          const state = window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(store, h),
-            label = T({ yes: "Yes", no: "No", unanswered: "–" }[state] || "Unanswered"),
-            badge = R.dom("small", { class: "muted invite-food-interest" }, label);
-          badge.dataset.foodInterest = state;
-          foodInterest.setAttribute("aria-label", T("Food interest") + ": " + label);
-          foodInterest.append(R.dom("small", { class: "muted invite-interest-label" }, T("Food")), badge);
-        }
-        if (showFoodColumn && showFoodItems) {
-          const count = (store.claims || []).filter(c => c.household_id === h.id).reduce((n,c) => n + Number(c.quantity || 0), 0);
-          foodInterest.append(R.dom("small", { class: "muted invite-interest-label" }, T("Food")), R.dom("small", { class: "invite-food-interest" }, count || "–"));
-        }
+        const foodBadge = R.dom("small", { class: "muted invite-food-interest" });
+        if (showFoodColumn) foodInterest.append(foodBadge);
         const recipient = R.dom("span", { class: "invite-overview-recipient" });
         recipient.append(R.dom("span", { class: "invite-recipient-name" }, model.contactName));
         const serviceInfo = R.dom("span", { class: "invite-overview-service-info" });
-        const recipientCopy = copyButton(model, "recipient", "invite-copy-action invite-copy-recipient");
-        recipientCopy.append(R.dom("span", { class: "invite-copy-pill" }, T(serviceLabels[model.service])));
-        serviceInfo.append(recipientCopy);
+        function recipientCopy() {
+          const control = copyButton(model, "recipient", "invite-copy-action invite-copy-recipient");
+          control.append(R.dom("span", { class: "invite-copy-pill" }, T(serviceLabels[model.service])));
+          return control;
+        }
+        serviceInfo.append(recipientCopy());
         serviceInfo.setAttribute("aria-label", T("Service") + ": " + T(serviceLabels[model.service]));
         const delivery = R.dom("span", { class: "invite-overview-delivery" }),
           invitationActions = R.dom("span", { class: "invite-copy-options" }),
           sendFeedback = R.dom("span", { class: "invite-send-feedback" });
+        const deliveryTime = rowLayout === 2 ? R.dom("time", { class: "muted invite-delivery-time" }) : null;
+        function renderDeliveryTime() {
+          if (!deliveryTime) return;
+          const visit = model.seen && model.h.last_visited_at;
+          const instant = visit || model.lastSent;
+          deliveryTime.hidden = !instant;
+          if (!instant) {
+            deliveryTime.removeAttribute("datetime");
+            deliveryTime.removeAttribute("title");
+            deliveryTime.removeAttribute("aria-label");
+            deliveryTime.textContent = "";
+            return;
+          }
+          deliveryTime.dateTime = instant;
+          const date = adminTime(instant), label = T(visit ? "Last visit" : "Last sent") + " · " + date;
+          deliveryTime.title = label;
+          deliveryTime.setAttribute("aria-label", label);
+          deliveryTime.textContent = date;
+        }
         let refreshInvitationLabel;
         sendFeedback.hidden = true;
         function renderInvitationActions() {
@@ -660,7 +719,11 @@
           text?.append(R.dom("span", { class: "invite-copy-pill" }, T("Text")));
           invitationActions.replaceChildren(primary);
           refreshInvitationLabel = () => {
-            const label = model.seen ? T("interface.messages.invites_seen_count", { count: model.h.visit_count }) : defaultLabel;
+            let label = defaultLabel;
+            if (model.seen) {
+              const count = Number(model.h.visit_count);
+              label = count > 1 ? T("interface.messages.invites_seen_count", { count }) : T("Seen");
+            }
             if (pill.textContent !== label) {
               pill.textContent = label;
               primary.setAttribute("aria-label", model.seen ? actionName + " · " + label : actionName);
@@ -696,11 +759,28 @@
         }
         renderInvitationActions();
         renderSendFeedback();
+        if (phone && rowLayout === 2) delivery.append(R.dom("small", { class: "muted invite-phone-field-label" }, T("Invitation")));
         delivery.append(invitationActions, sendFeedback);
+        if (deliveryTime) {
+          delivery.append(deliveryTime);
+          renderDeliveryTime();
+        }
         const reply = R.dom("span", { class: "invite-overview-reply" }),
           replyStatus = R.dom("span"),
           replyFood = R.dom("small", { class: "muted invite-rsvp-food-answer" });
-        function renderReplyStatus() {
+        const fields = R.dom("dl", { class: "invite-expanded-fields" });
+        function expandedField(field, label, ...values) {
+          if (!expandedFields.has(field)) return null;
+          const term = R.dom("dt", {}, T(label)), value = R.dom("dd");
+          value.append(...values);
+          fields.append(term, value);
+          return value;
+        }
+        expandedField("householdInfo", "Household info", meta);
+        if (expandedFields.has("recipient")) expandedField("recipient", "Recipient", model.contactName, recipientCopy());
+        const expandedReply = expandedField("reply", "RSVP");
+        const expandedFood = foodAvailable ? expandedField("food", "Food") : null;
+        function renderReplyStatus(foodStore = store) {
           const status = model.replied
             ? T("interface.messages.invites_replied_attendance", { attending: model.attendance.attending, total: model.total })
             : T(model.answers
@@ -708,14 +788,29 @@
                 : model.sent
                   ? "Awaiting reply"
                   : "No reply");
-          const answer = showReplyFood ? model.h.food_interest : null;
-          const answered = typeof answer === "boolean";
-          const compactFood = answered && rowLayout === 1
-            ? T(answer ? "interface.messages.invites_food_yes_short" : "interface.messages.invites_food_no_short") : "";
+          const interest = model.h.food_interest;
+          const quantity = showFoodItems && (showFoodColumn || showReplyFood || expandedFood)
+            ? (foodStore.claims || []).reduce((count, claim) => claim.household_id === model.h.id ? count + Number(claim.quantity || 0) : count, 0)
+            : 0;
+          const interestAnswer = typeof interest === "boolean" ? T(interest ? "Yes" : "No") : "";
+          const answer = showFoodInterest ? interestAnswer : quantity ? String(quantity) : "";
+          const replyAnswer = answer || interestAnswer;
+          const compactFood = showReplyFood && interestAnswer && rowLayout === 1
+            ? T(interest ? "interface.messages.invites_food_yes_short" : "interface.messages.invites_food_no_short") : "";
           replyStatus.textContent = compactFood ? status + " · " + compactFood : status;
-          replyFood.hidden = !answered;
-          replyFood.textContent = answered ? T("interface.messages.invites_food_answer", { answer: T(answer ? "Yes" : "No") }) : "";
+          replyFood.hidden = !showReplyFood || !replyAnswer;
+          replyFood.textContent = !replyFood.hidden ? T("interface.messages.invites_food_answer", { answer: replyAnswer }) : "";
+          if (showFoodColumn) {
+            foodBadge.textContent = answer || "–";
+            if (showFoodInterest) {
+              foodBadge.dataset.foodInterest = window.RSVP_ADMIN_OVERVIEW.foodInterestStatus(foodStore, model.h);
+              foodInterest.setAttribute("aria-label", T("Food interest") + ": " + foodBadge.textContent);
+            }
+          }
+          if (expandedReply) expandedReply.textContent = status;
+          if (expandedFood) expandedFood.textContent = answer || "–";
         }
+        if (phone && rowLayout === 2) reply.append(R.dom("small", { class: "muted invite-phone-field-label" }, T("RSVP")));
         reply.append(replyStatus);
         renderReplyStatus();
         if (rowLayout === 2) {
@@ -724,6 +819,18 @@
           reply.append(replyFood);
         }
         const content = R.dom("div", { class: "invite-household-content" });
+        if (fields.childElementCount || expandedActions) {
+          const expandedDetails = R.dom("div", { class: "invite-expanded-details" });
+          if (fields.childElementCount) expandedDetails.append(fields);
+          if (expandedActions) {
+            const actions = R.dom("div", { class: "invite-expanded-actions" });
+            actions.setAttribute("role", "group");
+            actions.setAttribute("aria-label", T("Action buttons"));
+            appendActionButtons(actions);
+            expandedDetails.append(actions);
+          }
+          content.append(expandedDetails);
+        }
         let filled = false, facts, invitation, latestActivityRequest = 0;
         function renderHouseholdFacts() {
           const summary = householdFacts(model.h);
@@ -755,6 +862,7 @@
             facts.replaceWith(next);
             facts = next;
             refreshInvitationLabel();
+            renderDeliveryTime();
             if (model.seen !== wasSeen) refreshOverviewCounts();
           } catch (_) {
             // Keep the dashboard's visit facts if the activity lookup is unavailable.
@@ -790,12 +898,24 @@
           refreshActivity();
         });
         if (row.open) fillSections();
-        const select = getSelectionControl(h.id);
+        const select = selecting ? getSelectionControl(h.id) : null;
         // The shared control owns eligibility and native checkbox
         // activation; its label isolates clicks/keys from this summary.
-        if (select) selection.append(select);
+        if (select) {
+          selection.append(select);
+          if (stackedPhone) identity.append(selection);
+        }
         const cells = { identity, householdInfo, recipient, serviceInfo, delivery, reply, food: foodInterest, selection };
-        for (const col of columns) summary.append(cells[col.key]);
+        for (const col of primaryColumns) summary.append(cells[col.key]);
+        if (phoneExtras.length) {
+          const details = R.dom("span", { class: "invite-phone-extras" });
+          for (const { key, label } of phoneExtras) {
+            const detail = R.dom("span", { class: "invite-phone-extra" });
+            detail.append(R.dom("small", { class: "muted invite-phone-field-label" }, T(label)), cells[key]);
+            details.append(detail);
+          }
+          summary.append(details);
+        }
         row.append(summary, content);
         container.append(row);
         function refreshSentRow(next) {
@@ -804,6 +924,7 @@
           if (next) {
             Object.assign(model, next);
             renderInvitationActions();
+            renderDeliveryTime();
             renderReplyStatus();
             const lastSent = facts?.querySelector('[data-shortcut-fact="last_sent"]');
             if (lastSent) lastSent.textContent = model.lastSent ? adminTime(model.lastSent) : T("Not yet");
@@ -816,7 +937,7 @@
             }
           }
           renderSendFeedback();
-          const current = selection.querySelector("input"), fresh = getSelectionControl(h.id)?.querySelector("input");
+          const current = selection.querySelector("input"), fresh = current && getSelectionControl(h.id)?.querySelector("input");
           if (current && fresh) {
             current.checked = fresh.checked;
             current.disabled = fresh.disabled;
@@ -825,10 +946,11 @@
               (next && !focused?.isConnected) || focused === current && current?.disabled)
             summary.focus({ preventScroll: true });
         }
-        function refreshGuestStatus({ h, seen, replied, attendance, answers, total }) {
+        function refreshGuestStatus({ h, seen, replied, attendance, answers, total }, foodStore) {
           Object.assign(model, { h, seen, replied, attendance, answers, total });
           refreshInvitationLabel();
-          renderReplyStatus();
+          renderDeliveryTime();
+          renderReplyStatus(foodStore);
         }
         renderedRows.set(h.id, { row, refreshSentRow, refreshGuestStatus });
         return row;
@@ -944,8 +1066,8 @@
         const count = cell.querySelector("#inviteSelectionCount");
         if (count) count.textContent = fresh.querySelector("#inviteSelectionCount").textContent;
       }
-      refreshRowStatuses = models => {
-        for (const model of models) renderedRows.get(model.h.id)?.refreshGuestStatus(model);
+      refreshRowStatuses = (models, foodStore) => {
+        for (const model of models) renderedRows.get(model.h.id)?.refreshGuestStatus(model, foodStore);
       };
       refreshSentRows = (ids, { recorded = false } = {}) => {
         if (!box.contains(list)) return;
@@ -1060,9 +1182,22 @@
       row.scrollIntoView({ block: "nearest" });
       row.querySelector("summary")?.focus();
     }
-    wideScreen.addEventListener("change", () => {
-      rowOverride = undefined;
-      if (getActor() && getStore().settings && can("invites")) render();
+    function renderScreenChange() {
+      if ($("inviteRows").dataset.screen !== screenSize() && getActor() && getStore().settings && can("invites")) render();
+    }
+    desktopScreen.addEventListener("change", renderScreenChange);
+    tabletScreen.addEventListener("change", renderScreenChange);
+    selectionToggle?.addEventListener("click", () => {
+      if (!getActor() || !can("invites")) return;
+      if (selecting) {
+        selecting = false;
+        // The bulk controller refreshes the list after clearing its selection.
+        if (!clearSelection()) selecting = true;
+      } else {
+        selecting = true;
+        render();
+      }
+      selectionToggle.focus({ preventScroll: true });
     });
     quickGrouping.addEventListener("change", event => {
       groupingOverride = event.target.value === groupingDefault ? undefined : event.target.value;

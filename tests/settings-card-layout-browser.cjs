@@ -162,14 +162,16 @@ const { server, mock, extra, stageExtra, out, cleanup } =
           await checkPencils();
           assert.equal(
             await page.locator("#personalPreferencesForm").isVisible(),
-            false,
+            true,
+            "Interface opens directly in its editable form",
           );
-          await openBox(page, "personal-preferences");
+          assert.equal(await page.locator('[data-local-edit="personal-preferences"]').isVisible(), false);
           assert.equal(
             await page.locator("#savePersonalPreferences").textContent(),
             saveText,
           );
           await page.locator("#cancelPersonalPreferences").click();
+          assert.equal(await page.locator("#personalPreferencesForm").isVisible(), true);
           assert(
             await page.evaluate(
               () => document.documentElement.scrollWidth <= innerWidth + 1,

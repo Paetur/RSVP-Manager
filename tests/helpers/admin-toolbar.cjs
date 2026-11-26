@@ -65,7 +65,6 @@ async function setInvitesGrouping(page, grouped) {
   if (!await page.locator('#adminApp').evaluate(node => node.classList.contains('showing-settings')))
     await page.locator('#settingsToggle').click();
   await selectInterfaceSettingsTab(page, "invites");
-  await require('./local-edit-ui.cjs').openBox(page, 'invites-appearance');
   const mode = typeof grouped === 'boolean' ? (grouped ? 'relational' : 'none') : grouped;
   await page.locator('#inviteGroupBy input[data-invite-grouping="'+mode+'"]').check();
   const save = page.locator('#saveInvitesAppearance');
@@ -89,9 +88,20 @@ module.exports.selectOverviewTab = selectOverviewTab;
 // Preference persistence itself is exercised through the actual Settings editor.
 async function setFixtureInviteRows(page, rows) {
   await page.evaluate(value => {
-    for (const key of ["invitesNarrowRows", "invitesWideRows"])
-      Object.defineProperty(window.RSVP_ADMIN_PREFERENCES, key, { configurable: true, get: () => value });
+    const preferences = window.RSVP_ADMIN_PREFERENCES;
+    if (!window.__fixtureInviteProfile) {
+      window.__fixtureInviteProfile = preferences.getInvitesProfile;
+      preferences.getInvitesProfile = screen => ({ ...window.__fixtureInviteProfile(screen),
+        ...window.__fixtureInviteProfiles?.[screen], rows: window.__fixtureInviteRows });
+    }
+    window.__fixtureInviteRows = value;
     document.dispatchEvent(new Event("rsvp:invites-appearance"));
   }, rows);
 }
 module.exports.setFixtureInviteRows = setFixtureInviteRows;
+
+async function ensureInviteSelection(page) {
+  const toggle = page.locator('#inviteSelectionToggle');
+  if (await toggle.getAttribute('aria-pressed') !== 'true') await toggle.click();
+}
+module.exports.ensureInviteSelection = ensureInviteSelection;

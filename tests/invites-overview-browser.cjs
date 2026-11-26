@@ -1,4 +1,4 @@
-const { refreshFixture, selectOverviewTab, setInvitesGrouping, setFixtureInviteRows } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture, selectOverviewTab, setInvitesGrouping, setFixtureInviteRows, ensureInviteSelection } = require("./helpers/admin-toolbar.cjs");
 // Actual UI with synthetic APIs only. No live accounts or event data.
 const { chromium } = require("playwright");
 const fs = require("node:fs"),
@@ -212,7 +212,7 @@ async function checkLiveGuestOverview(page) {
   assert.equal(await loads(), beforeLoads, "guest activity does not reload the administrator store");
   assert.ok(await page.evaluate(([button, row, editor, seenHousehold]) => button.isConnected && document.activeElement === button &&
     row.isConnected && row.open && editor.isConnected && seenHousehold.isConnected, nodes));
-  assert.equal(await seenRow.locator(".invite-copy-invitation").innerText(), "Seen (1)");
+  assert.equal(await seenRow.locator(".invite-copy-invitation").innerText(), "Seen");
   assert.equal(await seenRow.locator(".invite-overview-reply").innerText(), `Replied (1/${ids.replies + 1}) · F: Y`);
   assert.equal(await draftMessage.inputValue(), unsaved);
   assert.ok(await draft.locator("[data-bulk-select]").isChecked());
@@ -289,7 +289,7 @@ async function checkInvitationActivity(page) {
     const lastVisit = await fact(id, "last_visit").textContent();
     assert.match(firstVisit, /2026/);
     assert.match(lastVisit, /2026/);
-    assert.equal(await invitationLabel(id).textContent(), "Seen (" + count + ")");
+    assert.equal(await invitationLabel(id).textContent(), count === 1 ? "Seen" : "Seen (" + count + ")");
     return { firstVisit, lastVisit };
   };
 
@@ -695,7 +695,11 @@ async function checkMobileDraftSelection(page, published) {
   for (const phone of phones) {
     const group = list.locator('[data-invite-service="' + phone.service + '"]');
     assert.equal(await group.locator('[data-invite-household="' + phone.id + '"]').count(), 1, "the row stays in its original Service group");
-    assert.equal(await row(phone.id).locator(".invite-copy-recipient").innerText(), serviceNames[phone.service]);
+    const current = row(phone.id);
+    if (page.viewportSize().width < 1024 && !await current.evaluate(node => node.open)) {
+      await current.locator(':scope > summary .invite-compact-name').click();
+    }
+    assert.equal(await current.locator(".invite-copy-recipient:visible").innerText(), serviceNames[phone.service]);
     if (published) assert.equal(await row(phone.id).locator(".invite-copy-invitation").innerText(), "Invitation");
     else {
       assert.equal(await row(phone.id).getByRole("button", { name: /^Review/ }).count(), 1);
@@ -704,7 +708,7 @@ async function checkMobileDraftSelection(page, published) {
   }
   const expectedCopies = [];
   for (const phone of phones.slice(0, 3)) {
-    await row(phone.id).locator(".invite-copy-recipient").click();
+    await row(phone.id).locator(".invite-copy-recipient:visible").click();
     expectedCopies.push(phone.phone);
     if (published) {
       await row(phone.id).locator(".invite-copy-invitation").click();
@@ -820,6 +824,42 @@ async function checkReadyGenerationBoundaries(page) {
     ids.some(({ id }) => id === write.p_household_id) && write.p_values.status === "ready").length, ids.slice(3)), 0);
 }
 
+async function checkScreenProfiles(page) {
+  const start = page.viewportSize();
+  const rows = page.locator('#inviteRows');
+  const summaryFields = rows.locator('.invite-overview-heading > span:not(.invite-overview-select)');
+  for (const [width, screen, rowLayout] of [[511, 'phone', '2'], [512, 'tablet', '1'], [1023, 'tablet', '1'], [1024, 'desktop', '2']]) {
+    await page.setViewportSize({ ...start, width });
+    await page.locator(`#inviteRows[data-screen="${screen}"][data-rows="${rowLayout}"] .invite-household`).first().waitFor();
+    const fields = await summaryFields.allTextContents();
+    if (screen === 'phone') assert.deepEqual(fields, ['Household', 'Invitation', 'RSVP']);
+    else assert.ok(fields.includes('Service'));
+  }
+  await page.setViewportSize(start);
+  await page.locator('#inviteRows[data-screen="phone"] .invite-household').first().waitFor();
+  const first = rows.locator('.invite-household').first();
+  const name = first.locator(':scope > summary .invite-compact-name');
+  if (!await first.evaluate(node => node.open)) await name.click();
+  assert.equal(await first.locator('.invite-expanded-actions .invite-preview').isVisible(), true);
+  assert.equal(await first.locator('.invite-expanded-actions .invite-edit-household').isVisible(), true);
+  assert.equal(await first.locator(':scope > summary .invite-preview, :scope > summary .invite-edit-household').count(), 0);
+  await page.evaluate(() => {
+    const preferences = window.RSVP_ADMIN_PREFERENCES;
+    window.__defaultInviteProfile = preferences.getInvitesProfile;
+    preferences.getInvitesProfile = screen => ({ ...window.__defaultInviteProfile(screen),
+      showActions: false, expandedFields: ['recipient'] });
+    window.__invitesTestView.render();
+  });
+  assert.equal(await first.locator('.invite-expanded-actions').count(), 0);
+  assert.deepEqual(await first.locator('.invite-expanded-fields dt').allTextContents(), ['Recipient']);
+  await page.evaluate(() => {
+    window.RSVP_ADMIN_PREFERENCES.getInvitesProfile = window.__defaultInviteProfile;
+    delete window.__defaultInviteProfile;
+    window.__invitesTestView.render();
+  });
+  if (await first.evaluate(node => node.open)) await name.click();
+}
+
 async function checkOverviewFilters(page) {
   await selectOverviewTab(page, "information");
   const seed = await page.evaluate(() => {
@@ -911,7 +951,7 @@ async function checkOverviewFilters(page) {
   await selectOverviewTab(page,'invitation');
   assert.equal(await readyStatus.getAttribute('aria-pressed'),'true');
   await chooseInviteFilter(page,'inviteLanguageFilter',['de']);
-  await chooseInviteFilter(page,'inviteChannelFilter',['email']);
+  await chooseInviteFilter(page,'inviteChannelFilter',['whatsapp','email']);
   await informationTab.click();
   await second.click();
   await attend.click();
@@ -927,6 +967,7 @@ async function checkOverviewFilters(page) {
   ]);
   assert.equal(await activeFilters.getByText('Search · Example Hill',{exact:true}).count(),1);
   assert.equal(await activeFilters.getByText('Relational groups · Shared relationship',{exact:true}).count(),1);
+  assert.equal(await activeFilters.getByText('Services · WhatsApp, Email',{exact:true}).count(),1);
   assert.deepEqual(await rows(),[],'the clear action stays available on an empty result');
   const groupChoice=page.locator('#inviteQuickGrouping input:checked');
   const rowChoice=page.locator('#inviteRows');
@@ -967,6 +1008,7 @@ async function checkSeenPresentation(page) {
     store.households = [
       ...households.map(household => {
         if (household.id === sentUnseen) return { ...household, visit_count: 0 };
+        if (household.id === readySeen) return { ...household, ...visit, visit_count: 2 };
         return { ...household, ...visit, ...(household.id === unsentSeen ? { invite_code: "SYNTHABC", last_visited_at: null } : {}) };
       }),
       { id: readyUnseen, household_name: "Synthetic Ready household", language: "en", invite_code: "SYNTH2BC", visit_count: 0 },
@@ -991,7 +1033,7 @@ async function checkSeenPresentation(page) {
   const offsets = await Promise.all(["sent", "unseen", "seen"].map(state =>
     filter(state).locator("span").evaluate(node => node.getBoundingClientRect().left)));
   assert.equal(new Set(offsets).size, 1, "Sent, Not seen and Seen are peer rows with aligned labels");
-  const labels = [[seed.unsentSeen, "Seen (1)"], [seed.readySeen, "Seen (1)"],
+  const labels = [[seed.unsentSeen, "Seen"], [seed.readySeen, "Seen (2)"],
     [seed.readyUnseen, "Invitation"], [seed.sentUnseen, "Marked sent"], [seed.unprepared, "Not sent"]];
   for (const layout of [1, 2]) {
     await setFixtureInviteRows(page, layout);
@@ -1002,8 +1044,13 @@ async function checkSeenPresentation(page) {
         "the optional Text button only appears beside Invitation");
     }
     assert.equal(await page.locator("#inviteRows .invite-overview-heading").getByText("Seen", { exact: true }).count(), 0);
-    assert.equal(await page.locator("#inviteRows .invite-overview-delivery time").count(), 0,
-      "the Invitation column reserves visit details for the expanded household");
+    const visitTimestamp = row(seed.readySeen).locator('.invite-delivery-time');
+    if (layout === 1) assert.equal(await visitTimestamp.count(), 0);
+    else {
+      assert.ok(await visitTimestamp.getAttribute('datetime'));
+      assert.match(await visitTimestamp.innerText(), /\d/);
+      assert.doesNotMatch(await visitTimestamp.innerText(), /Last (visit|seen|sent)/i);
+    }
     assert.doesNotMatch((await page.locator("#inviteRows .invite-overview-delivery").allInnerTexts()).join(" "), /Not seen/);
   }
 
@@ -1079,11 +1126,11 @@ async function checkRsvpFoodPresentation(page) {
   assert.equal(await answer(seed.unanswered).count(), 0);
 
   const fields = page.locator("#inviteShownFieldsHost .invite-shown-fields");
-  await fields.locator("summary").click();
-  await fields.locator('button[data-value="food"]').click();
+  if (!await fields.evaluate(menu => menu.open)) await fields.locator("summary").click();
+  assert.equal(await fields.locator('button[data-value="food"]').count(), 0);
+  await fields.locator('button[data-value="reply"]').click();
   await page.keyboard.press("Escape");
-  assert.equal(await answer(seed.declined).count(), 0, "hiding Food hides its RSVP detail");
-  assert.equal(await reply(seed.declined).innerText(), "Replied (0/4)", "hiding Food leaves only the primary RSVP status");
+  assert.equal(await reply(seed.declined).count(), 0, "hiding the RSVP column also hides its Food detail");
   await setFixtureInviteRows(page, 1);
   await page.evaluate(prior => {
     Object.assign(window.__invitesStore, prior);
@@ -1127,15 +1174,19 @@ async function checkRowsPresentation(page) {
   assert.equal(await page.locator('#inviteRows .invite-household > summary > .invite-overview-household-info,#inviteRows .invite-household > summary > .invite-overview-recipient').count(),0,'secondary details move beneath their primary cells');
   assert.ok(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta').count()>0);
   for(const text of await page.locator('#inviteRows .invite-copy-recipient .invite-copy-pill').allTextContents())assert.match(text,/^(Messages|Email|WhatsApp|SMS|None)$/,'two-row service detail also omits number/email');
-  assert.doesNotMatch((await page.locator('#inviteRows .invite-overview-delivery').allTextContents()).join(' '),/Last sent/);
+  const activityTimes = await page.locator('#inviteRows .invite-delivery-time:visible').allInnerTexts();
+  assert.ok(activityTimes.length > 0);
+  for (const date of activityTimes) {
+    assert.match(date, /\d/);
+    assert.doesNotMatch(date, /Last (visit|seen|sent)/i);
+  }
   assert.doesNotMatch((await page.locator('#inviteRows .invite-overview-reply').allInnerTexts()).join(' '),/responses/);
   const twoState=await state();
-  assert.deepEqual(twoState.shown,['reply','food'],'two rows starts with both optional paired columns');
-  assert.deepEqual(await fields.locator('button[data-value]').evaluateAll(nodes=>nodes.map(node=>node.dataset.value)),['reply','food'],'two-row Shown controls only optional whole columns');
+  assert.deepEqual(twoState.shown,['reply'],'two rows starts with RSVP and its Food detail');
+  assert.deepEqual(await fields.locator('button[data-value]').evaluateAll(nodes=>nodes.map(node=>node.dataset.value)),['reply'],'two-row View controls the RSVP column and its details together');
   assert.deepEqual({...twoState,shown:before.shown},before,'two rows preserves selected households, RPC history and delivery data');
   await toggle('reply');await page.keyboard.press('Escape');
-  assert.deepEqual(await heading(),['Household','Service','Invitation','Food'],'food interest has its own column when RSVP is hidden');
-  await toggle('food');await page.keyboard.press('Escape');
+  assert.deepEqual(await heading(),['Household','Service','Invitation'],'Food follows RSVP visibility in two rows');
   assert.equal(await page.locator('#inviteRows .invite-overview-reply,#inviteRows .invite-overview-interest').count(),0,'two-row choices hide each optional primary/detail pair');
   assert.ok(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta').count()>0,'Household and its details stay mandatory when optional columns are hidden');
   await setFixtureInviteRows(page,1);assert.deepEqual(await state(),oneRowBefore,'returning to one row restores its previous fields and operational state');
@@ -1152,30 +1203,28 @@ async function checkRowsPresentation(page) {
   await toggle('reply');await page.keyboard.press('Escape');
   const rowTwoTemporary=await state();
   await page.evaluate(()=>{
-    window.__rowsSavedDefaults=Object.getOwnPropertyDescriptor(window.RSVP_ADMIN_PREFERENCES,'invitesShownFields');
-    Object.defineProperty(window.RSVP_ADMIN_PREFERENCES,'invitesShownFields',{configurable:true,get:()=>['recipient','delivery']});
+    window.__fixtureInviteProfiles = { desktop: { shownFields: ['recipient','serviceInfo','delivery'] } };
     window.__invitesTestView.render();
   });
   assert.deepEqual(await state(),rowTwoTemporary,'changed one-row defaults preserve active two-row temporary choices');
   await setFixtureInviteRows(page,1);
   assert.deepEqual((await state()).shown,['recipient'],'changed saved defaults replace earlier one-row overrides while required fields stay visible');
-  await page.evaluate(()=>{Object.defineProperty(window.RSVP_ADMIN_PREFERENCES,'invitesShownFields',window.__rowsSavedDefaults);delete window.__rowsSavedDefaults;window.__invitesTestView.render();});
+  await page.evaluate(()=>{delete window.__fixtureInviteProfiles;window.__invitesTestView.render();});
   assert.deepEqual(await state(),defaultsBefore,'restoring one-row defaults preserves operational data and restores those fields');
   await toggle('householdInfo');await page.keyboard.press('Escape');
   const oneRowTemporary=await state();
   await page.evaluate(()=>{
-    window.__rowsSavedColumns=Object.getOwnPropertyDescriptor(window.RSVP_ADMIN_PREFERENCES,'invitesTwoRowColumns');
-    Object.defineProperty(window.RSVP_ADMIN_PREFERENCES,'invitesTwoRowColumns',{configurable:true,get:()=>['serviceInfo','delivery','food']});
+    window.__fixtureInviteProfiles = { desktop: { twoRowColumns: ['serviceInfo','delivery'] } };
     window.__invitesTestView.render();
   });
   assert.deepEqual(await state(),oneRowTemporary,'changed two-row defaults preserve one-row temporary choices');
   await setFixtureInviteRows(page,2);
-  assert.deepEqual((await state()).shown,['food'],'two rows uses its own saved optional column defaults');
+  assert.deepEqual((await state()).shown,[],'two rows uses its own saved optional column defaults');
   assert.equal(await page.locator('#inviteRows .invite-overview-reply').count(),0,'saved two-row choices omit both lines of unselected RSVP');
   assert.ok(await page.locator('#inviteRows .invite-overview-service-info .invite-copy-recipient,#inviteRows .invite-overview-delivery .invite-copy-invitation').count()>0,'Service and Invitation stay mandatory with custom two-row defaults');
   assert.ok(await page.locator('#inviteRows .invite-overview-identity .invite-household-meta').count()>0,'saved two-row choices cannot hide Household details');
   await setFixtureInviteRows(page,1);assert.deepEqual(await state(),oneRowTemporary,'two-row saved defaults never replace one-row temporary fields');
-  await page.evaluate(()=>{Object.defineProperty(window.RSVP_ADMIN_PREFERENCES,'invitesTwoRowColumns',window.__rowsSavedColumns);delete window.__rowsSavedColumns;window.__invitesTestView.render();});
+  await page.evaluate(()=>{delete window.__fixtureInviteProfiles;window.__invitesTestView.render();});
   assert.deepEqual(await state(),oneRowTemporary,'restoring two-row defaults does not reset one-row fields');
   await toggle('householdInfo');await page.keyboard.press('Escape');
   await setFixtureInviteRows(page,2);
@@ -1187,6 +1236,7 @@ async function checkRowsPresentation(page) {
 }
 
 async function checkGroupingPreservation(page) {
+  await ensureInviteSelection(page);
   const ready=await page.evaluate(()=>window.__invitesStore.queue.find(q=>q.status==='ready'));
   const input=page.locator('#inviteRows [data-bulk-select="'+ready.household_id+'"]');
   await input.check();
@@ -1525,6 +1575,16 @@ async function checkOverviewFilterFeedback(page, touch) {
     assert.equal(await filter.getAttribute("aria-pressed"), "false");
     assert.equal(await mark.isVisible(), false);
   }
+  const service = page.locator('#inviteChannelFilter [data-value="whatsapp"]');
+  const serviceMark = service.locator(".invite-stat-check");
+  await service.click();
+  assert.equal(await serviceMark.isVisible(), true);
+  await selectOverviewTab(page, "information");
+  assert.equal(await serviceMark.isVisible(), false, "the inactive Invitation tab hides the selected service checkmark");
+  await selectOverviewTab(page, "invitation");
+  assert.equal(await service.getAttribute("aria-pressed"), "true", "switching tabs retains the service filter");
+  assert.equal(await serviceMark.isVisible(), true);
+  await service.click();
   await selectOverviewTab(page, "information");
   if (touch) {
     const sessions = page.locator("#inviteSessionTree details");
@@ -1810,7 +1870,27 @@ async function checkManualInvitations(page) {
       await page.waitForFunction(
         () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
       );
-      assert.equal(await page.locator('#inviteRows').getAttribute('data-rows'), width >= 1024 ? '2' : '1', 'initial layout follows the default screen profiles');
+      const phone = width < 512;
+      const initialRows = phone || width >= 1024 ? '2' : '1';
+      assert.equal(await page.locator('#inviteRows').getAttribute('data-rows'), initialRows, 'initial layout follows the default screen profiles');
+      if (width === 390) await checkScreenProfiles(page);
+      const selectionToggle = page.locator('#inviteSelectionToggle');
+      const inviteRows = page.locator('#inviteRows');
+      const selectAll = inviteRows.locator('[data-bulk-select-all]');
+      assert.equal(await selectionToggle.getAttribute('aria-pressed'), 'false');
+      assert.equal(await selectAll.isVisible(), false);
+      assert.equal(await inviteRows.locator('#inviteSelectionCount').isVisible(), false);
+      assert.equal(await inviteRows.locator('[data-bulk-select]:visible').count(), 0);
+      await ensureInviteSelection(page);
+      assert.equal(await selectAll.isVisible(), true);
+      assert.match(await inviteRows.locator('#inviteSelectionCount').innerText(), /^0\/[1-9]/);
+      await inviteRows.locator('[data-bulk-select]:enabled').first().check();
+      assert.match(await inviteRows.locator('#inviteSelectionCount').innerText(), /^1\//);
+      await selectionToggle.click();
+      assert.equal(await selectAll.isVisible(), false);
+      assert.equal(await selectionToggle.evaluate(button => button === document.activeElement), true);
+      await ensureInviteSelection(page);
+      assert.match(await inviteRows.locator('#inviteSelectionCount').innerText(), /^0\//);
       await setFixtureInviteRows(page,1);
       assert.equal(await page.evaluate(() => window.RSVP_CONFIG.supabaseUrl), "https://fixture.supabase.invalid",
         "source and installed bootstrap use the intercepted synthetic config");
@@ -1854,18 +1934,19 @@ async function checkManualInvitations(page) {
       assert.ok(await readyActions.evaluate(node => {
         const bounds = node.parentElement.getBoundingClientRect();
         const [invitation, text] = [...node.children].map(chip => chip.getBoundingClientRect());
-        return Math.abs(invitation.top - text.top) < 1 &&
-          invitation.right <= text.left && text.right <= bounds.right + 1;
-      }), "Invitation and Text stay on one line at " + width + "px");
+        const sideBySide = Math.abs(invitation.top - text.top) < 1 && invitation.right <= text.left;
+        const stacked = invitation.bottom <= text.top;
+        return (sideBySide || stacked) && text.right <= bounds.right + 1;
+      }), "Invitation and Text fit without overlap at " + width + "px");
       const geometry = await page.locator(".invite-household > summary").first().evaluate((summary) => {
         const identity = summary.querySelector('.invite-overview-identity'), name = identity.querySelector('strong');
         return { extraArrow:getComputedStyle(identity,'::before').content, nameArrow:getComputedStyle(name,'::before').content, detailCells:summary.querySelectorAll('.invite-overview-household-info,.invite-overview-service-info').length, overflow:summary.scrollWidth>summary.clientWidth+1 };
       });
       assert.ok(['none','normal','""'].includes(geometry.extraArrow),'identity must not add a second arrow');
       assert.match(geometry.nameArrow,/›/);
-      assert.equal(geometry.detailCells,1,'Service is mandatory while household detail starts hidden');
+      assert.equal(geometry.detailCells,phone ? 0 : 1,'Service is shown in the summary on tablet and desktop');
       assert.equal(geometry.overflow,false,'summary stays within its width');
-      assert.deepEqual(await page.locator('.invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Recipient','Service','Invitation','RSVP']);
+      assert.deepEqual(await page.locator('.invite-overview-heading > span:not(.invite-overview-select)').allTextContents(), phone ? ['Household','Invitation','RSVP'] : ['Household','Recipient','Service','Invitation','RSVP']);
       if (width > 1000) {
         assert.equal(await page.evaluate(() => {
           const labels=[...document.querySelectorAll('.invite-overview-heading > span')], cells=[...document.querySelector('.invite-household > summary').children];
@@ -1947,6 +2028,7 @@ async function checkManualInvitations(page) {
         await page.locator("#inviteRows .invite-household").count(),
         1,
       );
+      if (phone) await inviteRows.locator('.invite-compact-name').click();
       assert.match(
         await page.locator("#inviteRows").innerText(),
         /Other recipient/,
@@ -2080,13 +2162,14 @@ async function checkManualInvitations(page) {
       await refreshFixture(page);
       await page.waitForFunction(() => !document.querySelector('#refreshButton').disabled);
       assert.equal(await page.locator('.invite-overview-interest').count(),0,'food column follows Food permission');
-      assert.deepEqual(await page.locator('.invite-overview-heading > span:not(.invite-overview-select)').allTextContents(),['Household','Recipient','Service','Invitation','RSVP'],'Food permission leaves the unrelated columns visible');
+      assert.deepEqual(await page.locator('.invite-overview-heading > span:not(.invite-overview-select)').allTextContents(), phone ? ['Household','Invitation','RSVP'] : ['Household','Recipient','Service','Invitation','RSVP'],'Food permission leaves the unrelated columns visible');
       assert.equal(await page.locator('#inviteRows .invite-preview').count(),0,'a household preview requires Food access when the feature is enabled');
       if (width === 320 || width === 1440) await checkBulkDraftGeneration(page);
       if (width === 1440) { await checkInvitesCopyAndFilters(page); await checkManualInvitations(page); await checkReadyGenerationBoundaries(page); }
       if (width === 320 || width === 1440) {
         await page.reload();
         await page.locator("#inviteRows .invite-household").first().waitFor();
+        await ensureInviteSelection(page);
         await checkMobileDraftSelection(page, width === 1440);
       }
       assert.deepEqual(errors, []);

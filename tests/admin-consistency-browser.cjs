@@ -350,7 +350,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.equal(await page.locator('#foodTranslationGrid [data-translation-record="ui:Food type: Basket(s)"]').getByLabel('Unit · English',{exact:true}).inputValue(),'Basket(s)');
  await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="checklist"]').click();
  assert.match(await page.locator('#adminModeLabel').textContent(),/^Manage application settings and administrator access/);
- await openBox(page,'personal-preferences');assert.ok(await page.locator('[data-preference-choices="language"]').isVisible());assert.ok(await page.locator('[data-preference-choices="appearance"]').isVisible());assert.equal(await page.locator('#languageToggle,#themeMenu,#closeSettings').count(),0);
+ assert.ok(await page.locator('[data-preference-choices="language"]').isVisible());assert.ok(await page.locator('[data-preference-choices="appearance"]').isVisible());assert.equal(await page.locator('#languageToggle,#themeMenu,#closeSettings').count(),0);
  if(preview&&type.name()==='webkit'){await page.locator('[data-preference-choices="appearance"] [data-preference-choice="dark"]').click();await page.mouse.move(0,0);await page.screenshot({path:preview+'/settings-interface.png',fullPage:true});}
  await page.locator('[data-settings-tab="languages"]').click();
  assert.equal(await page.locator('.settings-tabs').getAttribute('role'),'tablist');

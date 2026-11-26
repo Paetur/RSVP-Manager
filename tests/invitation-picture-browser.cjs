@@ -3,7 +3,7 @@ const { chromium } = require("playwright");
 const assert = require("node:assert/strict"),
   fs = require("node:fs");
 const { selectWorkTab } = require("./helpers/language-ui.cjs");
-const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture, ensureInviteSelection } = require("./helpers/admin-toolbar.cjs");
 const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
 const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-picture");
 (async () => {
@@ -429,6 +429,15 @@ const { server, mock, extra, cleanup } = createPublicFoodHarness("invitation-pic
         `[data-invite-household="${household}"]`,
       );
       assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "opening Invites does not save a delivery");
+      if (width < 512) {
+        // The compact phone profile hides Service until an administrator shows it.
+        const view = page.locator("#inviteShownFieldsHost .invite-shown-fields");
+        await view.locator("summary").click();
+        const service = view.locator('button[data-value="serviceInfo"]');
+        if (await service.getAttribute("aria-pressed") === "false") await service.click();
+        await page.keyboard.press("Escape");
+      }
+      await ensureInviteSelection(page);
       await householdRow.locator('[data-bulk-select="' + household + '"]').check();
       const action = page.locator("#bulkInvitesHost");
       assert.equal(await page.evaluate(() => window.__calls.some(c => c.name === "admin_save_delivery")), false, "selecting a household does not create a delivery");

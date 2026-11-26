@@ -87,18 +87,14 @@ const { server, mock, extra, stageExtra, out } =
     await page
       .locator("[data-settings-panel=interface]")
       .screenshot({ path: path.join(out, "interface-read-phone.png") });
-    for (const key of [
-      "personal-preferences",
-      "guest-customization:wide",
-      "notification-preferences:wide",
-    ]) {
-      await page.locator(key === "personal-preferences" ? "[data-settings-tab=checklist]" : "[data-settings-tab=interface]").click();
+    await selectInterfaceSettingsTab(page);
+    await page.locator("#personalPreferencesForm").waitFor();
+    await page.locator("[data-settings-panel=checklist]")
+      .screenshot({ path: path.join(out, "interface-edit-phone.png") });
+    await page.locator("[data-settings-tab=interface]").click();
+    for (const key of ["guest-customization:wide", "notification-preferences:wide"]) {
       const form = await openBox(page, key);
       assert(await form.isVisible());
-      if (key === "personal-preferences")
-        await page
-          .locator("[data-settings-panel=checklist]")
-          .screenshot({ path: path.join(out, "interface-edit-phone.png") });
       const cancel = form.getByRole("button", { name: "Cancel", exact: true });
       await cancel.click();
       await page.waitForFunction(
@@ -135,16 +131,20 @@ const { server, mock, extra, stageExtra, out } =
         .count(),
       0,
     );
-    await page.locator("[data-settings-tab=checklist]").click();
-    assert(
-      await page
-        .locator('[data-local-edit="personal-preferences"]')
-        .isVisible(),
-    );
+    await selectInterfaceSettingsTab(page);
+    const personal = page.locator("#personalPreferencesForm");
+    assert.equal(await personal.isVisible(), true);
+    assert.equal(await personal.locator('[data-preference-choice="system"]').isEnabled(), true);
     await selectInterfaceSettingsTab(page, "invites");
-    const invites = await openBox(page, "invites-appearance");
+    const invites = page.locator("#invitesAppearanceForm");
+    assert.equal(await invites.isVisible(), true);
+    assert.equal(await page.locator('[data-local-edit="invites-appearance"]').count(), 0);
     assert.equal(await invites.locator("#inviteShowText").isEnabled(), true);
     await invites.locator("#cancelInvitesAppearance").click();
+    assert.equal(await invites.isVisible(), true);
+    await selectInterfaceSettingsTab(page, "overview");
+    assert.equal(await page.locator("#overviewAppearanceForm").isVisible(), true);
+    assert.equal(await page.locator("#overviewAppearanceForm [data-overview-grip]").first().isEnabled(), true);
     await page.locator("[data-settings-tab=interface]").click();
     assert.equal(
       await page

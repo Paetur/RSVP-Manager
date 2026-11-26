@@ -251,6 +251,9 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
 
  // Unified logs: authorization, literal search, deterministic pagination, session verification and opening coalescence.
  const queryLogs=async(v={})=>scalar('select public.admin_query_logs($1,$2,$3,$4,$5,$6,$7,$8) value',[v.search||'',v.category||'',v.action||'',v.from||null,v.to||null,v.before_at||null,v.before_key||null,v.limit||5]);
+ const filteredLogSql='select public.admin_query_logs_filtered($1,$2,$3,$4,$5,$6,$7,$8,$9) value';
+ const filteredLogs=({search='',categories=[],actions=[],actor='all',from=null,to=null,before_at=null,before_key=null,limit=100}={})=>
+   scalar(filteredLogSql,[search,categories,actions,actor,from,to,before_at,before_key,limit]);
  let firstPage=await queryLogs();assert.equal(firstPage.entries.length,5);assert.equal(firstPage.has_more,true);checks+=2;
  const seen=new Set();let page=firstPage;while(true){for(const e of page.entries){assert.ok(!seen.has(e.event_key));seen.add(e.event_key);}if(!page.has_more)break;const last=page.entries.at(-1);page=await queryLogs({before_at:last.occurred_at,before_key:last.event_key});}assert.ok(seen.size>20);checks++;
  const searched=await queryLogs({search:'dELivery HOUSEHOLD',category:'households',limit:100});assert.ok(searched.entries.length>0);assert.ok(searched.entries.every(e=>e.category==='households'&&e.household_name?.toLowerCase().includes('delivery household')));checks++;
@@ -276,6 +279,34 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
  await q('select public.get_invitation_logged($1)',[code2]);await q('select public.get_invitation_logged($1)',[code2]);
  assert.equal(await scalar("select public.get_invitation_logged('AAAAAAAA') value"),null);checks++;
  await db.exec('SET ROLE authenticated');const opened=await queryLogs({category:'invitations',action:'opened'});assert.equal(opened.entries.length,1);assert.equal(opened.entries[0].household_id,h2);checks+=2;
+ const guestLogs=await filteredLogs({categories:['rsvp','invitations'],actor:'guest'});
+ assert.deepEqual(guestLogs.actions,['opened','response_submitted','submitted']);
+ assert.deepEqual([...new Set(guestLogs.entries.map(entry=>entry.action))].sort(),guestLogs.actions);
+ assert.ok(guestLogs.entries.every(entry=>entry.household_id===h2&&entry.actor_user_id===null));
+ const adminRsvp=await filteredLogs({categories:['rsvp'],actions:['response_corrected','response_submitted'],actor:'admin'});
+ assert.ok(adminRsvp.entries.length>0);
+ assert.ok(adminRsvp.entries.every(entry=>entry.action==='response_corrected'));
+ assert.ok(!adminRsvp.actions.includes('response_submitted'));
+ const combined=await filteredLogs({
+   categories:['rsvp','invitations'],actions:['response_corrected','response_submitted','opened'],
+ });
+ assert.deepEqual([...new Set(combined.entries.map(entry=>entry.action))].sort(),['opened','response_corrected','response_submitted']);
+ const adminLogin=await filteredLogs({categories:['login'],actor:'admin'});
+ assert.equal(adminLogin.entries.length,2);
+ assert.ok(adminLogin.entries.every(entry=>entry.event_key.startsWith('app-session:')));
+ assert.ok((await filteredLogs({categories:['login']})).entries.some(entry=>entry.event_key.startsWith('auth:')));
+ const sameFilterPages=[];
+ let guestPage=await filteredLogs({categories:['rsvp','invitations'],actor:'guest',limit:1});
+ while(true){
+   sameFilterPages.push(...guestPage.entries.map(entry=>entry.event_key));
+   if(!guestPage.has_more) break;
+   const {occurred_at,event_key}=guestPage.entries.at(-1);
+   guestPage=await filteredLogs({categories:['rsvp','invitations'],actor:'guest',limit:1,before_at:occurred_at,before_key:event_key});
+ }
+ assert.deepEqual(sameFilterPages,guestLogs.entries.map(entry=>entry.event_key));
+ checks+=11;
+ await assert.rejects(()=>filteredLogs({categories:['rsvp','invalid']}),/Invalid log category/);checks++;
+ await assert.rejects(()=>filteredLogs({actor:'unknown'}),/Invalid log filters/);checks++;
  const deliveryLogs=await queryLogs({category:'invitations',action:'sent'});assert.ok(deliveryLogs.entries.length>0);assert.ok(!JSON.stringify(deliveryLogs).includes('Synthetic message'));checks++;
  await db.exec('RESET ROLE');await q('update public.event_settings set is_published=false where id=1');await db.exec('SET ROLE service_role');
  assert.equal(await scalar('select public.get_invitation_logged($1) value',[dhCode]),null);checks++;
@@ -286,12 +317,14 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
  await reject("select public.admin_set_food_access($1,false,true,'Denied')",[dh],/Administrator (access|session)/);
  await reject("select public.admin_correct_rsvp($1,$2,'attending','Denied')",[g,s1],/Administrator (access|session)/);
  await reject('select public.admin_query_logs()',[],/Administrator (access|session)/);
+ await reject(filteredLogSql,['',[],[],'all',null,null,null,null,5],/Administrator (access|session)/);
  await reject("select public.admin_record_session('login')",[],/Administrator (access|session)/);
  assert.equal(await scalar('select count(*)::int value from public.management_audit'),0);checks++;
  await db.exec("SET ROLE anon;SET request.jwt.claim.sub=''");
  await reject('select public.admin_save_household(null,$1)',[values],/permission denied/);
  await reject('select * from public.management_audit',[],/permission denied/);
  await reject('select public.admin_query_logs()',[],/permission denied/);
+ await reject(filteredLogSql,['',[],[],'all',null,null,null,null,5],/permission denied/);
  await reject("select public.get_invitation_logged('AAAAAAAA')",[],/permission denied/);
  await reject("select public.record_invitation_open('AAAAAAAA')",[],/permission denied/);
  await reject('select public.admin_save_venue(null,$1)',[{name:'No',timezone:'UTC'}],/permission denied/);

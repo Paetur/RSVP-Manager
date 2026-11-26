@@ -10,25 +10,25 @@ For a first installation, use the [trusted setup companion](AutomaticSetup.md) t
 
 The three icons at the top open **Home**, **Languages** and **Settings**. On desktop, the release version appears under your name after sign-in.
 
-Home opens **Main**, which contains Overview and Invites. The other tabs are **Events**, **Venues**, **Households**, **Food** and **Other**. Click Overview counts to filter Invites, then check **Active filters** above the list. Select households to see the draft, invitation and sending actions. **Group by**, **View** and **Search** control the current list. When Apple Shortcuts is enabled, its box appears between Overview and Invites. [Manage invitation drafts](HouseholdsAndInvites.md#make-and-send-bulk-invites)
+Home opens **Main**, which contains Overview and Invites. The other tabs are **Events**, **Venues**, **Households**, **Food** and **Other**. Click Overview counts to filter Invites, then check the selections beside **Clear filters** above the list. Select households to see the draft, invitation and sending actions. **Group by**, **View** and **Search** control the current list. When Apple Shortcuts is enabled, its box appears between Overview and Invites. [Manage invitation drafts](HouseholdsAndInvites.md#make-and-send-bulk-invites)
 
 Your access determines which sections you see. The first Settings tab, **Application**, holds publication controls. Full administrators also see its launch checklist, with pending checks first and completed checks collapsed. The Publication card shows current access and delivery state. Acknowledge the release checks and confirm explicitly before publishing.
 
-- Each record or settings box has its own pencil where you have permission.
+- Record editors have their own pencils where you have permission.
 - Use a record’s pencil to open its editor. Save keeps your changes; Cancel discards the draft.
 - An unchanged existing record normally has a disabled Save button. A new, prefilled reminder is already a draft you can save.
 
 Use the **Search** icon in Households, Invites, Food or Logs to open that list's search field. Closing it clears the search.
 
-Editing one box does not open the others. Save closes that box after a successful update; Cancel discards its draft. Failed saves keep it open for retry. Someone with View only access cannot edit event records; personal Interface preferences remain available.
+Record editors keep independent drafts. Save closes the record editor after a successful update, and Cancel discards its draft. Failed saves keep the editor open for retry. Personal Interface preferences are available with View only access.
 
-The top actions refresh the data, change appearance, open the sign-in-protected guest preview in another tab and sign out. **Settings → Interface** contains the **Interface**, **Invites appearance**, and **Overview appearance** tabs. The first tab contains Interface, HTTP/SSL, and Apple Shortcuts. Use the Interface pencil to edit **Appearance** and **Date and time**. Choose **Save** to apply the choices to your administrator account or **Cancel** to discard the draft. Saved choices load when you sign in on another device. The top-bar appearance toggle applies immediately.
+The top actions refresh the data, change appearance, open the sign-in-protected guest preview in another tab and sign out. **Settings → Interface** opens **Interface**, **Invites appearance** and **Overview appearance** directly to their preference controls. The first tab also contains HTTP/SSL and Apple Shortcuts. Choose **Save** to apply the choices to your administrator account or **Cancel** to discard the draft. Saved choices load when you sign in on another device. The top-bar appearance toggle applies immediately.
 
 - **Appearance** contains the theme, interface language and button hover settings.
 - **Date and time** offers the language default, a short month name, a numeric date with dots, or year-month-day. **System default** follows the device’s clock convention. Choose **12-hour (AM/PM)** or **24-hour** to use the same clock format when viewing and editing times across devices. Pick a sample date to preview the format as you edit.
-- **Invites appearance** has its own editor for grouping, row counts for narrow and wide screens, the Text button and default fields for each row layout. Household, Service and Invitation remain visible. Use **Group by** and **View** in Invites to adjust the current list.
+- **Invites appearance** opens directly in its editor. Choose **Phone**, **Tablet**, or **Desktop** to set rows and shown fields. The live **Preview** reflects your choices before you save. Use **Group by** and **View** in Invites to adjust the current list.
 
-Use the pencil in **Overview appearance** to show or hide cards and change their order. Drag a card by its grip to move it within or between tabs, tap the grip for move actions, or focus the grip and press Up or Down. Each tab name has a pencil that opens a small editor underneath it. Save the name there, then select **Save** in the panel to apply the draft. **Reset to defaults** restores the starting names, order and visibility after saving.
+In **Overview appearance**, use the checkboxes to show or hide cards. Drag a card by its grip to move it within or between tabs, tap the grip for move actions, or focus the grip and press Up or Down. Each tab name has a pencil that opens a small editor underneath it. Save the name there, then select **Save** in the panel to apply the draft. **Reset to defaults** restores the starting names, order and visibility after saving.
 
 ![Settings → Interface with the Appearance editor and the Invites appearance and Overview appearance tabs](images/ipad-interface-settings.png)
 

@@ -529,7 +529,7 @@
   gap: 15px;
   min-width: 0;
 }
-#adminApp .settings-interface-panel :is([data-settings-card="personal-preferences"], [data-settings-card="overview-appearance"]) > .settings-card-heading {
+#adminApp .settings-interface-panel :is([data-settings-card="personal-preferences"], [data-settings-card="invites-appearance"], [data-settings-card="overview-appearance"]) > .settings-card-heading {
   align-items: center;
   margin-block-end: 8px;
 }
@@ -537,7 +537,6 @@
   min-width: 0;
   margin-top: 0;
 }
-.interface-preference-group,
 .overview-card-setting-group {
   display: grid;
   gap: 6px;
@@ -545,7 +544,7 @@
   padding-block: 10px;
   border-block-start: 1px solid var(--line);
 }
-:is(.interface-preference-group, .overview-tab-heading) > h3 {
+.overview-tab-heading > h3 {
   margin: 0;
   font-size: .92rem;
   overflow-wrap: anywhere;
@@ -587,20 +586,6 @@
   color: var(--action-text);
   border-color: var(--teal);
   background: var(--light);
-}
-#adminApp .interface-preference-summary .record-read-grid {
-  align-items: start;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
-  gap: 0;
-}
-.interface-preference-summary .compact-read-grid > :is(dt, dd) {
-  padding-block: 7px;
-}
-.interface-preference-summary .compact-read-grid > dt {
-  padding-inline-end: 10px;
-}
-.interface-preference-summary .compact-read-grid > dd {
-  text-align: end;
 }
 .interface-date-example {
   font-size: .83rem;
@@ -646,7 +631,7 @@
   padding-block-start: 10px;
   border-block-start: 1px solid var(--line);
 }
-#adminApp .interface-preference-actions .overview-reset-defaults {
+#adminApp .interface-preference-actions .interface-reset-defaults {
   margin-inline-end: auto;
   padding-inline: 0;
   border-color: transparent;
@@ -711,7 +696,6 @@
 }
 #adminApp .overview-card-grip[draggable="true"] { cursor: grab; }
 #adminApp .overview-card-grip:hover:not(:disabled) { background: var(--light); color: var(--action-text); }
-.overview-card-state,
 #adminApp .overview-card-setting .overview-card-visibility {
   display: inline-flex;
   justify-content: center;
@@ -719,5 +703,3 @@
   min-width: 44px;
   min-height: 44px;
 }
-.overview-card-state { color: var(--muted); }
-.overview-card-state[data-shown="true"] { color: var(--action-text); }

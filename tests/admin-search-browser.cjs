@@ -6,6 +6,11 @@ const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public
 const { server, mock, extra, cleanup } = createPublicFoodHarness("admin-search");
 const ids = ["householdSearch", "inviteSearch", "foodSearch", "logSearch"];
 const noMatch = "synthetic-no-search-match-zzzz";
+const submissionId = "42702ec9-1234-4000-8000-002000000018";
+const submissionTime = "2026-10-31T12:58:00.000Z";
+const dateValue = "2026-10-31";
+const filterDate = "31/10/2026";
+const logRpc = "admin_query_logs_filtered";
 const screenshots = process.env.RSVP_SEARCH_ARTIFACTS;
 if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
 
@@ -15,11 +20,14 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
   try {
     browser = await chromium.launch();
     for (const width of [390, 1366]) {
-      const page = await browser.newPage({ viewport: { width, height: 1050 }, hasTouch: width < 700 }), errors = [];
+      const dateFormat = width < 700 ? "dots" : "iso";
+      const formattedDate = dateFormat === "dots" ? "31.10.2026" : dateValue;
+      const page = await browser.newPage({ viewport: { width, height: 1050 }, hasTouch: width < 700, timezoneId: "UTC" }), errors = [];
       page.setDefaultTimeout(10000);
       page.on("pageerror", error => errors.push(error.message));
-      await page.addInitScript(() => {
+      await page.addInitScript(format => {
         localStorage.setItem("rsvp-interface-language", "en");
+        window.__personalProfile = { rsvp_interface_language: "en", rsvp_interface_date_format: format, rsvp_interface_time_format: "24" };
         document.addEventListener("DOMContentLoaded", () => {
           window.__searchNodes = {};
           window.__searchInputs = {};
@@ -29,7 +37,7 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
             input.addEventListener("input", () => window.__searchInputs[id]++);
           }
         }, { once: true });
-      });
+      }, dateFormat);
       await routeSyntheticSdk(page, mock + "\n" + extra);
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/");
       await page.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
@@ -88,7 +96,24 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
       assert.equal(await page.evaluate(start => window.__calls.slice(start).some(call => /save|delete|record|publish|create|send|claim/i.test(call.name)), before), false,
         "search/open/clear never performs data or delivery writes");
 
+      await page.evaluate(({ submissionId, submissionTime }) => {
+        const shared = {
+          occurred_at: submissionTime, category: "rsvp", household_id: window.__logFixtures[1].household_id,
+          household_name: "Example household", actor_user_id: null, actor: "Guest / system",
+        };
+        window.__logFixtures.splice(1, 2, {
+          ...shared, event_key: "rsvp-response:214", action: "response_submitted", subject: "Alex Example",
+          details: { session: "Evening reception", before: null, after: "attending", reason: null },
+        }, {
+          ...shared, event_key: "rsvp-household:217", action: "submitted", subject: "Household RSVP",
+          details: { reason: null, submission_id: submissionId },
+        });
+        Object.assign(window.__logFixtures[3], {
+          event_key: "auth:fixture", action: "auth_event", subject: "Synthetic authentication job",
+        });
+      }, { submissionId, submissionTime });
       await page.locator("#settingsToggle").click();
+      const beforeLogs = await page.evaluate(() => window.__calls.length);
       await page.locator('[data-settings-tab="logs"]').click();
       await page.waitForFunction(() => window.__lastLogQuery && !document.getElementById("logApply").disabled);
       const layout = await page.locator("#logFilters").evaluate(form => {
@@ -100,7 +125,7 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
         return {
           title: measure("h2"), toggle: measure("#logSearchToggle"), heading: measure(".log-heading"),
           toolbarRight: measure(".log-filter-toolbar").right - parseFloat(toolbar.paddingRight) - parseFloat(toolbar.borderRightWidth),
-          filters: ["#logCategory", "#logAction", "#logFrom", "#logTo"].map(measure),
+          filters: ["#logCategory > summary", "#logAction > summary", "#logFrom", "#logTo"].map(measure),
           apply: measure("#logApply"), reset: measure("#logReset"),
         };
       });
@@ -123,41 +148,161 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
       const help = page.locator('[data-settings-panel="logs"] .log-help');
       assert.equal(await help.evaluate(node => node.open), false, "log reference notes start collapsed");
       assert.equal(await page.locator("#logRows .log-entry").count(), 50, "the initial page still loads real fixture results");
+      const logs = page.locator("#logRows .log-entry");
+      const submitted = logs.filter({ has: page.getByText("Household RSVP submitted", { exact: true }) });
+      const response = logs.filter({ has: page.getByText("Alex Example", { exact: true }) });
+      assert.equal(await submitted.count(), 1);
+      assert.equal(await response.count(), 1, "a response at the same time as its household submission stays a separate entry");
+      for (const row of [submitted, response]) {
+        const summary = row.locator(":scope > summary");
+        const timestamp = summary.locator("time");
+        assert.equal(await timestamp.getAttribute("datetime"), submissionTime);
+        assert.equal(await timestamp.innerText(), formattedDate + " · 12:58:00");
+        const [when, activity] = await Promise.all([timestamp.boundingBox(), summary.locator(".log-subject").boundingBox()]);
+        assert.ok(when && activity && when.y + when.height <= activity.y + 1 && Math.abs(when.x - activity.x) < 2,
+          "the timestamp is on the line above the activity at each screen width");
+        assert.doesNotMatch(await summary.innerText(), /Guest \/ system/);
+      }
+      const responseSummary = response.locator(":scope > summary");
+      assert.match(await responseSummary.innerText(), /Attending/);
+      assert.match(await responseSummary.innerText(), /Evening reception/);
+      assert.equal(await responseSummary.locator(".log-kind .tag").innerText(), "RSVP");
+      const submittedSummary = submitted.locator(":scope > summary");
+      assert.match(await submittedSummary.innerText(), /Example household/);
+      await submittedSummary.click();
+      assert.equal(await submitted.getByText("Locked after submission", { exact: true }).isVisible(), true);
+      const technical = submitted.locator("details.log-technical");
+      assert.equal(await technical.evaluate(node => node.open), false);
+      assert.equal(await submitted.getByText("rsvp-household:217", { exact: true }).isVisible(), false);
+      assert.equal(await submitted.getByText(submissionId, { exact: true }).isVisible(), false);
+      const technicalSummary = technical.locator(":scope > summary");
+      assert.equal(await technicalSummary.innerText(), "Technical details");
+      await technicalSummary.press("Enter");
+      for (const text of ["Log reference", "rsvp-household:217", "Timestamp (UTC)", submissionTime, "Submission ID", submissionId]) {
+        assert.equal(await technical.getByText(text, { exact: true }).isVisible(), true, text + " is available in technical details");
+      }
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true,
+        "expanded technical details fit the current viewport");
+      if (screenshots) await page.screenshot({ path: path.join(screenshots, "logs-rsvp-open-" + width + ".png") });
+      await technicalSummary.click();
+      await submittedSummary.click();
       await page.locator("#logSearchToggle").click();
       assert.equal(await page.locator("#logSearch").evaluate(input => document.activeElement === input && input.form?.id === "logFilters"), true);
       await page.locator("#logSearch").fill(noMatch);
       await page.locator("#logSearch").press("Enter");
       await page.waitForFunction(value => window.__lastLogQuery.p_search === value && !document.getElementById("logApply").disabled, noMatch);
       assert.match(await page.locator("#logRows").innerText(), /No log entries/);
-      const queries = await page.evaluate(() => window.__calls.filter(call => call.name === "admin_query_logs").length);
+      const queryCount = () => page.evaluate(name => window.__calls.filter(call => call.name === name).length, logRpc);
+      const queries = await queryCount();
       await page.locator("#logSearchClose").click();
       await page.waitForFunction(() => window.__lastLogQuery.p_search === "" && !document.getElementById("logApply").disabled);
       assert.equal(await page.locator("#logSearch").inputValue(), "");
       assert.equal(await page.locator("#logSearchPanel").isVisible(), false);
       assert.equal(await page.locator("#logSearchToggle").evaluate(node => document.activeElement === node), true);
-      assert.equal(await page.evaluate(() => window.__calls.filter(call => call.name === "admin_query_logs").length), queries + 1,
+      assert.equal(await queryCount(), queries + 1,
         "log clear callback refreshes applied server-side search exactly once");
       assert.equal(await page.locator("#logRows .log-entry").count(), 50);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
       if (screenshots) await page.screenshot({ path: path.join(screenshots, "logs-closed-" + width + ".png") });
       await page.locator("#logMore").click();
       await page.waitForFunction(() => document.querySelectorAll("#logRows .log-entry").length === 55);
-      assert.ok(await page.evaluate(() => window.__lastLogQuery.p_before_key), "older entries use the existing cursor");
-      await page.locator("#logCategory").selectOption("households");
-      await page.waitForFunction(() => window.__lastLogQuery.p_category === "households" && !document.getElementById("logApply").disabled);
-      await page.locator("#logAction").selectOption("update");
-      await page.waitForFunction(() => window.__lastLogQuery.p_action === "update" && !document.getElementById("logApply").disabled);
-      await page.locator("#logFrom").fill("2026-10-31");
-      const filledFrom = await page.locator("#logFrom").boundingBox();
-      const blankThrough = await page.locator("#logTo").boundingBox();
-      assert.ok(Math.abs(filledFrom.y - blankThrough.y) < 2, "a formatted date hint keeps the two date fields aligned");
+      assert.equal(await page.evaluate(() => window.__lastLogQuery.p_before_key), "sample:51",
+        "older entries use the last displayed row's cursor");
+      const waitForFilters = expected => page.waitForFunction(filters => {
+        const current = window.__lastLogQuery;
+        return !document.getElementById("logApply").disabled &&
+          Object.entries(filters).every(([key, value]) => Array.isArray(value)
+            ? current[key]?.length === value.length && value.every(item => current[key].includes(item))
+            : current[key] === value);
+      }, expected);
+      const categories = page.locator("#logCategory"), actions = page.locator("#logAction");
+      const activityText = text => page.locator("#logRows").getByText(text, { exact: true });
+      const openChoices = async disclosure => {
+        if (!await disclosure.evaluate(node => node.open)) await disclosure.locator(":scope > summary").click();
+      };
+      const pickChoice = async (disclosure, value) => {
+        await openChoices(disclosure);
+        const option = disclosure.locator('input[type="checkbox"][value="' + value + '"]');
+        assert.equal(await option.isVisible(), true);
+        await option.press("Space");
+        assert.equal(await option.isChecked(), true);
+        return option;
+      };
+      const chooseActor = async actor => {
+        await openChoices(categories);
+        const choice = categories.locator('#logActorChoices button[data-log-actor="' + actor + '"]');
+        await choice.click();
+        await waitForFilters({ p_actor: actor, p_categories: [], p_actions: [] });
+        if (await categories.evaluate(node => node.open)) await choice.press("Escape");
+      };
+      assert.equal(await activityText("Synthetic authentication job").count(), 1);
+      await pickChoice(categories, "households");
+      await waitForFilters({ p_categories: ["households"] });
+      const rsvpCategory = await pickChoice(categories, "rsvp");
+      await waitForFilters({ p_categories: ["households", "rsvp"] });
+      assert.equal(await categories.evaluate(node => node.open), true, "checkboxes keep the dropdown open");
+      await rsvpCategory.press("Escape");
+      assert.equal(await categories.evaluate(node => node.open), false);
+      assert.equal(await categories.locator(":scope > summary").evaluate(node => node === document.activeElement), true);
+      await pickChoice(actions, "update");
+      await waitForFilters({ p_actions: ["update"] });
+      const correctedAction = await pickChoice(actions, "response_corrected");
+      await waitForFilters({ p_actions: ["update", "response_corrected"] });
+      await correctedAction.press("Escape");
+      assert.equal(await actions.evaluate(node => node.open), false);
+      assert.equal(await activityText("Household RSVP submitted").count(), 0);
+      assert.match(await page.locator("#logRows").innerText(), /Updated/);
+      assert.match(await page.locator("#logRows").innerText(), /Edited Guest/);
+      const logFrom = page.locator("#logFrom"), logTo = page.locator("#logTo");
+      await page.locator("#logSearchToggle").click();
+      await page.locator("#logSearch").fill("Example");
+      await logFrom.fill("31102026");
+      assert.equal(await logFrom.inputValue(), filterDate, "mobile digit entry normalizes to DD/MM/YYYY");
+      await chooseActor("guest");
+      await waitForFilters({ p_search: "Example", p_from: "2026-10-30T23:00:00.000Z" });
+      assert.equal(await logFrom.inputValue(), filterDate, "the quick shortcut retains the date");
+      assert.equal(await activityText("Household RSVP submitted").count(), 1);
+      assert.ok(await activityText("Invitation opened").count() > 0);
+      assert.equal(await activityText("Edited Guest").count(), 0);
+      await chooseActor("admin");
+      assert.ok(await activityText("Edited Guest").count() > 0);
+      assert.equal(await activityText("Household RSVP submitted").count(), 0);
+      assert.equal(await activityText("Invitation opened").count(), 0);
+      await page.locator("#logReset").click();
+      await waitForFilters({ p_search: "", p_actor: "all", p_from: null });
+      assert.equal(await activityText("Synthetic authentication job").count(), 1);
+
+      const beforeInvalidDate = await queryCount();
+      await logFrom.fill("31/02/2026");
+      assert.equal(await logFrom.evaluate(input => input.validity.valid), false);
+      await page.locator("#logApply").click();
+      assert.equal(await queryCount(), beforeInvalidDate, "an impossible date blocks the search");
+      await page.locator(".log-date-field").filter({ has: logFrom }).locator('.log-date-calendar input[type="date"]').fill(dateValue);
+      await logFrom.blur();
+      assert.equal(await logFrom.inputValue(), filterDate, "a calendar selection displays the same day-first format");
+      const filledFrom = await logFrom.boundingBox(), blankThrough = await logTo.boundingBox();
+      assert.ok(Math.abs(filledFrom.y - blankThrough.y) < 2, "a filled date keeps the two date fields aligned");
       if (width >= 1000) {
-        const filledCategory = await page.locator("#logCategory").boundingBox();
+        const filledCategory = await categories.locator(":scope > summary").boundingBox();
         const filledApply = await page.locator("#logApply").boundingBox();
         assert.ok(Math.abs(filledFrom.y - filledCategory.y) < 2 && Math.abs(filledFrom.y - filledApply.y) < 2,
-          "a formatted date hint keeps the desktop controls on the same row");
+          "a filled date keeps the desktop controls on the same row");
       }
-      await page.locator("#logTo").fill("2026-10-31");
+      await logTo.fill(filterDate);
+      await logTo.blur();
+      for (const input of [logFrom, logTo]) {
+        assert.equal(await input.getAttribute("type"), "text");
+        assert.equal(await input.inputValue(), filterDate);
+        await input.focus();
+        assert.equal(await input.inputValue(), filterDate, "editing keeps DD/MM/YYYY");
+        await input.blur();
+      }
+      await pickChoice(categories, "households");
+      await waitForFilters({ p_categories: ["households"] });
+      await pickChoice(actions, "update");
+      await waitForFilters({ p_actions: ["update"] });
+      await actions.locator(":scope > summary").press("Escape");
+      if (screenshots) await page.screenshot({ path: path.join(screenshots, "logs-filled-dates-" + width + ".png") });
       await page.locator("#logApply").click();
       await page.waitForFunction(() => window.__lastLogQuery.p_to && !document.getElementById("logApply").disabled);
       assert.deepEqual(await page.evaluate(() => [window.__lastLogQuery.p_from, window.__lastLogQuery.p_to]),
@@ -166,13 +311,16 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
       await page.locator("#logRows .log-entry > summary").first().click();
       assert.match(await page.locator("#logRows .log-entry[open] .log-details").innerText(), /\+298 654321/);
       await page.locator("#logReset").click();
-      await page.waitForFunction(() => !window.__lastLogQuery.p_category && !document.getElementById("logApply").disabled);
+      await waitForFilters({ p_categories: [], p_actions: [], p_actor: "all" });
       assert.deepEqual(await page.evaluate(() => {
-        const { p_search, p_category, p_action, p_from, p_to, p_before_at, p_before_key } = window.__lastLogQuery;
-        return [p_search, p_category, p_action, p_from, p_to, p_before_at, p_before_key];
-      }), ["", "", "", null, null, null, null], "reset clears the search, filters and cursor");
+        const { p_search, p_from, p_to, p_before_at, p_before_key } = window.__lastLogQuery;
+        return [p_search, p_from, p_to, p_before_at, p_before_key];
+      }), ["", null, null, null, null], "reset clears the search, dates and cursor");
+      assert.equal(await logFrom.inputValue(), "");
+      assert.equal(await logTo.inputValue(), "");
       assert.equal(await page.locator("#logRows .log-entry").count(), 50);
-      assert.equal(await page.evaluate(start => window.__calls.slice(start).some(call => call.name !== "admin_query_logs"), before), false,
+      assert.equal(await page.evaluate(({ start, name }) => window.__calls.slice(start).some(call => call.name !== name),
+        { start: beforeLogs, name: logRpc }), false,
         "the Logs flow makes read-only requests");
       assert.deepEqual(errors, []);
       await page.close();
@@ -200,7 +348,7 @@ if (screenshots) fs.mkdirSync(screenshots, { recursive: true });
     await restricted.waitForFunction(() => document.querySelector("#inviteOverviewCounts .invite-stat-row"));
     await restricted.locator("#settingsToggle").click();
     assert.equal(await restricted.locator('[data-settings-tab="logs"]').isVisible(), false, "custom access does not expose Logs");
-    assert.equal(await restricted.evaluate(() => window.__calls.some(call => call.name === "admin_query_logs")), false);
+    assert.equal(await restricted.evaluate(name => window.__calls.some(call => call.name === name), logRpc), false);
     await restricted.close();
     console.log("PASS main-list search and Logs: shared disclosure, responsive header and filters, Enter submission, single clear refresh, date filtering, paging, reset, and full-administrator access at phone and desktop widths.");
     if (screenshots) console.log("Synthetic screenshots: " + screenshots);

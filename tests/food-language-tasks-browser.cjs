@@ -64,15 +64,15 @@ async function run(type){const browser=await type.launch({headless:true});try{
  await page.goto('http://127.0.0.1:'+server.address().port+'/admin/');await page.waitForFunction(()=>document.querySelector('#inviteOverviewCounts .invite-stat-row'));
  assert.equal(await page.locator('[data-tab="invites"]').textContent(),'Main');
  await selectWorkTab(page,'invites');
- await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
  const inviteHousehold=page.locator('[data-invite-household="22222222-2222-4222-8222-222222222222"]');
- await inviteHousehold.locator(':scope > summary').click();
+ const inviteName=inviteHousehold.locator(':scope > summary .invite-compact-name');
+ if(!await inviteHousehold.evaluate(node=>node.open))await inviteName.click();
  const rsvpPanel=page.locator('#invite-rsvp-22222222-2222-4222-8222-222222222222');
  await rsvpPanel.locator('summary').first().click();
  assert.ok(await rsvpPanel.getByText('Open for responses',{exact:true}).isVisible());
  assert.ok(await rsvpPanel.getByRole('cell',{name:'Dinner',exact:true}).first().isVisible());
  if(process.env.RSVP_LAYOUT_PREVIEW&&type.name()==='chromium')await rsvpPanel.screenshot({path:process.env.RSVP_LAYOUT_PREVIEW+'/invites-rsvp-management.png'});
- await page.locator('[data-invite-household="22222222-2222-4222-8222-222222222222"] > summary .invite-compact-name').click();
+ await inviteName.click();
  assert.equal(await rsvpPanel.isVisible(),false);
  await selectWorkTab(page,'food');
  const food=page.locator('.food-compact-item').first();assert.equal(await food.evaluate(n=>n.open),false);assert.ok(await food.getByText('Guest: Bring chilled',{exact:true}).isVisible());assert.ok(await food.getByText('Admin: Private supplier note',{exact:true}).isVisible());

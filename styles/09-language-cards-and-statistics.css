@@ -449,7 +449,7 @@
   color: var(--action-text);
 }
 #adminApp .stat-card .invite-stat-row[aria-pressed="true"] .invite-stat-check {
-  visibility: visible;
+  visibility: inherit;
 }
 @media (hover: hover) and (pointer: fine) {
   #adminApp .stat-card .invite-stat-row:hover { border-color: var(--action-text); }

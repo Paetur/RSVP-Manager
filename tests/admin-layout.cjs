@@ -1,5 +1,4 @@
 const { refreshFixture, toggleFixtureTheme } = require("./helpers/admin-toolbar.cjs");
-const {openBox}=require('./helpers/local-edit-ui.cjs');
 const {selectWorkTab}=require('./helpers/language-ui.cjs');
 // Admin design smoke test: serve branch files locally and stub Supabase auth/data.
 // No real credentials, guest codes, or production mutations.
@@ -89,9 +88,9 @@ async function run(){
    assert.equal(await page.locator('html').getAttribute('data-theme'),'dark','dark mode enabled');
    assert.equal(await page.locator('#themeToggle').count(),1,'appearance control is available');
    await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="checklist"]').click();assert.equal(await page.locator('#themePreference').inputValue(),'system');
-   await openBox(page,'personal-preferences');await page.locator('[data-preference-choices="appearance"] [data-preference-choice="light"]').click();await page.locator('#savePersonalPreferences').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
-   await openBox(page,'personal-preferences');await page.locator('[data-preference-choices="appearance"] [data-preference-choice="dark"]').click();await page.locator('#savePersonalPreferences').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
-   await openBox(page,'personal-preferences');await page.locator('[data-preference-choices="appearance"] [data-preference-choice="system"]').click();await page.locator('#savePersonalPreferences').click();await page.locator('#mainSectionToggle').click();
+   await page.locator('[data-preference-choices="appearance"] [data-preference-choice="light"]').click();await page.locator('#savePersonalPreferences').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
+   await page.locator('[data-preference-choices="appearance"] [data-preference-choice="dark"]').click();await page.locator('#savePersonalPreferences').click();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+   await page.locator('[data-preference-choices="appearance"] [data-preference-choice="system"]').click();await page.locator('#savePersonalPreferences').click();await page.locator('#mainSectionToggle').click();
    await page.locator('[data-tab="events"]').click();
    await page.screenshot({path:path.join(previewDir,'admin-settings-dark.png'),fullPage:true});
    assert.equal(await page.locator('[data-reading-for=event-settings]').isVisible(),true,'event settings summary visible in dark mode');
@@ -303,11 +302,12 @@ async function run(){
    const inviteActions=compactInviteRow.locator(':scope > summary .invite-row-actions');
    assert.equal(await inviteActions.count(),0,'published rows do not expose create/share icons');
    assert.equal(await compactInviteRow.locator('.invite-create,.invite-share').count(),0);
-   assert.equal(await compactInviteRow.locator(':scope > summary .invite-copy-recipient').isVisible(),true,'the Service copy chip stays visible');
-   assert.equal(await compactInviteRow.locator(':scope > summary .invite-copy-invitation').isVisible(),true,'the Invitation copy chip stays visible');
-   await page.setViewportSize({width:390,height:844});
+   const serviceCopy=compactInviteRow.locator(':scope > summary .invite-copy-recipient');
+   assert.equal(await serviceCopy.isVisible(),false,'the Phone profile hides the Service copy chip by default');
+   assert.equal(await compactInviteRow.locator(':scope > summary .invite-copy-invitation').isVisible(),true,'the Phone profile keeps the Invitation copy chip visible');
    assert.ok(await page.locator('.invite-compact-list').evaluate(list=>list.scrollWidth<=list.clientWidth+1),'Invites rows wrap without horizontal scrolling');
    await page.setViewportSize({width:1250,height:950});
+   await serviceCopy.waitFor();
 
    assert.equal(await page.locator('#inviteRows').getByText('New test family',{exact:true}).count(),0,'empty households omitted');
 
@@ -405,6 +405,7 @@ async function run(){
    assert.equal(await draftActions.locator('fieldset').count(),0,'Invites actions share the unframed toolbar');
    await page.evaluate(()=>{window.__fixtures.event_settings[0].is_published=false;});
    await refreshFixture(page);
+   await page.locator('#inviteSelectionToggle').click();
    await compactInviteRow.locator('[data-bulk-select]').check();
    await draftActions.getByRole('button',{name:'Make draft(s)',exact:true}).click();
    await waitForApp(page,()=>window.__fixtures.invitation_send_queue.length===1);
@@ -441,22 +442,29 @@ async function run(){
    await page.setViewportSize({width:1250,height:950});await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="logs"]').click();
    await waitForApp(page,()=>document.querySelectorAll('#logRows .log-entry').length===50);
    const settingsLogs=page.locator('[data-settings-panel="logs"]');
+   async function chooseLogFilter(id, value) {
+     const menu=settingsLogs.locator(id), summary=menu.locator(':scope > summary');
+     if (!await menu.evaluate(node=>node.open)) await summary.click();
+     await menu.locator('input[type="checkbox"][value="'+value+'"]').check();
+     await summary.press('Escape');
+     await waitForApp(page,()=>!document.querySelector('#logApply').disabled);
+   }
    assert.equal(await settingsLogs.getByText('Change history',{exact:true}).count(),0);
    assert.equal(await settingsLogs.getByText('RSVP history',{exact:true}).count(),0);
    assert.equal(await settingsLogs.getByText('Delivery history',{exact:true}).count(),0,'delivery history belongs to the household view');
    await page.locator('#logMore').click();await waitForApp(page,()=>document.querySelectorAll('#logRows .log-entry').length===55);assert.equal(await page.locator('#logMore').isVisible(),false);
-   await page.locator('#logCategory').selectOption('households');await waitForApp(page,()=>!document.querySelector('#logApply').disabled);assert.equal(await page.locator('#logRows .log-entry').count(),14);
+   await chooseLogFilter('#logCategory','households');assert.equal(await page.locator('#logRows .log-entry').count(),14);
    if(!await page.locator('#logSearch').isVisible())await page.locator('#logSearchToggle').click();
-   await page.locator('#logSearch').fill('Example child');await page.locator('#logFrom').fill('2026-10-31');await page.locator('#logTo').fill('2026-10-31');await page.locator('#logApply').click();await waitForApp(page,()=>!document.querySelector('#logApply').disabled);
+   await page.locator('#logSearch').fill('Example child');await page.locator('#logFrom').fill('31/10/2026');await page.locator('#logTo').fill('31/10/2026');await page.locator('#logApply').click();await waitForApp(page,()=>!document.querySelector('#logApply').disabled);
    assert.equal(await page.evaluate(()=>window.__lastLogQuery.p_from),'2026-10-30T23:00:00.000Z');assert.equal(await page.evaluate(()=>window.__lastLogQuery.p_to),'2026-10-31T23:00:00.000Z');
-   await page.locator('#logAction').selectOption('update');await waitForApp(page,()=>!document.querySelector('#logApply').disabled);await page.locator('#logRows .log-entry summary').first().click();assert.ok((await page.locator('#logRows').innerText()).includes('+298 654321'));
+   await chooseLogFilter('#logAction','update');await page.locator('#logRows .log-entry summary').first().click();assert.ok((await page.locator('#logRows').innerText()).includes('+298 654321'));
    await page.setViewportSize({width:1250,height:1150});await page.screenshot({path:path.join(root,'artifacts','settings-logs-desktop.png')});
    await page.locator('#logSearch').fill('no matching record');await page.locator('#logApply').click();await waitForApp(page,()=>!document.querySelector('#logApply').disabled);assert.ok((await page.locator('#logRows').innerText()).includes('No log entries'));
    await page.locator('#logReset').click();await waitForApp(page,()=>!document.querySelector('#logApply').disabled);assert.equal(await page.locator('#logRows .log-entry').count(),50);
-   await page.setViewportSize({width:390,height:844});await page.locator('#logCategory').selectOption('invitations');await waitForApp(page,()=>!document.querySelector('#logApply').disabled);const logDims=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth}));assert.ok(logDims.scroll<=logDims.client+3,'log filters and entries fit mobile');
+   await page.setViewportSize({width:390,height:844});await chooseLogFilter('#logCategory','invitations');const logDims=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth}));assert.ok(logDims.scroll<=logDims.client+3,'log filters and entries fit mobile');
    await page.setViewportSize({width:390,height:1100});await page.screenshot({path:path.join(root,'artifacts','settings-logs-mobile.png')});
 
-   await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="checklist"]').click();await openBox(page,'personal-preferences');await page.locator('[data-preference-choices="appearance"] [data-preference-choice="system"]').click();await page.locator('#savePersonalPreferences').click();
+   await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab="checklist"]').click();await page.locator('[data-preference-choices="appearance"] [data-preference-choice="system"]').click();await page.locator('#savePersonalPreferences').click();
    await page.goto(url.replace('/admin/','/'),{waitUntil:'load'});
    assert.equal(await page.locator('footer').isVisible(),true);assert.equal(await page.locator('#unpublishedMessage').count(),0);
    assert.equal(await page.locator('#languageSwitcher').isVisible(),false);assert.equal(await page.locator('#adminLink').isVisible(),true);

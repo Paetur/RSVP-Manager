@@ -8,6 +8,7 @@
     hover: "rsvp_interface_button_hover",
     grouped: "rsvp_invites_grouped",
     showText: "rsvp_invites_show_text",
+    invitesProfiles: "rsvp_invites_profiles",
     shownFields: "rsvp_invites_shown_fields",
     twoRowColumns: "rsvp_invites_two_row_columns",
     narrowRows: "rsvp_invites_narrow_rows",
@@ -39,6 +40,16 @@
   const invitesRequiredFields = Object.freeze(["serviceInfo", "delivery"]);
   const defaultInvitesShownFields = Object.freeze(["recipient", "serviceInfo", "delivery", "reply", "food"]);
   const defaultInvitesTwoRowColumns = Object.freeze(invitesColumnGroups.map(([key]) => key));
+  const invitesDefaultsKey = "rsvp_invites_defaults";
+  const inviteScreens = [
+    ["phone", "Phone screen (below 512 px)", 2, "narrowRows"],
+    ["tablet", "Tablet screen (512–1023 px)", 1, "narrowRows"],
+    ["desktop", "Desktop screen (1024 px and wider)", 2, "wideRows"],
+  ];
+  const inviteExpandedFields = invitesFields.filter(([key]) => ["householdInfo", "recipient", "reply", "food"].includes(key));
+  const inviteSecondLines = {
+    household: "Household info", serviceInfo: "Recipient", delivery: "Last sent / last visit", reply: "Food",
+  };
   const inviteGroupingChoices = [
     ["none", "Alphabetic", false],
     ["relational", "Relational", true],
@@ -62,32 +73,30 @@
   let account = null,
     baseline = null,
     draft = null,
+    invitesDefaults = null,
     busy = false,
     generation = 0,
     timePreference = "locale",
     pickerPreviewId = 0,
     overviewCards = new Map(),
-    overviewIconAction,
+    settingsIconAction,
     overviewRenameEditor = null,
-    draggedOverviewId = null;
+    draggedOverviewId = null,
+    inviteScreen = "phone";
   const T = (...args) => window.RSVP_I18N.t(...args);
   const element = (id) => document.getElementById(id);
   const form = () => element("personalPreferencesForm");
   const invitesForm = () => element("invitesAppearanceForm");
   const overviewForm = () => element("overviewAppearanceForm");
   const preferenceForms = () => [form(), invitesForm(), overviewForm()].filter(Boolean);
-  const inviteWidths = [
-    ["narrowRows", "Narrow screens (below 1024 px)", 1],
-    ["wideRows", "Wide screens (1024 px and wider)", 2],
-  ];
-  const invitesKinds = ["grouped", "showText", "shownFields", "twoRowColumns", "narrowRows", "wideRows"];
+  const invitesKinds = ["grouped", "showText", "invitesProfiles"];
   const interfaceKinds = Object.keys(controlIds);
   const overviewKinds = ["overviewLayout", "overviewTabNames"];
   const kindsFor = node => node === overviewForm() ? overviewKinds : node === invitesForm() ? invitesKinds : interfaceKinds;
   const formFor = kind => overviewKinds.includes(kind) ? overviewForm() : invitesKinds.includes(kind) ? invitesForm() : form();
   function valid(kind, value) {
     if (kind === "overviewLayout") return Array.isArray(value);
-    if (kind === "overviewTabNames") return value && typeof value === "object" && !Array.isArray(value);
+    if (kind === "overviewTabNames" || kind === "invitesProfiles") return value && typeof value === "object" && !Array.isArray(value);
     if (kind === "shownFields") return Array.isArray(value) && new Set(value).size === value.length && value.every(key => inviteFieldKeys.has(key));
     if (kind === "twoRowColumns") return Array.isArray(value) && new Set(value).size === value.length && value.every(key => inviteColumnKeys.has(key));
     if (kind === "grouped") return typeof value === "boolean" || value === "service";
@@ -107,6 +116,38 @@
   function normalizeShownFields(value) {
     const selected = new Set([...(valid("shownFields", value) ? value : defaultInvitesShownFields), ...invitesRequiredFields]);
     return invitesFields.filter(([key]) => selected.has(key)).map(([key]) => key);
+  }
+  function inviteScreenFields(screen, rows) {
+    if (rows === 1) return invitesFields;
+    const columns = invitesColumnGroups.filter(([key]) => key !== "food");
+    return screen === "phone" ? [["householdInfo", "Household info"], ...columns] : columns;
+  }
+  function inviteFieldRequired(screen, key) {
+    return invitesRequiredFields.includes(key) && (screen !== "phone" || key === "delivery");
+  }
+  function normalizeInvitesProfiles(value, legacy = {}) {
+    const legacyTwoRow = legacy.twoRowColumns;
+    // The old Food column is now part of RSVP. Keep it visible for accounts that had selected it.
+    const twoRowFallback = legacyTwoRow?.includes("food") ? [...legacyTwoRow, "reply"] : legacyTwoRow;
+    return Object.fromEntries(inviteScreens.map(([screen, , defaultRows, legacyRows]) => {
+      const saved = value?.[screen];
+      function shown(kind, rows, fallback) {
+        // An explicitly saved Phone profile may opt into more fields than the compact default.
+        const fields = Array.isArray(saved?.[kind]) ? saved[kind] :
+          screen === "phone" ? fallback.filter(key => key === "delivery" || key === "reply") : fallback;
+        return inviteScreenFields(screen, rows).flatMap(([key]) =>
+          inviteFieldRequired(screen, key) || fields.includes(key) ? [key] : []);
+      }
+      return [screen, {
+        rows: valid(legacyRows, saved?.rows) ? saved.rows : legacy[legacyRows] ?? defaultRows,
+        shownFields: shown("shownFields", 1, legacy.shownFields ?? defaultInvitesShownFields),
+        twoRowColumns: shown("twoRowColumns", 2, twoRowFallback ?? defaultInvitesTwoRowColumns),
+        showActions: typeof saved?.showActions === "boolean" ? saved.showActions : true,
+        ...(screen === "tablet" ? { showInlineActions: saved?.showInlineActions === true } : {}),
+        expandedFields: screen === "desktop" ? [] : inviteExpandedFields.flatMap(([key]) =>
+          !Array.isArray(saved?.expandedFields) || saved.expandedFields.includes(key) ? [key] : []),
+      }];
+    }));
   }
   function overviewCardTab({ id, tab }) {
     return overviewTabLabels.has(tab) ? tab : overviewCardTabs.get(id);
@@ -140,6 +181,7 @@
     if (kind === "shownFields") return normalizeShownFields(value);
     if (kind === "overviewLayout") return normalizeOverviewLayout(value);
     if (kind === "overviewTabNames") return normalizeOverviewTabNames(value);
+    if (kind === "invitesProfiles") return normalizeInvitesProfiles(value);
     if (kind === "twoRowColumns") {
       const selected = new Set([...(valid(kind, value) ? value : defaultInvitesTwoRowColumns), ...invitesRequiredFields]);
       return invitesColumnGroups.filter(([key]) => selected.has(key)).map(([key]) => key);
@@ -153,14 +195,15 @@
     if (kind === "overviewLayout")
       return a.every(({ id, shown, tab }, index) => id === b[index].id && shown === b[index].shown && tab === b[index].tab);
     if (kind === "overviewTabNames") return [...overviewTabLabels.keys()].every(tab => a[tab] === b[tab]);
+    if (kind === "invitesProfiles") return JSON.stringify(a) === JSON.stringify(b);
     return ["shownFields", "twoRowColumns"].includes(kind)
       ? a.length === b.length && a.every((value, index) => value === b[index])
       : a === b;
   }
   function preferences(user) {
     const metadata = user?.user_metadata || {};
-    return Object.fromEntries(
-      Object.keys(fields).map((kind) => {
+    const values = Object.fromEntries(
+      Object.keys(fields).filter(kind => kind !== "invitesProfiles").map((kind) => {
         const value = metadata[fields[kind]];
         return [
           kind,
@@ -184,6 +227,17 @@
         ];
       }),
     );
+    const legacy = { ...values };
+    for (const key of ["narrowRows", "wideRows"]) if (!valid(key, metadata[fields[key]])) delete legacy[key];
+    values.invitesProfiles = normalizeInvitesProfiles(metadata[fields.invitesProfiles], legacy);
+    return values;
+  }
+  function copyInvitesAppearance(values) {
+    return Object.fromEntries(invitesKinds.map(kind => [kind, copyValue(kind, values[kind])]));
+  }
+  function storedInvitesDefaults(user) {
+    const defaults = user?.user_metadata?.[invitesDefaultsKey];
+    return defaults && invitesKinds.every(kind => valid(kind, defaults[kind])) ? copyInvitesAppearance(defaults) : null;
   }
   function changes(kinds = Object.keys(fields)) {
     return baseline && draft
@@ -219,8 +273,10 @@
     }
     const save = element("savePersonalPreferences");
     if (save) save.disabled = busy || !account || !hasUnsaved(interfaceKinds);
-    const invitesSave = element("saveInvitesAppearance");
+    const invitesSave = element("saveInvitesAppearance"), resetInvites = element("resetInvitesAppearance");
     if (invitesSave) invitesSave.disabled = busy || !account || !hasUnsaved(invitesKinds);
+    if (resetInvites) resetInvites.disabled = busy || !invitesDefaults ||
+      invitesKinds.every(kind => sameValue(kind, draft[kind], invitesDefaults[kind]));
     const sample = element("interfaceSampleDate");
     if (sample) sample.disabled = busy || !account;
     const overviewSave = element("saveOverviewAppearance"), reset = element("resetOverviewAppearance");
@@ -234,8 +290,11 @@
     for (const grip of overviewForm()?.querySelectorAll("[data-overview-grip]") || [])
       grip.draggable = !busy && !!account;
     for (const button of form()?.querySelectorAll("[data-preference-choice]") || []) button.disabled = busy || !account;
-    for (const host of [element("inviteGroupBy"), element("inviteRowsPreference"), element("inviteDefaultFields")])
-      for (const input of host?.querySelectorAll("input") || []) input.disabled = busy || !account || input.hasAttribute("data-invite-fixed-field") || input.hasAttribute("data-invite-fixed-column");
+    for (const id of ["inviteGroupBy", "inviteRowsPreference", "inviteDefaultFields", "inviteExpandedPreferences"]) {
+      const fieldset = element(id);
+      if (fieldset) fieldset.disabled = busy || !account;
+    }
+    for (const tab of element("inviteScreenTabs")?.querySelectorAll("button") || []) tab.disabled = busy || !account;
   }
   function renderDraft() {
     syncDateTimeControls();
@@ -245,10 +304,9 @@
         if (node) node.value = draft[kind];
       }
     syncInviteGrouping();
-    syncInviteRows();
+    syncInviteScreen();
     const showText = element("inviteShowText");
     if (showText) showText.checked = draft?.showText ?? true;
-    syncInviteDefaultFields();
     renderOverviewLayout();
     updateControls();
     syncChoices();
@@ -370,71 +428,56 @@
     element("adminApp").append(dialog);
     dialog.openInline();
   }
-  function renderOverviewGroup(host, tab, name, layout, names, editing) {
+  function renderOverviewGroup(host, tab, name, layout, names) {
     const R = window.RSVP;
     const available = layout.filter(card => overviewCards.has(card.id));
     const eligible = available.filter(card => overviewCardTab(card) === tab);
-    if (!eligible.length && !editing) return null;
     const group = R.dom("li", { class: "overview-card-setting-group" });
     group.dataset.overviewSettingTab = tab;
-    const heading = R.dom("h3", { id: (editing ? "overviewCardGroup-" : "overviewSavedCardGroup-") + tab }, names[tab] || T(name));
+    const heading = R.dom("h3", { id: "overviewCardGroup-" + tab }, names[tab] || T(name));
     const list = R.dom("ol", { class: "overview-card-settings" });
     list.setAttribute("aria-labelledby", heading.id);
     const header = R.dom("div", { class: "overview-tab-heading" });
     header.append(heading);
     group.append(header);
-    if (editing) {
-      const title = T("Rename") + " · " + heading.textContent;
-      const rename = overviewIconAction("edit", title, null, busy || !account, "overview-tab-pencil");
-      rename.dataset.overviewRenameTab = tab;
-      rename.setAttribute("aria-haspopup", "dialog");
-      const renaming = overviewRenameEditor?.dataset.overviewRenameEditor === tab;
-      rename.setAttribute("aria-expanded", String(renaming));
-      if (renaming) {
-        rename.setAttribute("aria-controls", overviewRenameEditor.id);
-        group.append(overviewRenameEditor);
-      }
-      rename.addEventListener("click", () => renameOverviewTab(tab, name, title, rename));
-      header.append(rename);
-      const canDropOnGroup = event => !event.target.closest("[data-overview-setting]") &&
-        canMoveOverviewCard(draggedOverviewId) && !eligible.some(card => card.id === draggedOverviewId);
-      group.addEventListener("dragover", event => {
-        if (!canDropOnGroup(event)) return;
-        clearOverviewDropHint(host);
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        group.dataset.overviewDrop = "inside";
-      });
-      group.addEventListener("dragleave", event => {
-        if (!(event.relatedTarget instanceof Node) || !group.contains(event.relatedTarget))
-          group.removeAttribute("data-overview-drop");
-      });
-      group.addEventListener("drop", event => {
-        if (!canDropOnGroup(event)) return;
-        event.preventDefault();
-        const source = draggedOverviewId;
-        draggedOverviewId = null;
-        clearOverviewDropHint(host);
-        moveOverviewCard(source, tab);
-      });
+    const title = T("Rename") + " · " + heading.textContent;
+    const rename = settingsIconAction("edit", title, null, busy || !account, "overview-tab-pencil");
+    rename.dataset.overviewRenameTab = tab;
+    rename.setAttribute("aria-haspopup", "dialog");
+    const renaming = overviewRenameEditor?.dataset.overviewRenameEditor === tab;
+    rename.setAttribute("aria-expanded", String(renaming));
+    if (renaming) {
+      rename.setAttribute("aria-controls", overviewRenameEditor.id);
+      group.append(overviewRenameEditor);
     }
+    rename.addEventListener("click", () => renameOverviewTab(tab, name, title, rename));
+    header.append(rename);
+    const canDropOnGroup = event => !event.target.closest("[data-overview-setting]") &&
+      canMoveOverviewCard(draggedOverviewId) && !eligible.some(card => card.id === draggedOverviewId);
+    group.addEventListener("dragover", event => {
+      if (!canDropOnGroup(event)) return;
+      clearOverviewDropHint(host);
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      group.dataset.overviewDrop = "inside";
+    });
+    group.addEventListener("dragleave", event => {
+      if (!(event.relatedTarget instanceof Node) || !group.contains(event.relatedTarget))
+        group.removeAttribute("data-overview-drop");
+    });
+    group.addEventListener("drop", event => {
+      if (!canDropOnGroup(event)) return;
+      event.preventDefault();
+      const source = draggedOverviewId;
+      draggedOverviewId = null;
+      clearOverviewDropHint(host);
+      moveOverviewCard(source, tab);
+    });
     for (const [index, { id, shown }] of eligible.entries()) {
       const { label } = overviewCards.get(id);
       const row = R.dom("li", { class: "overview-card-setting" });
       const cardLabel = R.dom("span", { class: "overview-card-label" }, label);
       row.dataset.overviewSetting = id;
-      if (!editing) {
-        const state = R.dom("span", { class: "overview-card-state" });
-        state.dataset.shown = String(shown);
-        state.setAttribute("role", "img");
-        state.setAttribute("aria-label", T(shown ? "Shown" : "Hidden"));
-        const glyph = R.dom("span", {}, shown ? "✓" : "–");
-        glyph.setAttribute("aria-hidden", "true");
-        state.append(glyph);
-        row.append(cardLabel, state);
-        list.append(row);
-        continue;
-      }
       const gripTitle = T("Drag to reorder") + " · " + label;
       const grip = R.dom("button", { type: "button", class: "overview-card-grip", title: gripTitle }, "⠿");
       grip.dataset.overviewGrip = "";
@@ -507,10 +550,6 @@
     group.append(list);
     return group;
   }
-  function renderOverviewGroups(host, layout, names, editing) {
-    host.replaceChildren(...overviewGroups.map(([tab, name]) =>
-      renderOverviewGroup(host, tab, name, layout, names, editing)).filter(Boolean));
-  }
   function renderOverviewLayout() {
     const host = element("overviewCardOrder");
     if (!host) return;
@@ -527,21 +566,19 @@
     const activeInRename = overviewRenameEditor?.contains(active);
     const layout = draft?.overviewLayout || normalizeOverviewLayout();
     draggedOverviewId = null;
-    renderOverviewGroups(host, layout, draft?.overviewTabNames || {}, true);
+    host.replaceChildren(...overviewGroups.map(([tab, name]) =>
+      renderOverviewGroup(host, tab, name, layout, draft?.overviewTabNames || {})));
     const replacement = activeId && host.querySelector('[data-overview-setting="' + activeId + '"]');
     if (activeInRename) active.focus({ preventScroll: true });
     else if (replacement) {
       replacement.querySelector(activeGrip ? "[data-overview-grip]:enabled" : "input:enabled")?.focus({ preventScroll: true });
     } else if (activeRename) host.querySelector('[data-overview-rename-tab="' + activeRename + '"]:enabled')?.focus({ preventScroll: true });
   }
-  function renderOverviewSummary(host) {
-    const R = window.RSVP, layout = baseline?.overviewLayout || normalizeOverviewLayout();
-    const groups = R.dom("ol", { class: "overview-card-settings" });
-    renderOverviewGroups(groups, layout, baseline?.overviewTabNames || {}, false);
-    host.replaceChildren(groups);
-  }
   function setOverviewCards(cards, iconAction) {
-    overviewIconAction = iconAction;
+    if (settingsIconAction !== iconAction) {
+      settingsIconAction = iconAction;
+      syncInviteScreen();
+    }
     const available = new Map(cards.filter(({ id, tab }) => overviewCardTabs.has(id) && overviewCardTabs.get(id) === tab)
       .map(({ id, label, tab }) => [id, { label, tab }]));
     if (available.size === overviewCards.size && [...available].every(([id, { label, tab }]) => {
@@ -551,8 +588,6 @@
     overviewCards = available;
     renderOverviewLayout();
     updateControls();
-    const editor = overviewForm()?.localEditor;
-    if (editor) renderOverviewSummary(editor.summary);
   }
   function syncInviteGrouping() {
     const host = element("inviteGroupBy");
@@ -573,96 +608,140 @@
       input.checked = input.value === groupingMode(draft?.grouped);
     }
   }
-  function syncInviteRows() {
-    const host = element("inviteRowsPreference");
-    if (!host) return;
+  function syncInviteCheckboxes(host, dataset, choices) {
     const R = window.RSVP;
-    for (const [kind, label, defaultRows] of inviteWidths) {
-      let group = host.querySelector('[data-invite-width="' + kind + '"]');
-      if (!group) {
-        group = R.dom("fieldset", { class: "invite-default-layout" });
-        group.dataset.inviteWidth = kind;
-        group.append(R.dom("legend"));
-        for (const rows of [1, 2]) {
-          const option = R.dom("label", { class: "checkbox-label" });
-          const input = R.dom("input", { type: "radio", name: kind, value: String(rows) });
-          input.addEventListener("change", () => {
-            if (input.checked && !stage(kind, rows)) renderDraft();
-          });
-          option.append(input, R.dom("span"));
-          group.append(option);
-        }
-        host.append(group);
-      }
-      group.querySelector("legend").textContent = T(label);
-      for (const input of group.querySelectorAll("input")) {
-        input.checked = Number(input.value) === (draft?.[kind] ?? defaultRows);
-        input.nextElementSibling.textContent = T("Rows") + " " + input.value;
-      }
+    const signature = choices.map(([key]) => key).join(" ");
+    if (host.dataset.fields !== signature) {
+      host.replaceChildren(...choices.map(([key]) => {
+        const label = R.dom("label", { class: "checkbox-label" });
+        const input = R.dom("input", { type: "checkbox" });
+        input.dataset[dataset] = key;
+        label.append(input, R.dom("span", { class: "invite-default-pair-label" }));
+        return label;
+      }));
+      host.dataset.fields = signature;
+    }
+    choices.forEach(([, label, checked, fixed, secondary], index) => {
+      const [input, text] = host.children[index].children;
+      input.checked = checked;
+      input.disabled = fixed;
+      text.replaceChildren(R.dom("span", {}, T(label)));
+      if (secondary) text.append(R.dom("small", { class: "muted" }, T(secondary)));
+    });
+  }
+  function renderInviteAppearanceSample(profile, visible) {
+    const R = window.RSVP;
+    const sample = element("inviteAppearanceSample");
+    sample.dataset.screen = inviteScreen;
+    sample.dataset.rows = String(profile.rows);
+    const desktop = inviteScreen === "desktop";
+    const paired = profile.rows === 2;
+    const rows = R.dom("div", { class: "invite-appearance-sample-grid" });
+    const extras = R.dom("div", { class: "invite-appearance-sample-grid invite-appearance-sample-extras" });
+    const expanded = R.dom("dl", { class: "invite-appearance-sample-facts" });
+    const names = new Map([["household", "Household"], ...invitesFields]);
+    const food = new Intl.NumberFormat(window.RSVP_I18N.locale()).format(2);
+    const previewValues = {
+      household: "Linden",
+      householdInfo: T("interface.messages.count_guests", { count: 3 }) + " · EN",
+      recipient: "Alex Linden",
+      serviceInfo: T("WhatsApp"),
+      delivery: T("Ready"),
+      reply: T("Awaiting reply"),
+      food,
+    };
+    const secondary = paired ? {
+      household: inviteScreen !== "phone" || visible.includes("householdInfo") ? previewValues.householdInfo : "",
+      serviceInfo: previewValues.recipient,
+      reply: T("interface.messages.invites_food_answer", { answer: food }),
+    } : {};
+    for (const key of ["household", ...visible]) {
+      if (paired && key === "householdInfo") continue;
+      const cell = R.dom("div", { class: "invite-appearance-sample-field" });
+      cell.dataset.inviteSampleField = key;
+      cell.append(R.dom("strong", {}, T(names.get(key))));
+      if (key === "delivery") {
+        const chips = R.dom("span", { class: "invite-appearance-sample-chips" });
+        chips.append(R.dom("span", { class: "invite-copy-pill" }, previewValues.delivery));
+        if (draft?.showText ?? true) chips.append(R.dom("span", { class: "invite-copy-pill" }, T("Text")));
+        cell.append(chips);
+      } else cell.append(R.dom("span", {}, previewValues[key]));
+      if (paired && key === "delivery") {
+        const sent = "2026-11-24T18:20:00Z", timestamp = formatDate(sent, undefined, "UTC");
+        const time = R.dom("time", { class: "muted" }, timestamp);
+        time.dateTime = sent;
+        time.setAttribute("aria-label", T("Last sent") + " · " + timestamp);
+        cell.append(time);
+      } else if (secondary[key]) cell.append(R.dom("small", { class: "muted" }, secondary[key]));
+      const parent = inviteScreen === "phone" && !["household", "delivery", "reply"].includes(key) ? extras : rows;
+      parent.append(cell);
+    }
+    for (const key of profile.expandedFields) {
+      expanded.append(R.dom("dt", {}, T(names.get(key))), R.dom("dd", {}, previewValues[key]));
+    }
+    function sampleActions(shown) {
+      if (!shown || !settingsIconAction) return null;
+      const actions = R.dom("div", { class: "invite-appearance-sample-actions" });
+      actions.dataset.inviteSampleActions = "";
+      actions.append(settingsIconAction("show", T("Guest preview"), null, true),
+        settingsIconAction("edit", T("interface.messages.edit"), null, true));
+      return actions;
+    }
+    const inlineActions = sampleActions(desktop ? profile.showActions : paired && profile.showInlineActions);
+    const expandedActions = desktop ? null : sampleActions(profile.showActions);
+    if (inlineActions) rows.append(inlineActions);
+    const grouping = { relational: "Family", service: "WhatsApp" }[groupingMode(draft?.grouped)];
+    const grouped = grouping ? R.dom("div", { class: "invite-appearance-sample-group" }, T(grouping)) : null;
+    const sampleRow = element("inviteAppearanceSampleRow");
+    sampleRow.replaceChildren(...(grouped ? [grouped, rows] : [rows]));
+    if (extras.childElementCount) sampleRow.append(extras);
+    const expandedContent = [expanded.childElementCount ? expanded : null, expandedActions].filter(Boolean);
+    element("inviteAppearanceSampleExpanded").hidden = expandedContent.length === 0;
+    element("inviteAppearanceSampleFields").replaceChildren(...expandedContent);
+  }
+  function syncInviteScreen() {
+    const tabs = element("inviteScreenTabs");
+    if (!tabs) return;
+    const profile = draft?.invitesProfiles[inviteScreen] || normalizeInvitesProfiles()[inviteScreen];
+    for (const tab of tabs.querySelectorAll("button")) {
+      const active = tab.dataset.inviteScreen === inviteScreen;
+      tab.classList.toggle("active", active);
+      tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
+      if (active) element("inviteScreenPreferences").setAttribute("aria-labelledby", tab.id);
+    }
+    const [, widthLabel] = inviteScreens.find(([screen]) => screen === inviteScreen);
+    element("inviteScreenRange").textContent = T(widthLabel);
+    for (const input of element("inviteRowsPreference").querySelectorAll("input")) {
+      input.checked = Number(input.value) === profile.rows;
+    }
+    const columns = profile.rows === 2;
+    const visible = columns ? profile.twoRowColumns : profile.shownFields;
+    const choices = inviteScreenFields(inviteScreen, profile.rows).map(([key, label]) => [
+      key, label, visible.includes(key), inviteFieldRequired(inviteScreen, key), columns && inviteSecondLines[key],
+    ]);
+    choices.unshift(["household", "Household", true, true, columns && inviteScreen !== "phone" && inviteSecondLines.household]);
+    const actions = ["showActions", "Action buttons", profile.showActions, false];
+    if (inviteScreen === "desktop") choices.push(actions);
+    if (inviteScreen === "tablet" && columns) choices.push(["showInlineActions", "Action buttons", profile.showInlineActions, false]);
+    syncInviteCheckboxes(element("inviteShownFieldChoices"), "inviteDefaultField", choices);
+    element("inviteExpandedPreferences").hidden = inviteScreen === "desktop";
+    const expanded = inviteExpandedFields.map(([key, label]) => [key, label, profile.expandedFields.includes(key), false]);
+    expanded.push(actions);
+    syncInviteCheckboxes(element("inviteExpandedFieldChoices"), "inviteExpandedField", expanded);
+    renderInviteAppearanceSample(profile, visible);
+  }
+  function stageInviteScreen(patch) {
+    const profiles = draft?.invitesProfiles;
+    if (!profiles || !stage("invitesProfiles", { ...profiles, [inviteScreen]: { ...profiles[inviteScreen], ...patch } })) {
+      syncInviteScreen();
     }
   }
-  function syncInviteDefaultFields() {
-    const host = element("inviteDefaultFields");
-    if (!host) return;
-    const R = window.RSVP;
-    for (const layout of ["1", "2"]) {
-      let group = host.querySelector('[data-invite-default-layout="' + layout + '"]');
-      if (!group) {
-        group = R.dom("fieldset", { class: "invite-default-layout" });
-        group.dataset.inviteDefaultLayout = layout;
-        group.append(R.dom("legend"));
-        host.append(group);
-      }
-      group.querySelector("legend").textContent = T("Rows") + " " + layout;
-    }
-    const oneRowHost = host.querySelector('[data-invite-default-layout="1"]');
-    const twoRowHost = host.querySelector('[data-invite-default-layout="2"]');
-    for (const [key, label] of [["household", "Household"], ...invitesFields]) {
-      const fixed = key === "household" || invitesRequiredFields.includes(key);
-      let input = oneRowHost.querySelector('[data-invite-default-field="' + key + '"]');
-      if (!input) {
-        const option = window.RSVP.dom("label", { class: "checkbox-label" });
-        input = window.RSVP.dom("input", { type: "checkbox" });
-        input.dataset.inviteDefaultField = key;
-        if (fixed) input.dataset.inviteFixedField = key;
-        else input.addEventListener("change", () => {
-            const selected = new Set(draft?.shownFields || defaultInvitesShownFields);
-            if (input.checked) selected.add(key); else selected.delete(key);
-            if (!stage("shownFields", normalizeShownFields([...selected]))) renderDraft();
-          });
-        option.append(input, window.RSVP.dom("span"));
-        oneRowHost.append(option);
-      }
-      input.nextElementSibling.textContent = T(label);
-      input.checked = fixed || (draft?.shownFields || defaultInvitesShownFields).includes(key);
-      input.disabled = fixed;
-    }
-    const groupOptions = [["household", "Household", ["householdInfo"]], ...invitesColumnGroups];
-    for (const [key, label, members] of groupOptions) {
-      const fixed = key === "household" || invitesRequiredFields.includes(key);
-      let input = twoRowHost.querySelector(fixed ? '[data-invite-fixed-column="' + key + '"]' : '[data-invite-default-column="' + key + '"]');
-      if (!input) {
-        const option = R.dom("label", { class: "checkbox-label" });
-        input = R.dom("input", { type: "checkbox" });
-        if (fixed) input.dataset.inviteFixedColumn = key;
-        else {
-          input.dataset.inviteDefaultColumn = key;
-          input.addEventListener("change", () => {
-            const selected = new Set(draft?.twoRowColumns || defaultInvitesTwoRowColumns);
-            if (input.checked) selected.add(key); else selected.delete(key);
-            if (!stage("twoRowColumns", copyValue("twoRowColumns", [...selected]))) renderDraft();
-          });
-        }
-        option.append(input, R.dom("span", { class: "invite-default-pair-label" }));
-        twoRowHost.append(option);
-      }
-      const labelHost = input.nextElementSibling;
-      const secondary = key === "household" ? "Household info" : invitesFields.find(([field]) => field === members[1])?.[1];
-      labelHost.replaceChildren(R.dom("span", {}, T(label)));
-      if (secondary) labelHost.append(R.dom("small", { class: "muted" }, T(secondary)));
-      input.checked = fixed || (draft?.twoRowColumns || defaultInvitesTwoRowColumns).includes(key);
-      input.disabled = fixed;
-    }
+  function stageInviteField(input, key, kind) {
+    const selected = new Set(draft?.invitesProfiles[inviteScreen][kind]);
+    if (input.checked) selected.add(key);
+    else selected.delete(key);
+    stageInviteScreen({ [kind]: [...selected] });
   }
   function displayTimeFormat(value) {
     if (value !== "locale") return value;
@@ -903,24 +982,37 @@
       localStorage.setItem("rsvp-time-format", timePreference);
     } catch (_) {}
   }
-  function stage(kind, value) {
-    if (busy || !account || !Object.hasOwn(fields, kind) || !valid(kind, value))
-      return false;
-    draft[kind] = copyValue(kind, value);
-    const target = formFor(kind);
+  function updateDraft(target) {
     status("", "", target);
     if (target) {
       if (hasUnsaved(kindsFor(target))) target.dispatchEvent(new Event("input", { bubbles: true }));
       else window.RSVP_I18N.markClean(target);
     }
     renderDraft();
+  }
+  function stage(kind, value) {
+    if (busy || !account || !Object.hasOwn(fields, kind) || !valid(kind, value))
+      return false;
+    draft[kind] = copyValue(kind, value);
+    updateDraft(formFor(kind));
     return true;
+  }
+  function mergeInvitesProfileChanges(current, next) {
+    const profiles = preferences(current).invitesProfiles;
+    for (const [screen, profile] of Object.entries(next)) {
+      for (const [key, value] of Object.entries(profile)) {
+        if (JSON.stringify(value) !== JSON.stringify(baseline.invitesProfiles[screen][key]))
+          profiles[screen][key] = value;
+      }
+    }
+    return profiles;
   }
   async function commit(patch) {
     if (busy || !account || !Object.keys(patch).length) return false;
     const ticket = generation,
       id = account.id,
       target = formFor(Object.keys(patch)[0]);
+    const savingInvites = invitesKinds.some(kind => Object.hasOwn(patch, kind));
     busy = true;
     updateControls();
     status(T("Saving…"), "saving", target);
@@ -930,24 +1022,27 @@
       if (current.error) throw current.error;
       if (ticket !== generation) return false;
       if (current.data?.user?.id !== id) throw new Error("Account changed");
+      if (Object.hasOwn(patch, "invitesProfiles"))
+        patch = { ...patch, invitesProfiles: mergeInvitesProfileChanges(current.data.user, patch.invitesProfiles) };
       // Only changed preference fields are patched; unrelated metadata and
       // preferences changed on another device are not overwritten.
-      const result = await db.auth.updateUser({
-        data: Object.fromEntries(
-          Object.entries(patch).map(([kind, value]) => [fields[kind], copyValue(kind, value)]),
-        ),
-      });
+      const data = Object.fromEntries(Object.entries(patch).map(([kind, value]) => [fields[kind], copyValue(kind, value)]));
+      const savedDefaults = savingInvites ? storedInvitesDefaults(current.data.user) : null;
+      // Keep the original saved appearance before the first change. Opening or resetting the form performs no write.
+      if (savingInvites && !savedDefaults) data[invitesDefaultsKey] = invitesDefaults;
+      const result = await db.auth.updateUser({ data });
       if (result.error) throw result.error;
       if (ticket !== generation) return false;
       if (result.data?.user?.id !== id) throw new Error("Account changed");
       account = result.data.user;
+      if (savedDefaults) invitesDefaults = savedDefaults;
       baseline = { ...baseline, ...copyPreferences(patch) };
       draft = { ...draft, ...copyPreferences(patch) };
       await apply(baseline, ticket);
       if (ticket !== generation) return false;
       if (Object.hasOwn(patch, "date") || Object.hasOwn(patch, "time"))
         document.dispatchEvent(new Event("rsvp:time-format"));
-      if (invitesKinds.some(kind => Object.hasOwn(patch, kind))) document.dispatchEvent(new Event("rsvp:invites-appearance"));
+      if (savingInvites) document.dispatchEvent(new Event("rsvp:invites-appearance"));
       if (overviewKinds.some(kind => Object.hasOwn(patch, kind))) document.dispatchEvent(new Event("rsvp:overview-appearance"));
       if (!hasUnsaved(kindsFor(target))) window.RSVP_I18N.markClean(target);
       status(T("Saved"), "saved", target);
@@ -973,10 +1068,15 @@
     const languageChanged = Object.hasOwn(patch, "language");
     if (languageChanged && !await window.RSVP_I18N.confirmLanguageReload(form()))
       return;
-    if (await commit(patch)) {
-      window.RSVP_LOCAL_EDITORS?.saved(target);
-      if (languageChanged) window.RSVP_I18N.reloadLanguagePage();
+    const saveButton = target.querySelector('button[type="submit"]');
+    const restoreFocus = document.activeElement === saveButton;
+    const saved = await commit(patch);
+    if (restoreFocus && !target.closest("[hidden], .hidden") &&
+        (document.activeElement === saveButton || document.activeElement === document.body)) {
+      const cancelButton = target.querySelector('button[id^="cancel"]:enabled');
+      (saved ? cancelButton : saveButton)?.focus({ preventScroll: true });
     }
+    if (saved && languageChanged) window.RSVP_I18N.reloadLanguagePage();
   }
   function cancel(target = form()) {
     if (busy || !baseline) return;
@@ -992,7 +1092,6 @@
     get timeFormat() {
       return timePreference;
     },
-    dateTimeExample,
     formatDate,
     formatClock,
     formatPicker,
@@ -1009,6 +1108,10 @@
     get invitesTwoRowColumns() { return (baseline?.twoRowColumns || defaultInvitesTwoRowColumns).slice(); },
     get invitesNarrowRows() { return baseline?.narrowRows ?? 1; },
     get invitesWideRows() { return baseline?.wideRows ?? 2; },
+    getInvitesProfile(screen) {
+      const profile = baseline?.invitesProfiles[screen] || normalizeInvitesProfiles()[screen];
+      return { ...profile, shownFields: [...profile.shownFields], twoRowColumns: [...profile.twoRowColumns], expandedFields: [...profile.expandedFields] };
+    },
     get overviewLayout() { return normalizeOverviewLayout(baseline?.overviewLayout); },
     get overviewTabNames() { return { ...baseline?.overviewTabNames }; },
     setOverviewCards,
@@ -1018,9 +1121,11 @@
     async load(user) {
       const ticket = ++generation;
       closeOverviewRename();
+      if (account?.id !== user?.id) inviteScreen = "phone";
       account = user;
       baseline = preferences(user);
       draft = copyPreferences(baseline);
+      invitesDefaults = account ? storedInvitesDefaults(user) || copyInvitesAppearance(baseline) : null;
       busy = true;
       updateControls();
       await apply(baseline, ticket);
@@ -1037,6 +1142,8 @@
       generation++;
       closeOverviewRename();
       account = baseline = draft = null;
+      invitesDefaults = null;
+      inviteScreen = "phone";
       overviewCards = new Map();
       draggedOverviewId = null;
       busy = false;
@@ -1093,10 +1200,34 @@
     element("cancelPersonalPreferences")?.addEventListener("click", () => cancel());
     invitesForm()?.addEventListener("submit", event => { event.preventDefault(); submit(invitesForm()); });
     element("cancelInvitesAppearance")?.addEventListener("click", () => cancel(invitesForm()));
+    element("resetInvitesAppearance")?.addEventListener("click", () => {
+      if (busy || !invitesDefaults) return;
+      Object.assign(draft, copyInvitesAppearance(invitesDefaults));
+      updateDraft(invitesForm());
+      (invitesForm().querySelector("#saveInvitesAppearance:enabled") || element("cancelInvitesAppearance"))?.focus();
+    });
     element("inviteShowText")?.addEventListener("change", ({ currentTarget }) => {
       if (!stage("showText", currentTarget.checked)) renderDraft();
     });
-    if (overviewForm()) overviewForm().renderReadSummary = renderOverviewSummary;
+    for (const tab of element("inviteScreenTabs")?.querySelectorAll("button") || []) {
+      tab.addEventListener("click", () => {
+        inviteScreen = tab.dataset.inviteScreen;
+        syncInviteScreen();
+      });
+    }
+    element("inviteRowsPreference")?.addEventListener("change", ({ target }) => {
+      if (target.checked) stageInviteScreen({ rows: Number(target.value) });
+    });
+    element("inviteShownFieldChoices")?.addEventListener("change", ({ target }) => {
+      const key = target.dataset.inviteDefaultField;
+      if (key === "showActions" || key === "showInlineActions") stageInviteScreen({ [key]: target.checked });
+      else if (key) stageInviteField(target, key, draft?.invitesProfiles[inviteScreen].rows === 2 ? "twoRowColumns" : "shownFields");
+    });
+    element("inviteExpandedFieldChoices")?.addEventListener("change", ({ target }) => {
+      const key = target.dataset.inviteExpandedField;
+      if (key === "showActions") stageInviteScreen({ showActions: target.checked });
+      else if (key) stageInviteField(target, key, "expandedFields");
+    });
     overviewForm()?.addEventListener("submit", event => { event.preventDefault(); submit(overviewForm()); });
     element("cancelOverviewAppearance")?.addEventListener("click", () => cancel(overviewForm()));
     element("resetOverviewAppearance")?.addEventListener("click", () => {
@@ -1105,8 +1236,7 @@
         (overviewForm().querySelector("#saveOverviewAppearance:enabled") || element("cancelOverviewAppearance"))?.focus();
     });
     syncInviteGrouping();
-    syncInviteRows();
-    syncInviteDefaultFields();
+    syncInviteScreen();
     updateControls();
     refreshDatePickers();
     for (const name of ["input", "change"]) document.addEventListener(name, event => refreshDatePicker(event.target));

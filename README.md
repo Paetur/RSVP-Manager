@@ -36,9 +36,9 @@ A fictional event in Dark mode, shown at iPad landscape width.
 
 ## Downloads and installation
 
-Download **[0.9.0](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.0)** for the installation ZIP and checksum. The release starts unconfigured, so each installation has its own data. [Installation instructions](INSTALL.md)
+Download **[0.9.1](https://github.com/Paetur/RSVP-Manager/releases/tag/v0.9.1)** for the installation ZIP and checksum. The release starts unconfigured, so each installation has its own data. [Installation instructions](INSTALL.md)
 
-Use the current installer for a fresh database. Version 0.9.0 adds saved invitation salutations, more Invites grouping and filtering controls, and separate appearance editors. For an existing installation, use a reviewed update that preserves existing data and photos. [Existing-installation instructions](INSTALL.md#existing-installations) · [Release notes](docs/ReleaseNotes.md)
+Use the current installer for a fresh database. Version 0.9.1 adds per-screen Invites profiles, a live appearance preview with account reset, and compact Logs with activity and date filters. For an existing installation, use a reviewed update that preserves existing data and photos. [Existing-installation instructions](INSTALL.md#existing-installations) · [Release notes](docs/ReleaseNotes.md)
 
 For a new cloud project, the [trusted automatic setup companion](docs/AutomaticSetup.md) can perform first-time setup from your own computer. The manual wizard and Studio guides remain available. Encryption usage and requirements are in [Backup encryption](docs/BackupEncryption.md).
 
