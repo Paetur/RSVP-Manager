@@ -389,7 +389,6 @@
 }
 .invite-screen-tabs { max-width: 21rem; }
 #adminApp .invite-screen-tabs button { min-width: 0; padding-inline: 5px; }
-#adminApp #inviteScreenRange { margin: 0; }
 #inviteScreenPreferences { margin-block-end: 12px; }
 .invite-default-fields {
   margin: 12px 0 0;
@@ -603,6 +602,7 @@
   grid-template-columns: minmax(0, 1fr) var(--invite-toolbar-width, auto);
   align-items: center;
   gap: 10px 16px;
+  margin-block-end: 6px;
 }
 #adminApp .invite-box-heading:has(.admin-search-toggle[aria-expanded="true"]) {
   --invite-toolbar-width: minmax(0, 33rem);
@@ -638,6 +638,7 @@
   font-size: .8rem;
   line-height: 1.35;
 }
+.overview-panel > .invite-active-filters:not([hidden]) { margin-block: 6px 0; }
 .invite-filter-summary {
   display: flex;
   flex-wrap: wrap;

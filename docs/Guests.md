@@ -16,13 +16,17 @@ Open the private invitation link your organizer sent you. You do not need an adm
 
 When only RSVP needs an answer, use **Review RSVP** and **Confirm RSVP**. Your household comment is visible to your household and authorized administrators.
 
-Before submitting, **Add person** lets you add someone to your own household, including whether they are a child. They inherit its session invitations; review their replies too. If you have already confirmed or the response window has closed, contact the organizer.
+Before your first submission, **Add person** lets you add someone to your household while the response window is open. You can indicate whether they are a child. They follow the household’s session invitations, so review their replies too. Contact the organizer if the response window has closed.
+
+Submitting locks your household’s RSVP. Contact the organizer to change attendance or add someone after you submit. Use your original invitation link to see the current replies.
 
 Each session shows its welcome message, address and local time. The map thumbnail and **Map & directions** caption open the venue’s directions. Maps need an internet connection.
 
 ## Food
 
 If offered, choose **I can bring food** or **I can’t bring food**. When RSVP is due too, include both answers in **Submit responses**. When only the food question needs an answer, select **Confirm food answer**. You can change your choice before saving. The saved answer records your household’s interest.
+
+Contact the organizer to change a saved food answer. They can also help adjust any dishes you’ve already confirmed.
 
 When the organizer opens food choices, use your original invitation link. If your household has food access, has confirmed attendance and answered Yes, **Your RSVP** shows who is attending each session above **Choose food to bring**. The menu groups available items by category.
 
@@ -32,7 +36,7 @@ When the organizer opens food choices, use your original invitation link. If you
 - Choose **Review food selections**, check names and quantities, then select **Confirm food choices**. **Back to edit** keeps your reservations so you can adjust them.
 - If confirmation fails, check the message beside **Confirm food choices** and try again.
 
-Reopen the same invitation link to see the confirmed items and quantities under **You’re bringing**. The summary includes any available **Recipe** links, with **Print** and **Close** controls.
+Return to your invitation link to see the confirmed items and quantities under **You’re bringing**. The summary includes any available **Recipe** links, with **Print** and **Close** controls.
 
 Choosing No cannot remove existing commitments. If your attendance or food choices are locked, contact the organizer for help changing them.
 
@@ -51,4 +55,6 @@ Under **Settings → Invitations → Landing page**, organizers can replace a pr
 
 Save does not publish the event. Reset appearance keeps the photo; Remove photo removes it only when saved. Colors are configured separately for dark/light appearance. Existing settings and the current photo remain intact until explicitly saved.
 
-Invitations keeps independent **Wide** and **Phone** settings within **Landing page → Invitation appearance**. The mode selector switches the actual settings and their retained draft. The read view shows five compact summary rows. Photo dimensions, file size and crop are under Details. A single collapsible Preview shows the selected mode. In **Guest appearance**, **Show titles** sits below **Show repeated surname beside each guest**. Turn on **Show titles** to choose the invitation languages that display titles. Turning it off keeps the language choices for later. Titles use the language the guest is viewing. A guest’s **Name display** override takes precedence. Status messages uses the same visible heading, Wide/Phone selector and top-right pencil, with independent mode drafts and Save/Cancel. Guest rendering follows the current viewport.
+**Landing page → Invitation appearance** keeps independent **Phone** and **Wide** settings and drafts. Phone applies below 512 CSS pixels and Wide starts at 512 CSS pixels. The read view shows five compact summary rows. Photo dimensions, file size and crop are under **Details**. A collapsible **Preview** shows the selected mode. In **Guest appearance**, **Show titles** sits below **Show repeated surname beside each guest**. Turn on **Show titles** to choose the invitation languages that display titles. Titles use the language the guest is viewing. A guest’s **Name display** override takes precedence.
+
+Organizers can adjust temporary notices under **Settings → Interface → Event messages**, with independent **Phone** and **Wide** settings. [Event messages guide](GettingStarted.md#temporary-status-messages)

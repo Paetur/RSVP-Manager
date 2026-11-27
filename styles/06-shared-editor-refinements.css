@@ -537,18 +537,6 @@
   min-width: 0;
   margin-top: 0;
 }
-.overview-card-setting-group {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  padding-block: 10px;
-  border-block-start: 1px solid var(--line);
-}
-.overview-tab-heading > h3 {
-  margin: 0;
-  font-size: .92rem;
-  overflow-wrap: anywhere;
-}
 .interface-preference-controls,
 .interface-preference-pair {
   display: grid;
@@ -643,27 +631,8 @@
   margin: 0;
   padding: 0;
 }
-.overview-tab-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.overview-tab-pencil { flex: none; }
-#adminApp .overview-tab-rename {
-  justify-self: end;
-  width: min(100%, 20rem);
-  margin: 0 0 6px;
-  padding-block-start: 8px;
-  gap: 6px;
-}
-#adminApp .overview-tab-rename .form-actions { margin: 0; }
 .overview-appearance-popup { width: min(380px, calc(100vw - 24px)); }
-.overview-tab-rename .form-actions > button,
 .overview-appearance-popup .form-actions > button { min-height: 44px; }
-.overview-card-setting-group[data-overview-drop="inside"] {
-  box-shadow: inset 0 -2px var(--action-text);
-}
 .overview-card-setting {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

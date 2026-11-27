@@ -2,8 +2,7 @@
 const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
 const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
-const { openBox } = require("./helpers/local-edit-ui.cjs");
-const { refreshFixture, selectInterfaceSettingsTab, selectOverviewTab } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture, selectInterfaceSettingsTab } = require("./helpers/admin-toolbar.cjs");
 const { server, mock, extra, cleanup } = createPublicFoodHarness("review-interface-status");
 const behavior = `
 fixtures.invitation_send_queue.push({
@@ -45,7 +44,6 @@ const noticeRpc=client.rpc;client.rpc=async(name,args)=>{
    await page.waitForFunction(()=>Boolean(document.querySelector('#inviteOverviewCounts .invite-stat-row')));
    assert.equal(await page.locator('[data-panel=invites] #inviteGroupBy').count(),0,'grouping moved out of Invites');
    assert.equal(await page.locator('#inviteShownFieldsHost .invite-shown-fields').count(),1);
-   await selectOverviewTab(page,'invitation');
    const heading=page.locator('.invite-box-heading'),counts=page.locator('#inviteOverviewCounts');
    assert.equal(await counts.evaluate(node=>Boolean(node.closest('#statsGrid .stat-card'))),true,'status counts live in their summary card');
    assert.ok((await counts.boundingBox()).y < (await heading.boundingBox()).y,'summary cards sit above the Invites list header');
@@ -70,7 +68,7 @@ const noticeRpc=client.rpc;client.rpc=async(name,args)=>{
    await selectInterfaceSettingsTab(page,'invites');
    assert.equal(await page.locator('#invitesAppearanceForm').isVisible(),true);
    assert.equal(await page.locator('[data-settings-card="invites-appearance"] [data-local-edit]').count(),0);
-   assert.deepEqual(await page.locator('#inviteGroupBy label').allTextContents(),['Alphabetic','Relational','Service']);
+   assert.deepEqual(await page.locator('#inviteGroupBy label').allTextContents(),['Aa-Zz','Relational','Service']);
    const screens=['phone','tablet','desktop'];
    const savedProfiles=()=>page.evaluate(keys=>Object.fromEntries(keys.map(key=>[key,window.RSVP_ADMIN_PREFERENCES.getInvitesProfile(key)])),screens);
    const startingDefaults={grouped:'service',showText:true,invitesProfiles:await savedProfiles()};
@@ -367,25 +365,29 @@ const noticeRpc=client.rpc;client.rpc=async(name,args)=>{
    assert.equal(await page.evaluate(()=>window.RSVP_ADMIN_PREFERENCES.invitesGrouping),'service');
 
    await page.locator('#settingsToggle').click();await page.locator('[data-settings-tab=interface]').click();
-   const disclosure=page.locator('#notificationSettingsHost');
-   assert.equal(await disclosure.locator('details.notification-settings-disclosure').count(),0,'Status messages uses a standard card');
+   assert.equal(await page.locator('[data-settings-panel=interface] #notificationSettingsHost').count(),0);
+   await selectInterfaceSettingsTab(page,'messages');
+   const disclosure=page.locator('#settingsEventMessages #notificationSettingsHost');
+   assert.equal(await disclosure.locator('details.notification-settings-disclosure').count(),0,'Event messages uses a standard card');
    assert.equal(await disclosure.locator(':scope > .settings-card-heading').isVisible(),true);
    assert.equal(await disclosure.locator(':scope > [role=tablist]').isVisible(),true);
-   const pencilGeometry=await page.evaluate(()=>{
-    const relative=id=>{const host=document.getElementById(id),pencil=[...host.querySelectorAll('[data-local-edit]')].find(node=>node.getClientRects().length);const card=host.getBoundingClientRect(),button=pencil.getBoundingClientRect();return {top:button.top-card.top,right:card.right-button.right};};
-    return {appearance:relative('guestAppearanceHost'),status:relative('notificationSettingsHost')};
-   });
-   for(const inset of ['top','right'])assert.ok(Math.abs(pencilGeometry.appearance[inset]-pencilGeometry.status[inset])<=1,'matching card pencil '+inset+' inset');
    const wide=page.locator('[data-settings-card="notification-preferences:wide"]'),phone=page.locator('[data-settings-card="notification-preferences:phone"]');
+   const range=disclosure.locator('#notification-screen-range');
    const selectMode=async mode=>{await page.locator('button[data-notification-mode='+mode+']').click();};
-   assert.equal(await wide.isVisible(),true);assert.equal(await phone.isVisible(),false);
-   assert.equal(await disclosure.locator('[data-local-edit]:visible').count(),1,'one active header pencil');
-   assert.equal(await wide.locator('form').isVisible(),false,'status starts read-only');
-   await openBox(page,'notification-preferences:wide');
+   assert.deepEqual(await disclosure.getByRole('tab').allTextContents(),['Phone','Wide']);
+   assert.equal(await range.innerText(),'Phone screen (below 512 px)');
+   assert.equal(await phone.locator('form').isVisible(),true);assert.equal(await wide.isVisible(),false);
+   assert.equal(await disclosure.locator('[data-local-edit], .local-editor-summary').count(),0);
+   assert.deepEqual(await phone.locator('.interface-preference-actions button').allTextContents(),['Cancel','Save']);
+   await page.locator('button[data-notification-mode=phone]').focus();await page.keyboard.press('End');
+   assert.equal(await wide.locator('form').isVisible(),true,'End selects Wide and exposes its controls');
+   assert.equal(await range.innerText(),'Wide screen (512 px and wider)');
    await wide.getByRole('group',{name:'Admin',exact:true}).getByRole('radio',{name:'Errors only',exact:true}).check();
-   await page.locator('button[data-notification-mode=wide]').focus();await page.keyboard.press('End');
-   assert.equal(await phone.isVisible(),true,'keyboard chooses actual Phone');
-   await openBox(page,'notification-preferences:phone');
+   await selectInterfaceSettingsTab(page);
+   await selectInterfaceSettingsTab(page,'messages');
+   assert.equal(await wide.getByRole('group',{name:'Admin',exact:true}).getByRole('radio',{name:'Errors only',exact:true}).isChecked(),true,'switching Interface tabs keeps the message draft');
+   await page.locator('button[data-notification-mode=wide]').focus();await page.keyboard.press('Home');
+   assert.equal(await phone.isVisible(),true,'Home selects Phone');
    const guest=phone.getByRole('group',{name:'Guest',exact:true});await guest.getByRole('radio',{name:'Errors only',exact:true}).check();
    await page.evaluate(()=>window.__holdNotices=true);await phone.getByRole('button',{name:'Save',exact:true}).click();
    await page.waitForFunction(()=>!!window.__releaseNotices);
@@ -397,7 +399,7 @@ const noticeRpc=client.rpc;client.rpc=async(name,args)=>{
    assert.equal(await wide.getByRole('group',{name:'Admin',exact:true}).getByRole('radio',{name:'Errors only',exact:true}).isChecked(),true,'other mode draft retained after save');
    await page.evaluate(()=>window.__failNotices=true);await wide.getByRole('button',{name:'Save',exact:true}).click();
    await wide.getByText('Synthetic notification failure',{exact:true}).waitFor();
-   await selectMode('phone');await openBox(page,'notification-preferences:phone');
+   await selectMode('phone');
    await phone.getByRole('group',{name:'Guest',exact:true}).getByRole('radio',{name:'All messages',exact:true}).check();
    await phone.getByRole('button',{name:'Save',exact:true}).click();
    await page.waitForFunction(()=>window.__noticeWrites.length===2);await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
@@ -408,16 +410,30 @@ const noticeRpc=client.rpc;client.rpc=async(name,args)=>{
    await page.waitForFunction(()=>window.__noticeWrites.length===3);await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
    assert.deepEqual(await page.evaluate(()=>window.__noticeWrites.map(call=>call.p_mode)),['phone','phone','wide']);
    assert.deepEqual(await page.evaluate(()=>window.__noticeWrites[2].p_expected),{notification_preferences:null},'original scoped optimistic baseline kept');
-   await openBox(page,'notification-preferences:wide');
    await wide.getByRole('group',{name:'Admin',exact:true}).getByRole('radio',{name:'All messages',exact:true}).check();
-   await wide.getByRole('button',{name:'Cancel',exact:true}).click();
-   assert.equal(await wide.locator('form').isVisible(),false);
-   assert.equal(await wide.locator('[data-local-edit]').evaluate(node=>node===document.activeElement),true,'Cancel focuses replacement pencil');
+   const cancel=wide.getByRole('button',{name:'Cancel',exact:true});
+   await cancel.click();
+   assert.equal(await wide.getByRole('group',{name:'Admin',exact:true}).getByRole('radio',{name:'Errors only',exact:true}).isChecked(),true);
+   assert.equal(await cancel.evaluate(node=>node===document.activeElement),true,'Cancel keeps focus in the visible form');
    await page.evaluate(()=>{window.__accessPermissions.preset='custom';window.__accessPermissions.sections.settings='view';});
    await refreshFixture(page);await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
-   assert.equal(await disclosure.locator('[data-local-edit]:visible').count(),0,'view-only has no status pencil');
+   assert.equal(await disclosure.isVisible(),true,'view-only settings retain the Event messages tab');
+   assert.equal(await wide.getByRole('radio').first().isDisabled(),true,'view-only cannot edit saved settings');
+   assert.equal(await wide.locator('button:visible').count(),0,'view-only has no write actions');
    assert.equal(await page.evaluate(()=>fixtures.event_settings[0].is_published),false);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'no horizontal overflow');
+   await page.locator('#mainSectionToggle').click();
+   await page.locator('[data-tab=invites]').click();
+   await page.evaluate(()=>{fixtures.event_settings[0].is_published=true;});
+   await refreshFixture(page);await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
+   assert.equal(await page.locator('#bulkInvitesHost').isVisible(),false);
+   const toolbarGap=await page.locator('#inviteRows').evaluate(rows=>{
+    const controls=document.querySelectorAll('#inviteQuickGrouping summary, #inviteShownFieldsHost summary, #inviteSelectionToggle, #inviteSearchToggle');
+    return rows.getBoundingClientRect().top-Math.max(...Array.from(controls,control=>control.getBoundingClientRect().bottom));
+   });
+   assert.ok(toolbarGap>=5.5,`Invites toolbar clears the list at ${width}px: ${toolbarGap}px`);
+   await page.locator('#inviteQuickGrouping summary').click();
+   assert.equal(await page.locator('#inviteQuickGrouping').getByRole('radio',{name:'Aa-Zz',exact:true}).isVisible(),true);
    assert.deepEqual(errors,[]);await page.close();
   }
   console.log('PASS Interface choices, independent three-screen Invites profiles and row fields, legacy metadata, account reset points, Save/Cancel/retry/reload/account isolation, and Status mode keyboard/draft/failure/pending/permission/focus at phone and desktop widths.');

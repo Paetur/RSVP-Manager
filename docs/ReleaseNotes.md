@@ -1,5 +1,19 @@
 # Release notes
 
+## 0.10.0
+
+- Open the compact household **RSVP** panel in Invites and use **Edit RSVP** to record attendance, correct food interest, or add a guest with the relevant permissions. The household can see the current replies on its original link. [Organizer guide](HouseholdsAndInvites.md#replies)
+- Use a guest’s pencil inside **Edit RSVP** to update their details with **Households** edit access. Save or cancel to return to the RSVP draft. [Organizer guide](HouseholdsAndInvites.md#replies)
+- The first household submission locks guest editing. An organizer handles any later corrections in two steps, with an optional private note in Logs. **Allow a late response** is available before the first submission. [Guest guide](Guests.md)
+- Guests can choose dishes when the food menu opens. Organizers handle changes to confirmed dishes and quantities in **Home → Food**. [Food guide](Guests.md#food)
+- New Invites appearance profiles start in **1 Row** on Phone and **2 Row** on Tablet and Desktop. Tablet shows action buttons in the list. Grouping starts with **Relational**. [Invites appearance guide](HouseholdsAndInvites.md#invites-overview)
+- Browse Overview cards up to 260 px wide. Cards stack where they fit. Swipe, scroll or use the arrow buttons to reach more columns. **Relational groups** starts expanded when there are four groups or fewer. **Overview appearance** controls card order and visibility. [Overview guide](HouseholdsAndInvites.md#invites-overview)
+- Find active filters and **Clear filters** below the Overview cards. The Invites toolbar sits above the household list, and **Group by → Aa-Zz** sorts households by name. [Invites guide](HouseholdsAndInvites.md#invites-overview)
+- Show a loading spinner while the administration page opens event data or refreshes it.
+- Edit temporary notices directly in **Settings → Interface → Event messages**. Event messages and Invitation appearance show **Phone** first for screens below 512 px, then **Wide** for screens 512 px and wider. [Event messages guide](GettingStarted.md#temporary-status-messages)
+
+Existing 0.9.1 installations need reviewed backend updates for organizer RSVP corrections, submission rules, and translation keys. Backups retain format 3 and the same 44-table column manifest. [Existing-installation instructions](../INSTALL.md#existing-installations)
+
 ## 0.9.1
 
 - Show Overview filter checkmarks only on the active tab. Selected filters continue to apply to Invites when you switch tabs.

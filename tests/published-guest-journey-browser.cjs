@@ -201,18 +201,10 @@ async function main() {
     await openInvite(guest, primary);
     assert.match(await guest.locator("#rsvpReviewRows li").first().innerText(), /not attending/i);
     assert.equal(await confirmRsvp.isVisible(), false, "A direct correction keeps the response locked");
-    await fixture.reopen(primary);
-    await openInvite(guest, primary);
     assert.equal(await choice(guest, 0, "declined").isChecked(), true);
-    await choice(guest, 0, "attending").check();
-    await choice(guest, 1, "attending").check();
-    await guest.locator("#saveRsvp").click();
-    await confirmRsvp.click();
-    await guest.locator("#guestStatus.success").waitFor();
-    const corrected = calls("submit_household_rsvp", primary).at(-1);
-    assert.equal(corrected.status, 200);
-    assert.equal(corrected.args.p_responses.filter(reply => reply.status === "attending").length, 3);
-    assert.equal(await confirmRsvp.isVisible(), false);
+    assert.equal(await choice(guest, 0, "attending").isDisabled(), true);
+    assert.equal(await guest.locator("#saveRsvp").isVisible(), false);
+    assert.deepEqual(await fixture.responseState(primary), { rsvp: "locked", food: null, submissions: 1 });
 
     await fixture.expireDeadline();
     await openInvite(otherGuest, competing);
@@ -253,7 +245,7 @@ async function main() {
       assert.equal(await page.locator("#foodList").isHidden(), true);
       assert.equal(await page.locator("#confirmFood").isHidden(), true);
     }
-    const returning = [[guest, primary, "Alex"], [otherGuest, competing, "Sam"]];
+    const returning = [[guest, primary, "Alex", "Not attending"], [otherGuest, competing, "Sam", "Attending"]];
     for (const [, person] of returning) {
       const response = await fixture.responseState(person);
       assert.equal(response.rsvp, "locked");
@@ -263,14 +255,14 @@ async function main() {
 
     await fixture.openFoodChoices();
     await fixture.startNextVisit();
-    for (const [page, person, firstName] of returning) {
+    for (const [page, person, firstName, answer] of returning) {
       await openInvite(page, person);
       await assertReturningFood(page);
       await foodChoice(page).waitFor();
       const savedRsvp = page.locator("#rsvpReview");
       assert.equal(await savedRsvp.isVisible(), true);
-      const attending = savedRsvp.locator("li").filter({ hasText: firstName }).first();
-      assert.equal(await attending.locator("strong").innerText(), "Attending");
+      const guestReply = savedRsvp.locator("li").filter({ hasText: firstName }).first();
+      assert.equal(await guestReply.locator("strong").innerText(), answer);
       assert.equal(await savedRsvp.evaluate(node => !!(
         node.compareDocumentPosition(document.getElementById("foodCard")) & Node.DOCUMENT_POSITION_FOLLOWING
       )), true, "the saved RSVP precedes the food menu");
@@ -317,11 +309,12 @@ async function main() {
 
     const final = await fixture.snapshot();
     assert.equal(final.guests, 5);
-    for (const [person, expected] of [[primary, [1, 2]], [competing, [1]]])
+    for (const person of [primary, competing]) {
       assert.deepEqual(
-        final.submissions.filter(row => row.household_id === person.id).map(row => row.submission_number).sort(),
-        expected,
+        final.submissions.filter(row => row.household_id === person.id).map(row => row.submission_number),
+        [1],
       );
+    }
     assert.deepEqual(final.claims, [{ household_id: winner.id, food_item_id: fixture.item, quantity: 1 }]);
     assert.deepEqual(final.confirmed, [{ id: winner.id }]);
     assert.deepEqual(
@@ -561,7 +554,7 @@ async function main() {
     assert.deepEqual([...interceptedConfigs].sort(), ["/js/config.js", "/js/config.production.js"]);
     assert.deepEqual(errors, []);
     assert.deepEqual(fixture.bridgeErrors, []);
-    console.log("PASS published guest journey: RSVP-only and food-only flows, atomic combined response, edited and idempotent retries, reload, deadline and late window, reopened food choices, competing claims, confirmed return visits and unpublication.");
+    console.log("PASS published guest journey: RSVP-only and food-only flows, atomic combined response, edited and idempotent retries, reload, deadline and late window, food choices after first submission, competing claims, confirmed return visits and unpublication.");
   } catch (error) {
     if (errors.length) console.error(errors.join("\n"));
     if (fixture.bridgeErrors.length) console.error(fixture.bridgeErrors.join("\n"));

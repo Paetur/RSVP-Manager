@@ -10,7 +10,7 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
  const scalar=async(s,p)=>(await q(s,p)).rows[0].value;
  async function reject(s,p,pattern){await assert.rejects(()=>q(s,p),pattern);checks++;}
  await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS; CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY,email text);CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,created_at timestamptz NOT NULL DEFAULT now());CREATE TABLE auth.audit_log_entries(id uuid PRIMARY KEY,payload json,created_at timestamptz NOT NULL DEFAULT now()); CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$; GRANT USAGE ON SCHEMA auth TO authenticated,anon; GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated,anon;`);
- for(const file of fs.readdirSync('supabase/migrations').filter(f=>f.endsWith('.sql')).sort())await db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+ await db.exec(fs.readFileSync('supabase/migrations/20261114034908_baseline.sql','utf8'));
  await db.exec("UPDATE public.event_settings SET food_stage='selection' WHERE id=1");
  await db.exec(`INSERT INTO auth.users VALUES('11111111-1111-4111-8111-111111111111','test@example.invalid'),('22222222-2222-4222-8222-222222222222','other@example.invalid');INSERT INTO public.admins(user_id,name) VALUES('11111111-1111-4111-8111-111111111111','Test');INSERT INTO auth.sessions(id,user_id) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5','11111111-1111-4111-8111-111111111111');SET request.jwt.claims='{"sub":"11111111-1111-4111-8111-111111111111","session_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5"}';SET request.jwt.claim.sub='11111111-1111-4111-8111-111111111111'; SET ROLE authenticated;`);
  const values={household_name:'Test household',planning_group_id:'general',language:'fo'};
@@ -58,6 +58,10 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
  await q('select public.admin_save_session_assignments($1,$2)',[h2,JSON.stringify([{session_id:s2,guest_id:g,is_invited:false}])]);
  await reject('select public.admin_save_session_assignments($1,$2)',[h1,JSON.stringify([{session_id:s2,guest_id:g,is_invited:true}])],/belong to this household/);
  await reject('select public.admin_save_session_assignments($1,$2)',[h2,JSON.stringify([{session_id:s2,guest_id:g,is_invited:true},{session_id:s2,guest_id:g,is_invited:false}])],/Duplicate/);
+ await q('select public.admin_save_session_assignments($1,$2)',[h2,JSON.stringify([
+   {session_id:s1,is_invited:true},
+   {session_id:s2,is_invited:false},
+ ])]);
 
  const c=await scalar('select public.admin_save_contact(null,$1,$2) value',[h2,{contact_name:'First',contact_type:'email',contact_value:'first@example.invalid',is_primary:true,preferred_method:'email'}]);
  const c2=await scalar('select public.admin_save_contact(null,$1,$2) value',[h2,{contact_name:'Second',contact_type:'email',contact_value:'second@example.invalid',is_primary:true}]);
@@ -96,14 +100,14 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
  assert.equal(await scalar('select public.get_invitation_v2($1) value',[code2]),null);checks++;
  code2=await scalar('select invite_code value from public.households where id=$1',[h2]);
  const request='33333333-3333-4333-8333-333333333333';
- await q('select public.submit_household_rsvp($1,$2,$3)',[code2,request,JSON.stringify([{guest_id:g,session_id:s1,status:'attending'}])]);checks++;
+ const originalComment='Original household comment';
+ const firstSubmission=await scalar('select public.submit_household_rsvp($1,$2,$3,$4) value',[code2,request,JSON.stringify([{guest_id:g,session_id:s1,status:'attending'}]),originalComment]);checks++;
  await reject('select public.admin_move_guest($1,$2)',[g,h1],/RSVP history/);
  await reject('select public.admin_save_session_assignments($1,$2)',[h2,JSON.stringify([{session_id:s1,is_invited:false}])],/RSVP history/);
  await reject("select public.admin_set_archived('guests',$1,true)",[g],/submitted RSVPs/);
- await reject('select public.admin_create_guest($1,$2)',[h2,{first_name:'Late'}],/submitted RSVPs/);
+ await reject('select public.admin_create_guest($1,$2)',[h2,{first_name:'Late'}],/without submitted RSVPs/i);
  await reject('select public.admin_save_session($1,$2)',[s1, await withRecordRevision(db, "sessions", s1, {...sessionValues,requires_rsvp:false})],/protected/);
  await q('select public.admin_save_session($1,$2)',[s1, await withRecordRevision(db, "sessions", s1, {...sessionValues,name:'Updated dinner',starts_at:'2027-02-20T19:00:00Z'})]);checks++;
- await q("select public.admin_reopen_household_rsvp($1,'Test reopen')",[h2]);
  await reject('select public.admin_move_guest($1,$2)',[g,h1],/RSVP history/);
  await q("select public.admin_update_guest($1,'Edited','Guest',null,null,null,false,null,'Updated')",[g]);checks++;
  assert.equal(await scalar("select count(*)::int value from public.management_audit where household_id=$1 and entity_type='guests'",[h1])>0,true);checks++;
@@ -240,14 +244,52 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
  assert.equal(await scalar('select rsvp_status value from public.guest_session_responses where guest_id=$1 and session_id=$2',[g,s1]),'declined');checks++;
  assert.deepEqual(await scalar('select submission_snapshot value from public.rsvp_submissions where household_id=$1',[h2]),originalSnapshot);checks++;
  await reject("select public.admin_correct_rsvp($1,$2,null,'Invalid')",[g,s1],/Valid response/);
- await reject("select public.admin_correct_rsvp($1,$2,'attending','')",[g,s1],/Valid response/);
+ await reject("select public.admin_correct_rsvp($1,$2,'attending',repeat('x',2001))",[g,s1],/2000/);
  await reject("select public.admin_correct_rsvp($1,$2,'attending','Not invited')",[dg,s1],/not invited/);
- await q("select public.admin_authorize_late_rsvp($1,now()+interval '1 day','Travel confirmation')",[h2]);checks++;
- await reject("select public.admin_authorize_late_rsvp($1,now()-interval '1 day','Past')",[h2],/future expiry/);
- await reject("select public.admin_reopen_household_rsvp($1,'Already open')",[h2],/locked household/);
- await db.exec('RESET ROLE');await q("update public.households set rsvp_state='locked' where id=$1",[h2]);await db.exec('SET ROLE authenticated');
- await q("select public.admin_reopen_household_rsvp($1,'Guest needs to revise')",[h2]);
+ await q("select public.admin_authorize_late_rsvp($1,now()+interval '1 day','Travel confirmation')",[dh]);checks++;
+ await reject("select public.admin_authorize_late_rsvp($1,now()-interval '1 day','Past')",[dh],/future expiry/);
+ await reject("select public.admin_authorize_late_rsvp($1,now()+interval '1 day',null)",[h2],/RSVP is locked/);
  assert.equal(await scalar('select late_submission_until value from public.households where id=$1',[h2]),null);checks++;
+
+ // An organizer can add a forgotten child and answer for them while the RSVP is locked.
+ const editRsvpSql='select public.admin_edit_household_rsvp($1,$2,$3,$4,$5)';
+ const addedChild='dc370cd4-ab42-45b5-8cf7-9545ddfe91af';
+ const childDraft={id:addedChild,first_name:'Forgotten child',is_child:true};
+ const childReply={guest_id:addedChild,session_id:s1,status:'attending',expected_status:null};
+ await reject(editRsvpSql,[h2,'locked',firstSubmission.submission_id,{guests:[childDraft]},null],/Answer each required RSVP/i);
+ const changes={guests:[childDraft],responses:[childReply]};
+ const correctionNote='Household confirmed by phone';
+ await q(editRsvpSql,[h2,'locked',firstSubmission.submission_id,changes,'  '+correctionNote+'  ']);
+ await q(editRsvpSql,[h2,'locked',firstSubmission.submission_id,changes,'  '+correctionNote+'  ']);
+ assert.deepEqual(await scalar(`select jsonb_agg(jsonb_build_object('note',a.after_value->>'note','by_admin',a.actor_user_id=auth.uid())) value
+   from public.management_audit a where a.household_id=$1 and a.entity_type='rsvp_guest_addition'`,[h2]),[
+   {note:correctionNote,by_admin:true},
+ ]);checks+=3;
+ assert.equal(await scalar('select latest_rsvp_submission_id value from public.households where id=$1',[h2]),firstSubmission.submission_id);
+ assert.deepEqual((await q(`select action, previous_status, new_status, reason, actor_user_id=auth.uid() as recorded_by_admin
+   from public.rsvp_response_audit where guest_id=$1 and session_id=$2`,[addedChild,s1])).rows,[{
+   action:'admin_correction',previous_status:null,new_status:'attending',reason:correctionNote,recorded_by_admin:true,
+ }]);
+ await db.exec('SET ROLE service_role');
+ const correctedInvitation=await scalar('select public.get_invitation_v2($1) value',[code2]);
+ assert.equal(correctedInvitation.household.id,h2);
+ assert.equal(correctedInvitation.household.rsvp_state,'locked');
+ assert.equal(correctedInvitation.household.rsvp_comment,originalComment);
+ assert.equal(correctedInvitation.household.can_add_guests,false);
+ assert.equal(correctedInvitation.household.can_submit_rsvp,false);
+ assert.equal(correctedInvitation.guests.find(guest=>guest.id===addedChild)?.is_child,true);
+ assert.deepEqual(correctedInvitation.invitations.find(link=>link.guest_id===addedChild),{
+   guest_id:addedChild,session_id:s1,requires_rsvp:true,response:'attending',
+ });
+ assert.equal(correctedInvitation.invitations.find(link=>link.guest_id===g&&link.session_id===s1)?.response,'declined');
+ await reject("select public.add_household_guest($1,gen_random_uuid(),'Unexpected child','',true)",[code2],/cannot be added after an RSVP submission/);
+ const revisedAnswers=[{guest_id:g,session_id:s1,status:'declined'},{guest_id:addedChild,session_id:s1,status:'attending'}];
+ await reject('select public.submit_household_rsvp($1,gen_random_uuid(),$2,$3)',[code2,JSON.stringify(revisedAnswers),originalComment],/RSVP is locked/);
+ await db.exec('SET ROLE authenticated');
+ assert.deepEqual(await scalar(`select jsonb_build_object('snapshot',submission_snapshot,'comment',comment) value from public.rsvp_submissions where id=$1`,[firstSubmission.submission_id]),{
+   snapshot:originalSnapshot,comment:originalComment,
+ });
+ checks+=12;
 
  // Unified logs: authorization, literal search, deterministic pagination, session verification and opening coalescence.
  const queryLogs=async(v={})=>scalar('select public.admin_query_logs($1,$2,$3,$4,$5,$6,$7,$8) value',[v.search||'',v.category||'',v.action||'',v.from||null,v.to||null,v.before_at||null,v.before_key||null,v.limit||5]);

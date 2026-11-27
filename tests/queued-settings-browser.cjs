@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const { createPublicFoodHarness, routeSyntheticSdk } = require('./helpers/public-browser-site.cjs');
-const { refreshFixture } = require('./helpers/admin-toolbar.cjs');
+const { refreshFixture, selectInterfaceSettingsTab } = require('./helpers/admin-toolbar.cjs');
 const { server, mock, extra, cleanup } = createPublicFoodHarness('queued-settings');
 (async () => {
  await new Promise(r => server.listen(0,'127.0.0.1',r));
@@ -49,9 +49,6 @@ const queuedRpc=client.rpc;client.rpc=async(name,args)=>{
   assert.equal(await page.getByRole('heading',{name:'Landing page',exact:true}).count(),1);
   assert.equal(await page.locator('.guest-interface-modes').count(),0);
   assert.equal(await page.locator('details.guest-appearance-preview').evaluate(n=>n.open),false);
-  assert.equal(await page.locator('details.notification-settings-disclosure').count(),0);
-  assert.equal(await page.locator('#notificationSettingsHost > .settings-card-heading').isVisible(),true);
-  assert.equal(await page.locator('[data-settings-card="notification-preferences:wide"] form').isVisible(),false);
   for (const mode of ['phone','wide']) {
     await page.locator('[data-appearance-mode='+mode+']').click();
     const card=page.locator('[data-settings-card="guest-customization:'+mode+'"]');
@@ -62,6 +59,12 @@ const queuedRpc=client.rpc;client.rpc=async(name,args)=>{
     assert.equal(await page.evaluate(()=>window.__modeSave.p_values.guest_name_layout),mode==='phone'?'inline':'above');
     await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
   }
+  await selectInterfaceSettingsTab(page, 'messages');
+  const eventMessages=page.locator('#settingsEventMessages #notificationSettingsHost');
+  assert.equal(await eventMessages.locator('details.notification-settings-disclosure').count(),0);
+  assert.equal(await eventMessages.locator(':scope > .settings-card-heading').isVisible(),true);
+  assert.equal(await eventMessages.locator('[data-settings-card="notification-preferences:phone"] form').isVisible(),true);
+  assert.equal(await eventMessages.locator('.local-editor-pencil').count(),0);
   await page.locator('[data-settings-tab=templates]').click();
   assert.equal(await page.locator('details.invitation-template > summary[aria-label="Shared invitation"]').count(),1);
   await page.locator('.invitation-template .local-editor-pencil').first().click();

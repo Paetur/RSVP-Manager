@@ -166,23 +166,21 @@ async function setup() {
         ),
       /immutable|history|cannot|append/i,
     );
-    await login();
-    await db.query(
-      "SELECT public.admin_reopen_household_rsvp($1,'Organizer approved correction')",
-      [hh[0]],
-    );
-    await logout();
-    const next = await v(
+    for (const signature of [
+      "public.admin_reopen_household_rsvp(uuid,text)",
+      "public.admin_lock_household_rsvp(uuid,uuid,text)",
+      "public.admin_correct_food_interest(uuid,boolean,boolean,text)",
+    ]) {
+      assert.equal(await v("SELECT to_regprocedure($1) v", [signature]), null);
+    }
+    await db.exec("SET ROLE service_role");
+    await assert.rejects(() => v(
       "SELECT public.submit_household_rsvp($1,gen_random_uuid(),$2,$3) v",
       [codes[0], answers, "New comment"],
-    );
-    assert.notEqual(next.submission_id, saved.submission_id);
-    assert.equal(
-      await v("SELECT comment v FROM public.rsvp_submissions WHERE id=$1", [
-        saved.submission_id,
-      ]),
-      "No nuts\n<private>",
-    );
+    ), /RSVP is locked/i);
+    await db.exec("RESET ROLE");
+    assert.equal(await v("SELECT comment v FROM public.rsvp_submissions WHERE id=$1", [saved.submission_id]),
+      "No nuts\n<private>");
     await login();
     const cat = async (name, parent = null) =>
       v("SELECT public.admin_save_food_category(NULL,$1,$2,NULL,NULL) v", [
@@ -434,10 +432,12 @@ async function setup() {
     await db.exec("UPDATE public.event_settings SET food_stage='interest',rsvp_deadline=now()-interval '1 day' WHERE id=1");
     assert.equal(await availability(), false);
     await assert.rejects(() => submitJoint(), /RSVP deadline passed/);
-    await db.query("UPDATE public.households SET late_submission_until=now()+interval '1 day' WHERE id=$1", [jointHousehold]);
+    await login();
+    await db.query("SELECT public.admin_authorize_late_rsvp($1,now()+interval '1 day',NULL)", [jointHousehold]);
+    await logout();
     assert.equal(await availability(), true);
     await assert.rejects(() => submitJoint(false, answers), /Incomplete or unauthorized/);
-    assert.deepEqual(await jointRows(), { state: "open", food: null, submissions: 0, audit: 0 });
+    assert.deepEqual(await jointRows(), { state: "open", food: null, submissions: 0, audit: 1 });
     await db.exec("SET ROLE service_role");
     const joint = await submitJoint();
     assert.equal(joint.rsvp.already_processed, false);
@@ -448,8 +448,179 @@ async function setup() {
     await assert.rejects(() => submitJoint(true), /different answers/);
     await db.exec("RESET ROLE");
     assert.equal(await availability(), false);
-    assert.deepEqual(await jointRows(), { state: "locked", food: false, submissions: 1, audit: 1 });
+    assert.deepEqual(await jointRows(), { state: "locked", food: false, submissions: 1, audit: 2 });
 
+    const editRsvp = (household, state, expected, changes, note = null) => db.query(
+      "SELECT public.admin_edit_household_rsvp($1,$2,$3,$4,$5)",
+      [household, state, expected, changes, note],
+    );
+    const correctFood = (household, submissionId, interest, expected, note) =>
+      editRsvp(household, "locked", submissionId, { food: { interest, expected_interest: expected } }, note);
+    const amendFood = (code, interest, expected) =>
+      v("SELECT public.set_household_food_interest($1,$2,$3) v", [code, interest, expected]);
+    const guestFood = code => v("SELECT public.get_household_food($1) v", [code]);
+    const jointLatest = joint.rsvp.submission_id;
+    const originalSubmission = () => v(
+      "SELECT to_jsonb(s) v FROM public.rsvp_submissions s WHERE id=$1",
+      [jointLatest],
+    );
+    const attendanceRows = () => v(
+      "SELECT jsonb_agg(to_jsonb(r) ORDER BY r.session_id) v FROM public.guest_session_responses r WHERE guest_id=$1",
+      [jointGuest],
+    );
+    const savedSubmission = await originalSubmission();
+    const savedAttendance = await attendanceRows();
+
+    await db.exec("SET ROLE service_role");
+    assert.equal((await guestFood(jointCode)).interest, false);
+    await assert.rejects(() => amendFood(jointCode, true, false), /already confirmed/i);
+    assert.equal((await amendFood(jointCode, false, false)).interest, false);
+    await db.exec("RESET ROLE");
+    await login();
+    await assert.rejects(() => correctFood(jointHousehold, jointLatest, true, false, "x".repeat(2001)), /2000/i);
+    await assert.rejects(() => db.query("SELECT public.admin_authorize_late_rsvp($1,now()+interval '1 day',NULL)", [
+      jointHousehold,
+    ]), /RSVP is locked/i);
+    await correctFood(jointHousehold, jointLatest, true, false, "  Guest changed their answer  ");
+    await assert.rejects(() => correctFood(jointHousehold, jointLatest, false, false), /changed|stale|refresh/i);
+    await logout();
+
+    assert.deepEqual(await jointRows(), { state: "locked", food: true, submissions: 1, audit: 2 });
+    assert.deepEqual(await attendanceRows(), savedAttendance);
+    assert.deepEqual(await originalSubmission(), savedSubmission);
+    assert.deepEqual(await v(`SELECT jsonb_build_object(
+      'actor',actor_user_id,'old',before_value->'food_interest','new',after_value->'food_interest',
+      'reason',after_value->>'reason'
+    ) v FROM public.management_audit WHERE entity_type='food_interest' AND action='update' AND household_id=$1`,
+    [jointHousehold]), { actor: admin, old: false, new: true, reason: "Guest changed their answer" });
+    await db.exec("SET ROLE service_role");
+    assert.equal((await guestFood(jointCode)).interest, true);
+    await assert.rejects(() => amendFood(jointCode, false, true), /already confirmed/i);
+    await assert.rejects(() => submitJoint(), /different answers/);
+    await db.exec("RESET ROLE");
+    await login();
+    await correctFood(jointHousehold, jointLatest, false, true);
+    await logout();
+    assert.equal((await jointRows()).food, false);
+    assert.deepEqual(await originalSubmission(), savedSubmission);
+
+    const commitments = () => v(
+      "SELECT jsonb_agg(to_jsonb(c) ORDER BY c.food_item_id) v FROM public.food_claims c WHERE c.household_id=$1",
+      [hh[0]],
+    );
+    const previousCommitments = await commitments();
+    assert.equal(previousCommitments[0].quantity, 3);
+    await login();
+    await db.query("SELECT public.admin_set_food_stage('selection','interest')");
+    await assert.rejects(() => correctFood(hh[0], saved.submission_id, false, true), /commitment|food choices/i);
+    await logout();
+    await db.exec("SET ROLE service_role");
+    assert.equal((await guestFood(codes[0])).interest, true);
+    await assert.rejects(() => amendFood(codes[0], false, true), /already confirmed/i);
+    await db.query("SELECT public.confirm_household_food($1,$2)", [
+      codes[0], [{ food_item_id: food, quantity: 3 }],
+    ]);
+    await db.exec("RESET ROLE");
+    assert.deepEqual(await commitments(), previousCommitments);
+
+    const foodConfirmation = () => v(
+      "SELECT jsonb_build_object('interest',food_interest,'confirmed',food_confirmed,'confirmed_at',food_confirmed_at) v FROM public.households WHERE id=$1",
+      [hh[0]],
+    );
+    const beforeRemoval = await foodConfirmation();
+    assert.equal(beforeRemoval.confirmed, true);
+    assert.ok(beforeRemoval.confirmed_at);
+    await login();
+    await assert.rejects(() => correctFood(hh[0], saved.submission_id, false, true), /commitment|food choices/i);
+    await db.query("SELECT public.admin_set_food_selection($1,$2,0,3)", [hh[0], food]);
+    await logout();
+    assert.equal(await commitments(), null, "Only the separate assignment removal deletes the claim");
+    await login();
+    await correctFood(hh[0], saved.submission_id, false, true, "Guest cancelled after removing the assignment");
+    await logout();
+    assert.deepEqual(await foodConfirmation(), { interest: false, confirmed: false, confirmed_at: null });
+    assert.equal(await commitments(), null);
+
+    const additional = "33333333-3333-4333-8333-333333333333";
+    const addition = { id: additional, first_name: "Forgotten", last_name: "Child", is_child: true };
+    const reply = (guestId, status, expectedStatus) => ({
+      guest_id: guestId, session_id: sid, status, expected_status: expectedStatus,
+    });
+    const directEdit = {
+      responses: [reply(jointGuest, "attending", "declined"), reply(additional, "declined", null)],
+      guests: [addition],
+      food: { interest: true, expected_interest: false },
+    };
+    const jointGuestLink = () => v("SELECT public.get_invitation_v2($1) v", [jointCode]);
+    const jointGuestCount = () => v("SELECT count(*)::int v FROM public.guests WHERE household_id=$1", [jointHousehold]);
+    const beforeLockedEditAttendance = await attendanceRows();
+    await login();
+    await assert.rejects(() => editRsvp(jointHousehold, "open", jointLatest, directEdit), /changed|stale|refresh/i);
+    await assert.rejects(() => editRsvp(jointHousehold, "locked", jointLatest, {
+      ...directEdit, responses: [directEdit.responses[0]],
+    }), /Answer each required RSVP/i);
+    await logout();
+    assert.equal(await jointGuestCount(), 1, "A failed locked RSVP edit rolls back the guest addition");
+    assert.equal((await jointRows()).food, false, "A failed locked RSVP edit rolls back the food correction");
+    assert.deepEqual(await attendanceRows(), beforeLockedEditAttendance);
+    const originalLockedEditRows = await jointRows();
+    await login();
+    await editRsvp(jointHousehold, "locked", jointLatest, directEdit, "  Household confirmed by phone  ");
+    await assert.rejects(() => editRsvp(jointHousehold, "locked", jointLatest, {
+      responses: [reply(jointGuest, "declined", "declined")],
+    }), /changed|stale|refresh/i);
+    await logout();
+    assert.equal(await jointGuestCount(), 2);
+    assert.deepEqual(await jointRows(), { ...originalLockedEditRows, food: true });
+    const editedLink = await jointGuestLink();
+    assert.equal(editedLink.household.rsvp_state, "locked");
+    assert.equal(editedLink.household.rsvp_comment, "Shared review", "The admin note stays private");
+    assert.equal(editedLink.guests.find((g) => g.id === additional)?.is_child, true);
+    assert.equal(editedLink.invitations.find((r) => r.guest_id === jointGuest).response, "attending");
+    assert.equal(editedLink.invitations.find((r) => r.guest_id === additional).response, "declined");
+    assert.equal(await v(
+      "SELECT reason v FROM public.rsvp_response_audit WHERE guest_id=$1 AND action='admin_correction' AND actor_user_id=$2",
+      [jointGuest, admin],
+    ), "Household confirmed by phone");
+
+    // A backup can describe a household that was left open by an older organizer workflow.
+    await db.query("UPDATE public.households SET rsvp_state='open',late_submission_until=now()+interval '1 day' WHERE id=$1", [jointHousehold]);
+    const legacyLink = await jointGuestLink();
+    assert.equal(legacyLink.household.rsvp_state, "locked");
+    assert.equal(legacyLink.household.can_submit_rsvp, false);
+    assert.equal(legacyLink.household.can_add_guests, false);
+    await db.exec("SET ROLE service_role");
+    await assert.rejects(() => db.query("SELECT public.submit_household_rsvp($1,gen_random_uuid(),$2,NULL)", [
+      jointCode, jointAnswers,
+    ]), /RSVP is locked/i);
+    assert.equal((await v("SELECT public.submit_household_rsvp($1,$2,$3,$4) v", [
+      jointCode, jointRequest, jointAnswers, "Shared review",
+    ])).already_processed, true, "A lost first response can still be retried after an admin correction");
+    await assert.rejects(() => db.query("SELECT public.add_household_guest($1,gen_random_uuid(),'Unexpected','Guest',false)", [jointCode]),
+      /cannot be added after an RSVP submission/i);
+    await db.exec("RESET ROLE");
+    const legacyAdditional = { ...addition, id: "66666666-6666-4666-8666-666666666666" };
+    await login();
+    await assert.rejects(() => db.query("SELECT public.admin_authorize_late_rsvp($1,now()+interval '1 day',NULL)", [jointHousehold]),
+      /RSVP is locked/i);
+    await assert.rejects(() => db.query("SELECT public.admin_create_guest($1,$2)", [jointHousehold, { first_name: "Pending" }]),
+      /without submitted RSVPs/i);
+    await assert.rejects(() => editRsvp(jointHousehold, "open", jointLatest, { guests: [legacyAdditional] }),
+      /Answer each required RSVP/i);
+    await editRsvp(jointHousehold, "open", jointLatest, {
+      guests: [legacyAdditional], responses: [reply(legacyAdditional.id, "attending", null)],
+    });
+    await logout();
+    assert.equal((await jointGuestLink()).household.rsvp_state, "locked");
+    assert.equal((await jointGuestLink()).household.can_submit_rsvp, false);
+    assert.equal((await jointRows()).submissions, 1);
+    assert.deepEqual(await originalSubmission(), savedSubmission);
+    await db.query("UPDATE public.households SET rsvp_state='locked',late_submission_until=NULL WHERE id=$1", [jointHousehold]);
+
+    await db.exec("SET ROLE anon");
+    await assert.rejects(() => correctFood(hh[0], saved.submission_id, false, true), /permission denied/);
+    await assert.rejects(() => editRsvp(jointHousehold, "locked", jointLatest, directEdit), /permission denied/);
+    await db.exec("RESET ROLE");
     await db.query(
       "INSERT INTO auth.users VALUES('22222222-2222-4222-8222-222222222222','other@example.invalid',now(),'unused')",
     );
@@ -481,8 +652,19 @@ async function setup() {
         ),
       /permission|access/i,
     );
+    await assert.rejects(() => correctFood(hh[0], saved.submission_id, false, true), /permission|access/i);
+    await assert.rejects(() => editRsvp(jointHousehold, "locked", jointLatest, directEdit), /permission|access/i);
+    await logout();
+    permissions.preset = "custom";
+    permissions.sections.invites = "edit";
+    await db.query("UPDATE public.admins SET access_permissions=$1 WHERE user_id=$2", [permissions, admin]);
+    await login();
+    await assert.rejects(() => editRsvp(jointHousehold, "locked", jointLatest, {
+      food: { interest: false, expected_interest: true },
+    }), /permission|access/i);
+    await assert.rejects(() => editRsvp(jointHousehold, "locked", jointLatest, { guests: [addition] }), /permission|access/i);
     console.log(
-      "PASS new guest SQL: scoped immutable/reviewed comments, idempotent retry/reopen, comment limits and permissions, quantity capacity, nested/sibling order, parent deletion/cycle/depth/stale guards, retained commitments and backup/template/full restore.",
+      "PASS RSVP and food SQL: immutable comments, first-response retries and late allowance, admin-only corrections, legacy state handling, audit notes, permissions, food commitments and backup/template/full restore.",
     );
   } finally {
     await db.close();

@@ -65,10 +65,10 @@ Enter dates as **DD/MM/YYYY** or use the calendars in **From** and **Through**. 
 
 ![Logs with a date filter and separate household submission and guest response rows](images/ipad-logs-filters.png)
 
-**Household RSVP submitted** records that the household submitted and locked its RSVP. Separate rows show each guest’s answer and the session it belongs to. Expand a row for more information, then open **Technical details** if you need its log reference, UTC timestamp or submission ID. Invitation opens from the same household within 15 minutes are grouped.
+**Household RSVP submitted** records that the household submitted and locked its RSVP. Separate rows show each guest’s answer and the session it belongs to. Organizer corrections record the administrator and any optional private note from **Edit RSVP**. Expand a row for more information, then open **Technical details** if you need its log reference, UTC timestamp or submission ID. Invitation opens from the same household within 15 minutes are grouped.
 
 ## Personal settings
 
-Settings first opens **Application**. **Settings → Interface** opens **Interface**, **Invites appearance** and **Overview appearance** directly to their preference controls. The Interface tab contains **Appearance** and **Date and time**, plus HTTP/SSL and Apple Shortcuts. Each preference form saves its own choices to your administrator account. **Button hover appearance** offers Toolbar, Pencil and Create examples. Delete actions stay red, with an icon and label on desktop and a label on phones.
+Settings first opens **Application**. **Settings → Interface** opens **Interface**, **Invites appearance**, **Overview appearance** and **Event messages** directly to their controls. The Interface tab contains **Appearance** and **Date and time**, plus HTTP/SSL and Apple Shortcuts. Each personal preference form saves its own choices to your administrator account. Use **Event messages** to manage Admin and Guest notices for the event. **Button hover appearance** offers Toolbar, Pencil and Create examples. Delete actions stay red, with an icon and label on desktop and a label on phones. [Event messages guide](GettingStarted.md#temporary-status-messages)
 
 [All user guides](README.md)

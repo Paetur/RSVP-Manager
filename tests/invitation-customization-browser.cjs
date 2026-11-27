@@ -1,5 +1,5 @@
 const {openBox}=require('./helpers/local-edit-ui.cjs');
-const { refreshFixture } = require('./helpers/admin-toolbar.cjs');
+const { refreshFixture, selectInterfaceSettingsTab } = require('./helpers/admin-toolbar.cjs');
 // Actual UI with synthetic APIs only. No live accounts or event data.
 const { chromium } = require("playwright");
 const fs = require("node:fs"),
@@ -50,13 +50,17 @@ const custom =
         await appearance.locator('[data-appearance-mode="' + mode + '"]').click();
         assert.equal(await page.locator('[data-settings-card="guest-customization:' + mode + '"]').isVisible(), true);
       };
-      await selectMode('phone');
       const modes = appearance.locator('.guest-appearance-mode-tabs');
+      const range = appearance.locator('#guestAppearanceScreenRange');
+      assert.deepEqual(await modes.getByRole('tab').allTextContents(), ['Phone', 'Wide']);
+      assert.equal(await appearance.getAttribute('data-appearance-mode'), 'phone');
+      assert.equal(await range.textContent(), 'Phone screen (below 512 px)');
       await modes.locator('[data-appearance-mode=phone]').focus();
       const keyboardBefore = await modes.locator('button').evaluateAll(nodes => nodes.map(node => ({ id: node.id, role: node.getAttribute('role'), disabled: node.disabled, visible: node.getClientRects().length > 0, focused: node === document.activeElement })));
       await page.keyboard.press('ArrowLeft');
       assert.equal(await appearance.getAttribute('data-appearance-mode'), 'wide', 'mode tabs support keyboard navigation: ' + JSON.stringify(keyboardBefore));
-      await page.keyboard.press('End');
+      assert.equal(await range.textContent(), 'Wide screen (512 px and wider)');
+      await page.keyboard.press('Home');
       assert.equal(await appearance.getAttribute('data-appearance-mode'), 'phone');
       assert.equal(await modes.locator('[data-appearance-mode=phone]').evaluate(node => node === document.activeElement), true);
       if (width < 700) {
@@ -98,22 +102,27 @@ const custom =
       await metadata.locator(':scope > summary').click();
       assert.match(await metadata.innerText(), /3 × 2 px.*759/s);
       await metadata.locator(':scope > summary').click();
-      const status = page.locator('#notificationSettingsHost');
-      assert.equal(await status.locator('details.notification-settings-disclosure').count(), 0, 'status messages use a standard card');
-      assert.equal(await status.locator(':scope > .settings-card-heading').isVisible(), true);
-      assert.equal(await status.locator('[data-settings-card="notification-preferences:wide"] form').isVisible(), false, 'status messages start read-only');
-      assert.equal(await page.locator('[data-settings-card="notification-preferences:phone"]').isVisible(), false);
+      assert.equal(await page.locator('[data-settings-panel=interface] #notificationSettingsHost').count(), 0, 'Invitations contains no event message editor');
       if (width < 700) {
-        for (const control of [preview.locator(':scope > summary'), status.locator('button[data-notification-mode=wide]')]) {
-          const box = await control.boundingBox();
-          assert.ok(box.width >= 44 && box.height >= 44, 'preview disclosure and status mode tabs retain coarse-pointer targets');
-        }
+        const box = await preview.locator(':scope > summary').boundingBox();
+        assert.ok(box.width >= 44 && box.height >= 44, 'preview disclosure retains its coarse-pointer target');
       }
       if (process.env.RSVP_COMPACT_PREVIEW_DIR) {
         fs.mkdirSync(process.env.RSVP_COMPACT_PREVIEW_DIR, { recursive: true });
         await page.locator('.guest-landing-settings').screenshot({ path: path.join(process.env.RSVP_COMPACT_PREVIEW_DIR, 'compact-landing-' + width + '.png') });
       }
-      await page.locator('[data-settings-tab=checklist]').click();
+      await selectInterfaceSettingsTab(page, 'messages');
+      const status = page.locator('#settingsEventMessages #notificationSettingsHost');
+      assert.equal(await status.locator('details.notification-settings-disclosure').count(), 0, 'event messages use a standard card');
+      assert.equal(await status.locator(':scope > .settings-card-heading').isVisible(), true);
+      assert.equal(await status.locator('[data-settings-card="notification-preferences:phone"] form').isVisible(), true, 'event messages open directly to Phone controls');
+      assert.equal(await page.locator('[data-settings-card="notification-preferences:wide"]').isVisible(), false);
+      assert.equal(await status.locator('.local-editor-pencil').count(), 0);
+      if (width < 700) {
+        const box = await status.locator('button[data-notification-mode=wide]').boundingBox();
+        assert.ok(box.width >= 44 && box.height >= 44, 'event message mode tabs retain coarse-pointer targets');
+      }
+      await selectInterfaceSettingsTab(page);
       assert.equal(await page.locator('#personalPreferencesForm').isVisible(), true, 'personal preferences can be edited as soon as Interface opens');
       assert.equal(await page.locator('[data-settings-card="personal-preferences"] .appearance-compact-summary').count(), 0);
       await page.locator('[data-settings-tab=interface]').click();

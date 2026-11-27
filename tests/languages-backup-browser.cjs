@@ -171,10 +171,12 @@ async function run(type){const browser=await type.launch({headless:true});try{
  assert.equal(await fileType.isVisible(),false);
  await page.locator('#backupFile').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{')});await page.waitForFunction(()=>document.querySelector('#backupPreview').textContent.length>0);assert.equal(await restoreAction.isDisabled(),true);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),true,'Tools fit mobile');assert.deepEqual(errors,[]);
+ await page.setViewportSize({width:1040,height:850});
  await page.locator('#mainSectionToggle').click();
  await selectWorkTab(page,'invites');
  await page.locator('#inviteRows details.tree-disclosure').evaluateAll(nodes=>nodes.forEach(node=>node.open=true));
  const draftPreview=page.locator('#inviteRows .invite-preview').first();
+ await draftPreview.waitFor({state:'visible'});
  assert.match(await draftPreview.getAttribute('href'),/#guest-preview=[a-f0-9-]{36}$/);
  assert.equal(await page.locator('#inviteRows [aria-label^="Copy invitation link"]').count(),0);
  await page.close();

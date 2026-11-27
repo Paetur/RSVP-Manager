@@ -1,4 +1,4 @@
-const { refreshFixture, selectOverviewTab, setInvitesGrouping, setFixtureInviteRows, ensureInviteSelection } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture, setInvitesGrouping, setFixtureInviteRows, ensureInviteSelection } = require("./helpers/admin-toolbar.cjs");
 // Actual UI with synthetic APIs only. No live accounts or event data.
 const { chromium } = require("playwright");
 const fs = require("node:fs"),
@@ -232,7 +232,7 @@ async function checkLiveGuestOverview(page) {
     snapshot.households.find(row => row.id === id).food_interest = false;
     window.__guestOverviewChannels.get("rsvp:guest-overview:food").listener({ event: "changed", payload: {} });
   }, ids.draft);
-  // The Food card is in the inactive Overview tab, so read the connected count directly.
+  // Read the count without moving focus to the Food card.
   await page.locator('[data-invite-food-filter="no"] b').filter({ hasText: /^1$/ }).waitFor({ state: "attached" });
   assert.equal(await reads(), beforeReads + 2);
   assert.equal(await draftMessage.inputValue(), unsaved);
@@ -253,7 +253,6 @@ async function checkLiveGuestOverview(page) {
 }
 
 async function chooseInviteFilter(page, id, selected = []) {
-  await selectOverviewTab(page, "invitation");
   const filter = page.locator("#" + id);
   for (const key of selected) {
     const option = filter.locator('button[data-value="' + key + '"]');
@@ -264,7 +263,6 @@ async function chooseInviteFilter(page, id, selected = []) {
 }
 
 async function checkInvitationActivity(page) {
-  await selectOverviewTab(page, "invitation");
   const { sentId, readyId, initialReads, households } = await page.evaluate(() => {
     const store = window.__invitesStore;
     return {
@@ -517,7 +515,6 @@ async function checkBulkDraftGeneration(page) {
   assert.equal(await generate.isDisabled(), true, "existing drafts need no generation");
 
   await clearSelection();
-  await selectOverviewTab(page, "invitation");
   const needsDraft = page.locator('[data-invite-filter="needs-draft"]');
   await needsDraft.click();
   assert.match(await needsDraft.innerText(), /No drafts/);
@@ -631,7 +628,6 @@ async function checkMobileDraftSelection(page, published) {
   await refreshFixture(page);
   await page.waitForFunction(() => !document.querySelector("#refreshButton").disabled);
   await setInvitesGrouping(page, "service");
-  await selectOverviewTab(page, "invitation");
   const activeStatus = page.locator('[data-invite-filter][aria-pressed="true"]');
   if (await activeStatus.count()) await activeStatus.click();
   await chooseInviteFilter(page, "inviteChannelFilter", ["messages", "sms", "whatsapp"]);
@@ -860,8 +856,133 @@ async function checkScreenProfiles(page) {
   if (await first.evaluate(node => node.open)) await name.click();
 }
 
+async function checkOverviewCardSizing(page) {
+  const viewport = page.viewportSize();
+  const strip = page.locator('#statsGrid');
+  for (const [width, cardWidth, fullColumns] of [[390, 260, 1], [820, 260, 2], [1440, 260, 4]]) {
+    await page.setViewportSize({ ...viewport, width });
+    const { nextColumnPeeks, ...sizes } = await strip.evaluate((node, fullColumns) => {
+      const { left, right } = node.getBoundingClientRect();
+      const columns = node.querySelector('.overview-card-columns');
+      const bounds = [...columns.children].map(card => card.getBoundingClientRect());
+      const distinctColumns = [...new Map(bounds.map(card => [card.left, card])).values()];
+      const next = distinctColumns[fullColumns];
+      return {
+        widths: [...new Set(bounds.map(card => card.width))],
+        complete: distinctColumns.filter(card => card.left >= left && card.right <= right + 1).length,
+        gap: parseFloat(getComputedStyle(columns).columnGap),
+        fits: document.documentElement.scrollWidth <= innerWidth + 1,
+        nextColumnPeeks: !!next && next.left < right && next.right > right,
+      };
+    }, fullColumns);
+    assert.deepEqual(sizes, { widths: [cardWidth], complete: fullColumns, gap: 10, fits: true },
+      `Overview shows ${fullColumns} complete columns at ${width}px`);
+    if (width < 1024) assert.ok(nextColumnPeeks, `part of the next Overview column is visible at ${width}px`);
+  }
+  await page.setViewportSize(viewport);
+}
+
+async function checkOverviewCardWrapping(page) {
+  const strip = page.locator('#statsGrid');
+  const cards = strip.locator('[data-overview-card]');
+  const first = cards.first(), last = cards.last();
+  const minimum = await cards.evaluateAll(nodes =>
+    Math.ceil(nodes[0].getBoundingClientRect().height + nodes[1].getBoundingClientRect().height) + 12);
+  await last.evaluate((card, height) => { card.style.minHeight = `${height}px`; }, minimum);
+  await page.waitForFunction(() => {
+    const [first, second] = [...document.querySelectorAll('#statsGrid [data-overview-card]')]
+      .map(card => card.getBoundingClientRect());
+    return Math.abs(first.left - second.left) < 1 && Math.abs(second.top - first.bottom - 10) < 1;
+  });
+  const step = await strip.evaluate(node => {
+    const starts = [...new Set([...node.querySelectorAll('[data-overview-card]')].map(card => card.offsetLeft))];
+    return Math.min(starts[1] - starts[0], node.scrollWidth - node.clientWidth);
+  });
+  assert.ok(step > 0, 'additional Overview columns overflow the phone viewport');
+  await page.locator('#overviewNext').press('Enter');
+  await page.waitForFunction(step => Math.abs(document.querySelector('#statsGrid').scrollLeft - step) <= 2, step);
+  await strip.evaluate(node => node.scrollTo({ left: 0, behavior: 'instant' }));
+
+  // Change a card's content height without resizing the viewport or rebuilding the strip.
+  await first.evaluate((card, height) => { card.style.minHeight = `${height}px`; }, minimum);
+  await last.evaluate(card => { card.style.removeProperty('min-height'); });
+  await page.waitForFunction(() => {
+    const [first, second] = [...document.querySelectorAll('#statsGrid [data-overview-card]')]
+      .map(card => card.getBoundingClientRect());
+    return second.left >= first.right && Math.abs(second.top - first.top) < 1;
+  });
+  await first.evaluate(card => { card.style.removeProperty('min-height'); });
+}
+
+async function checkEventLoading(page) {
+  const notice = page.locator('#adminMessage[role="status"]');
+  const spinner = notice.locator('.bulk-invite-spinner[aria-hidden="true"]');
+  const waitForDataRequest = () => page.waitForFunction(() => typeof window.__resumeBulkReload === 'function');
+  const resumeDataRequest = () => page.evaluate(() => window.__resumeBulkReload());
+  const refresh = page.locator('#refreshButton');
+  await waitForDataRequest();
+  await spinner.waitFor();
+  assert.match(await notice.innerText(), /Loading event data/);
+  assert.equal(await page.locator('#adminApp').isVisible(), false, 'initial loading precedes the workspace');
+  await resumeDataRequest();
+  await page.locator('#statsGrid [data-overview-card]').first().waitFor();
+  await spinner.waitFor({ state: 'detached' });
+
+  await page.evaluate(() => { window.__holdBulkReload = true; });
+  await refresh.click();
+  await waitForDataRequest();
+  await spinner.waitFor();
+  assert.match(await notice.innerText(), /Loading event data/);
+  assert.equal(await page.locator('#adminApp').isVisible(), true, 'refresh keeps the workspace open');
+  await resumeDataRequest();
+  await notice.filter({ hasText: 'Event data refreshed.' }).waitFor();
+  await spinner.waitFor({ state: 'detached' });
+
+  await page.evaluate(() => { window.__holdBulkReload = window.__failBulkReload = true; });
+  await refresh.click();
+  await waitForDataRequest();
+  await spinner.waitFor();
+  await resumeDataRequest();
+  await notice.filter({ hasText: 'Synthetic invite refresh failure' }).waitFor();
+  await spinner.waitFor({ state: 'detached' });
+  assert.equal(await refresh.isEnabled(), true, 'a failed data request can be retried');
+}
+
+async function checkRelationalDisclosure(browser) {
+  const page = await browser.newPage();
+  let groupCount = 4;
+  try {
+    for (const config of ["config.production.js", "config.js"]) {
+      await page.route("**/js/" + config + "*", route => route.fulfill({
+        contentType: "text/javascript",
+        body: 'window.RSVP_CONFIG={supabaseUrl:"https://fixture.supabase.invalid",supabaseKey:"sb_publishable_synthetic"};',
+      }));
+    }
+    await page.addInitScript(() => localStorage.setItem("rsvp-interface-language", "en"));
+    await page.route("**/supabase.min.js", route => route.fulfill({
+      contentType: "text/javascript",
+      body: `${mock}\n${extra}\nfixtures.relation_groups = Array.from({length:${groupCount}}, (_, index) => ({id:'synthetic-relation-' + index,name:'Synthetic relation ' + index,planning_group_id:null}));`,
+    }));
+    const relation = page.locator('[data-invite-group-tree="relation"]');
+    const isOpen = () => relation.evaluate(node => node.open);
+    for (const [count, initiallyOpen] of [[4, true], [5, false]]) {
+      groupCount = count;
+      await page.goto(`http://127.0.0.1:${server.address().port}/admin/`);
+      await relation.waitFor();
+      assert.equal(await relation.locator('summary b').textContent(), String(count));
+      assert.equal(await isOpen(), initiallyOpen, `${count} relational groups default to the expected state`);
+      await relation.locator('summary').click();
+      assert.equal(await isOpen(), !initiallyOpen);
+      await refreshFixture(page);
+      await page.locator('#adminMessage').filter({ hasText: 'Event data refreshed.' }).waitFor();
+      assert.equal(await isOpen(), !initiallyOpen, 'refresh retains the manual disclosure choice');
+    }
+  } finally {
+    await page.close();
+  }
+}
+
 async function checkOverviewFilters(page) {
-  await selectOverviewTab(page, "information");
   const seed = await page.evaluate(() => {
     const store = window.__invitesStore;
     const prior = structuredClone({ households:store.households, defaults:store.defaults, responses:store.responses, relationGroups:store.relationGroups, sessions:store.sessions });
@@ -916,9 +1037,8 @@ async function checkOverviewFilters(page) {
   assert.deepEqual(await rows(),all,'repeating a session selection returns to all sessions');
   const groupTrees=page.locator('#inviteGroupTrees details');
   const topTree=page.locator('[data-invite-group-tree="top"]');
-  assert.deepEqual(await groupTrees.evaluateAll(nodes=>nodes.map(node=>node.open)),[true,false],
-    'Top-level groups starts expanded and Relational groups stays collapsed');
-  await relation.locator('summary').click();
+  assert.deepEqual(await groupTrees.evaluateAll(nodes=>nodes.map(node=>node.open)),[true,true],
+    'Top-level groups and a short list of relational groups start expanded');
   await scoped.click();assert.deepEqual(await rows(),[seed.sent]);
   await shared.click();assert.deepEqual(await rows(),all,'selected relational groups combine');
   await top.click();assert.deepEqual(await rows(),[seed.ready],'top-level and relational group choices intersect');
@@ -933,26 +1053,21 @@ async function checkOverviewFilters(page) {
   await decline.click();assert.deepEqual(await rows(),[seed.sent],'mixed households can match either RSVP answer');
   await pending.click();assert.deepEqual(await rows(),[seed.ready],'unanswered only matches an invited session without a response');
   await pending.click();assert.deepEqual(await rows(),all,'pressing the active attendance filter restores all rows');
-  const informationTab=page.getByRole('tab',{name:'Information',exact:true});
-  const invitationTab=page.getByRole('tab',{name:'Invitation',exact:true});
-  const activeFilters=page.getByRole('group',{name:'Active filters',exact:true});
+  const cards=page.locator('#statsGrid');
+  const overview=page.locator('#overviewPanel');
+  const activeFilters=overview.getByRole('group',{name:'Active filters',exact:true});
   const clearFilters=activeFilters.getByRole('button',{name:'Clear filters',exact:true});
-  assert.equal(await activeFilters.isHidden(),true,'the list omits a filter summary when no filters are active');
-  await informationTab.press('ArrowRight');
-  assert.equal(await invitationTab.getAttribute('aria-selected'),'true');
-  assert.equal(await invitationTab.evaluate(tab=>tab===document.activeElement),true);
-  assert.equal(await page.locator('#overviewInformationPanel').isHidden(),true);
+  assert.equal(await activeFilters.isHidden(),true,'Overview omits the summary when no filters are active');
   const readyStatus=page.locator('[data-invite-filter="ready"]');
   await readyStatus.click();assert.deepEqual(await rows(),[seed.ready]);
-  await informationTab.click();
-  assert.equal(await page.locator('#overviewInvitationPanel').isHidden(),true);
-  assert.deepEqual(await rows(),[seed.ready],'an invitation status filter remains active on the Information tab');
+  assert.equal(await activeFilters.evaluate(node=>node.previousElementSibling.id),'statsGrid',
+    'the filter summary is below and outside the scrolling Overview cards');
+  await cards.evaluate(node=>node.scrollTo({left:0,behavior:'instant'}));
+  assert.deepEqual(await rows(),[seed.ready],'an invitation status filter remains active when scrolling to the start');
   assert.deepEqual(await activeFilters.locator('li').allTextContents(),['Invites · Ready']);
-  await selectOverviewTab(page,'invitation');
   assert.equal(await readyStatus.getAttribute('aria-pressed'),'true');
   await chooseInviteFilter(page,'inviteLanguageFilter',['de']);
   await chooseInviteFilter(page,'inviteChannelFilter',['whatsapp','email']);
-  await informationTab.click();
   await second.click();
   await attend.click();
   await top.click();
@@ -983,6 +1098,28 @@ async function checkOverviewFilters(page) {
   assert.equal(await groupChoice.inputValue(),previousGroup);
   assert.equal(await rowChoice.getAttribute('data-rows'),previousRows);
   assert.equal(await searchToggle.evaluate(button=>button===document.activeElement),true);
+  await page.evaluate(()=>{
+    const preferences=window.RSVP_ADMIN_PREFERENCES;
+    const savedLayout=Object.getOwnPropertyDescriptor(preferences,'overviewLayout');
+    const hiddenLayout=preferences.overviewLayout.map(card=>({...card,shown:false}));
+    Object.defineProperty(preferences,'overviewLayout',{...savedLayout,get:()=>hiddenLayout});
+    window.__restoreOverviewLayout=()=>{
+      Object.defineProperty(preferences,'overviewLayout',savedLayout);
+      delete window.__restoreOverviewLayout;
+      document.dispatchEvent(new Event('rsvp:overview-appearance'));
+    };
+    document.dispatchEvent(new Event('rsvp:overview-appearance'));
+  });
+  assert.equal(await overview.isHidden(),true);
+  await search.fill('Example Hill');
+  const searchFilters=page.getByRole('group',{name:'Active filters',exact:true});
+  assert.equal(await searchFilters.evaluate(node=>node.nextElementSibling.id),'inviteRows',
+    'search can still be cleared when all Overview cards are hidden');
+  await searchFilters.getByRole('button',{name:'Clear filters',exact:true}).press('Enter');
+  assert.equal(await search.inputValue(),'');
+  await search.fill('Example Hill');
+  await page.evaluate(()=>window.__restoreOverviewLayout());
+  assert.equal(await clearFilters.isVisible(),true,'restoring Overview moves the active search back to its footer');
   await searchToggle.press('Escape');
   assert.equal(await page.evaluate(()=>window.__calls.length),seed.calls,'overview controls do not write application data');
   await page.evaluate(prior=>{
@@ -995,7 +1132,6 @@ async function checkOverviewFilters(page) {
 }
 
 async function checkSeenPresentation(page) {
-  await selectOverviewTab(page, "invitation");
   const seed = await page.evaluate(() => {
     const store = window.__invitesStore;
     const { households, guests, queue } = store;
@@ -1515,7 +1651,6 @@ async function checkInvitesCopyAndFilters(page) {
   await page.locator('#inviteLanguageFilter [data-value="zz"]').click();
   assert.equal(await page.locator('#inviteLanguageFilter [aria-pressed="true"]').count(),0,'clearing the only language leaves no language selected');
   assert.equal(await page.locator('[data-invite-household="invites-none-service"]').count(),1,'empty language and service selections restore unrestricted results');
-  await selectOverviewTab(page,'information');
   const unanswered=page.locator('[data-invite-food-filter="unanswered"]'),yes=page.locator('[data-invite-food-filter="yes"]');
   await unanswered.click();assert.equal(await unanswered.getAttribute('aria-pressed'),'true');
   assert.equal(await page.locator('[data-invite-household="invites-default-mobile"]').count(),1,'Food Unanswered includes the synthetic unresponded household');
@@ -1523,11 +1658,9 @@ async function checkInvitesCopyAndFilters(page) {
   await yes.click();assert.equal(await yes.getAttribute('aria-pressed'),'false','repeating the selected Food row restores All');
   assert.equal(await page.locator('[data-invite-household="invites-default-mobile"]').count(),1);
   await unanswered.click();
-  await selectOverviewTab(page,'invitation');
   const readyFilter=page.locator('[data-invite-filter="ready"]');
   await readyFilter.click();await readyFilter.click();
   assert.equal(await unanswered.getAttribute('aria-pressed'),'true','clearing invitation status leaves Food filtering active');
-  await selectOverviewTab(page,'information');
   await unanswered.click();
   await page.evaluate(id=>window.__invitesTestView.openHousehold(id),prepared.id);
   assert.equal(await page.locator('#deliveryLog, #deliveryStatusFilter').count(),0,'Delivery history is inside the household');
@@ -1536,15 +1669,16 @@ async function checkInvitesCopyAndFilters(page) {
 }
 
 async function checkOverviewFilterFeedback(page, touch) {
-  await selectOverviewTab(page, "invitation");
   const filter = page.locator('[data-invite-filter="ready"]');
   const mark = filter.locator('.invite-stat-check[aria-hidden="true"]');
   const appearance = control => control.evaluate(node => {
     const style = getComputedStyle(node);
     return [style.backgroundColor, style.borderTopColor, style.color];
   });
+  const countInset = () => filter.locator("b").evaluate(node =>
+    node.parentElement.getBoundingClientRect().right - node.getBoundingClientRect().right);
   const idle = await appearance(filter);
-  const countRight = await filter.locator("b").evaluate(node => node.getBoundingClientRect().right);
+  const beforeInset = await countInset();
   assert.equal(await mark.count(), 1, "the decorative checkmark is hidden from assistive technology");
   assert.equal(await mark.isVisible(), false);
   if (touch) {
@@ -1552,7 +1686,7 @@ async function checkOverviewFilterFeedback(page, touch) {
     await filter.tap();
     assert.equal(await filter.getAttribute("aria-pressed"), "true");
     assert.equal(await mark.isVisible(), true);
-    assert.equal(await filter.locator("b").evaluate(node => node.getBoundingClientRect().right), countRight);
+    assert.equal(await countInset(), beforeInset);
     await filter.tap();
     assert.equal(await filter.getAttribute("aria-pressed"), "false");
     assert.equal(await mark.isVisible(), false);
@@ -1579,13 +1713,10 @@ async function checkOverviewFilterFeedback(page, touch) {
   const serviceMark = service.locator(".invite-stat-check");
   await service.click();
   assert.equal(await serviceMark.isVisible(), true);
-  await selectOverviewTab(page, "information");
-  assert.equal(await serviceMark.isVisible(), false, "the inactive Invitation tab hides the selected service checkmark");
-  await selectOverviewTab(page, "invitation");
-  assert.equal(await service.getAttribute("aria-pressed"), "true", "switching tabs retains the service filter");
+  await page.locator("#statsGrid").evaluate(node => node.scrollTo({ left: 0, behavior: "instant" }));
+  assert.equal(await service.getAttribute("aria-pressed"), "true", "scrolling retains the service filter");
   assert.equal(await serviceMark.isVisible(), true);
   await service.click();
-  await selectOverviewTab(page, "information");
   if (touch) {
     const sessions = page.locator("#inviteSessionTree details");
     await sessions.locator("summary").tap();
@@ -1676,7 +1807,6 @@ async function checkManualInvitations(page) {
   await mark.click(); await message('1 invitation marked sent.');
   assert.deepEqual(await page.evaluate(()=>window.__sentWrites[0]),{p_queue_id:ids[1].queue,p_expected_revision:1,p_note:''});
   await page.evaluate(()=>{window.__accessPermissions.sections.invites='edit';}); await refresh();
-  await selectOverviewTab(page,'invitation');
   const sentFilter = page.locator('[data-invite-filter="sent"]');
   await sentFilter.click();
   assert.equal(await input(ids[0].id).count(),0);
@@ -1821,13 +1951,18 @@ async function checkManualInvitations(page) {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const browser = await chromium.launch();
   try {
+    await checkRelationalDisclosure(browser);
     for (const width of [320, 390, 1024, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 1100 }, hasTouch: width === 390 }),
         errors = [];
       page.setDefaultTimeout(8000);
       page.on("pageerror", (e) => errors.push(e.message));
-      await page.addInitScript(() => {
+      await page.addInitScript(holdInitialLoad => {
         localStorage.setItem("rsvp-interface-language", "en");
+        if (holdInitialLoad) window.__holdBulkReload = true;
+        window.__personalProfile = { rsvp_interface_language: "en", rsvp_invites_profiles: {
+          phone: { rows: 2, showActions: true }, tablet: { rows: 1 }, desktop: { rows: 2 },
+        } };
         let invitesFactory;
         Object.defineProperty(window, "RSVP_ADMIN_INVITES", { configurable: true,
           get: () => invitesFactory,
@@ -1848,7 +1983,7 @@ async function checkManualInvitations(page) {
             window.__bulkTestView = view; return view;
           } }; },
         });
-      });
+      }, width === 1024);
       // Installed runtime config overrides local fixture preferences. Intercept
       // both config scripts so source and installed assets use synthetic APIs.
       for (const config of ["config.production.js", "config.js"]) {
@@ -1867,12 +2002,13 @@ async function checkManualInvitations(page) {
         }),
       );
       await page.goto("http://127.0.0.1:" + server.address().port + "/admin/" + (width===1440?"#overview":""));
+      if (width === 1024) await checkEventLoading(page);
       await page.waitForFunction(
         () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
       );
       const phone = width < 512;
       const initialRows = phone || width >= 1024 ? '2' : '1';
-      assert.equal(await page.locator('#inviteRows').getAttribute('data-rows'), initialRows, 'initial layout follows the default screen profiles');
+      assert.equal(await page.locator('#inviteRows').getAttribute('data-rows'), initialRows, 'initial layout follows the fixture account’s screen profiles');
       if (width === 390) await checkScreenProfiles(page);
       const selectionToggle = page.locator('#inviteSelectionToggle');
       const inviteRows = page.locator('#inviteRows');
@@ -1913,13 +2049,46 @@ async function checkManualInvitations(page) {
       assert.equal(await page.locator('#statsGrid').evaluate(node=>node.closest('[data-panel]').dataset.panel),'invites');
       const overview = page.locator('#overviewPanel');
       assert.equal(await overview.getByRole('heading',{name:'Overview',exact:true}).count(),1);
-      assert.deepEqual(await overview.locator('[data-overview-tab]').allTextContents(),['Information','Invitation']);
-      assert.deepEqual(await overview.locator('[data-overview-card]:visible').evaluateAll(cards=>cards.map(card=>card.dataset.overviewCard)),['households','food','rsvp']);
+      assert.equal(await overview.getByRole('tablist').count(),0);
+      const overviewCards = overview.locator('#statsGrid');
+      assert.deepEqual(await overviewCards.locator('[data-overview-card]:visible').evaluateAll(cards=>cards.map(card=>card.dataset.overviewCard)),
+        ['households','invites','rsvp','food','services','language']);
+      if (width === 390) {
+        await checkOverviewCardSizing(page);
+        await checkOverviewCardWrapping(page);
+      }
+      const overviewOverflows=await overviewCards.evaluate(node=>node.scrollWidth>node.clientWidth+1);
+      assert.equal(await overviewCards.getAttribute('tabindex'),overviewOverflows?'0':'-1',
+        'Overview is keyboard-focusable when it needs scrolling');
+      assert.equal(await overview.locator('.overview-scroll-controls').isVisible(),overviewOverflows,
+        'Overview scroll controls appear when columns overflow');
+      assert.equal(await overviewCards.evaluate(node=>{
+        const cards=[...node.querySelectorAll('[data-overview-card]')].map(card=>card.getBoundingClientRect());
+        return cards.slice(1).every((card,index)=>{
+          const previous=cards[index];
+          return Math.abs(card.left-previous.left)<1 ? card.top>=previous.bottom-1
+            : card.left>=previous.right-1 && Math.abs(card.top-cards[0].top)<1;
+        });
+      }),true,'Overview cards fit in ordered, non-overlapping columns');
+      if (width <= 390) {
+        assert.equal(overviewOverflows,true,'Overview overflows independently on a phone');
+        assert.ok(await overviewCards.evaluate(node=>node.querySelector('[data-overview-card]').getBoundingClientRect().width <= node.clientWidth),
+          'one full card fits even at the narrowest phone width');
+        const previous=overview.locator('#overviewPrevious'),next=overview.locator('#overviewNext');
+        assert.equal(await previous.getAttribute('aria-disabled'),'true');
+        await next.press('Enter');
+        await previous.and(overview.locator('[aria-disabled="false"]')).waitFor();
+        assert.ok(await overviewCards.evaluate(node=>node.scrollLeft>0),'the next control moves the Overview columns');
+        await overviewCards.evaluate(node=>node.scrollTo({left:node.scrollWidth,behavior:'instant'}));
+        assert.equal(await overviewCards.evaluate(node=>{
+          const last=[...node.querySelectorAll('[data-overview-card]')].at(-1).getBoundingClientRect();
+          const strip=node.getBoundingClientRect();
+          return node.scrollLeft>0 && last.left>=strip.left && last.right<=strip.right+1;
+        }),true,'the last card can scroll fully into view');
+        await overviewCards.evaluate(node=>node.scrollTo({left:0,behavior:'instant'}));
+      }
       assert.equal(await overview.locator('[data-overview-card="guests"]').count(),0);
       assert.match(await overview.locator('.overview-people-totals').innerText(), /\d+ Households\s*\/\s*\d+ Guests/);
-      await selectOverviewTab(page,'invitation');
-      assert.deepEqual(await overview.locator('[data-overview-card]:visible').evaluateAll(cards=>cards.map(card=>card.dataset.overviewCard)),['invites','services','language']);
-      await selectOverviewTab(page,'information');
       if (width === 390 || width === 1440) await checkOverviewFilterFeedback(page, width === 390);
       if(width===1440)assert.equal(await page.evaluate(()=>location.hash),'#invites','legacy Overview bookmark is replaced by Invites');
       assert.equal(
@@ -2014,7 +2183,6 @@ async function checkManualInvitations(page) {
         0,
         "flat layout after unchecking grouping",
       );
-      await selectOverviewTab(page, "invitation");
       assert.match(
         await page.locator("[data-invite-filter=sent]").innerText(),
         /1/,

@@ -96,14 +96,11 @@ async function main(){
     await rpc('admin_correct_rsvp',{p_guest_id:person,p_session_id:session,p_status:'declined',p_reason:'Disposable correction'});
     await openInvite();
     assert.equal(await guest.locator('input[value="declined"]').isChecked(),true);
-    await rpc('admin_reopen_household_rsvp',{p_household_id:household,p_reason:'Disposable reopening'});
+    assert.equal(await guest.locator('input[value="attending"]').isDisabled(),true);
+    assert.equal(await guest.locator('#saveRsvp').isVisible(),false);
+    assert.equal((await rpc('admin_load_data')).submissions.length,1);
+    await rpc('admin_correct_rsvp',{p_guest_id:person,p_session_id:session,p_status:'attending',p_reason:null});
     await openInvite();
-    assert.equal(await guest.locator('input[value="attending"]').isEnabled(),true);
-    await guest.locator('input[value="attending"]').check();
-    await guest.locator('#saveRsvp').click();
-    await guest.locator('#confirmRsvp').click();
-    await guest.locator('input[value="attending"]:disabled').waitFor();
-    assert.equal((await rpc('admin_load_data')).submissions.length,2);
     await guest.getByText('Rehearsal cake',{exact:true}).click();
     await guest.getByRole('button',{name:'Pick item'}).click();
     await guest.getByRole('button',{name:'Remove selection'}).waitFor();
@@ -114,7 +111,7 @@ async function main(){
     publicationAttempted=false;
     await guest.goto(invite);
     await guest.getByText('This event has not been published yet.',{exact:true}).waitFor();
-    console.log('PASS: real administrator sign-in, publication, delivery tracking, guest RSVP, correction, reopening, food, and unpublication on a disposable stack.');
+    console.log('PASS: real administrator sign-in, publication, delivery tracking, guest RSVP, locked correction, food, and unpublication on a disposable stack.');
   }finally{
     try{
       if(publicationAttempted){

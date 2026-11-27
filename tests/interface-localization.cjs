@@ -1,5 +1,5 @@
-const {openBox}=require('./helpers/local-edit-ui.cjs');
 const {selectContentTranslation,openWordingEditor}=require('./helpers/language-ui.cjs');
+const {selectInterfaceSettingsTab}=require('./helpers/admin-toolbar.cjs');
 // Only the synthetic SDK fixture server removes production integrity checks.
 // Local-only multilingual browser checks. All application data and saves are synthetic.
 const {chromium,webkit}=require('playwright');
@@ -41,12 +41,22 @@ async function run(browserType){
    assert.equal(await page.locator('html').getAttribute('lang'),lang);
    assert.equal(await page.locator('[data-tab="households"]').textContent(),lang==='en'?'Households':catalog.Households[lang]);
    await page.locator('#settingsToggle').click();
+   const phoneRange='Phone screen (below 512 px)',wideRange='Wide screen (512 px and wider)';
+   const localized=source=>lang==='en'?source:catalog[source][lang];
    await page.locator('[data-settings-tab="interface"]').click();
-   await openBox(page,'notification-preferences:wide');
+   const appearance=page.locator('#guestAppearanceHost');
+   assert.equal(await appearance.locator('.screen-profile-range').textContent(),localized(phoneRange));
+   await appearance.locator('[data-appearance-mode="wide"]').click();
+   assert.equal(await appearance.locator('.screen-profile-range').textContent(),localized(wideRange));
+   await selectInterfaceSettingsTab(page,'messages');
+   assert.equal(await page.locator('#settingsTabEventMessages').textContent(),lang==='en'?'Event messages':catalog['Event messages'][lang]);
+   const eventMessages=page.locator('#notificationSettingsHost');
+   assert.equal(await eventMessages.locator('.screen-profile-range').textContent(),localized(phoneRange));
+   await eventMessages.locator('[data-notification-mode="wide"]').click();
+   assert.equal(await eventMessages.locator('.screen-profile-range').textContent(),localized(wideRange));
    const wideStatus=page.locator('[data-settings-card="notification-preferences:wide"]');
    const timeLabel=lang==='en'?'Show timestamps':catalog['Show timestamps'][lang],timestampChecks=wideStatus.getByRole('checkbox',{name:timeLabel,exact:true});
    assert.equal(await timestampChecks.count(),2);assert.equal(await timestampChecks.first().isChecked(),true);assert.equal(await timestampChecks.nth(1).isChecked(),false);
-   await wideStatus.getByRole('button',{name:lang==='en'?'Cancel':catalog.Cancel[lang],exact:true}).click();
    await page.locator('[data-settings-tab="backups"]').click();
    for(const label of ['Full backup','Partial backup'])assert.equal(await page.locator('#backupExportMode').getByRole('checkbox',{name:lang==='en'?label:catalog[label][lang],exact:true}).count(),1);
    assert.equal(await page.getByRole('checkbox',{name:lang==='en'?'Include activity logs':catalog['Include activity logs'][lang],exact:true}).count(),1);

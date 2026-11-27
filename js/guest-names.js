@@ -23,7 +23,8 @@
 (function () {
   "use strict";
   let selected = "phone";
-  const viewport = () => matchMedia("(max-width: 700px)").matches ? "phone" : "wide";
+  const viewportQuery = "(min-width: 512px)";
+  const viewport = () => matchMedia(viewportQuery).matches ? "wide" : "phone";
   const keys = ["guest_show_titles", "guest_title_visibility", "show_repeated_surname", "guest_name_layout", "guest_design", "guest_background", "guest_theme_toggle", "guest_theme_default", "notification_preferences"];
   function effective(settings = {}, mode = viewport(), languages = []) {
     const overrides = settings.guest_interface_modes?.[mode] || {};
@@ -41,7 +42,7 @@
     };
   }
   window.RSVP_GUEST_INTERFACE = {
-    keys, viewport, effective,
+    keys, viewportQuery, viewport, effective,
     get selected() { return selected; },
     store(store) { return { ...store, settings: effective(store.settings, selected, store.languages) }; },
     controls({ R, T, getStore, render }) {

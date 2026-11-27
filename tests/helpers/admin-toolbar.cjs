@@ -54,6 +54,7 @@ async function selectInterfaceSettingsTab(page, name = "interface") {
     interface: "settingsInterfaceTab",
     invites: "settingsTabInvitesAppearance",
     overview: "settingsTabOverviewAppearance",
+    messages: "settingsTabEventMessages",
   }[name];
   const tab = page.locator("#" + id);
   if (await tab.getAttribute("aria-selected") !== "true") await tab.click();
@@ -77,12 +78,6 @@ async function setInvitesGrouping(page, grouped) {
   await page.locator('[data-tab=invites]').click();
 }
 module.exports.setInvitesGrouping = setInvitesGrouping;
-
-async function selectOverviewTab(page, name) {
-  const tab = page.locator('[data-overview-tab="' + name + '"]');
-  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
-}
-module.exports.selectOverviewTab = selectOverviewTab;
 
 // Presentation suites can exercise either saved layout at their test viewport.
 // Preference persistence itself is exercised through the actual Settings editor.

@@ -53,9 +53,217 @@
 #adminApp .invite-household-content > .admin-management {
   margin: 6px 0;
 }
-.invite-household-content .rsvp-current-responses {
+.invite-rsvp-body {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 10px;
+}
+.invite-rsvp-body > p {
+  margin: 0;
+}
+.invite-rsvp-actions,
+.invite-rsvp-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 8px;
+}
+.invite-rsvp-actions > button {
+  font-size: .78rem;
+  padding: 4px 9px;
+  min-height: 34px;
+}
+.invite-rsvp-metadata {
+  font-size: .73rem;
+  color: var(--muted);
+}
+#adminApp .rsvp-current-responses {
   table-layout: fixed;
   overflow-wrap: anywhere;
+  margin: 0;
+}
+#adminApp .rsvp-current-responses :is(th, td) {
+  padding: 6px 8px;
+  border-color: var(--line);
+  vertical-align: middle;
+}
+#adminApp .rsvp-current-responses th:last-child {
+  width: 35%;
+}
+.invite-rsvp-food {
+  color: var(--muted);
+}
+.invite-rsvp-food strong {
+  color: var(--ink);
+}
+#adminApp .rsvp-admin-dialog {
+  width: min(30rem, calc(100vw - 24px));
+}
+#adminApp :is(.rsvp-admin-dialog.rsvp-dialog-with-fields, .rsvp-guest-dialog) {
+  width: min(42rem, calc(100vw - 24px));
+}
+#adminApp :is(.rsvp-admin-dialog, .rsvp-guest-dialog) > h2 {
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
+}
+#adminApp .rsvp-guest-dialog > form.guest-edit-form {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.rsvp-dialog-fields,
+.rsvp-confirmation {
+  display: grid;
+  gap: 8px;
+}
+.rsvp-dialog-fields > button {
+  justify-self: start;
+}
+.rsvp-confirmation > p,
+.rsvp-review-list,
+.rsvp-form-hint {
+  margin: 0;
+}
+.rsvp-review-list {
+  padding-inline-start: 1.25rem;
+  overflow-wrap: anywhere;
+}
+.rsvp-edit-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.rsvp-edit-field > span,
+.rsvp-edit-checkbox {
+  font-size: .8rem;
+  font-weight: 600;
+}
+.rsvp-edit-checkbox {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  justify-self: start;
+}
+.rsvp-edit-response {
+  --rsvp-response-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(9.5rem, 1.1fr);
+  display: grid;
+  grid-template-columns: var(--rsvp-response-columns);
+  align-items: center;
+  gap: 4px 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: .82rem;
+  overflow-wrap: anywhere;
+}
+.rsvp-edit-with-guest-actions .rsvp-edit-response {
+  grid-template-columns: var(--rsvp-response-columns) var(--rsvp-guest-action-size, 29px);
+}
+@media (max-width: 700px), (pointer: coarse) {
+  .rsvp-edit-with-guest-actions {
+    --rsvp-guest-action-size: 44px;
+  }
+}
+.rsvp-edit-response-heading {
+  color: var(--muted);
+  font-size: .73rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+.rsvp-edit-response select,
+.rsvp-edit-field :is(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+}
+.rsvp-edit-checkbox input {
+  width: 1rem;
+  height: 1rem;
+  min-height: 0;
+  margin: 0;
+}
+.rsvp-new-guests:empty {
+  display: none;
+}
+.rsvp-new-guest {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  margin: 0 0 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.rsvp-new-guest:last-child {
+  margin-bottom: 0;
+}
+.rsvp-new-guest > :is(button, .rsvp-edit-checkbox) {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.rsvp-dialog-feedback:empty {
+  display: none;
+}
+.rsvp-dialog-feedback {
+  color: var(--danger);
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+.rsvp-dialog-actions {
+  margin-top: 12px;
+}
+.rsvp-admin-dialog [hidden] {
+  display: none;
+}
+@media (max-width: 520px) {
+  .invite-rsvp-body {
+    padding-inline: 8px;
+  }
+  #adminApp :is(.rsvp-admin-dialog, .rsvp-guest-dialog) {
+    padding: 12px;
+  }
+  #adminApp :is(.rsvp-admin-dialog, .rsvp-guest-dialog) > h2 {
+    font-size: 1.25rem;
+  }
+  #adminApp .rsvp-current-responses :is(th, td) {
+    padding-inline: 4px;
+  }
+  #adminApp .invite-rsvp-panel .rsvp-current-responses th {
+    font-size: .67rem;
+  }
+  #adminApp .invite-rsvp-panel .rsvp-current-responses td {
+    font-size: .76rem;
+  }
+  #adminApp .invite-rsvp-panel .rsvp-current-responses th:last-child {
+    width: 42%;
+  }
+  .rsvp-edit-response {
+    --rsvp-response-columns: minmax(0, 1fr) minmax(9.5rem, 56%);
+  }
+  .rsvp-edit-with-guest-actions .rsvp-edit-response {
+    --rsvp-response-columns: minmax(0, 1fr) minmax(0, 53%);
+    column-gap: 8px;
+  }
+  .rsvp-edit-response > .household-rsvp-guest-edit {
+    grid-area: 1 / 3 / 3;
+  }
+  .rsvp-edit-response-heading {
+    display: none;
+  }
+  .rsvp-edit-response .rsvp-response-session {
+    grid-row: 2;
+    color: var(--muted);
+  }
+  #adminApp .rsvp-edit-response select {
+    grid-area: 1 / 2 / 3;
+    padding-inline: 6px;
+  }
+  .rsvp-new-guest {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 #inviteRows .invite-compact-list .tree-children {
@@ -925,6 +1133,15 @@ html[data-theme] #adminApp .settings-page .settings-tabs button.active {
 }
 :is(.settings-language-tabs, .settings-interface-tabs) {
   margin-bottom: 0;
+}
+.settings-interface-tabs {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+.settings-interface-tabs button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 :is(.database-tabs, .venue-tabs, .settings-language-tabs, .settings-interface-tabs, .interface-edit-tabs) button {
   min-height: 44px;

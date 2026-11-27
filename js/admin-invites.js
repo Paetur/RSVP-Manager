@@ -47,6 +47,7 @@
     const requiredFields = window.RSVP_ADMIN_PREFERENCES.invitesRequiredFields;
     const quickGrouping = $("inviteQuickGrouping");
     const selectionToggle = $("inviteSelectionToggle");
+    const overviewPanel = $("overviewPanel");
     const filterSummary = R.dom("div", { class: "invite-active-filters" });
     const filterList = R.dom("ul", { class: "invite-filter-summary" });
     const clearFiltersButton = R.dom("button", { type: "button", class: "invite-clear-filters" });
@@ -54,7 +55,7 @@
     filterSummary.setAttribute("role", "group");
     filterList.setAttribute("role", "list");
     filterSummary.append(clearFiltersButton, filterList);
-    $("inviteRows").before(filterSummary);
+    overviewPanel.append(filterSummary);
     const quickViews = new Map();
     const activityReaders = new WeakMap();
     const overviewCounters = new Map();
@@ -303,7 +304,8 @@
           const heading = R.dom("summary");
           heading.append(R.dom("span", {}, T(label)), R.dom("b", {}, count));
           tree.append(heading, list(nodes));
-          setDisclosure(tree, "invite-overview-group-tree:" + scope, scope === "top");
+          const defaultOpen = scope === "top" || count <= 4;
+          setDisclosure(tree, "invite-overview-group-tree:" + scope, defaultOpen);
           host.append(tree);
         }
         const active = [];
@@ -420,6 +422,13 @@
       if (filterSummary.hidden) {
         filterList.replaceChildren();
         return;
+      }
+      // Search is still available when all Overview cards are hidden.
+      if (overviewPanel.hidden) {
+        const rows = $("inviteRows");
+        if (rows.previousElementSibling !== filterSummary) rows.before(filterSummary);
+      } else if (filterSummary.parentElement !== overviewPanel) {
+        overviewPanel.append(filterSummary);
       }
       filterSummary.setAttribute("aria-label", T("interface.messages.invites_active_filters"));
       clearFiltersButton.textContent = T("interface.messages.invites_clear_filters");
@@ -886,8 +895,9 @@
           }
           const rsvp = rsvpSection(originalHousehold || h);
           rsvp.id = "invite-rsvp-" + h.id;
+          const locked = h.rsvp_state === "locked" || Boolean(h.latest_rsvp_submission_id);
           rsvp.querySelector("summary").replaceChildren(T("RSVP"), " ",
-            R.dom("small", { class: "invite-rsvp-state muted" }, T(h.rsvp_state === "locked" ? "Locked" : "Open")));
+            R.dom("small", { class: "invite-rsvp-state muted" }, T(locked ? "Locked" : "Open")));
           setDisclosure(rsvp, key + ":rsvp");
           invitation = renderInvitationSection();
           content.append(rsvp, invitation);

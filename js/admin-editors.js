@@ -23,12 +23,6 @@
         "settings",
       ],
       [
-        "#notificationSettingsHost form",
-        null,
-        "Status messages",
-        "settings",
-      ],
-      [
         "#invitationAlbum form",
         null,
         "Picture album",
@@ -75,7 +69,7 @@
             input.type,
           ) ||
           (input.type === "radio" && !input.checked) ||
-          input.closest(".notification-types.hidden,.customization-crop,.placeholder-help")
+          input.closest(".customization-crop,.placeholder-help")
         )
           continue;
         const labelNode = input.closest("label"),

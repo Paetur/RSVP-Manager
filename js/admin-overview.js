@@ -202,7 +202,7 @@
       total: answers + attendance.pending,
       answers,
       attendance,
-      replied: h.rsvp_state === "locked",
+      replied: h.rsvp_state === "locked" || Boolean(h.latest_rsvp_submission_id),
       ready: latest?.status === "ready",
     };
   }

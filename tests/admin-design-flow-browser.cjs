@@ -7,6 +7,8 @@ const path = require("node:path");
 const { createFoodHarness } = require("./helpers/food-browser-harness.cjs");
 const { server, mock, extra } = createFoodHarness("admin-design-flow");
 const seed = `
+// This administrator has enabled the optional Phone action buttons.
+window.__personalProfile={rsvp_interface_language:'en',rsvp_invites_profiles:{phone:{rows:1,showActions:true}}};
 fixtures.event_settings[0].is_published=false;
 fixtures.event_settings[0].guest_interface_modes={wide:{guest_title_visibility:{en:true,de:false},show_repeated_surname:false},phone:{guest_title_visibility:{en:false},show_repeated_surname:true}};
 window.__designTemplates=[{id:'99999999-1111-4111-8111-111111111111',name:'Shared invitation',channels:['manual','whatsapp'],language_tags:['en'],revision:'design-template-v1',versions:{en:{subject:'Invitation',body:'Hello {household_name} {invitation_link}'}}}];

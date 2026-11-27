@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
 const { createPublicFoodHarness, routeSyntheticSdk } = require("./helpers/public-browser-site.cjs");
 const { openBox } = require("./helpers/local-edit-ui.cjs");
-const { refreshFixture, reopenDatabaseAfterRecovery, selectDatabaseTab, selectOverviewTab } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture, reopenDatabaseAfterRecovery, selectDatabaseTab } = require("./helpers/admin-toolbar.cjs");
 const { server, mock, extra, cleanup } = createPublicFoodHarness("experimental-interface");
 
 const integration = `
@@ -198,7 +198,6 @@ client.rpc=async(name,args)=>{
     const selection = page.locator('[data-shortcut-select="99999999-1111-4111-8111-111111111111"]');
     assert.equal(await selection.isDisabled(), true, "opt-in does not bypass publication");
     assert.match(await page.locator("#shortcutBatchHost").innerText(), /publish/i);
-    await selectOverviewTab(page, "invitation");
     const serviceFilter = page.locator("#inviteChannelFilter");
     await serviceFilter.locator('[data-value="email"]').click();
     assert.equal(await selection.isVisible(), true, "filter changes leave the opened Shortcuts workspace intact");

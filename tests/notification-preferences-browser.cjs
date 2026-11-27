@@ -1,5 +1,4 @@
-const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
-const { openBox } = require("./helpers/local-edit-ui.cjs");
+const { refreshFixture, selectInterfaceSettingsTab } = require("./helpers/admin-toolbar.cjs");
 // Synthetic APIs only. Message filters never alter saved audit/receipt content.
 const { chromium } = require("playwright"),
   assert = require("node:assert/strict");
@@ -49,17 +48,22 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
       () => document.querySelector("#inviteOverviewCounts .invite-stat-row"),
     );
     await page.locator("#settingsToggle").click();
-    await page.locator("[data-settings-tab=interface]").click();
+    await selectInterfaceSettingsTab(page, "messages");
     assert.equal(await page.locator("details.notification-settings-disclosure").count(), 0);
     assert.equal(await page.locator("#notificationSettingsHost > .settings-card-heading").isVisible(), true);
-    await page.locator('button[data-notification-mode="phone"]').click();
     const host = page.locator('[data-settings-card="notification-preferences:phone"]');
     await host.waitFor();
-    assert.equal(await host.locator("form").isVisible(), false);
-    await openBox(page, "notification-preferences:phone");
+    assert.equal(await host.locator("form").isVisible(), true);
+    assert.equal(await host.locator(".local-editor-pencil").count(), 0);
+    assert.equal(await host.getByRole("button", { name: "Save", exact: true }).isDisabled(), true);
 
     let admin = host.getByRole("group", { name: "Admin", exact: true }),
       guest = host.getByRole("group", { name: "Guest", exact: true });
+    await admin.getByRole("radio", { name: "Errors only", exact: true }).check();
+    assert.equal(await page.evaluate(() => window.RSVP_ADMIN_NOTIFICATIONS.hasUnsaved()), true);
+    await admin.getByRole("radio", { name: "All messages", exact: true }).check();
+    assert.equal(await host.getByRole("button", { name: "Save", exact: true }).isDisabled(), true);
+    assert.equal(await host.locator("form").evaluate(form => window.RSVP_I18N.isDirty(form)), false);
     assert.equal(
       await admin
         .getByRole("checkbox", {
@@ -188,7 +192,6 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
       await page.locator("#adminMessage").innerText(),
       "Error example",
     );
-    await openBox(page, "notification-preferences:phone");
     admin = host.getByRole("group", { name: "Admin", exact: true });
     await admin
       .getByRole("radio", { name: "All messages", exact: true })
@@ -228,7 +231,6 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
       false,
     );
     await host.getByRole("button", { name: "Cancel", exact: true }).click();
-    await openBox(page, "notification-preferences:phone");
     assert.equal(
       await host
         .getByRole("group", { name: "Admin", exact: true })
@@ -243,6 +245,7 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
         .isChecked(),
       true,
     );
+    await admin.getByRole("radio", { name: "All messages", exact: true }).check();
     await page.evaluate(() => {
       window.__accessPermissions.preset = "custom";
       window.__accessPermissions.sections.settings = "view";
@@ -252,8 +255,10 @@ const noticesRpc=client.rpc;client.rpc=async(name,args)=>{
       () => !document.querySelector("#refreshButton").disabled,
     );
     assert.equal(await host.locator("button[type=submit]").isDisabled(), true);
-    assert.equal(await host.locator("form").isVisible(), false);
-    assert.equal(await host.locator("[data-local-edit]:visible").count(), 0);
+    assert.equal(await host.locator("form").isVisible(), true);
+    assert.equal(await admin.getByRole("radio", { name: "Custom", exact: true }).isChecked(), true);
+    assert.equal(await admin.getByRole("radio", { name: "Custom", exact: true }).isDisabled(), true);
+    assert.equal(await host.locator("button:visible").count(), 0);
     assert.deepEqual(errors, []);
     await page.close();
     for (const policy of [

@@ -14,15 +14,13 @@
     narrowRows: "rsvp_invites_narrow_rows",
     wideRows: "rsvp_invites_wide_rows",
     overviewLayout: "rsvp_overview_layout",
-    overviewTabNames: "rsvp_overview_tab_names",
   };
-  const overviewGroups = [
-    ["information", "Information", ["households", "food", "rsvp"]],
-    ["invitation", "Invitation", ["invites", "services", "language"]],
+  const legacyOverviewGroups = [
+    ["information", ["households", "food", "rsvp"]],
+    ["invitation", ["invites", "services", "language"]],
   ];
-  const overviewCardTabs = new Map(overviewGroups.flatMap(([tab, , ids]) => ids.map(id => [id, tab])));
-  const overviewTabLabels = new Map(overviewGroups.map(([tab, label]) => [tab, label]));
-  const overviewTabNameLimit = 48;
+  const legacyOverviewTabs = new Map(legacyOverviewGroups.flatMap(([tab, ids]) => ids.map(id => [id, tab])));
+  const defaultOverviewOrder = ["households", "invites", "rsvp", "food", "services", "language"];
   const invitesFields = Object.freeze([
     ["householdInfo", "Household info"],
     ["recipient", "Recipient"],
@@ -46,6 +44,18 @@
     ["tablet", "Tablet screen (512–1023 px)", 1, "narrowRows"],
     ["desktop", "Desktop screen (1024 px and wider)", 2, "wideRows"],
   ];
+  const shownFieldsWithoutRecipient = defaultInvitesShownFields.filter(key => key !== "recipient");
+  const freshInvitesProfiles = {
+    phone: { rows: 1, showActions: false },
+    tablet: {
+      rows: 2,
+      shownFields: shownFieldsWithoutRecipient,
+      showActions: false,
+      showInlineActions: true,
+      expandedFields: [],
+    },
+    desktop: { shownFields: shownFieldsWithoutRecipient },
+  };
   const inviteExpandedFields = invitesFields.filter(([key]) => ["householdInfo", "recipient", "reply", "food"].includes(key));
   const inviteSecondLines = {
     household: "Household info", serviceInfo: "Recipient", delivery: "Last sent / last visit", reply: "Food",
@@ -80,7 +90,6 @@
     pickerPreviewId = 0,
     overviewCards = new Map(),
     settingsIconAction,
-    overviewRenameEditor = null,
     draggedOverviewId = null,
     inviteScreen = "phone";
   const T = (...args) => window.RSVP_I18N.t(...args);
@@ -91,12 +100,12 @@
   const preferenceForms = () => [form(), invitesForm(), overviewForm()].filter(Boolean);
   const invitesKinds = ["grouped", "showText", "invitesProfiles"];
   const interfaceKinds = Object.keys(controlIds);
-  const overviewKinds = ["overviewLayout", "overviewTabNames"];
+  const overviewKinds = ["overviewLayout"];
   const kindsFor = node => node === overviewForm() ? overviewKinds : node === invitesForm() ? invitesKinds : interfaceKinds;
   const formFor = kind => overviewKinds.includes(kind) ? overviewForm() : invitesKinds.includes(kind) ? invitesForm() : form();
   function valid(kind, value) {
     if (kind === "overviewLayout") return Array.isArray(value);
-    if (kind === "overviewTabNames" || kind === "invitesProfiles") return value && typeof value === "object" && !Array.isArray(value);
+    if (kind === "invitesProfiles") return value && typeof value === "object" && !Array.isArray(value);
     if (kind === "shownFields") return Array.isArray(value) && new Set(value).size === value.length && value.every(key => inviteFieldKeys.has(key));
     if (kind === "twoRowColumns") return Array.isArray(value) && new Set(value).size === value.length && value.every(key => inviteColumnKeys.has(key));
     if (kind === "grouped") return typeof value === "boolean" || value === "service";
@@ -126,11 +135,14 @@
     return invitesRequiredFields.includes(key) && (screen !== "phone" || key === "delivery");
   }
   function normalizeInvitesProfiles(value, legacy = {}) {
+    // Older saved layouts still use their original fallbacks for omitted fields.
+    const fallbackProfiles = Object.keys(legacy).length ? {} : freshInvitesProfiles;
+    const profiles = valid("invitesProfiles", value) ? value : fallbackProfiles;
     const legacyTwoRow = legacy.twoRowColumns;
     // The old Food column is now part of RSVP. Keep it visible for accounts that had selected it.
     const twoRowFallback = legacyTwoRow?.includes("food") ? [...legacyTwoRow, "reply"] : legacyTwoRow;
     return Object.fromEntries(inviteScreens.map(([screen, , defaultRows, legacyRows]) => {
-      const saved = value?.[screen];
+      const saved = profiles[screen];
       function shown(kind, rows, fallback) {
         // An explicitly saved Phone profile may opt into more fields than the compact default.
         const fields = Array.isArray(saved?.[kind]) ? saved[kind] :
@@ -149,38 +161,30 @@
       }];
     }));
   }
-  function overviewCardTab({ id, tab }) {
-    return overviewTabLabels.has(tab) ? tab : overviewCardTabs.get(id);
-  }
   function normalizeOverviewLayout(value) {
     const saved = Array.isArray(value) ? value : [];
     const cards = new Map();
+    const legacyGroups = new Map();
     const hasHouseholds = saved.some(item => item?.id === "households" && typeof item.shown === "boolean");
     for (const item of saved) {
       // Preserve the existing Households choice when both old cards were saved.
       const id = !hasHouseholds && item?.id === "guests" ? "households" : item?.id;
-      if (overviewCardTabs.has(id) && typeof item.shown === "boolean" && !cards.has(id)) {
-        const card = { id, shown: item.shown };
-        // Legacy layouts and cards assigned to their default tab need no extra key.
-        if (overviewTabLabels.has(item.tab) && item.tab !== overviewCardTabs.get(id)) card.tab = item.tab;
-        cards.set(id, card);
+      if (legacyOverviewTabs.has(id) && typeof item.shown === "boolean" && !cards.has(id)) {
+        cards.set(id, { id, shown: item.shown });
+        if (item.tab === "information" || item.tab === "invitation") legacyGroups.set(id, item.tab);
       }
     }
-    for (const id of overviewCardTabs.keys()) if (!cards.has(id)) cards.set(id, { id, shown: true });
-    return overviewGroups.flatMap(([tab]) => [...cards.values()].filter(card => overviewCardTab(card) === tab));
-  }
-  function normalizeOverviewTabNames(value) {
-    const names = {};
-    for (const tab of overviewTabLabels.keys()) {
-      const name = typeof value?.[tab] === "string" ? value[tab].trim().slice(0, overviewTabNameLimit) : "";
-      if (name) names[tab] = name;
-    }
-    return names;
+    const fallbackOrder = legacyGroups.size ? legacyOverviewTabs.keys() : defaultOverviewOrder;
+    for (const id of fallbackOrder) if (!cards.has(id)) cards.set(id, { id, shown: true });
+    const order = [...cards.values()];
+    // Explicit group assignments identify an older layout. Read those cards in the
+    // original visual order, then use one flat order for any later saves.
+    return legacyGroups.size ? legacyOverviewGroups.flatMap(([tab]) =>
+      order.filter(({ id }) => (legacyGroups.get(id) || legacyOverviewTabs.get(id)) === tab)) : order;
   }
   function copyValue(kind, value) {
     if (kind === "shownFields") return normalizeShownFields(value);
     if (kind === "overviewLayout") return normalizeOverviewLayout(value);
-    if (kind === "overviewTabNames") return normalizeOverviewTabNames(value);
     if (kind === "invitesProfiles") return normalizeInvitesProfiles(value);
     if (kind === "twoRowColumns") {
       const selected = new Set([...(valid(kind, value) ? value : defaultInvitesTwoRowColumns), ...invitesRequiredFields]);
@@ -193,8 +197,7 @@
   }
   function sameValue(kind, a, b) {
     if (kind === "overviewLayout")
-      return a.every(({ id, shown, tab }, index) => id === b[index].id && shown === b[index].shown && tab === b[index].tab);
-    if (kind === "overviewTabNames") return [...overviewTabLabels.keys()].every(tab => a[tab] === b[tab]);
+      return a.every(({ id, shown }, index) => id === b[index].id && shown === b[index].shown);
     if (kind === "invitesProfiles") return JSON.stringify(a) === JSON.stringify(b);
     return ["shownFields", "twoRowColumns"].includes(kind)
       ? a.length === b.length && a.every((value, index) => value === b[index])
@@ -222,13 +225,15 @@
                 narrowRows: 1,
                 wideRows: 2,
                 overviewLayout: normalizeOverviewLayout(),
-                overviewTabNames: {},
               }[kind],
         ];
       }),
     );
-    const legacy = { ...values };
-    for (const key of ["narrowRows", "wideRows"]) if (!valid(key, metadata[fields[key]])) delete legacy[key];
+    const legacy = Object.fromEntries(
+      ["shownFields", "twoRowColumns", "narrowRows", "wideRows"]
+        .filter(kind => valid(kind, metadata[fields[kind]]))
+        .map(kind => [kind, values[kind]]),
+    );
     values.invitesProfiles = normalizeInvitesProfiles(metadata[fields.invitesProfiles], legacy);
     return values;
   }
@@ -280,10 +285,9 @@
     const sample = element("interfaceSampleDate");
     if (sample) sample.disabled = busy || !account;
     const overviewSave = element("saveOverviewAppearance"), reset = element("resetOverviewAppearance");
-    if (overviewSave) overviewSave.disabled = busy || !account || !!overviewRenameEditor || !hasUnsaved(overviewKinds);
-    if (reset) reset.disabled = busy || !account || !draft || (
-      !Object.keys(draft.overviewTabNames).length && sameValue("overviewLayout", draft.overviewLayout, normalizeOverviewLayout())
-    );
+    if (overviewSave) overviewSave.disabled = busy || !account || !hasUnsaved(overviewKinds);
+    if (reset) reset.disabled = busy || !account || !draft ||
+      sameValue("overviewLayout", draft.overviewLayout, normalizeOverviewLayout());
     for (const node of preferenceForms()) node.setAttribute("aria-busy", String(busy));
     for (const button of overviewForm()?.querySelectorAll("#overviewCardOrder button,#overviewCardOrder input") || [])
       button.disabled = busy || !account;
@@ -313,93 +317,21 @@
     renderDateTimeExample();
   }
   function canMoveOverviewCard(id, target) {
-    return !busy && !!account && id !== target && overviewCards.has(id) && (!target || overviewCards.has(target));
+    return !busy && !!account && id !== target && overviewCards.has(id) && overviewCards.has(target);
   }
-  function moveOverviewCard(id, tab, target, after) {
+  function moveOverviewCard(id, target, after) {
     if (!draft || !canMoveOverviewCard(id, target)) return;
     const layout = draft.overviewLayout;
     const moved = layout.find(card => card.id === id);
-    if (target && overviewCardTab(moved) === tab) {
-      const inGroup = card => overviewCards.has(card.id) && overviewCardTab(card) === tab;
-      const eligible = layout.filter(card => inGroup(card) && card.id !== id);
-      eligible.splice(eligible.findIndex(card => card.id === target) + Number(after), 0, moved);
-      // Reordering within a tab keeps temporarily unavailable cards in their slots.
-      let next = 0;
-      stage("overviewLayout", layout.map(card => inGroup(card) ? eligible[next++] : card));
-      return;
-    }
-    const remaining = layout.filter(card => card.id !== id);
-    const position = target ? remaining.findIndex(card => card.id === target) + Number(after) : remaining.length;
-    remaining.splice(position, 0, { ...moved, tab });
-    stage("overviewLayout", remaining);
+    const available = card => overviewCards.has(card.id);
+    const eligible = layout.filter(card => available(card) && card.id !== id);
+    eligible.splice(eligible.findIndex(card => card.id === target) + Number(after), 0, moved);
+    // Keep permission-hidden cards in their slots while reordering visible settings.
+    let next = 0;
+    stage("overviewLayout", layout.map(card => available(card) ? eligible[next++] : card));
   }
   function clearOverviewDropHint(host) {
     host.querySelector("[data-overview-drop]")?.removeAttribute("data-overview-drop");
-  }
-  function closeOverviewRename(restoreFocus = false) {
-    if (!overviewRenameEditor) return;
-    const tab = overviewRenameEditor.dataset.overviewRenameEditor;
-    overviewRenameEditor.remove();
-    overviewRenameEditor = null;
-    const trigger = overviewForm()?.querySelector('[data-overview-rename-tab="' + tab + '"]');
-    trigger?.setAttribute("aria-expanded", "false");
-    trigger?.removeAttribute("aria-controls");
-    if (restoreFocus) trigger?.focus({ preventScroll: true });
-  }
-  function renameOverviewTab(tab, name, title, trigger) {
-    if (busy || !draft) return;
-    const wasOpen = overviewRenameEditor?.dataset.overviewRenameEditor === tab;
-    closeOverviewRename(wasOpen);
-    if (wasOpen) {
-      updateControls();
-      return;
-    }
-    const R = window.RSVP;
-    const editor = R.dom("section", { id: "overview-tab-rename-" + tab, class: "inline-editor-panel overview-tab-rename" });
-    editor.dataset.overviewRenameEditor = tab;
-    editor.setAttribute("role", "dialog");
-    editor.setAttribute("aria-label", title);
-    const input = R.dom("input", { type: "text", placeholder: T(name) });
-    input.maxLength = overviewTabNameLimit;
-    input.dataset.overviewTabName = tab;
-    input.value = draft.overviewTabNames[tab] || "";
-    // The typed name is local to this editor until its Save button is used.
-    input.addEventListener("input", event => event.stopPropagation());
-    const label = R.dom("label", {}, T("Name"));
-    label.append(input);
-    const actions = R.dom("div", { class: "form-actions" });
-    const cancel = R.dom("button", { type: "button", class: "btn secondary" }, T("Cancel"));
-    const save = R.dom("button", { type: "button", class: "btn" }, T("Save"));
-    const dismiss = () => {
-      closeOverviewRename(true);
-      updateControls();
-    };
-    cancel.addEventListener("click", dismiss);
-    save.addEventListener("click", () => {
-      if (busy || !draft) return;
-      closeOverviewRename(true);
-      stage("overviewTabNames", { ...draft.overviewTabNames, [tab]: input.value });
-    });
-    editor.addEventListener("keydown", event => {
-      if (event.isComposing) return;
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        dismiss();
-      } else if (event.key === "Enter" && event.target === input) {
-        event.preventDefault();
-        save.click();
-      }
-    });
-    actions.append(cancel, save);
-    editor.append(label, actions);
-    overviewRenameEditor = editor;
-    trigger.parentElement.after(editor);
-    trigger.setAttribute("aria-expanded", "true");
-    trigger.setAttribute("aria-controls", editor.id);
-    updateControls();
-    input.focus();
-    input.select();
   }
   function showOverviewMoves(id, label, trigger, moves) {
     const key = "overview-card-reorder";
@@ -428,53 +360,20 @@
     element("adminApp").append(dialog);
     dialog.openInline();
   }
-  function renderOverviewGroup(host, tab, name, layout, names) {
+  function renderOverviewLayout() {
+    const host = element("overviewCardOrder");
+    if (!host) return;
+    host.closest("[data-settings-card]").hidden = !overviewCards.size;
+    const active = document.activeElement, activeRow = active?.closest("[data-overview-setting]");
+    const activeId = host.contains(activeRow) ? activeRow.dataset.overviewSetting : null;
+    const activeGrip = active?.hasAttribute("data-overview-grip");
     const R = window.RSVP;
-    const available = layout.filter(card => overviewCards.has(card.id));
-    const eligible = available.filter(card => overviewCardTab(card) === tab);
-    const group = R.dom("li", { class: "overview-card-setting-group" });
-    group.dataset.overviewSettingTab = tab;
-    const heading = R.dom("h3", { id: "overviewCardGroup-" + tab }, names[tab] || T(name));
-    const list = R.dom("ol", { class: "overview-card-settings" });
-    list.setAttribute("aria-labelledby", heading.id);
-    const header = R.dom("div", { class: "overview-tab-heading" });
-    header.append(heading);
-    group.append(header);
-    const title = T("Rename") + " · " + heading.textContent;
-    const rename = settingsIconAction("edit", title, null, busy || !account, "overview-tab-pencil");
-    rename.dataset.overviewRenameTab = tab;
-    rename.setAttribute("aria-haspopup", "dialog");
-    const renaming = overviewRenameEditor?.dataset.overviewRenameEditor === tab;
-    rename.setAttribute("aria-expanded", String(renaming));
-    if (renaming) {
-      rename.setAttribute("aria-controls", overviewRenameEditor.id);
-      group.append(overviewRenameEditor);
-    }
-    rename.addEventListener("click", () => renameOverviewTab(tab, name, title, rename));
-    header.append(rename);
-    const canDropOnGroup = event => !event.target.closest("[data-overview-setting]") &&
-      canMoveOverviewCard(draggedOverviewId) && !eligible.some(card => card.id === draggedOverviewId);
-    group.addEventListener("dragover", event => {
-      if (!canDropOnGroup(event)) return;
-      clearOverviewDropHint(host);
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "move";
-      group.dataset.overviewDrop = "inside";
-    });
-    group.addEventListener("dragleave", event => {
-      if (!(event.relatedTarget instanceof Node) || !group.contains(event.relatedTarget))
-        group.removeAttribute("data-overview-drop");
-    });
-    group.addEventListener("drop", event => {
-      if (!canDropOnGroup(event)) return;
-      event.preventDefault();
-      const source = draggedOverviewId;
-      draggedOverviewId = null;
-      clearOverviewDropHint(host);
-      moveOverviewCard(source, tab);
-    });
+    const layout = draft?.overviewLayout || normalizeOverviewLayout();
+    const eligible = layout.filter(card => overviewCards.has(card.id));
+    draggedOverviewId = null;
+    host.replaceChildren();
     for (const [index, { id, shown }] of eligible.entries()) {
-      const { label } = overviewCards.get(id);
+      const label = overviewCards.get(id);
       const row = R.dom("li", { class: "overview-card-setting" });
       const cardLabel = R.dom("span", { class: "overview-card-label" }, label);
       row.dataset.overviewSetting = id;
@@ -486,16 +385,13 @@
       grip.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown");
       grip.draggable = !busy && !!account;
       const moves = [];
-      const groupIndex = overviewGroups.findIndex(([key]) => key === tab);
       for (const [key, offset, caption] of [["ArrowUp", -1, "Move up"], ["ArrowDown", 1, "Move down"]]) {
         const neighbor = eligible[index + offset];
-        const destination = neighbor ? tab : overviewGroups[groupIndex + offset]?.[0];
-        if (!destination) continue;
-        const target = neighbor || available.filter(card => overviewCardTab(card) === destination).at(offset < 0 ? -1 : 0);
+        if (!neighbor) continue;
         moves.push({
           key,
-          caption: T(caption) + (neighbor ? "" : " · " + (names[destination] || T(overviewTabLabels.get(destination)))),
-          move: () => moveOverviewCard(id, destination, target?.id, neighbor ? offset > 0 : offset < 0),
+          caption: T(caption),
+          move: () => moveOverviewCard(id, neighbor.id, offset > 0),
         });
       }
       grip.addEventListener("click", () => showOverviewMoves(id, label, grip, moves));
@@ -534,7 +430,7 @@
         const source = draggedOverviewId;
         draggedOverviewId = null;
         clearOverviewDropHint(host);
-        moveOverviewCard(source, tab, id, afterPointer(event));
+        moveOverviewCard(source, id, afterPointer(event));
       });
       const choice = R.dom("label", { class: "checkbox-label overview-card-visibility" });
       const input = R.dom("input", { type: "checkbox" });
@@ -545,46 +441,18 @@
         card.id === id ? { ...card, shown: input.checked } : card)));
       choice.append(input);
       row.append(grip, cardLabel, choice);
-      list.append(row);
+      host.append(row);
     }
-    group.append(list);
-    return group;
-  }
-  function renderOverviewLayout() {
-    const host = element("overviewCardOrder");
-    if (!host) return;
-    host.closest("[data-settings-card]").hidden = !overviewCards.size;
-    if (!overviewCards.size) {
-      closeOverviewRename();
-      host.replaceChildren();
-      return;
-    }
-    const active = document.activeElement, activeRow = active?.closest("[data-overview-setting]");
-    const activeId = host.contains(activeRow) ? activeRow.dataset.overviewSetting : null;
-    const activeGrip = active?.hasAttribute("data-overview-grip");
-    const activeRename = active?.dataset.overviewRenameTab;
-    const activeInRename = overviewRenameEditor?.contains(active);
-    const layout = draft?.overviewLayout || normalizeOverviewLayout();
-    draggedOverviewId = null;
-    host.replaceChildren(...overviewGroups.map(([tab, name]) =>
-      renderOverviewGroup(host, tab, name, layout, draft?.overviewTabNames || {})));
     const replacement = activeId && host.querySelector('[data-overview-setting="' + activeId + '"]');
-    if (activeInRename) active.focus({ preventScroll: true });
-    else if (replacement) {
-      replacement.querySelector(activeGrip ? "[data-overview-grip]:enabled" : "input:enabled")?.focus({ preventScroll: true });
-    } else if (activeRename) host.querySelector('[data-overview-rename-tab="' + activeRename + '"]:enabled')?.focus({ preventScroll: true });
+    replacement?.querySelector(activeGrip ? "[data-overview-grip]:enabled" : "input:enabled")?.focus({ preventScroll: true });
   }
   function setOverviewCards(cards, iconAction) {
     if (settingsIconAction !== iconAction) {
       settingsIconAction = iconAction;
       syncInviteScreen();
     }
-    const available = new Map(cards.filter(({ id, tab }) => overviewCardTabs.has(id) && overviewCardTabs.get(id) === tab)
-      .map(({ id, label, tab }) => [id, { label, tab }]));
-    if (available.size === overviewCards.size && [...available].every(([id, { label, tab }]) => {
-      const prior = overviewCards.get(id);
-      return prior?.label === label && prior?.tab === tab;
-    })) return;
+    const available = new Map(cards.filter(({ id }) => legacyOverviewTabs.has(id)).map(({ id, label }) => [id, label]));
+    if (available.size === overviewCards.size && [...available].every(([id, label]) => overviewCards.get(id) === label)) return;
     overviewCards = available;
     renderOverviewLayout();
     updateControls();
@@ -1064,7 +932,7 @@
   }
   async function submit(target = form()) {
     const patch = changes(kindsFor(target));
-    if (busy || !account || (target === overviewForm() && overviewRenameEditor) || !Object.keys(patch).length) return;
+    if (busy || !account || !Object.keys(patch).length) return;
     const languageChanged = Object.hasOwn(patch, "language");
     if (languageChanged && !await window.RSVP_I18N.confirmLanguageReload(form()))
       return;
@@ -1080,7 +948,6 @@
   }
   function cancel(target = form()) {
     if (busy || !baseline) return;
-    if (target === overviewForm()) closeOverviewRename();
     for (const kind of kindsFor(target)) draft[kind] = copyValue(kind, baseline[kind]);
     const sample = element("interfaceSampleDate");
     if (target === form() && sample) sample.value = sampleDate;
@@ -1113,14 +980,12 @@
       return { ...profile, shownFields: [...profile.shownFields], twoRowColumns: [...profile.twoRowColumns], expandedFields: [...profile.expandedFields] };
     },
     get overviewLayout() { return normalizeOverviewLayout(baseline?.overviewLayout); },
-    get overviewTabNames() { return { ...baseline?.overviewTabNames }; },
     setOverviewCards,
     hasUnsaved,
     stage,
     cancel: () => cancel(),
     async load(user) {
       const ticket = ++generation;
-      closeOverviewRename();
       if (account?.id !== user?.id) inviteScreen = "phone";
       account = user;
       baseline = preferences(user);
@@ -1140,7 +1005,6 @@
     },
     clear() {
       generation++;
-      closeOverviewRename();
       account = baseline = draft = null;
       invitesDefaults = null;
       inviteScreen = "phone";
@@ -1231,8 +1095,7 @@
     overviewForm()?.addEventListener("submit", event => { event.preventDefault(); submit(overviewForm()); });
     element("cancelOverviewAppearance")?.addEventListener("click", () => cancel(overviewForm()));
     element("resetOverviewAppearance")?.addEventListener("click", () => {
-      closeOverviewRename();
-      if (stage("overviewTabNames", {}) && stage("overviewLayout", normalizeOverviewLayout()))
+      if (stage("overviewLayout", normalizeOverviewLayout()))
         (overviewForm().querySelector("#saveOverviewAppearance:enabled") || element("cancelOverviewAppearance"))?.focus();
     });
     syncInviteGrouping();

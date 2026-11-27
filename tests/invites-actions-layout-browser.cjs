@@ -49,9 +49,9 @@ async function tabletInlineActions(page) {
   await page.evaluate(profile => { window.__fixtureInviteProfiles = { tablet: profile }; }, { showInlineActions, showActions });
   await setFixtureInviteRows(page, rows);
  };
- await setFixtureInviteRows(page, 2);
- assert.equal(await inline.count(), 0, 'Tablet two-row actions are off by default');
- assert.equal(await expanded.count(), 2, 'the existing Expanded household setting remains active');
+ await configure(false, true, 2);
+ assert.equal(await inline.count(), 0, 'the saved Tablet setting can turn off two-row inline actions');
+ assert.equal(await expanded.count(), 2, 'a saved Expanded household setting remains active');
  await configure(true, true, 2);
  assert.equal(await inline.count(), 2);
  assert.equal(await expanded.count(), 2);
@@ -287,12 +287,12 @@ async function groupingChoices(page) {
  assert.ok(await rows.locator('[data-invite-service]').count()>0,'choosing Service groups the visible households immediately');
  assert.equal(await selected.count(),1,'grouping preserves the selected household');
  await grouping.getByRole('radio',{name:'Service',exact:true}).press('ArrowRight');
- assert.equal(await grouping.getByRole('radio',{name:'Alphabetic',exact:true}).isChecked(),true);
- assert.equal(await rows.locator('.invite-overview-group').count(),0,'Alphabetic shows a single list');
+ assert.equal(await grouping.getByRole('radio',{name:'Aa-Zz',exact:true}).isChecked(),true);
+ assert.equal(await rows.locator('.invite-overview-group').count(),0,'Aa-Zz shows a single list');
  assert.deepEqual(await rows.locator('.invite-compact-name').allTextContents(),['Example child','Example hill family'],
-  'Alphabetic sorts by household name despite the opposite saved order');
+  'Aa-Zz sorts by household name despite the opposite saved order');
  assert.deepEqual(await state(),before,'toolbar grouping is a view choice and performs no writes');
- await grouping.getByRole('radio',{name:'Alphabetic',exact:true}).press('Escape');
+ await grouping.getByRole('radio',{name:'Aa-Zz',exact:true}).press('Escape');
  assert.equal(await button.evaluate(node=>node===document.activeElement),true,'Escape returns focus to Group by');
  await refresh(page);
  assert.equal(await rows.locator('.invite-overview-group').count(),0,'data refresh preserves the current grouping');
@@ -455,8 +455,11 @@ async function mergedInvitesGeometry(page) {
    await page.waitForFunction(()=>document.querySelector('#inviteOverviewCounts .invite-stat-row'));
    const screen=width>=1024?'desktop':width>=512?'tablet':'phone';
    assert.equal(await page.locator('#inviteRows').getAttribute('data-screen'),screen,'the exact breakpoint chooses the screen profile');
-   const initialRows=await page.evaluate(screen=>window.RSVP_ADMIN_PREFERENCES.getInvitesProfile(screen).rows,screen);
-   assert.equal(await page.locator('#inviteRows').getAttribute('data-rows'),String(initialRows),'the saved screen profile chooses the row presentation');
+   const initialRows=screen==='phone'?1:2;
+   const rows=page.locator('#inviteRows'), first=rows.locator('.invite-household').first();
+   assert.equal(await rows.getAttribute('data-rows'),String(initialRows),'a fresh account uses the starting row count for its screen');
+   assert.equal(await first.locator(':scope > summary .invite-preview').count(),screen==='phone'?0:1,'fresh Tablet and Desktop profiles show preview in the list');
+   assert.equal(await first.locator('.invite-expanded-actions').count(),0,'fresh profiles keep expanded action buttons off');
    if(width===1024){
     const fields=page.locator('#inviteShownFieldsHost .invite-shown-fields');
     await fields.locator('summary').click();
@@ -472,6 +475,15 @@ async function mergedInvitesGeometry(page) {
     await page.waitForFunction(defaultRows=>document.querySelector('#inviteRows').dataset.screen==='desktop'&&
      document.querySelector('#inviteRows').dataset.rows===String(defaultRows),initialRows);
    }
+   // The remaining layout checks exercise an account with optional actions and Recipient enabled.
+   await page.evaluate(()=>{
+    const shownFields=['recipient','serviceInfo','delivery','reply','food'];
+    window.__fixtureInviteProfiles={
+     phone:{showActions:true},
+     tablet:{showActions:true,showInlineActions:false,shownFields},
+     desktop:{shownFields},
+    };
+   });
    await setFixtureInviteRows(page,1);
    await toolbarGeometry(page,width);
    await searchDisclosure(page,width);

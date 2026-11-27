@@ -13,6 +13,6 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION app_private.valid_placeholder_text(text,text) FROM PUBLIC,anon,authenticated,service_role;
 -- END GENERATED PLACEHOLDER CONTRACT`;
-const file='supabase/migrations/20261114034908_alpha_baseline.sql';const source=fs.readFileSync(file,'utf8');const next=/-- BEGIN GENERATED PLACEHOLDER CONTRACT[\s\S]*?-- END GENERATED PLACEHOLDER CONTRACT/.test(source)?source.replace(/-- BEGIN GENERATED PLACEHOLDER CONTRACT[\s\S]*?-- END GENERATED PLACEHOLDER CONTRACT/,()=>sql):source+'\n'+sql+'\n';
+const file='supabase/migrations/20261114034908_baseline.sql';const source=fs.readFileSync(file,'utf8');const next=/-- BEGIN GENERATED PLACEHOLDER CONTRACT[\s\S]*?-- END GENERATED PLACEHOLDER CONTRACT/.test(source)?source.replace(/-- BEGIN GENERATED PLACEHOLDER CONTRACT[\s\S]*?-- END GENERATED PLACEHOLDER CONTRACT/,()=>sql):source+'\n'+sql+'\n';
 if(process.argv.includes('--check'))assert.equal(next,source,'Placeholder SQL contract is stale');else fs.writeFileSync(file,next);
 console.log('PASS shared scoped browser/SQL placeholder contract');

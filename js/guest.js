@@ -350,7 +350,7 @@
     $("welcomeMessage").textContent =
       wording(window.RSVP_I18N.resolve(content, language) || t("welcome"));
   }
-  matchMedia("(max-width: 700px)").addEventListener("change", () => {
+  matchMedia(window.RSVP_GUEST_INTERFACE.viewportQuery).addEventListener("change", () => {
     if (!eventData?.event) return;
     renderEvent();
     for (const node of document.querySelectorAll("[data-guest-name-id]")) {
@@ -1019,7 +1019,7 @@
     message.focus();
   }
   async function confirmRsvp() {
-    if (!reviewResponses || rsvpSubmitting || !canReviewRsvp()) return;
+    if (!reviewResponses || rsvpSubmitting || foodInterestSaving || !canReviewRsvp()) return;
     const responses = reviewResponses, foodInterest = reviewFoodInterest;
     const combined = foodInterest !== undefined;
     if (!combined && combinedResponseAvailable()) {
@@ -1110,7 +1110,7 @@
   }
   async function saveFoodInterest() {
     const chosen = foodInterestDraft;
-    if (!foodState || foodInterestSaving || foodSavePending || foodState.interest != null ||
+    if (!foodState || foodInterestSaving || foodSavePending || rsvpSubmitting || foodState.interest != null ||
         combinedResponseAvailable() || typeof chosen !== "boolean") return;
     const restoreFocus = document.activeElement === $("confirmFoodInterest");
     foodInterestSaving = true;
@@ -1780,7 +1780,8 @@
     }
     const returning = returningForFood(),
       confirmed = !!foodState?.confirmed,
-      show = confirmed || !!foodReviewSignature;
+      show = confirmed || !!foodReviewSignature,
+      hideSelection = show || foodState?.stage === "interest" || foodState?.interest !== true;
     let followup = $("foodFollowup");
     if (!followup) {
       followup = R.dom("p", {
@@ -1795,14 +1796,8 @@
     $("foodCard").classList.toggle("food-reviewing", show);
     $("foodCard").querySelector("h2").classList.toggle("hidden", returning && confirmed);
     $("foodInterestHost").classList.toggle("hidden", returning || show);
-    $("foodList").classList.toggle(
-      "hidden",
-      show || foodState?.stage === "interest" || foodState?.interest !== true,
-    );
-    $("foodSelectionPrompt")?.classList.toggle(
-      "hidden",
-      show || foodState?.stage === "interest" || foodState?.interest !== true,
-    );
+    $("foodList").classList.toggle("hidden", hideSelection);
+    $("foodSelectionPrompt")?.classList.toggle("hidden", hideSelection);
     $("confirmFood").textContent = t("interface.messages.food_review");
     $("confirmFood").classList.toggle(
       "hidden",

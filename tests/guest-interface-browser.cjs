@@ -26,8 +26,9 @@ assert.equal(await page.locator('[data-settings-card="personal-preferences"]').i
 const appearance=page.locator('#guestAppearanceHost');
 const names=appearance.locator('[data-settings-card="guest-customization:wide"]');
 const phone=appearance.locator('[data-settings-card="guest-customization:phone"]');
+assert.equal(await phone.isVisible(),true);
+await appearance.locator('[data-appearance-mode="wide"]').click();
 assert.equal(await names.isVisible(),true);
-assert.equal(await phone.isVisible(),false);
 await openBox(page,'guest-customization:wide');
 assert.equal(await names.getByRole('combobox',{name:'Guest name placement',exact:true}).isVisible(),true);
 const repeated=names.getByRole('checkbox',{name:'Show repeated surname beside each guest',exact:true});assert.equal(await repeated.isChecked(),true);await repeated.uncheck();

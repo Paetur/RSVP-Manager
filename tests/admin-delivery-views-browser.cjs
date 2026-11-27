@@ -1,4 +1,4 @@
-const { refreshFixture, selectOverviewTab } = require("./helpers/admin-toolbar.cjs");
+const { refreshFixture } = require("./helpers/admin-toolbar.cjs");
 // Real delivery UI and synthetic records; never contacts a populated database.
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -178,7 +178,6 @@ client.rpc=async(name,args)=>{
     await page.evaluate(() => { window.__accessPermissions.sections.households = "none"; });
     await refreshFixture(page);
     await page.waitForFunction(() => !document.querySelector('[data-tab="households"]').getClientRects().length);
-    await selectOverviewTab(page, "invitation");
     const inactive = page.locator(".invite-inactive-households");
     assert.equal(await inactive.evaluate(node => node.open), false, "inactive household records start collapsed");
     assert.equal(await page.locator("#inviteStatusTotal").innerText(), "2", "inactive rows do not change active totals");

@@ -331,6 +331,7 @@ html[data-theme] :is(body.guest-customized, .customization-sample) .rsvp-inline 
   background: color-mix(in srgb, var(--teal) 20%, transparent);
   color: var(--ink);
 }
+#adminApp .settings-card .screen-profile-range { margin: 0; }
 .guest-mode-settings.guest-appearance-modes { display: block; }
 .guest-appearance-modes > .guest-mode-settings-card > .settings-card-heading {
   position: absolute;

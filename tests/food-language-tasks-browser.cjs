@@ -69,7 +69,7 @@ async function run(type){const browser=await type.launch({headless:true});try{
  if(!await inviteHousehold.evaluate(node=>node.open))await inviteName.click();
  const rsvpPanel=page.locator('#invite-rsvp-22222222-2222-4222-8222-222222222222');
  await rsvpPanel.locator('summary').first().click();
- assert.ok(await rsvpPanel.getByText('Open for responses',{exact:true}).isVisible());
+ assert.equal(await rsvpPanel.locator('.invite-rsvp-state').innerText(),'Open');
  assert.ok(await rsvpPanel.getByRole('cell',{name:'Dinner',exact:true}).first().isVisible());
  if(process.env.RSVP_LAYOUT_PREVIEW&&type.name()==='chromium')await rsvpPanel.screenshot({path:process.env.RSVP_LAYOUT_PREVIEW+'/invites-rsvp-management.png'});
  await inviteName.click();

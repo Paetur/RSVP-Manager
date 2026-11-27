@@ -173,10 +173,6 @@ async function createGuestJourneyFixture(origin) {
         "SELECT public.admin_correct_rsvp($1,$2,$3,'Synthetic correction') v",
         [person.guest, sessions[0], status],
       ),
-      reopen: person => organizer(
-        "SELECT public.admin_reopen_household_rsvp($1,'Synthetic reopening') v",
-        [person.id],
-      ),
       enableFood: () => db.exec("UPDATE public.event_settings SET food_enabled=true WHERE id=1"),
       openFoodChoices: () => organizer("SELECT public.admin_set_food_stage('selection','interest') v"),
       denyFoodAccess: person => organizer("SELECT public.admin_set_food_access($1,false,true,'Synthetic permission check') v", [person.id]),

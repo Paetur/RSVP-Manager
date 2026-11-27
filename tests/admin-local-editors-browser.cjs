@@ -92,19 +92,15 @@ const { server, mock, extra, stageExtra, out } =
     await page.locator("[data-settings-panel=checklist]")
       .screenshot({ path: path.join(out, "interface-edit-phone.png") });
     await page.locator("[data-settings-tab=interface]").click();
-    for (const key of ["guest-customization:wide", "notification-preferences:wide"]) {
-      const form = await openBox(page, key);
-      assert(await form.isVisible());
-      const cancel = form.getByRole("button", { name: "Cancel", exact: true });
-      await cancel.click();
-      await page.waitForFunction(
-        (k) =>
-          !document
-            .querySelector('[data-editor-key="' + k + '"]')
-            .classList.contains("local-editor-open"),
-        key,
-      );
-    }
+    const appearance = await openBox(page, "guest-customization:phone");
+    assert(await appearance.isVisible());
+    await appearance.getByRole("button", { name: "Cancel", exact: true }).click();
+    await appearance.waitFor({ state: "hidden" });
+    await selectInterfaceSettingsTab(page, "messages");
+    const messages = page.locator('[data-form-key="notification-preferences:phone"]');
+    assert.equal(await messages.isVisible(), true);
+    await messages.getByRole("button", { name: "Cancel", exact: true }).click();
+    assert.equal(await messages.isVisible(), true);
     await page.locator("[data-settings-tab=templates]").click();
     await page.locator("details.template-create > summary").click();
     await page.locator('[data-form-key="invitation-template:new"]').waitFor();
@@ -152,12 +148,21 @@ const { server, mock, extra, stageExtra, out } =
         .count(),
       0,
     );
-    assert.equal(
-      await page
-        .locator('[data-local-edit^="notification-preferences:"]:visible')
-        .count(),
-      0,
+    await selectInterfaceSettingsTab(page, "messages");
+    assert.equal(await page.locator("#settingsEventMessages #notificationSettingsHost").isVisible(), true);
+    assert.equal(await messages.getByRole("radio").first().isDisabled(), true);
+    assert.equal(await messages.locator("button:visible").count(), 0);
+    await page.evaluate(() => {
+      window.__accessPermissions.preset = "custom";
+      window.__accessPermissions.sections.settings = "none";
+    });
+    await refreshFixture(page);
+    await page.waitForFunction(
+      () => !document.getElementById("refreshButton").disabled,
     );
+    assert.equal(await page.locator("#settingsTabEventMessages").isVisible(), false);
+    assert.equal(await page.locator("#settingsEventMessages").isVisible(), false);
+    assert.equal(await personal.isVisible(), true, "losing settings access returns to personal Interface");
     assert.deepEqual(errors, []);
     console.log(
       "PASS local editing: global switch absent; independent boxes, local Save/Cancel, failed drafts retained, successful Save closes only its box, bound guards, unpublished state, templates/Interface panels and view-only permissions.",

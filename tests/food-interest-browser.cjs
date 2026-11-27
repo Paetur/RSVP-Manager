@@ -297,7 +297,7 @@ client.functions.invoke=async(name,request)=>{
     assert.equal(await page.evaluate(() => window.__stageWrites), 4, "the Food shortcut changes only the food stage");
     assert.deepEqual(errors, []);
     console.log(
-      "PASS food interest UI: explicit confirmation, failed-save retry and conflict recovery, translated locked answers after reload, hidden menu, admin layout and stage switch",
+      "PASS food interest UI: first confirmations, retry and conflict recovery, translated locked answers, preserved commitments, hidden menu, admin layout and stage switch",
     );
   } finally {
     if (browser) await browser.close();

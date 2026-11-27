@@ -30,7 +30,19 @@ Use the **Sessions** tab to add and arrange activities. The editor groups the ve
 
 ## Replies
 
-Open Households → Household details for session invitations; use Invites for RSVP management. Review which sessions each household and individual is invited to. Use the provided correction/reopening actions when a guest needs help changing a submitted reply; keep a clear reason for the change.
+Open **Main → Invites**, expand the household, and select **RSVP** to see the current replies and response window. Session invitations are under **Households → Household details**.
+
+With **Invites** edit access, select **Edit RSVP** to record or correct attendance. The household’s first submission locks the guest response form. Organizer corrections appear on its original invitation link, and the first submission stays in history. **Food** edit access also lets you correct a submitted household’s food answer. Edit dishes or quantities in **Home → Food** and remove any existing commitments there before choosing **I can’t bring food**.
+
+![Edit RSVP for a locked household with attendance, food interest and Add guest controls](images/ipad-edit-rsvp.png)
+
+With **Households** edit access, select the pencil at the end of a guest row to open **Edit guest**. **Save** applies the guest details and updates the guest’s name in the RSVP rows. **Cancel** discards the guest-detail changes. Both return you to the pencil with the RSVP draft intact.
+
+![Edit guest dialog opened from an attendance row in Edit RSVP](images/ipad-rsvp-edit-guest.png)
+
+Use **Add guest** in **Edit RSVP** to add a forgotten spouse or child. They follow the household’s session invitations. If the RSVP is locked, record their required attendance answers before saving. Select **Review changes**, check the summary and select **Confirm**. Select **Add a note** during review to record private context in Logs. [Logs guide](Administrators.md#logs)
+
+If a household misses the deadline for its first submission, use **Allow a late response** to set a new cutoff. Review and confirm the new deadline, with an optional private note.
 
 The RSVP deadline in **Home → Events → Event settings** applies across the event, including invitations with sessions at several venues. Enter the deadline using the event timezone selected beside it.
 
@@ -56,25 +68,29 @@ Use `Dear {contact_salutation},` in Subject, Message or Short Message to address
 
 ## Invites overview
 
-**Home → Main** opens the Overview and Invites list. The Overview starts on **Information**, with Households and Guests in one card, followed by Food items and New RSVP submissions. The **Invitation** tab contains Invites, Services and Language. The Invites toolbar has **Group by**, **View**, **Select** and **Search**. Choose **Select** and check households to see **Make draft(s)**, **Make invitation(s)** and **Mark sent**.
+**Home → Main** opens the Overview and Invites list. Cards are up to 260 CSS pixels wide. Consecutive cards stack in the same column if they fit within the height of the tallest card. The default order is Households and Guests, Invites, New RSVP submissions, Food items, Services and Language. Swipe or scroll horizontally to see more columns, or use the arrow buttons to move one column at a time.
+
+![Main Overview with consecutive cards stacked in horizontally scrollable columns](images/ipad-overview.png)
+
+The Invites toolbar sits above the household list with **Group by**, **View**, **Select** and **Search**. Choose **Select** and check households to see **Make draft(s)**, **Make invitation(s)** and **Mark sent**.
 
 Keep **Main** open to see qualifying invitation visits, RSVP responses, and food changes update the Overview totals. You can still click any count that filters Invites. Live updates keep the current filters, selection, and open edits in place.
 
-Active filters appear above the list, including filters from the other Overview tab. Use **Clear filters** to reset them and clear any search. Your grouping, row layout and shown fields stay as selected.
+Active filters appear at the bottom left of Overview and continue to apply as you scroll through the cards. If all Overview cards are hidden, active searches appear above the Invites list. Use **Clear filters** to reset the filters and clear any search. Your grouping, row layout and shown fields stay as selected.
 
-![The Information tab of Overview with expanded top-level household groups, Food items, and RSVP submissions](images/ipad-overview.png)
+Open **Settings → Interface → Overview appearance** to select which cards appear and set their left-to-right order. Drag a card’s grip to reorder it, tap the grip for move actions, or focus it and press Up or Down. Select **Save** to apply the layout to your account on every screen size. **Reset to defaults** restores the starting order and visibility after saving. Hiding a card in Settings clears its filters.
 
-Open **Settings → Interface → Overview appearance** to select which cards appear. Drag the grip to the left of a card to move it within or between tabs. Tap the grip for move actions, or focus it and press Up or Down. Use the pencil beside a tab name to open its rename editor underneath. Save the name there, then select **Save** in the panel to apply the layout to your account on every screen size. **Reset to defaults** restores the starting names, order and visibility after saving. Switching tabs preserves active filters. Hiding a card in Settings clears its filters.
+In the **Invites** card, click **No drafts**, **Review**, **Ready**, **Sent**, **Not seen**, **Seen**, **Waiting Reply** or **Replied** to filter the list. Click the active filter again to clear it. **No drafts** shows households without a current delivery. **Review** shows drafts. A household can have a sent invitation and a new reminder draft. In **New RSVP submissions**, expand **Sessions** and select a session to scope attendance counts and the matching households. Select it again to return to all sessions. Click **Attending**, **Not attending** or **Unanswered** to filter by those responses. A household with mixed answers can match more than one attendance filter.
 
-In **Overview → Invitation → Invites**, click **No drafts**, **Review**, **Ready**, **Sent**, **Not seen**, **Seen**, **Waiting Reply** or **Replied** to filter the list. Click the active filter again to clear it. **No drafts** shows households without a current delivery. **Review** shows drafts. A household can have a sent invitation and a new reminder draft. In **New RSVP submissions**, expand **Sessions** and select a session to scope attendance counts and the matching households. Select it again to return to all sessions. Click **Attending**, **Not attending** or **Unanswered** to filter by those responses. A household with mixed answers can match more than one attendance filter.
+![The Invites toolbar above the household list](images/ipad-invites.png)
 
-![Invites with Email and WhatsApp selected under Services and Clear filters above the household list](images/ipad-invites.png)
+Use the clickable **Top-level groups** and **Relational groups** in the Households card to narrow the list. **Top-level groups** starts expanded. **Relational groups** starts expanded when there are four groups or fewer. A relational parent includes its descendants. Multiple choices within a tree are combined, and the two trees can be used together. Click an active choice again to clear it. Select one or more rows in **Language** or **Services** to narrow the list. Deselect the last choice to show all households that match the other filters. Click the **Search** icon beside **Select** to search household and recipient details. Click the icon again, choose **×**, or press **Escape** to close the field and clear the search.
 
-Use the clickable **Top-level groups** and **Relational groups** in the Households card to narrow the list. **Top-level groups** starts expanded. A relational parent includes its descendants. Multiple choices within a tree are combined, and the two trees can be used together. Click an active choice again to clear it. Select one or more rows in **Language** or **Services** to narrow the list. Deselect the last choice to show all households that match the other filters. Click the **Search** icon beside **Select** to search household and recipient details. Click the icon again, choose **×**, or press **Escape** to close the field and clear the search.
-
-Invites lists active households containing guests. Open **Group by** beside **View** to choose **Alphabetic**, **Relational** or **Service** for the current view. Set your saved default under **Settings → Interface → Invites appearance**. Alphabetic sorts households by name in a single list. Relational follows the group order in Households. Service grouping uses Messages, Email, WhatsApp, SMS and None. Messages is the default mobile route when no service was chosen. SMS retains an explicit SMS choice, and None uses templates tagged Manual.
+Invites lists active households containing guests. Open **Group by** beside **View** to choose **Aa-Zz**, **Relational** or **Service** for the current view. Set your saved default under **Settings → Interface → Invites appearance**. **Aa-Zz** sorts households by name in a single list. Relational follows the group order in Households. Service grouping uses Messages, Email, WhatsApp, SMS and None. Messages is the default mobile route when no service was chosen. SMS retains an explicit SMS choice, and None uses templates tagged Manual.
 
 Open **Invites appearance** and choose **Phone** below 512 CSS pixels, **Tablet** from 512 to 1023 CSS pixels, or **Desktop** at 1024 CSS pixels and wider. Choose **Rows** and **Shown fields** for that screen. The **Preview** starts open and updates as you make changes. Choose **Save** to apply the settings or **Cancel** to discard the draft. Use **1 Row** or **2 Row** in **View** to switch the current list layout.
+
+A new account starts with **Relational** grouping and **Show Text button** on. **Phone** starts in **1 Row** with Household, Invitation and RSVP shown, and Action buttons off under **Expanded household**. **Tablet** starts in **2 Row** with Action buttons in the list and all **Expanded household** options off. **Desktop** starts in **2 Row** with Action buttons in the list. The **Recipient** field starts off in the alternate Tablet and Desktop **1 Row** layouts.
 
 **Reset to defaults** restores the Invites appearance saved before your first change with this feature. It restores all three screen profiles, **Group by** and **Show Text button** in the draft. Choose **Save** to apply the reset or **Cancel** to keep the current settings.
 
@@ -159,7 +175,7 @@ Guest lists show adults first, then children, using saved manual order within ea
 
 ## Guest RSVP comments
 
-Guests can add one optional household comment while reviewing attendance, for example dietary requirements. Find the latest comment under **Invites → household → RSVP**. Confirmation stores it with the immutable submission; organizer reopening allows a new submission without changing the old comment. It is separate from internal household notes and is included in full application backups.
+Guests can add one optional household comment while reviewing attendance, for example dietary requirements. Find it under **Invites → household → RSVP**. Confirmation stores it with the original submission for reference and full application backups. Administrators can add a separate private note in Logs when making a correction.
 
 ## Food-interest follow-up
 

@@ -14,6 +14,8 @@ For a dedicated Supabase Cloud project, the [trusted local setup companion](docs
 
 ## Existing installations
 
+Version 0.10.0 lets authorized organizers edit submitted household RSVPs. It also moves status message settings to **Settings → Interface → Event messages**. When updating from 0.9.1, verify and apply reviewed updates for RSVP administration, guest submission, food interest, correction logs and the translation key registry with the matching website files. The backup manifest matches 0.9.1.
+
 Version 0.9.1 adds a filtered Logs query and current translation mappings. Before updating an existing installation, verify those routines and mappings against this release. The 0.9.1 backup manifest matches 0.9.0.
 
 Version 0.9.0 adds guest name display and saved invitation salutations. An installation with the original beta.8 schema needs a reviewed database update for the guest salutation field, related routines and translation mappings. Verify the guest gateway’s compatibility before serving the new website. Backups still use format 3 and 44 tables. The new guest column changes the exact backup manifest, so recover earlier backups on a matching schema and download a fresh Full backup after updating.
@@ -77,14 +79,14 @@ CLI alternative, after `gh auth login`:
 ```bash
 gh variable set RSVP_SUPABASE_URL --repo OWNER/WEBSITE --body 'https://YOUR-PROJECT.supabase.co'
 gh variable set RSVP_PUBLISHABLE_KEY --repo OWNER/WEBSITE --body 'sb_publishable_YOUR_PUBLIC_KEY'
-gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.9.1
+gh workflow run deploy.yml --repo OWNER/WEBSITE --field release_tag=v0.10.0
 ```
 
 Use the workflow filename and release input name from your copy of the [deployment template](deployment/README.md). For direct static hosting without this Actions workflow, upload the wizard's downloaded file as `js/config.js` in the installation directory instead.
 
 ## Current database and backup contract
 
-`supabase/migrations/` contains one baseline, and `supabase/install.sql` is its generated SQL Editor equivalent. Use either installation route once. Do not apply both to the same database. Regenerate/check the SQL Editor file with `node tools/build-install-sql.cjs` / `--check`.
+`supabase/migrations/20261114034908_baseline.sql` is the baseline, and `supabase/install.sql` is its generated SQL Editor equivalent. Use either installation route once. Do not apply both to the same database. Regenerate/check the SQL Editor file with `node tools/build-install-sql.cjs` / `--check`.
 
 Test a fresh install against an empty, independent backend. Restore requires the current backup format and exact schema. The application backup envelope uses format 3 and schema `20261114034908`. Compressed `.json.gz` files contain the same envelope. A clean restore requires an empty, unpublished destination. An existing unpublished installation can also replace event data from a matching Full backup or restart planning from a Partial backup after downloading a fresh Full safety backup. See [Backups](docs/Backups.md).
 

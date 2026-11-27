@@ -4,12 +4,53 @@
   window.RSVP_ADMIN_STATISTICS = {
     create({ R, T, getStore, can, planningLabel, planningConfiguration, setOverviewCards }) {
       const $ = R.byId;
-      const tabs = [
-        { key: "information", button: $("overviewInformationTab"), panel: $("overviewInformationPanel"), label: "Information" },
-        { key: "invitation", button: $("overviewInvitationTab"), panel: $("overviewInvitationPanel"), label: "Invitation" },
-      ];
-      let activeTab = tabs[0];
+      const grid = $("statsGrid"), previous = $("overviewPrevious"), next = $("overviewNext");
+      const columns = grid.firstElementChild;
+      const controls = previous.parentElement;
       const countNodes = new Map();
+      let layoutFrame = 0, scrollBeforeRender = null;
+      function syncScrollControls() {
+        const max = grid.scrollWidth - grid.clientWidth;
+        controls.hidden = max <= 1;
+        grid.tabIndex = controls.hidden ? -1 : 0;
+        previous.setAttribute("aria-disabled", String(grid.scrollLeft <= 1));
+        next.setAttribute("aria-disabled", String(grid.scrollLeft >= max - 1));
+      }
+      function queueLayout() {
+        if (layoutFrame) return;
+        layoutFrame = requestAnimationFrame(() => {
+          layoutFrame = 0;
+          if (grid.clientWidth) {
+            // Keep the height of a single row so only cards that fit can stack.
+            const height = Math.max(0, ...Array.from(columns.children, card => card.getBoundingClientRect().height));
+            columns.style.blockSize = `${height}px`;
+            if (scrollBeforeRender !== null) {
+              grid.scrollLeft = scrollBeforeRender;
+              scrollBeforeRender = null;
+            }
+          }
+          syncScrollControls();
+        });
+      }
+      function scrollCards(direction) {
+        const firstLeft = columns.firstElementChild?.offsetLeft;
+        const nextColumn = Array.from(columns.children).find(card => card.offsetLeft > firstLeft);
+        if (!nextColumn) return;
+        grid.scrollBy({ left: direction * (nextColumn.offsetLeft - firstLeft) });
+        syncScrollControls();
+      }
+      for (const [button, direction] of [[previous, -1], [next, 1]]) {
+        button.addEventListener("click", () => {
+          if (button.getAttribute("aria-disabled") !== "true") scrollCards(direction);
+        });
+      }
+      grid.addEventListener("scroll", syncScrollControls, { passive: true });
+      const layoutObserver = typeof ResizeObserver === "function" ? new ResizeObserver(queueLayout) : null;
+      layoutObserver?.observe(grid);
+      if (!layoutObserver) {
+        window.addEventListener("resize", queueLayout);
+        grid.addEventListener("toggle", queueLayout, true);
+      }
       function currentCounts(store) {
         const { invitedCount, children, available, full, hidden, contributingHouseholds } =
           window.RSVP_ADMIN_OVERVIEW.eventCounts(store, false);
@@ -28,20 +69,6 @@
           if (node.isConnected && node.textContent !== value) node.textContent = value;
         }
       }
-      function selectTab(tab) {
-        activeTab = tab;
-        for (const item of tabs) {
-          const selected = item === tab;
-          item.button.setAttribute("aria-selected", String(selected));
-          item.button.tabIndex = selected ? 0 : -1;
-          item.panel.hidden = !selected;
-          item.panel.inert = !selected;
-        }
-      }
-      for (const tab of tabs) tab.button.addEventListener("click", () => {
-        if (!tab.button.hidden) selectTab(tab);
-      });
-
       function render() {
         const store = getStore();
         const metrics = currentCounts(store);
@@ -51,12 +78,12 @@
           return node;
         }
         const cards = new Map();
-        function card(tab, id, label, value, rows, footnote, headingKey) {
+        function card(id, label, value, rows, footnote, headingKey) {
           const node = R.dom("div", { class: "stat-card stat-card-compact" }),
             heading = R.dom("div", { class: "stat-heading" }),
             counts = R.dom("dl", { class: "stat-counts" });
           node.dataset.overviewCard = id;
-          cards.set(id, { id, label, tab, node });
+          cards.set(id, { id, label, node });
           if (value !== undefined) {
             const total = R.dom("b", {}, value);
             heading.append(headingKey ? metric(headingKey, total) : total);
@@ -74,7 +101,7 @@
         const showHouseholds = can("households"), showInvites = can("invites");
         function filterCard(key, id, label) {
           const caption = T(label);
-          const filter = card("invitation", key, caption, undefined, []);
+          const filter = card(key, caption, undefined, []);
           const list = R.dom("div", { id, class: "invite-stat-rows" });
           list.setAttribute("role", "group");
           list.setAttribute("aria-label", caption);
@@ -82,7 +109,7 @@
         }
         if (showHouseholds || showInvites) {
           const householdsLabel = planningLabel("households");
-          const people = card("information", "households", householdsLabel,
+          const people = card("households", householdsLabel,
             undefined, showInvites ? [] : [
               [T("interface.messages.top_level_groups"), planningConfiguration().groups.length],
               [T("interface.messages.relation_groups"), store.relationGroups.length],
@@ -105,7 +132,6 @@
         }
         if (showInvites) {
           const rsvp = card(
-            "information",
             "rsvp",
             T("interface.messages.new_rsvp_submissions"),
             metrics.submissions,
@@ -117,7 +143,7 @@
             R.dom("div", { id: "inviteAttendanceCounts", class: "invite-stat-rows" }));
         }
         if (can("food")) {
-          const food = card("information", "food", T("food.messages.food_items"), store.food.length, [
+          const food = card("food", T("food.messages.food_items"), store.food.length, [
             [T("interface.messages.available"), metrics.available, "available"],
             [T("interface.messages.fully_assigned"), metrics.full, "full"],
             [T("interface.messages.hidden_status"), metrics.hidden, "hidden"],
@@ -131,7 +157,7 @@
           }
         }
         if (showInvites) {
-          const status = card("invitation", "invites", T("Invites"), 0, []);
+          const status = card("invites", T("Invites"), 0, []);
           status.classList.add("invite-status-card");
           status.querySelector(".stat-heading b").id = "inviteStatusTotal";
           status.querySelector(".stat-counts").remove();
@@ -142,23 +168,25 @@
           filterCard("services", "inviteChannelFilter", "Services");
         }
         const preferences = window.RSVP_ADMIN_PREFERENCES;
-        setOverviewCards([...cards.values()].map(({ id, label, tab }) => ({ id, label, tab })));
-        const visible = preferences.overviewLayout.flatMap(({ id, shown, tab }) => {
+        setOverviewCards([...cards.values()].map(({ id, label }) => ({ id, label })));
+        const visible = preferences.overviewLayout.flatMap(({ id, shown }) => {
           const card = cards.get(id);
-          return shown && card ? [{ ...card, tab: tab || card.tab }] : [];
+          return shown && card ? [card.node] : [];
         });
-        const names = preferences.overviewTabNames || {};
-        for (const tab of tabs) {
-          tab.button.textContent = names[tab.key] || T(tab.label);
-          tab.panel.replaceChildren(...visible.filter(card => card.tab === tab.key).map(card => card.node));
-          tab.button.hidden = !tab.panel.childElementCount;
-        }
-        // Keep inactive cards connected so their filters continue to scope the Invites list.
-        selectTab(!activeTab || activeTab.button.hidden ? tabs.find(tab => !tab.button.hidden) : activeTab);
         const overview = $("overviewPanel");
         $("overviewPanelTitle").textContent = T("Overview");
-        $("overviewTablist").setAttribute("aria-label", T("Overview"));
+        scrollBeforeRender = visible.length ? (scrollBeforeRender ?? grid.scrollLeft) : null;
+        if (layoutObserver) {
+          for (const card of columns.children) layoutObserver.unobserve(card);
+          for (const card of visible) layoutObserver.observe(card, { box: "border-box" });
+        }
+        columns.replaceChildren(...visible);
         overview.hidden = !visible.length;
+        for (const [button, label] of [[previous, "Previous"], [next, "Next"]]) {
+          button.title = T(label);
+          button.setAttribute("aria-label", button.title);
+        }
+        queueLayout();
         let overviewHint = $("overviewAccessSummary");
         if (!overviewHint) {
           overviewHint = R.dom("p", {

@@ -5,6 +5,10 @@
     $ = R.byId,
     A = window.RSVP_ADMIN_ACCESS;
   const can = (section, level = "view") => A.can(section, level);
+  const screenProfiles = {
+    phone: { label: "Phone", range: "interface.messages.invites_phone_screen" },
+    wide: { label: "Wide", range: "interface.messages.wide_screen_512" },
+  };
   let authRecovery = null;
   let eventDataActor = null,
     eventLoadVersion = 0,
@@ -50,10 +54,10 @@
     };
   let publicationBusy = false;
   const mainTabs = ["invites", "events", "venues", "households", "food", "other"];
-  let appearanceMode = "wide",
+  let appearanceMode = "phone",
     appearanceOwner = null,
     appearancePreviewOpen = false,
-    notificationMode = "wide",
+    notificationMode = "phone",
     notificationOwner = null;
   const defaultMainTab = () =>
     mainTabs.find((name) => !A.current || A.tabAllowed(name)) || "settings";
@@ -73,6 +77,17 @@
     if (autoDismiss && window.RSVP_NOTIFICATIONS?.autoDismissAdmin() !== false)
       statusTimer = setTimeout(() => R.showStatus("adminMessage", ""), 5000);
   }
+  function showEventLoading() {
+    show(T("interface.messages.loading_event_data"), "info", false);
+    const notice = $("adminMessage");
+    if (notice.classList.contains("hidden")) return;
+    const spinner = R.dom("span", { class: "bulk-invite-spinner" });
+    spinner.setAttribute("aria-hidden", "true");
+    notice.prepend(spinner);
+  }
+  function clearEventLoading() {
+    if ($("adminMessage").querySelector(".bulk-invite-spinner")) show("");
+  }
   function showEventMenus(ready) {
     $("adminApp").classList.toggle("hidden", !ready);
     qs(".admin-section-menu").classList.toggle("hidden", !ready);
@@ -81,6 +96,7 @@
   function resetEventLoad() {
     eventLoadVersion++;
     eventLoading = false;
+    clearEventLoading();
     manualSendsDuringLoad = null;
     manualSendInvitesOpen = false;
     eventDataActor = null;
@@ -366,7 +382,7 @@
     manualSendsDuringLoad = recordedWhileLoading;
     eventLoading = true;
     if (opening) $("refreshButton").disabled = true;
-    if (showFeedback) show(T("interface.messages.loading_event_data"), "info", !opening);
+    if (showFeedback) showEventLoading();
     try {
       await A.refresh(current);
       if (!current()) return false;
@@ -422,7 +438,6 @@
       eventDataActor = actor;
       manualSendInvitesOpen = recordedWhileLoading.size > 0 && activeTab === "invites";
       changeAlert.loaded(marker);
-      if (opening && showFeedback) show("");
       return true;
     } catch (e) {
       if (current()) {
@@ -433,6 +448,7 @@
     } finally {
       if (version === eventLoadVersion) {
         eventLoading = false;
+        clearEventLoading();
         manualSendsDuringLoad = null;
         guestLive.sync();
       }
@@ -464,11 +480,12 @@
     planningConfiguration,
     setOverviewCards: cards => window.RSVP_ADMIN_PREFERENCES.setOverviewCards(cards, iconAction),
   });
-  matchMedia("(max-width: 700px)").addEventListener("change", () => {
+  matchMedia(window.RSVP_GUEST_INTERFACE.viewportQuery).addEventListener("change", () => {
     window.RSVP_NOTIFICATIONS.configure("admin", window.RSVP_GUEST_INTERFACE.effective(store.settings, undefined, store.languages).notification_preferences?.admin);
   });
   function renderAll() {
     window.RSVP_POPUPS.reconcile(can);
+    rsvpView.reconcile();
     const householdDialog = window.RSVP_POPUPS.get("invites-household-details");
     if (householdDialog && !editableInvitedHousehold(householdDialog.dataset.householdId))
       householdDialog.close();
@@ -797,11 +814,12 @@
       configuration,
     };
   }
-  function buildGuestEditor(guest) {
-    const form = R.dom("form", { class: "guest-edit-form edit-only hidden" });
-    form.dataset.formKey = "guest:" + (guest.id || guest.household_id + ":new");
+  function buildGuestEditor(guest, { close, onSave } = {}) {
+    const form = R.dom("form", { class: close ? "guest-edit-form" : "guest-edit-form edit-only hidden" });
+    if (!close) form.dataset.formKey = "guest:" + (guest.id || guest.household_id + ":new");
     const fields = R.dom("div", { class: "guest-edit-fields" });
-    const restoreOnly = guest.archived_at || store.households.find(h => h.id === guest.household_id)?.archived_at;
+    const household = store.households.find(h => h.id === guest.household_id);
+    const restoreOnly = guest.archived_at || household?.archived_at;
     function labeledInput(
       label,
       value,
@@ -945,7 +963,8 @@
     cancel.dataset.discard = "true";
     cancel.addEventListener("click", () => {
       restoreDraft(form);
-      form.classList.add("hidden");
+      if (close) close();
+      else form.classList.add("hidden");
     });
     buttons.classList.add("form-actions");
     buttons.append(save, cancel);
@@ -953,45 +972,40 @@
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (form.getAttribute("aria-busy") === "true") return;
       const firstName = first.value.trim();
       if (!firstName) {
         first.focus();
         show(T("interface.messages.first_name_is_required"), "warning");
         return;
       }
-      const payload = {
-        p_guest_id: guest.id,
-        p_first_name: firstName,
-        p_last_name: last.value.trim() || null,
-        p_courtesy_title: title.value || null,
-        p_relation: relation.value.trim() || null,
-        p_language: language.value || null,
-        p_is_child: child.checked,
-        p_dietary_requirements: dietary.value.trim() || null,
-        p_notes: notes.value.trim() || null,
-        p_phone: phone.value.trim() || null,
-        p_mobile: mobile.value.trim() || null,
-        p_email: email.value.trim() || null,
-        p_preferred_contact_method: contactMethod.value || null,
+      const values = {
+        first_name: firstName,
+        last_name: last.value.trim() || null,
+        courtesy_title: title.value || null,
+        relation: relation.value.trim() || null,
+        language: language.value || null,
+        is_child: child.checked,
+        dietary_requirements: dietary.value.trim() || null,
+        notes: notes.value.trim() || null,
+        phone: phone.value.trim() || null,
+        mobile: mobile.value.trim() || null,
+        email: email.value.trim() || null,
+        preferred_contact_method: contactMethod.value || null,
       };
-      save.disabled = true;
+      if (salutation?.changed()) values.invitation_salutation = salutation.configuration();
       form.setAttribute("aria-busy", "true");
+      form.cleanSaveUpdate();
       formFeedback(form, "saving");
       try {
-        const fields = Object.fromEntries(
-          Object.entries(payload)
-            .filter(([k]) => k !== "p_guest_id")
-            .map(([k, v]) => [k.slice(2), v]),
-        );
-        if (salutation?.changed()) fields.invitation_salutation = salutation.configuration();
         const { error } = await R.adminRpc("admin_save_guest_details", {
-          p_guest_id: guest.id || null,
-          p_household_id: guest.household_id,
-          p_values: fields,
+          p_guest_id: guest.id || null, p_household_id: guest.household_id, p_values: values,
         });
         if (error) throw error;
         formFeedback(form, "saved");
+        onSave?.(values);
         const refreshed = await reload();
+        close?.();
         if (refreshed)
           show(T("interface.messages.guest_details_saved"), "success");
       } catch (error) {
@@ -1002,7 +1016,7 @@
         form.cleanSaveUpdate?.();
       }
     });
-    if (guest.id) {
+    if (guest.id && !close) {
       footerAction(
         form,
         archiveButton("guests", guest),
@@ -2114,6 +2128,7 @@
     invitations_changed: "Invitation assignments changed",
     submitted: "interface.messages.log_household_rsvp_submitted",
     reopened: "RSVP reopened",
+    admin_locked: "interface.messages.log_rsvp_locked",
     late_submission_authorized: "Late response allowed",
     response_submitted: "Guest response submitted",
     response_corrected: "Guest response corrected",
@@ -2218,6 +2233,7 @@
     after: "interface.messages.after",
     session: "interface.messages.session",
     reason: "interface.messages.log_reason",
+    note: "interface.messages.admin_note",
     submission_id: "interface.messages.log_submission_id",
   };
   const logTechnicalFields = new Set(["entity", "subject_id", "submission_id"]);
@@ -2270,30 +2286,32 @@
     appendLogDetail(technical, T("interface.messages.log_timestamp_utc"), timestamp);
     for (const key of logTechnicalFields) appendLogDetail(technical, logFieldName(key), details[key]);
 
+    const hasRsvpNote = entry.category === "rsvp" || details.entity === "food_interest";
+    const adminNote = hasRsvpNote ? (details.note ?? details.reason ?? details.after?.note ?? details.after?.reason) : null;
+    const shownAsNote = (key) => hasRsvpNote && (key === "note" || key === "reason");
     if (entry.category === "rsvp" && entry.action === "submitted") {
       content.append(R.dom("p", { class: "log-detail-note" }, T("interface.messages.locked_after_submission")));
-      appendLogDetail(content, logFieldName("reason"), details.reason);
     } else if (entry.category === "rsvp" && ["response_submitted", "response_corrected"].includes(entry.action)) {
       if (entry.household_name && entry.household_name !== entry.subject)
         appendLogDetail(content, T("interface.messages.household"), entry.household_name);
       appendLogDetail(content, logFieldName("before"), logResponse(details.before));
       if (entry.action === "response_corrected")
         appendLogDetail(content, logFieldName("after"), logResponse(details.after));
-      appendLogDetail(content, logFieldName("reason"), details.reason);
     } else if (entry.category === "invitations" && entry.action === "opened" && details.recording) {
       content.append(R.dom("p", { class: "log-detail-note" }, T("interface.messages.log_invitation_open_recording")));
     } else if (details.before && typeof details.before === "object" && details.after && typeof details.after === "object") {
       const keys = [...new Set([...Object.keys(details.before), ...Object.keys(details.after)])]
-        .filter((key) => JSON.stringify(details.before[key]) !== JSON.stringify(details.after[key]));
+        .filter((key) => !shownAsNote(key) && JSON.stringify(details.before[key]) !== JSON.stringify(details.after[key]));
       if (keys.length) content.append(makeTable(
         [T("interface.messages.field"), T("interface.messages.before"), T("interface.messages.after")],
         keys.map((key) => [logFieldName(key), formatLogValue(details.before[key]), formatLogValue(details.after[key])]),
       ));
     } else {
       for (const [key, value] of Object.entries(details)) {
-        if (!logTechnicalFields.has(key)) appendLogDetail(content, logFieldName(key), value);
+        if (!logTechnicalFields.has(key) && !shownAsNote(key)) appendLogDetail(content, logFieldName(key), value);
       }
     }
+    appendLogDetail(content, logFieldName("note"), adminNote);
     content.append(technical);
     return content;
   }
@@ -2417,217 +2435,10 @@
       T("interface.messages.administrator")
     );
   }
-  function rsvpSection(h) {
-    const d = disclosure(
-      T("interface.messages.rsvp_management"),
-      "feature-section",
-    );
-    const zone = store.settings?.timezone || "Atlantic/Faroe";
-    d.append(
-      R.dom(
-        "p",
-        { class: "small" },
-        `${h.rsvp_state === "locked" ? T("interface.messages.locked_after_submission") : T("interface.messages.open_for_responses")}${h.rsvp_submitted_at ? T("interface.messages.last_submission_time", { time: adminTime(h.rsvp_submitted_at) }) : ""}`,
-      ),
-    );
-    d.append(
-      R.dom(
-        "p",
-        { class: "micro" },
-        T(
-          "interface.messages.event_deadline_deadline_late_response_permission_late_zone",
-          {
-            deadline: adminTime(store.settings?.rsvp_deadline),
-            late: adminTime(h.late_submission_until),
-            zone,
-          },
-        ),
-      ),
-    );
-    const latest = store.submissions.find(
-      (x) => x.id === h.latest_rsvp_submission_id,
-    );
-    if (latest?.comment) {
-      const note = R.dom("div", {
-        class: "rsvp-comment-preview admin-rsvp-comment",
-      });
-      note.append(
-        R.dom("strong", {}, T("Comment")),
-        R.dom("p", {}, latest.comment),
-      );
-      d.append(note);
-    }
-    const rows = [];
-    for (const g of store.guests.filter(
-      (g) => g.household_id === h.id && !g.archived_at,
-    ))
-      for (const s of ordered(store.sessions, "name").filter(
-        (s) => s.is_active && s.requires_rsvp,
-      )) {
-        const override = store.overrides.find(
-          (o) => o.guest_id === g.id && o.session_id === s.id,
-        );
-        const invited = override
-          ? override.is_invited
-          : store.defaults.find(
-              (x) => x.household_id === h.id && x.session_id === s.id,
-            )?.is_invited;
-        if (!invited) continue;
-        const current =
-          store.responses.find(
-            (r) => r.guest_id === g.id && r.session_id === s.id,
-          )?.rsvp_status || "pending";
-        const name = [g.first_name, g.last_name].filter(Boolean).join(" ");
-        rows.push([
-          name,
-          s.name,
-          {
-            attending: T("interface.messages.attending"),
-            declined: T("interface.messages.not_attending"),
-            pending: T("interface.messages.pending"),
-          }[current] || current,
-        ]);
-        if (!h.archived_at) {
-          const editor = disclosure(
-            T("interface.messages.correct_response") + name + " · " + s.name,
-            "edit-only",
-          );
-          const f = managementForm();
-          const status = field(
-            f,
-            T("interface.messages.corrected_response"),
-            current === "pending" ? "" : current,
-            [
-              ["", T("interface.messages.choose_response")],
-              ["attending", T("interface.messages.attending")],
-              ["declined", T("interface.messages.not_attending")],
-            ],
-            "text",
-            true,
-          );
-          const reason = field(
-            f,
-            T("interface.messages.reason_for_rsvp_correction"),
-            "",
-            null,
-            "textarea",
-            true,
-            2000,
-          );
-          f.append(
-            R.dom(
-              "p",
-              { class: "micro span-2" },
-              T(
-                "interface.messages.this_updates_the_current_response_and_records_the_reason_the_orig",
-              ),
-            ),
-          );
-          editor.append(
-            saveForm(f, T("interface.messages.save_correction"), () =>
-              managementRpc("admin_correct_rsvp", {
-                p_guest_id: g.id,
-                p_session_id: s.id,
-                p_status: status.value,
-                p_reason: reason.value.trim(),
-              }),
-            ),
-          );
-          d.append(editor);
-        }
-      }
-    const table = makeTable(
-      [
-        T("interface.messages.guest"),
-        T("interface.messages.session"),
-        T("interface.messages.current_response"),
-      ],
-      rows,
-    );
-    table.classList.add("rsvp-current-responses");
-    d.insertBefore(table, d.children[2] || null);
-    if (!rows.length)
-      d.append(
-        R.dom(
-          "p",
-          { class: "micro" },
-          T(
-            "interface.messages.no_active_rsvp_sessions_are_assigned_to_this_household",
-          ),
-        ),
-      );
-    if (!h.archived_at) {
-      if (h.rsvp_state === "locked") {
-        const f = managementForm();
-        const reason = field(
-          f,
-          T("interface.messages.reason_for_reopening"),
-          "",
-          null,
-          "textarea",
-          true,
-          2000,
-        );
-        f.append(
-          R.dom(
-            "p",
-            { class: "micro span-2" },
-            T(
-              "interface.messages.reopening_lets_the_household_submit_again_previous_submissions_re",
-            ),
-          ),
-        );
-        d.append(
-          saveForm(f, T("interface.messages.reopen_rsvp"), async () => {
-            if (
-              !await window.RSVP_INLINE.confirm(T(
-                  "interface.messages.reopen_this_household_s_rsvp_while_preserving_its_submission_hist",
-                ), { action: "Reopen RSVP" })
-            )
-              return false;
-            return managementRpc("admin_reopen_household_rsvp", {
-              p_household_id: h.id,
-              p_reason: reason.value.trim(),
-            });
-          }),
-        );
-      } else {
-        const late = disclosure(
-          T("interface.messages.allow_a_late_response"),
-          "edit-only",
-        );
-        const f = managementForm();
-        const until = field(
-          f,
-          T("interface.messages.allow_responses_until") + zone + ")",
-          R.zonedInput(h.late_submission_until, zone),
-          null,
-          "datetime-local",
-          true,
-        );
-        const reason = field(
-          f,
-          T("interface.messages.reason_for_late_response"),
-          "",
-          null,
-          "textarea",
-          true,
-          2000,
-        );
-        late.append(
-          saveForm(f, T("interface.messages.allow_late_response"), () =>
-            managementRpc("admin_authorize_late_rsvp", {
-              p_household_id: h.id,
-              p_until: R.zonedInstant(until.value, zone),
-              p_reason: reason.value.trim(),
-            }),
-          ),
-        );
-        d.append(late);
-      }
-    }
-    return d;
-  }
+  const rsvpView = window.RSVP_ADMIN_RSVP.create({
+    R, T, getStore: () => store, can, ordered, disclosure, makeTable,
+    adminTime, managementRpc, reload, show, iconAction, buildGuestEditor,
+  });
   const { draft: invitationDraft, render: renderInvitationTemplates } =
     window.RSVP_ADMIN_INVITATION_TEMPLATES.create({
       R,
@@ -2785,7 +2596,7 @@
     deliverySection,
     invitationSection,
     managementRpc,
-    rsvpSection,
+    rsvpSection: rsvpView.section,
     householdFacts: h => shortcutsView.householdFacts(h),
     adminTime,
     show,
@@ -3467,7 +3278,7 @@
           const expanded = R.dom("div", { class: "household-expanded" });
           expanded.append(editor, buildGuestList(guests));
           if (can("invites") && store.queue.some(q => q.household_id === h.id)) expanded.append(deliverySection(h));
-          if (!h.archived_at) {
+          if (!h.archived_at && h.rsvp_state === "open" && !h.latest_rsvp_submission_id) {
             const add = disclosure(
               T("interface.messages.add_guest"),
               "edit-only",
@@ -4873,6 +4684,7 @@
     const heading = R.dom("div", { class: "settings-card-heading guest-appearance-heading" });
     heading.append(R.dom("h3", {}, T("Invitation appearance"))); host.append(heading);
     const modes = R.dom("nav", { class: "guest-appearance-mode-tabs" }),
+      range = R.dom("p", { id: "guestAppearanceScreenRange", class: "micro screen-profile-range" }),
       columns = R.dom("div", { class: "guest-mode-settings guest-appearance-modes" }),
       preview = R.dom("details", { class: "guest-appearance-preview" }),
       previewSummary = R.dom("summary"),
@@ -4885,7 +4697,7 @@
     previewSummary.append(previewLabel);
     preview.append(previewSummary, previewContent); preview.open = appearancePreviewOpen;
     preview.addEventListener("toggle", () => { if (preview.isConnected) appearancePreviewOpen = preview.open; });
-    host.append(modes, columns, preview);
+    host.append(modes, range, columns, preview);
     const updateMode = () => {
       const busy = !!host.querySelector('form[aria-busy="true"]');
       for (const button of modes.querySelectorAll("button")) {
@@ -4893,17 +4705,19 @@
         button.setAttribute("aria-selected", String(selected)); button.tabIndex = selected ? 0 : -1; button.disabled = busy;
       }
       for (const [mode, section] of sections) section.classList.toggle("hidden", mode !== appearanceMode);
+      range.textContent = T(screenProfiles[appearanceMode].range);
       const activePreview = previews.get(appearanceMode);
       if (activePreview && activePreview.parentElement !== previewContent) previewContent.replaceChildren(activePreview);
-      previewMode.textContent = T(appearanceMode === "phone" ? "Phone" : "Wide");
+      previewMode.textContent = T(screenProfiles[appearanceMode].label);
       host.dataset.appearanceMode = appearanceMode;
     };
-    for (const mode of ["wide", "phone"]) {
-      const button = R.dom("button", { type: "button", id: "guest-appearance-tab-" + mode }, T(mode === "phone" ? "Phone" : "Wide")),
+    for (const [mode, profile] of Object.entries(screenProfiles)) {
+      const button = R.dom("button", { type: "button", id: "guest-appearance-tab-" + mode }, T(profile.label)),
         section = previousSections.get(mode) || R.dom("section", { class: "guest-mode-settings-card", id: "guest-appearance-mode-" + mode });
       button.setAttribute("role", "tab"); section.setAttribute("role", "tabpanel");
       button.dataset.appearanceMode = mode; button.setAttribute("aria-controls", section.id);
       section.setAttribute("aria-labelledby", button.id); section.dataset.settingsCard = "guest-customization:" + mode;
+      section.setAttribute("aria-describedby", range.id);
       sections.set(mode, section); columns.append(section); modes.append(button);
       button.addEventListener("click", () => {
         if (button.disabled) return;
@@ -4918,20 +4732,25 @@
   }
   function renderNotificationSettings() {
     const host = $("notificationSettingsHost"), owner = user?.id || null,
-      retain = owner === notificationOwner && can("settings"),
+      allowed = can("settings"), retain = owner === notificationOwner && allowed,
       previous = new Map(retain ? [...host.querySelectorAll(".notification-mode-card")].map(section =>
         [section.dataset.settingsCard.split(":")[1], section]) : []);
     if (!retain) window.RSVP_ADMIN_NOTIFICATIONS.clear();
     notificationOwner = owner;
     host.replaceChildren();
-    const heading = R.dom("div", { class: "settings-card-heading guest-appearance-heading notification-heading" }),
+    if (!allowed) {
+      if ($("settingsTabEventMessages").getAttribute("aria-selected") === "true")
+        $("settingsInterfaceTab").click();
+      return;
+    }
+    const heading = R.dom("div", { class: "settings-card-heading" }),
       modes = R.dom("nav", { class: "guest-appearance-mode-tabs notification-mode-tabs" }),
+      range = R.dom("p", { class: "micro screen-profile-range", id: "notification-screen-range" }),
       columns = R.dom("div", { class: "notification-mode-settings" }), sections = new Map();
-    heading.append(R.dom("h3", {}, T("Status messages")));
-    modes.setAttribute("role", "tablist"); modes.setAttribute("aria-label", T("Status messages"));
-    host.append(heading, modes, columns);
-    const landing = document.querySelector(".guest-landing-settings");
-    if (landing && host.parentElement !== landing) landing.append(host);
+    const label = T("interface.messages.event_messages");
+    heading.append(R.dom("h2", {}, label));
+    modes.setAttribute("role", "tablist"); modes.setAttribute("aria-label", label);
+    host.append(heading, modes, range, columns);
     const updateMode = () => {
       const busy = !!host.querySelector('form[aria-busy="true"]');
       for (const button of modes.querySelectorAll("button")) {
@@ -4939,24 +4758,26 @@
         button.setAttribute("aria-selected", String(selected)); button.tabIndex = selected ? 0 : -1; button.disabled = busy;
       }
       for (const [mode, section] of sections) section.classList.toggle("hidden", mode !== notificationMode);
+      range.textContent = T(screenProfiles[notificationMode].range);
       host.dataset.notificationMode = notificationMode;
     };
-    for (const mode of ["wide", "phone"]) {
-      const button = R.dom("button", { type: "button", id: "notification-tab-" + mode }, T(mode === "phone" ? "Phone" : "Wide")),
+    for (const [mode, profile] of Object.entries(screenProfiles)) {
+      const button = R.dom("button", { type: "button", id: "notification-tab-" + mode }, T(profile.label)),
         section = previous.get(mode) || R.dom("section", { class: "notification-mode-card", id: "notification-mode-" + mode });
       button.setAttribute("role", "tab"); button.setAttribute("aria-controls", section.id); button.dataset.notificationMode = mode;
       section.setAttribute("role", "tabpanel"); section.setAttribute("aria-labelledby", button.id);
+      section.setAttribute("aria-describedby", range.id);
       section.dataset.settingsCard = "notification-preferences:" + mode;
       sections.set(mode, section); columns.append(section); modes.append(button);
       button.addEventListener("click", () => {
         if (button.disabled) return;
-        notificationMode = mode; updateMode(); localEditors.refresh();
+        notificationMode = mode; updateMode();
       });
       window.RSVP_ADMIN_NOTIFICATIONS.render({ R, host: section, mode,
         getStore: () => ({ ...store, settings: window.RSVP_GUEST_INTERFACE.effective(store.settings, mode, store.languages) }),
-        can, isEditing: () => true, reload, onUpdate: updateMode, refreshEditors: () => localEditors.refresh() }, true);
+        can, reload, onUpdate: updateMode }, true);
     }
-    updateMode(); localEditors.refresh();
+    updateMode();
   }
 
   function syncApplicationPublication() {

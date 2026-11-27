@@ -14,7 +14,7 @@ assert.equal(
   1,
   "Alpha must have exactly one baseline migration.",
 );
-assert.match(names[0], /^\d{14}_alpha_baseline\.sql$/);
+assert.match(names[0], /^\d{14}_baseline\.sql$/);
 const body = fs.readFileSync(path.join(directory, names[0]), "utf8");
 assert.match(body, /COMMIT;\s*$/, "Fresh installer must finish its transaction after every definition.");
 assert.equal((body.match(/^COMMIT;\s*$/gm) || []).length, 1, "Fresh installer must have one final transaction commit.");
